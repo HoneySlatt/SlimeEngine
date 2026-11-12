@@ -1,6 +1,6 @@
 //! The rectangle that the framework speaks in.
 
-/// A rectangle: its top left corner and its size, y down, as the renderer's canvas and its image
+/// A rectangle: its top left corner and its size, y down, as `uwui-render`'s canvas and its image
 /// parts give theirs (`docs/adr/0139-text-drawn-and-the-display-list.md`). In pixels of the screen,
 /// unless what holds it says otherwise.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

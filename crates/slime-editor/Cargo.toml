@@ -24,8 +24,8 @@ slime-cook.workspace = true
 # The dev overlay's world panel, which the window shows as the hierarchy and the inspector until
 # they come (ADR-0156).
 slime-devui.workspace = true
-# The window's drawing: the GPU, the renderer's canvas, the interface's bridge to it, and the
-# window's events (ADR-0156).
+# The window's drawing: the GPU, the renderer of the viewports, and the window's events (ADR-0156);
+# the interface is drawn through slime-app's bridge to uwui (ADR-0244).
 slime-gfx.workspace = true
 slime-platform.workspace = true
 slime-render.workspace = true
@@ -34,7 +34,6 @@ slime-reflect.workspace = true
 slime-serialize.workspace = true
 # The window's interface, in the editor's look (ADR-0148, ADR-0156).
 uwui = { workspace = true, features = ["editor-look"] }
-uwui-render.workspace = true
 # The world that the editor changes, its commands and its levels (ADR-0109).
 slime-world.workspace = true
 # What the viewport draws of the world, through its own asset cache (ADR-0158).

@@ -370,12 +370,12 @@ fi
 
 if runs headless; then
     step "The game built for shipping holds neither the development channel, the MCP server nor the dev overlay (ADR-0122, ADR-0152)"
-    if cargo tree --locked -p hunnawood --no-default-features -e normal | grep -E 'slime-(channel|mcp|devui) |uwui-render '; then
+    if cargo tree --locked -p hunnawood --no-default-features -e normal | grep -E 'slime-(channel|mcp|devui) '; then
         echo "the game built for shipping depends on the crates above"
         exit 1
     fi
-    # The interface itself is slime-app's, in every build; the editor's look and its fonts are the
-    # overlay's.
+    # The interface itself is slime-app's, in every build, and so is uwui-render, which its bridge
+    # draws the interface with (ADR-0244); the editor's look and its fonts are the overlay's.
     if cargo tree --locked -p hunnawood --no-default-features -e features | grep 'uwui feature "editor-look"'; then
         echo "the game built for shipping holds the editor's look"
         exit 1

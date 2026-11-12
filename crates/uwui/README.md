@@ -232,9 +232,9 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   that boxes cast, boxes filled with a gradient, texts laid out and parts of images, which it names
   by keys (`display::ImageKey`) that the program drawing it resolves, each with its clip, its
   transform, the identity until uwui's first stage, and its layer, the root's until Stage 7.
-  `uwui-render` draws it through the renderer's canvas.
-- `Rect` is the rectangle the framework speaks in, by its top left corner and its size, as the
-  renderer's canvas gives its own.
+  `uwui-render` draws it through its canvas.
+- `Rect` is the rectangle the framework speaks in, by its top left corner and its size, as
+  `uwui-render`'s canvas gives its own.
 
 ## Depends on
 

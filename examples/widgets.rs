@@ -68,14 +68,12 @@ use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use slime_app::{AppConfig, AppError, Context, Presentation};
-use slime_gfx::{Gpu, RenderTarget, TextureFormat};
+use slime_app::{AppConfig, AppError, Context, InterfaceRenderer, Presentation};
+use slime_gfx::{GfxError, Gpu, RenderTarget, TextureFormat};
 use slime_platform::{ColorScheme, Event, WindowConfig};
-use slime_render::{RenderError, Renderer};
 use slime_world::World;
 use uwui::look::{Colors, Density};
 use uwui::tree::{LayoutDirection, Ui};
-use uwui_render::UiRenderer;
 
 use widgets_panel::WidgetsPanel;
 
@@ -84,18 +82,16 @@ const USAGE: &str = "usage: widgets [--right-to-left] [--frames <count> | --outp
 /// The size of the image that `--output` writes, in logical pixels.
 const IMAGE_SIZE: (u32, u32) = (960, 600);
 
-/// What the interface draws with: the renderer, whose canvas draws it, and the bridge, which turns
-/// its display list into the canvas and keeps its glyphs.
+/// What the interface draws with: the engine's bridge to uwui, which draws its display list through
+/// uwui's canvas and keeps its glyphs.
 struct Drawing {
-    renderer: Renderer,
-    bridge: UiRenderer,
+    bridge: InterfaceRenderer,
 }
 
 impl Drawing {
-    fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
+    fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, GfxError> {
         Ok(Self {
-            renderer: Renderer::new(gpu, format)?,
-            bridge: UiRenderer::default(),
+            bridge: InterfaceRenderer::new(gpu, format)?,
         })
     }
 
@@ -106,20 +102,14 @@ impl Drawing {
         panel: &mut WidgetsPanel,
         target: &RenderTarget,
         scale: f32,
-    ) -> Result<(), RenderError> {
+    ) -> Result<(), GfxError> {
         let size = [
             target.width() as f32 / scale,
             target.height() as f32 / scale,
         ];
         let display = panel.frame(size, scale);
-        self.bridge.draw(
-            gpu,
-            &mut self.renderer,
-            panel.ui.fonts(),
-            &display,
-            |_| None,
-            target,
-        )?;
+        self.bridge
+            .draw(gpu, panel.ui.fonts(), &display, |_| None, target)?;
         Ok(())
     }
 }

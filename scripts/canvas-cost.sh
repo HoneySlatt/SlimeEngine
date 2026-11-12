@@ -45,18 +45,19 @@ else
 fi
 unset SLIME_LOG SLIME_TRACE
 
-# The tests of the renderer's library, built once; `cost.rs` holds the parts.
-tests=$(cargo test --locked --release -p slime-render --lib --no-run --message-format=json |
+# The benchmarks' test of the canvas's cost, `benches/tests/canvas_cost.rs`, which holds the parts,
+# built once.
+tests=$(cargo test --locked --release -p slime-benches --test canvas_cost --no-run --message-format=json |
     python3 -I -c '
 import json, sys
 for line in sys.stdin:
     message = json.loads(line)
     if message.get("reason") == "compiler-artifact" and message.get("executable") \
-            and message["target"]["kind"] == ["lib"]:
+            and message["target"]["kind"] == ["test"] and message["target"]["name"] == "canvas_cost":
         print(message["executable"])
 ')
 [ -x "$tests" ] || {
-    echo "the renderer's tests were not built" >&2
+    echo "the test of the canvas's cost was not built" >&2
     exit 1
 }
 
@@ -64,7 +65,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 parts=(device canvas renderer)
 run() {
-    "$tests" --ignored --exact --nocapture "cost::cost_of_the_$1" 2>&1 | grep -o "cost $1 .*"
+    "$tests" --ignored --exact --nocapture "cost_of_the_$1" 2>&1 | grep -o "cost $1 .*"
 }
 for part in "${parts[@]}"; do
     run "$part" >/dev/null

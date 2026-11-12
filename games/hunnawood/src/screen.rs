@@ -360,10 +360,9 @@ impl Presentation for Screen {
                 return;
             }
         }
-        // Over the view, with its renderer. The device lost, `exit_with_error` leaves the loss to
-        // the run.
+        // Over the view. The device lost, `exit_with_error` leaves the loss to the run.
         #[cfg(feature = "development")]
-        if let Err(error) = self.overlay.render(&gpu, view.renderer(), target) {
+        if let Err(error) = self.overlay.render(&gpu, target) {
             ctx.exit_with_error(error);
             return;
         }

@@ -457,13 +457,6 @@ impl View {
         self.renderer.render(gpu, &scene, &mut draws)?;
         Ok(Some(self.shown.stats()))
     }
-
-    /// The view's renderer, which the dev overlay draws its panels with after the view
-    /// (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
-    #[cfg(feature = "development")]
-    pub fn renderer(&mut self) -> &mut Renderer {
-        &mut self.renderer
-    }
 }
 
 #[cfg(test)]

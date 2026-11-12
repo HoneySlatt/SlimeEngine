@@ -419,8 +419,8 @@ that draws only interfaces, against the canvas alone
 ([ADR-0180](docs/adr/0180-one-canvas-and-the-frameworks-foundations.md)): the time to build each
 and draw a first canvas, the resident memory each adds, the GPU memory that wgpu allocates and the
 video memory that the driver gives the process. Each part, and the device alone, runs in a process
-of its own, a test of `slime-render`'s `cost.rs` that `cargo test` ignores; with `--gpu`, on the
-machine's GPU. Nothing opens a window.
+of its own, a test of the benchmarks' `tests/canvas_cost.rs` that `cargo test` ignores; with
+`--gpu`, on the machine's GPU. Nothing opens a window.
 [`scripts/uwui-program.sh`](scripts/uwui-program.sh) builds the `widgets` example in a package of
 its own, under `target/uwui-program`, with the workspace's lock: the crates that a program on uwui
 compiles, whether the renderer, the world or the editor are among them, its builds from nothing

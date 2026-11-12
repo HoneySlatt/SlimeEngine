@@ -14,14 +14,15 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use slime_app::{
-    AppConfig, AppError, Context, Host, PickAnswer, Presentation, Reflected, ShownView,
+    AppConfig, AppError, Context, Host, InterfaceImage, InterfaceRenderer, PickAnswer,
+    Presentation, Reflected, ShownView,
 };
 use slime_color::LinearColor;
 use slime_devui::WorldPanel;
 use slime_gfx::{Gpu, Image, RenderPassDescriptor, RenderTarget, TextureFormat};
 use slime_platform::{ColorScheme, DialogId, Event, FileChoice};
 use slime_render::glam::{DVec3, Vec2};
-use slime_render::{CanvasImage, DebugMode, Pick, RenderError, Renderer};
+use slime_render::{DebugMode, Pick, RenderError, Renderer};
 use slime_world::{Entity, Tick, World};
 use uwui::Rect;
 use uwui::action::{Action, ActionKind, FieldValue, SurfaceInput};
@@ -36,7 +37,6 @@ use uwui::tree::{
     Along, Element, ElementId, FrameStats, ItemMark, Key, Layer, LayoutDirection, Notification,
     NotificationKind, PaletteCommand, Place, Role, RootSettings, Side, Ui,
 };
-use uwui_render::UiRenderer;
 
 use crate::handles::{Drag, Gizmo, Space, Tool};
 use crate::hierarchy::Hierarchy;
@@ -2115,7 +2115,6 @@ impl Offscreen {
             .bridge
             .draw(
                 &self.gpu,
-                &mut self.drawing.renderer,
                 self.model.ui.fonts(),
                 &self.display,
                 |key| viewport_image(viewports, key),
@@ -2279,14 +2278,14 @@ fn draw_whole(
 /// What draws the window's interface.
 struct Drawing {
     renderer: Renderer,
-    bridge: UiRenderer,
+    bridge: InterfaceRenderer,
 }
 
 impl Drawing {
     fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
         Ok(Self {
             renderer: Renderer::new(gpu, format)?,
-            bridge: UiRenderer::default(),
+            bridge: InterfaceRenderer::new(gpu, format)?,
         })
     }
 }
@@ -2740,7 +2739,6 @@ impl Presentation for Window {
         let viewports = &self.viewports;
         if let Err(error) = drawing.bridge.draw(
             gpu,
-            &mut drawing.renderer,
             model.ui.fonts(),
             display,
             |key| viewport_image(viewports, key),
@@ -2844,13 +2842,13 @@ impl Presentation for Window {
 }
 
 /// The image of the viewport whose key in the display list is `key`, if one has it.
-fn viewport_image(viewports: &[Viewport], key: ImageKey) -> Option<CanvasImage<'_>> {
+fn viewport_image(viewports: &[Viewport], key: ImageKey) -> Option<InterfaceImage<'_>> {
     viewports
         .iter()
         .enumerate()
         .find(|&(pane, _)| viewport::image_key(pane) == key)
         .and_then(|(_, viewport)| viewport.image())
-        .map(CanvasImage::Target)
+        .map(InterfaceImage::Target)
 }
 
 #[cfg(test)]

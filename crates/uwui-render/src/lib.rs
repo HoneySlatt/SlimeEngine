@@ -1,14 +1,11 @@
 #![doc = include_str!("../README.md")]
 
 mod atlas;
+pub mod canvas;
 
 use std::collections::HashMap;
 
-use slime_gfx::{Gpu, RenderTarget};
-use slime_render::{
-    Canvas, CanvasBox, CanvasGradient, CanvasImage, CanvasShadow, CanvasStats, ImagePart,
-    ImageQuad, PixelRect, RenderError, Renderer,
-};
+use slime_gfx::{GfxError, Gpu, RenderTarget, TextureFormat};
 use uwui::Rect;
 use uwui::display::{DisplayList, ImageKey, ImageKind, Primitive};
 use uwui::text::Fonts;
@@ -16,21 +13,27 @@ use uwui::text::Fonts;
 pub use atlas::{ATLAS_PAGE_SIZE, GLYPH_ATLAS_BUDGET};
 
 use atlas::{Atlas, Placed};
+use canvas::{
+    Canvas, CanvasBox, CanvasGradient, CanvasImage, CanvasRenderer, CanvasShadow, CanvasStats,
+    ImageId, ImagePart, ImageQuad, PixelRect,
+};
 
-/// Draws display lists ([`DisplayList`]) through the renderer's canvas
-/// ([`Renderer::draw_canvas`]), the glyphs of their texts kept in an atlas: textures that hold
-/// each glyph's image once, rasterized the first time a draw asks for it, in pages of coverage
-/// and pages of colors for emoji, within a budget of memory, the glyphs that no draw asked for the
-/// longest leaving first (`docs/adr/0139-text-drawn-and-the-display-list.md`). Past the budget, a
+/// Draws display lists ([`DisplayList`]) through its canvas ([`CanvasRenderer`]), into targets of
+/// one format, the glyphs of their texts kept in an atlas: textures that hold each glyph's image
+/// once, rasterized the first time a draw asks for it, in pages of coverage and pages of colors
+/// for emoji, within a budget of memory, the glyphs that no draw asked for the longest leaving
+/// first (`docs/adr/0139-text-drawn-and-the-display-list.md`). Past the budget, a
 /// glyph that finds no room takes the place of the glyphs of its kind that no draw asked for the
 /// longest, those of the draw under way kept; then pages of either kind that the draw draws nothing
 /// from are let go, so that pages of one kind never keep the other out. A glyph that still finds no
 /// room is left out of that draw, and one larger than a page of every draw ([`UiStats`]).
 ///
-/// It holds GPU objects: after a lost device, a new one draws again, rasterizing its glyphs
-/// again, as the renderer is made again. It is to be used with the same [`Fonts`] each time: its
-/// atlas knows a glyph by the face that those fonts number.
+/// It holds GPU objects of the device it was made with: after a lost device, it is dropped before
+/// the device is replaced, and one made with the new device draws again, rasterizing its glyphs
+/// again. It is to be used with the same [`Fonts`] each time: its atlas knows a glyph by the face
+/// that those fonts number.
 pub struct UiRenderer {
+    canvas: CanvasRenderer,
     atlas: Atlas,
 }
 
@@ -54,42 +57,55 @@ pub struct UiStats {
 }
 
 impl UiRenderer {
-    /// A renderer of display lists whose atlas takes at most `budget` bytes of GPU memory, in
-    /// pages of [`ATLAS_PAGE_SIZE`] texels a side, made as glyphs need them: by default
-    /// [`GLYPH_ATLAS_BUDGET`].
-    pub fn new(budget: u64) -> Self {
-        Self {
-            atlas: Atlas::new(budget),
-        }
+    /// A renderer of display lists into targets of `format`, whose atlas takes at most
+    /// [`GLYPH_ATLAS_BUDGET`] ([`UiRenderer::with_budget`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`CanvasRenderer::new`].
+    pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, GfxError> {
+        Self::with_budget(gpu, format, GLYPH_ATLAS_BUDGET)
     }
 
-    /// Draws `list` over what `target` holds, through `renderer`'s canvas: its texts' glyphs from
-    /// the atlas, rasterized with `fonts`, the fonts that laid them out, and its images as
-    /// `images` gives them for their keys. A text's origin is rounded to a whole pixel, so that its
-    /// glyphs, placed at whole pixels within their layout, are drawn texel for pixel. An image
-    /// that `images` does not give is left out, as a glyph that the atlas has no room for is
+    /// A renderer of display lists into targets of `format`, whose atlas takes at most `budget`
+    /// bytes of GPU memory, in pages of [`ATLAS_PAGE_SIZE`] texels a side, made as glyphs need
+    /// them.
+    ///
+    /// # Errors
+    ///
+    /// As [`CanvasRenderer::new`].
+    pub fn with_budget(gpu: &Gpu, format: TextureFormat, budget: u64) -> Result<Self, GfxError> {
+        Ok(Self {
+            canvas: CanvasRenderer::new(gpu, format)?,
+            atlas: Atlas::new(budget),
+        })
+    }
+
+    /// Draws `list` over what `target` holds, through its canvas: its texts' glyphs from the
+    /// atlas, rasterized with `fonts`, the fonts that laid them out, and its images as `images`
+    /// gives them for their keys. A text's origin is rounded to a whole pixel, so that its glyphs,
+    /// placed at whole pixels within their layout, are drawn texel for pixel. An image that
+    /// `images` does not give is left out, as a glyph that the atlas has no room for is
     /// ([`UiStats`]).
     ///
     /// # Errors
     ///
-    /// [`RenderError::Gfx`] with [`slime_gfx::GfxError::OutOfMemory`] if the GPU cannot hold an
-    /// atlas page or the canvas's items, and [`slime_gfx::GfxError::DeviceLost`] once the device
-    /// is lost: nothing is drawn then.
+    /// [`GfxError::OutOfMemory`] if the GPU cannot hold an atlas page or the canvas's items, and
+    /// [`GfxError::DeviceLost`] once the device is lost: nothing is drawn then.
     ///
     /// # Panics
     ///
-    /// As [`Renderer::draw_canvas`]: if `target` does not have the renderer's format, or holds
+    /// As [`CanvasRenderer::draw`]: if `target` does not have the renderer's format, or holds
     /// several samples per pixel. If `fonts` are not those that this renderer drew with before,
     /// and number fewer faces: they must be the same each time.
     pub fn draw<'i>(
         &mut self,
         gpu: &Gpu,
-        renderer: &mut Renderer,
         fonts: &Fonts,
         list: &DisplayList,
         mut images: impl FnMut(ImageKey) -> Option<CanvasImage<'i>>,
         target: &RenderTarget,
-    ) -> Result<UiStats, RenderError> {
+    ) -> Result<UiStats, GfxError> {
         // The atlas first, which rasterizes and writes what the texts lack, then the canvas, which
         // reads its pages.
         self.atlas.begin();
@@ -106,9 +122,17 @@ impl UiRenderer {
         }
         let atlas = &self.atlas;
         let mut canvas = Canvas::new();
+        // The images that the canvas's quads name by their index: the atlas's pages, then those
+        // that `images` gives, in the order that the list first asks for them.
+        let mut canvas_images = Vec::new();
+        let mut add_image = |image| {
+            let id = ImageId(u32::try_from(canvas_images.len()).expect("fewer than 2³² images"));
+            canvas_images.push(image);
+            id
+        };
         let mut pages = vec![None; atlas.page_count()];
         for (index, texture) in atlas.textures() {
-            pages[index] = Some(canvas.add_image(CanvasImage::Texture(texture)));
+            pages[index] = Some(add_image(CanvasImage::Texture(texture)));
         }
         let mut given = HashMap::new();
         let mut places = places.into_iter();
@@ -163,9 +187,9 @@ impl UiRenderer {
                                     height: place.height as f32 / page_side,
                                 },
                                 kind: if place.color {
-                                    slime_render::ImageKind::Color
+                                    ImageKind::Color
                                 } else {
-                                    slime_render::ImageKind::Coverage
+                                    ImageKind::Coverage
                                 },
                                 color: text.color,
                                 clip,
@@ -174,9 +198,9 @@ impl UiRenderer {
                     }
                 }
                 Primitive::Image(image) => {
-                    let id = *given.entry(image.image).or_insert_with(|| {
-                        images(image.image).map(|given| canvas.add_image(given))
-                    });
+                    let id = *given
+                        .entry(image.image)
+                        .or_insert_with(|| images(image.image).map(&mut add_image));
                     let Some(id) = id else {
                         missing_images += 1;
                         continue;
@@ -190,17 +214,14 @@ impl UiRenderer {
                             width: image.part.width,
                             height: image.part.height,
                         },
-                        kind: match image.kind {
-                            ImageKind::Coverage => slime_render::ImageKind::Coverage,
-                            ImageKind::Color => slime_render::ImageKind::Color,
-                        },
+                        kind: image.kind,
                         color: image.color,
                         clip,
                     });
                 }
             }
         }
-        let canvas_stats = renderer.draw_canvas(gpu, &canvas, target)?;
+        let canvas_stats = self.canvas.draw(gpu, &canvas, &canvas_images, target)?;
         Ok(UiStats {
             canvas: canvas_stats,
             glyphs,
@@ -210,16 +231,48 @@ impl UiRenderer {
             atlas_bytes: atlas.bytes(),
         })
     }
-}
 
-impl Default for UiRenderer {
-    /// A renderer whose atlas takes at most [`GLYPH_ATLAS_BUDGET`].
-    fn default() -> Self {
-        Self::new(GLYPH_ATLAS_BUDGET)
+    /// Draws `canvas`, which a program fills itself, over what `target` holds, with the canvas's
+    /// renderer that its display lists are drawn with; `images` are the images that its quads
+    /// name by their index ([`canvas::ImageId`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`CanvasRenderer::draw`].
+    ///
+    /// # Panics
+    ///
+    /// As [`CanvasRenderer::draw`].
+    pub fn draw_canvas(
+        &mut self,
+        gpu: &Gpu,
+        canvas: &Canvas,
+        images: &[CanvasImage<'_>],
+        target: &RenderTarget,
+    ) -> Result<CanvasStats, GfxError> {
+        self.canvas.draw(gpu, canvas, images, target)
     }
 }
 
 /// `rect` as the canvas takes it.
 fn pixel_rect(rect: Rect) -> PixelRect {
     PixelRect::new(rect.x, rect.y, rect.width, rect.height)
+}
+
+/// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are
+/// compiled.
+#[cfg(test)]
+mod threads {
+    use super::*;
+
+    fn send_and_sync<T: Send + Sync>() {}
+
+    #[test]
+    fn a_canvas_and_the_renderers_can_be_shared_between_threads() {
+        send_and_sync::<Canvas>();
+        send_and_sync::<CanvasStats>();
+        send_and_sync::<CanvasRenderer>();
+        send_and_sync::<UiRenderer>();
+        send_and_sync::<UiStats>();
+    }
 }

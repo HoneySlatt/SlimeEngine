@@ -2,8 +2,8 @@
 //! (`uwui::tree::Ui`), laid out by flexbox and grid (`docs/adr/0140-the-tree-of-elements.md`)
 //! and styled by a style sheet and a theme (`docs/adr/0141-style-sheets-and-themes.md`,
 //! `Ui::set_style`), gives the display list (`docs/adr/0139-text-drawn-and-the-display-list.md`)
-//! that `uwui-render` draws through the renderer's canvas (`docs/adr/0137-the-canvas.md`,
-//! `UiRenderer::draw`): panels
+//! that `uwui-render` draws through its canvas (`docs/adr/0137-the-canvas.md`), by the engine's
+//! bridge to uwui (`slime_app::InterfaceRenderer::draw`): panels
 //! with rounded corners, borders and shadows; a list of 100 000 rows that scrolls with time, of
 //! which only those that show are built, cut by its panel; buttons with their labels; a sentence of
 //! each writing system of uwui's tests, English, Arabic and Hebrew from right to left, Hindi,
@@ -82,13 +82,16 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
 
-use slime_app::{AppConfig, AppError, Context, Presentation, Simulation, SimulationContext};
+use slime_app::{
+    AppConfig, AppError, Context, InterfaceImage, InterfaceRenderer, Presentation, Simulation,
+    SimulationContext,
+};
 use slime_assets::{AssetId, CookedAssets, ManifestWatch};
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderTarget, Texture, TextureFormat};
 use slime_platform::WindowConfig;
 use slime_reflect::{Reflect, Value};
-use slime_render::{CanvasImage, RenderError};
+use slime_render::RenderError;
 use slime_world::{Command, Component, PersistentId, World};
 use uwui::Rect;
 use uwui::action::{ActionKind, FieldValue, Intent};
@@ -98,7 +101,6 @@ use uwui::style::{Align, Dimension, Display, FlexDirection, Justify, Sides, Styl
 use uwui::text::Fonts;
 use uwui::theme::{Fallback, Length, StyleSheet, Theme, Token, Tokens};
 use uwui::tree::{Children, Element, ElementId, Kind, LayoutDirection, Role, RootSettings, Ui};
-use uwui_render::UiRenderer;
 
 use shapes::Shapes;
 
@@ -199,7 +201,7 @@ struct Interface {
     ui: Ui,
     root: ElementId,
     direction: LayoutDirection,
-    renderer: UiRenderer,
+    renderer: InterfaceRenderer,
     /// The words that name the list's rows and the buttons, those of the English test text, which
     /// its fonts hold.
     words: Vec<String>,
@@ -311,7 +313,7 @@ impl Interface {
             ui,
             root,
             direction,
-            renderer: UiRenderer::default(),
+            renderer: InterfaceRenderer::new(gpu, format)?,
             words,
             list: None,
             view: None,
@@ -590,13 +592,12 @@ impl Interface {
         let (icons, tick) = (&self.icons, &self.tick);
         self.renderer.draw(
             gpu,
-            self.shapes.renderer(),
             self.ui.fonts(),
             &display,
             |key| match key {
-                ICONS => Some(CanvasImage::Texture(icons)),
-                TICK => Some(CanvasImage::Texture(tick)),
-                VIEW => Some(CanvasImage::Target(viewport)),
+                ICONS => Some(InterfaceImage::Texture(icons)),
+                TICK => Some(InterfaceImage::Texture(tick)),
+                VIEW => Some(InterfaceImage::Target(viewport)),
                 _ => None,
             },
             target,

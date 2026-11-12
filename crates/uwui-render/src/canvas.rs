@@ -1,5 +1,15 @@
 //! The canvas: boxes, their shadows, gradients and images, drawn in two dimensions over a target,
 //! as an interface draws (`docs/adr/0137-the-canvas.md`).
+//!
+//! A [`Canvas`] is data alone: the items of a frame, in their order, each image named by its index
+//! ([`ImageId`]) in the list of images given when it is drawn. A [`CanvasRenderer`] draws it over a
+//! target, with one pipeline, its shader [`SHADER`], the items read by their index from a storage
+//! buffer (`docs/adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md`). It
+//! draws through `slime-gfx`'s handles.
+//!
+//! [`ImagePart`] and the writers of values as bytes mirror `slime-render`'s: `uwui-render` leaves
+//! the engine's repository with uwui, and cannot depend on its renderer
+//! (`docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md`).
 
 use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
@@ -13,9 +23,13 @@ use slime_gfx::{
     UniformBuffer,
 };
 
-use crate::bytes::{push_f32s, push_u32s};
-use crate::camera::ImagePart;
-use crate::error::RenderError;
+/// The canvas's shader, in WGSL, which [`CanvasRenderer::new`] compiles: `canvas.wgsl`, embedded in
+/// the program when it is compiled.
+pub const SHADER: &str = include_str!("canvas.wgsl");
+
+/// The label of the canvas's shader, which a shader's error names
+/// ([`GfxError::Shader`]'s `label`).
+const SHADER_LABEL: &str = "canvas.wgsl";
 
 /// The bytes of an item as the shader reads it: nine `vec4`s.
 const ITEM_SIZE: u64 = 9 * 16;
@@ -121,8 +135,9 @@ pub struct CanvasShadow {
     pub clip: Option<PixelRect>,
 }
 
-/// An image that a [`Canvas`] draws: a texture, as the glyphs of a text's atlas or a picture, or a
-/// render target that a view drew, as an editor's viewport shows.
+/// An image that a [`Canvas`] draws, in the list that [`CanvasRenderer::draw`] is given: a texture,
+/// as the glyphs of a text's atlas or a picture, or a render target that a view drew, as an editor's
+/// viewport shows.
 #[derive(Clone, Copy, Debug)]
 pub enum CanvasImage<'a> {
     /// A texture. One of one channel, `R8Unorm`, is how much of each texel a shape covers, drawn in
@@ -137,17 +152,38 @@ pub enum CanvasImage<'a> {
     Target(&'a RenderTarget),
 }
 
-/// An image that a [`Canvas`] holds, by the order it was added in.
+/// The image that an [`ImageQuad`] draws: its index in the list of images that
+/// [`CanvasRenderer::draw`] is given, `ImageId(0)` the first. A canvas holds no image: the same
+/// canvas may be drawn with other images of the same order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct ImageId(u32);
+pub struct ImageId(pub u32);
 
-/// How an image's texels are drawn.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ImageKind {
-    /// The red of each texel is how much of it a shape covers, drawn in the quad's color: a glyph.
-    Coverage,
-    /// Each texel is a color, drawn as it is, faded by the alpha of the quad's color.
-    Color,
+/// How an image's texels are drawn: the display list's own kinds. Of [`ImageKind::Coverage`], the
+/// red of each texel is how much of it a shape covers, drawn in the quad's color, as a glyph is.
+pub use uwui::display::ImageKind;
+
+/// A part of an image, in fractions of the whole image's width and height, from its top left
+/// corner; [`ImagePart::WHOLE`] is the whole image. What an [`ImageQuad`] shows of its image.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ImagePart {
+    /// The part's left edge, from 0 at the image's left edge to 1 at its right.
+    pub x: f32,
+    /// The part's top edge, from 0 at the image's top edge to 1 at its bottom.
+    pub y: f32,
+    /// The part's width, positive, a fraction of the image's width.
+    pub width: f32,
+    /// The part's height, positive, a fraction of the image's height.
+    pub height: f32,
+}
+
+impl ImagePart {
+    /// The whole image.
+    pub const WHOLE: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        width: 1.0,
+        height: 1.0,
+    };
 }
 
 /// A part of an image drawn into a rectangle of the target.
@@ -170,11 +206,11 @@ pub struct ImageQuad {
 
 /// What an interface draws in a frame: boxes, shadows, gradients and images, in the order they are
 /// added, each over what was added before it, each clipped to its rectangle
-/// ([`Renderer::draw_canvas`](crate::Renderer::draw_canvas)). Coordinates are the target's pixels,
-/// from its top left corner, y down. A canvas borrows the images it draws, for the frame.
+/// ([`CanvasRenderer::draw`]). Coordinates are the target's pixels, from its top left corner, y
+/// down. It is data alone: its images are named by their index in the list given when it is drawn
+/// ([`ImageId`]).
 #[derive(Debug, Default)]
-pub struct Canvas<'a> {
-    images: Vec<CanvasImage<'a>>,
+pub struct Canvas {
     items: Vec<Item>,
     /// The image of each item, if it has one, beside it.
     item_images: Vec<Option<ImageId>>,
@@ -209,21 +245,10 @@ const GRADIENT: u32 = 4;
 /// A clip that holds every pixel.
 const NO_CLIP: [f32; 4] = [-f32::MAX, -f32::MAX, f32::MAX, f32::MAX];
 
-impl<'a> Canvas<'a> {
+impl Canvas {
     /// An empty canvas.
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Adds `image`, which quads then draw by the id given.
-    ///
-    /// # Panics
-    ///
-    /// Past 2³² images.
-    pub fn add_image(&mut self, image: CanvasImage<'a>) -> ImageId {
-        let id = ImageId(u32::try_from(self.images.len()).expect("fewer than 2³² images"));
-        self.images.push(image);
-        id
     }
 
     /// Draws the box `shape`. A box of no pixel, or whose rectangle is not finite, draws nothing.
@@ -372,18 +397,9 @@ impl<'a> Canvas<'a> {
         );
     }
 
-    /// Draws a part of an image. A quad of no pixel draws nothing.
-    ///
-    /// # Panics
-    ///
-    /// If its image was not added to this canvas.
+    /// Draws a part of an image, the one that `quad.image` names in the list that the canvas is
+    /// drawn with ([`CanvasRenderer::draw`]). A quad of no pixel draws nothing.
     pub fn draw_image(&mut self, quad: &ImageQuad) {
-        assert!(
-            (quad.image.0 as usize) < self.images.len(),
-            "image {} was not added to this canvas, which holds {}",
-            quad.image.0,
-            self.images.len()
-        );
         if quad.rect.is_empty() {
             return;
         }
@@ -523,7 +539,7 @@ fn erf(x: f32) -> f32 {
     z / (1.0 + z * z).sqrt()
 }
 
-/// What [`Renderer::draw_canvas`](crate::Renderer::draw_canvas) drew, and what it cost.
+/// What [`CanvasRenderer::draw`] drew, and what it cost.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct CanvasStats {
     /// The items drawn.
@@ -538,9 +554,13 @@ pub struct CanvasStats {
     pub gpu_time: Option<Duration>,
 }
 
-/// What drawing canvases needs, which the renderer keeps: its pipeline, its layouts, its buffers,
-/// grown as canvases grow, its sampler, an image for the items that read none, and its timer.
-pub(crate) struct CanvasRenderer {
+/// What draws canvases into targets of one format: its pipeline, made from [`SHADER`] or from
+/// the source that [`CanvasRenderer::set_shader`] gives, its layouts, its buffers, grown as canvases
+/// grow, its sampler, an image for the items that read none, and its timer.
+///
+/// It holds GPU objects of the device it was made with: after a lost device, it is dropped before
+/// the device is replaced, and one made with the new device draws again.
+pub struct CanvasRenderer {
     frame_layout: BindGroupLayout,
     image_layout: BindGroupLayout,
     pipeline: RenderPipeline,
@@ -551,19 +571,23 @@ pub(crate) struct CanvasRenderer {
     transforms: StorageBuffer,
     sampler: Sampler,
     blank: Texture,
-    /// Behind a lock, so that the renderer is shared between threads: a timer reads its times
-    /// through cells.
+    /// Behind a lock, so that the canvas's renderer is shared between threads: a timer reads its
+    /// times through cells.
     timer: Option<Mutex<GpuTimer>>,
     warned_of_items: bool,
 }
 
 impl CanvasRenderer {
-    /// What draws canvases into targets of `format`, with the shader `module`.
-    pub(crate) fn new(
-        gpu: &Gpu,
-        module: &ShaderModule,
-        format: TextureFormat,
-    ) -> Result<Self, GfxError> {
+    /// What draws canvases into targets of `format`, with its embedded shader, [`SHADER`], which it
+    /// compiles.
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::OutOfMemory`] if the GPU cannot hold its objects, [`GfxError::Shader`] or
+    /// [`GfxError::Pipeline`] if the driver refuses its shader or its pipeline, as Direct3D 12's
+    /// shader compiler may, and [`GfxError::DeviceLost`] once the device is lost.
+    pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, GfxError> {
+        let module = gpu.create_shader_module(SHADER_LABEL, SHADER)?;
         let frame_layout = gpu.create_bind_group_layout(
             "canvas",
             &[
@@ -602,7 +626,7 @@ impl CanvasRenderer {
                 },
             ],
         )?;
-        let pipeline = pipeline(gpu, module, format, &frame_layout, &image_layout)?;
+        let pipeline = pipeline(gpu, &module, format, &frame_layout, &image_layout)?;
         let frame = gpu.create_uniform_buffer("canvas", &[0; 16])?;
         // The identity, the one transform until Stage 6d.
         let mut identity = Vec::new();
@@ -635,11 +659,20 @@ impl CanvasRenderer {
         })
     }
 
-    /// Makes the pipeline again from `module`, as new shaders ask.
-    pub(crate) fn set_shader(&mut self, gpu: &Gpu, module: &ShaderModule) -> Result<(), GfxError> {
+    /// Makes the pipeline again from `source`, the WGSL of a shader that replaces [`SHADER`], as a
+    /// program that reloads its shaders while it runs asks. A source that does not compile, or
+    /// whose pipeline is refused, leaves the pipeline as it was: the canvas draws on with it.
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::Shader`] if the shader does not compile, labelled `canvas.wgsl`, with the line
+    /// and column of the error; [`GfxError::Pipeline`] if its pipeline is refused;
+    /// [`GfxError::DeviceLost`] once the device is lost.
+    pub fn set_shader(&mut self, gpu: &Gpu, source: &str) -> Result<(), GfxError> {
+        let module = gpu.create_shader_module(SHADER_LABEL, source)?;
         self.pipeline = pipeline(
             gpu,
-            module,
+            &module,
             self.format,
             &self.frame_layout,
             &self.image_layout,
@@ -647,13 +680,32 @@ impl CanvasRenderer {
         Ok(())
     }
 
-    /// Draws `canvas` over what `target` holds.
-    pub(crate) fn draw(
+    /// Draws `canvas` over what `target` holds, in a pass of its own, submitted at once: after a
+    /// frame's views, the interface over them (`docs/adr/0137-the-canvas.md`). `images` are the
+    /// images that its quads name by their index ([`ImageId`]). The target is any of the
+    /// renderer's format: a window's image, or one that a panel shows. Into a target of an sRGB
+    /// format, the canvas's colors mix as their sRGB values do, as design tools mix them: it draws
+    /// through the target's view without the encoding ([`RenderTarget::without_srgb`]), its colors
+    /// encoded first; into one of another format, `Rgba16Float`, they mix linearly. Returns what
+    /// it drew and the GPU time of an earlier canvas, the latest that came back.
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::OutOfMemory`] if the GPU cannot hold the canvas's items, and
+    /// [`GfxError::DeviceLost`] once the device is lost: nothing is drawn then.
+    ///
+    /// # Panics
+    ///
+    /// If `target` does not have the renderer's format, or holds several samples per pixel. If an
+    /// item drawn reads an [`ImageId`] that is not below `images.len()`. A canvas that draws its
+    /// own target as an image is refused by the GPU's validation.
+    pub fn draw(
         &mut self,
         gpu: &Gpu,
-        canvas: &Canvas<'_>,
+        canvas: &Canvas,
+        images: &[CanvasImage<'_>],
         target: &RenderTarget,
-    ) -> Result<CanvasStats, RenderError> {
+    ) -> Result<CanvasStats, GfxError> {
         assert!(
             target.format() == self.format,
             "the renderer draws canvases into {:?} targets, not into `{}`, which is {:?}",
@@ -666,13 +718,25 @@ impl CanvasRenderer {
             "a canvas draws into targets of one sample per pixel, not into `{}`",
             target.label()
         );
+        let count = canvas.items.len().min(MAX_CANVAS_ITEMS);
+        let left_out = canvas.items.len() - count;
+        let batches = canvas.batches(count);
+        // The image of a run is the image of each of its items that reads one.
+        if let Some(ImageId(missing)) = batches
+            .iter()
+            .filter_map(|&(_, image)| image)
+            .find(|image| image.0 as usize >= images.len())
+        {
+            panic!(
+                "an item of the canvas reads image {missing}, beyond the images given ({})",
+                images.len()
+            );
+        }
         gpu.check()?;
         // An sRGB target is drawn into without its encoding, the shader encoding the colors, so
         // that they mix as sRGB values.
         let unencoded = target.without_srgb();
         let target = unencoded.as_ref().unwrap_or(target);
-        let count = canvas.items.len().min(MAX_CANVAS_ITEMS);
-        let left_out = canvas.items.len() - count;
         if left_out > 0 && !self.warned_of_items {
             tracing::warn!(
                 left_out,
@@ -734,11 +798,10 @@ impl CanvasRenderer {
                 },
             ],
         )?;
-        let batches = canvas.batches(count);
         let groups = batches
             .iter()
             .map(|&(_, image)| {
-                let image = match image.map(|id| canvas.images[id.0 as usize]) {
+                let image = match image.map(|id| images[id.0 as usize]) {
                     None => BindingResource::Texture(&self.blank),
                     Some(CanvasImage::Texture(texture)) => BindingResource::Texture(texture),
                     Some(CanvasImage::Target(source)) => BindingResource::RenderTarget(source),
@@ -851,4 +914,18 @@ fn item_bytes(items: &[Item], encode: bool) -> Vec<u8> {
         push_u32s(&mut bytes, &item.kind);
     }
     bytes
+}
+
+/// Appends `values` as little-endian 32-bit floats.
+fn push_f32s(bytes: &mut Vec<u8>, values: &[f32]) {
+    for value in values {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+}
+
+/// Appends `values` as little-endian 32-bit unsigned integers.
+fn push_u32s(bytes: &mut Vec<u8>, values: &[u32]) {
+    for value in values {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
 }

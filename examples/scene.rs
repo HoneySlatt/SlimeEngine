@@ -540,8 +540,8 @@ impl Presentation for SceneExample {
             }
         }
         self.drawn += 1;
-        // Over the scene, with its renderer.
-        if let Err(error) = self.overlay.draw(gpu, scene.renderer(), target) {
+        // Over the scene.
+        if let Err(error) = self.overlay.draw(gpu, target) {
             ctx.exit_with_error(error);
             return;
         }

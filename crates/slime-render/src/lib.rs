@@ -3,10 +3,7 @@
 mod bytes;
 mod cache;
 mod camera;
-mod canvas;
 mod cooked;
-#[cfg(test)]
-mod cost;
 mod drawings;
 mod environment;
 mod error;
@@ -31,10 +28,6 @@ pub use cache::{
     DEFAULT_TEXTURE_BUDGET, KindReport, Priority, Request,
 };
 pub use camera::{Camera, ImagePart, Projection};
-pub use canvas::{
-    Canvas, CanvasBox, CanvasGradient, CanvasImage, CanvasShadow, CanvasStats, ImageId, ImageKind,
-    ImageQuad, MAX_CANVAS_ITEMS, PixelRect, Radii,
-};
 pub use cooked::{LoadedScene, SceneError, SceneLoad, scene_lights};
 pub use drawings::{DrawList, Drawings, Line, OUTLINE_REACH, Outline, facing};
 pub use environment::{Environment, Sky};
@@ -83,8 +76,6 @@ mod threads {
         send_and_sync::<Pick>();
         send_and_sync::<Picked>();
         send_and_sync::<RenderStats>();
-        send_and_sync::<CanvasStats>();
-        send_and_sync::<Canvas<'static>>();
         send_and_sync::<ViewSettings>();
         send_and_sync::<RenderError>();
         send_and_sync::<Renderer>();

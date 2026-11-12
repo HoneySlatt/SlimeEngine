@@ -32,9 +32,6 @@ slime-render.workspace = true
 # The interface's text, which the `text` example lays out and rasterizes (ADR-0136), and the
 # editor's look, in which the `widgets` example draws its widgets (ADR-0148).
 uwui = { workspace = true, features = ["editor-look"] }
-# The bridge that draws the `interface` and `widgets` examples' display lists through the
-# renderer's canvas (ADR-0139).
-uwui-render.workspace = true
 slime-world.workspace = true
 slime-world-render.workspace = true
 tracing.workspace = true

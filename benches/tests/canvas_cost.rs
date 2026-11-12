@@ -1,25 +1,19 @@
 //! What the renderer costs an application that draws only interfaces, against the canvas alone
 //! (ADR-0180): the time to build each and draw a first canvas, and the memory and GPU memory they
 //! take. Ignored by `cargo test`: `scripts/canvas-cost.sh` runs each part in a process of its own
-//! and gathers the figures. Here, inside the crate, because the canvas cannot yet be built without
-//! the renderer outside it.
+//! and gathers the figures. Here, among the benchmarks, the one client of the engine that holds
+//! both the renderer and uwui's canvas
+//! (`docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md`).
 
 use std::time::Instant;
 
+use slime_app::InterfaceRenderer;
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, TextureFormat};
-
-use crate::canvas::CanvasRenderer;
-use crate::{Canvas, CanvasBox, CanvasGradient, CanvasShadow, PixelRect, Renderer, ShaderSources};
+use slime_render::Renderer;
+use uwui_render::canvas::{Canvas, CanvasBox, CanvasGradient, CanvasShadow, PixelRect};
 
 const FORMAT: TextureFormat = TextureFormat::Rgba8UnormSrgb;
-
-/// What draws the first canvas: nothing, the canvas alone, or the whole renderer.
-enum Part {
-    Device,
-    Canvas(Box<CanvasRenderer>),
-    Renderer(Box<Renderer>),
-}
 
 /// The process's resident memory (`VmRSS`), in KiB.
 fn resident_kib() -> u64 {
@@ -75,7 +69,7 @@ fn video_kib() -> Option<u64> {
 }
 
 /// A canvas of a few boxes, enough to use the canvas's pipeline once.
-fn first_canvas() -> Canvas<'static> {
+fn first_canvas() -> Canvas {
     let rect = PixelRect::new(40.0, 40.0, 400.0, 240.0);
     let mut canvas = Canvas::new();
     canvas.draw_shadow(&CanvasShadow {
@@ -120,31 +114,25 @@ fn measure(which: &str) {
     let video_before = video_kib();
 
     let started = Instant::now();
-    let mut part = match which {
-        "device" => Part::Device,
-        "canvas" => {
-            let module = gpu
-                .create_shader_module("canvas.wgsl", &ShaderSources::embedded().canvas)
-                .expect("the canvas's shader compiles");
-            Part::Canvas(Box::new(
-                CanvasRenderer::new(&gpu, &module, FORMAT).expect("the canvas is built"),
-            ))
-        }
-        "renderer" => Part::Renderer(Box::new(
-            Renderer::new(&gpu, FORMAT).expect("the renderer is built"),
-        )),
+    // What draws the first canvas: nothing, the canvas alone, through the engine's bridge to uwui,
+    // or the same beside the whole renderer, as an application that draws its interfaces with the
+    // renderer made would. The bridge's atlas makes no GPU object before a glyph asks for one.
+    let canvas_renderer = || InterfaceRenderer::new(&gpu, FORMAT).expect("the canvas is built");
+    let (renderer, mut drawer) = match which {
+        "device" => (None, None),
+        "canvas" => (None, Some(canvas_renderer())),
+        "renderer" => (
+            Some(Renderer::new(&gpu, FORMAT).expect("the renderer is built")),
+            Some(canvas_renderer()),
+        ),
         _ => panic!("no part {which}"),
     };
     let built_ms = started.elapsed().as_secs_f64() * 1e3;
     let canvas = first_canvas();
-    match &mut part {
-        Part::Device => {}
-        Part::Canvas(drawer) => {
-            drawer.draw(&gpu, &canvas, &target).expect("drawn");
-        }
-        Part::Renderer(renderer) => {
-            renderer.draw_canvas(&gpu, &canvas, &target).expect("drawn");
-        }
+    if let Some(drawer) = &mut drawer {
+        drawer
+            .draw_canvas(&gpu, &canvas, &[], &target)
+            .expect("drawn");
     }
     gpu.wait_idle().expect("the GPU finishes");
     let total_ms = started.elapsed().as_secs_f64() * 1e3;
@@ -164,7 +152,7 @@ fn measure(which: &str) {
         video_before.map_or("-".to_owned(), |kib| kib.to_string()),
         resident_kib().saturating_sub(resident_before),
     );
-    drop(part);
+    drop((renderer, drawer));
 }
 
 #[test]

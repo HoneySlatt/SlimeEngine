@@ -32,8 +32,8 @@ it. What each edits, and its limits, are in their rustdoc.
 - Holds the overlay's interface, in the editor's look, and its panels, which float over the
   window, each opened and closed by a chord, a shortcut of the interface, and by the command that
   the chord gives, which an agent gives too.
-- Draws them with the canvas of the view's renderer, after the view, through
-  `uwui-render`; it reaches no wgpu.
+- Draws them after the view, through the engine's bridge to uwui, `slime_app::InterfaceRenderer`,
+  which it makes at its first draw; it reaches no wgpu.
 - Lists a world's entities by name and edits the components of the one selected through the
   world's type registry, without knowing their types (`slime-world`, `slime-reflect`). Each change
   is given as a command (`slime_world::Command`), which names the entity by its persistent
@@ -48,15 +48,12 @@ builds the panels that are open as it extracts its frame, and draws them after i
 use slime_app::{Context, Presentation};
 use slime_devui::{Corner, Overlay, PanelId, PanelSpec};
 use slime_gfx::RenderTarget;
-use slime_render::Renderer;
 use uwui::tree::{Element, Ui};
 use slime_world::World;
 
 struct Statistics {
     overlay: Overlay,
     panel: PanelId,
-    /// The view's renderer, made once the window is open.
-    renderer: Option<Renderer>,
     frames: u64,
 }
 
@@ -70,7 +67,7 @@ impl Statistics {
             corner: Corner::TopStart,
             size: [320.0, 200.0],
         });
-        Self { overlay, panel, renderer: None, frames: 0 }
+        Self { overlay, panel, frames: 0 }
     }
 }
 
@@ -95,11 +92,11 @@ impl Presentation for Statistics {
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
-        let (Some(gpu), Some(renderer)) = (ctx.gpu(), self.renderer.as_mut()) else {
+        let Some(gpu) = ctx.gpu() else {
             return;
         };
-        // ... draw the view into `target` with `renderer` first ...
-        if let Err(error) = self.overlay.draw(gpu, renderer, target) {
+        // ... draw the view into `target` first ...
+        if let Err(error) = self.overlay.draw(gpu, target) {
             ctx.exit_with_error(error);
         }
     }
@@ -119,10 +116,10 @@ impl Presentation for Statistics {
   the panels are built; a panel opened before the first lays out once it.
 - `Overlay::slot(panel)`: the slot of an open panel, which the program builds what it shows in
   (`uwui::tree::Ui::build`), and which scrolls where the panel is smaller.
-- `Overlay::draw(gpu, &mut renderer, target)`: lays the overlay out and draws its panels over the
-  target with the view's renderer; a frame with no panel open draws nothing.
-  `Overlay::release()`, once the GPU device is lost, drops the atlas of its glyphs, which the next
-  draw makes again with the new device's renderer; the panels stay.
+- `Overlay::draw(gpu, target)`: lays the overlay out and draws its panels over the target, its
+  first draw making its renderer for the target's format; a frame with no panel open draws
+  nothing. `Overlay::release()`, once the GPU device is lost, drops its renderer and the atlas of
+  its glyphs, which the next draw makes again on the new device; the panels stay.
 - `render_figures(&stats)`: the lines of a frame's statistics that the panels of statistics show.
 - `WorldPanel::build(&mut ui, parent, &world)`: the world panel built under `parent`, a panel's
   slot, again only once what it shows changed; `WorldPanel::act(&mut actions)` takes from the
@@ -140,8 +137,9 @@ impl Presentation for Statistics {
 
 - `uwui`, with its `editor-look` feature: the interface that the panels are built on, and the
   editor's look, its fonts among it.
-- `uwui-render` and `slime-render`: the canvas of the view's renderer, which draws the panels,
-  and the statistics of a frame that they show.
+- `slime-app`, without its features: the engine's bridge to uwui, `InterfaceRenderer`, which
+  draws the panels.
+- `slime-render`: the statistics of a frame that the panels show.
 - `slime-gfx` and `slime-platform`: the GPU and the target drawn over, and the window's size.
 - `slime-world` and `slime-reflect`: the world that the world panel lists, and the reflection it
   edits its components and other values through.

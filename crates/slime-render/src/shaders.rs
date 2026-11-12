@@ -26,8 +26,6 @@ pub struct ShaderSources {
     pub unlit: String,
     /// `lines.wgsl`: the lines that a client draws into a view (ADR-0129).
     pub lines: String,
-    /// `canvas.wgsl`: the canvas, which an interface draws over a target (ADR-0137).
-    pub canvas: String,
     /// `outline.wgsl`: the outline that a client draws around instances (ADR-0159).
     pub outline: String,
 }
@@ -49,7 +47,6 @@ impl ShaderSources {
             resolve: include_str!("resolve.wgsl").to_owned(),
             unlit: include_str!("unlit.wgsl").to_owned(),
             lines: include_str!("lines.wgsl").to_owned(),
-            canvas: include_str!("canvas.wgsl").to_owned(),
             outline: include_str!("outline.wgsl").to_owned(),
         }
     }
@@ -73,7 +70,6 @@ impl ShaderSources {
             resolve: read("resolve.wgsl")?,
             unlit: read("unlit.wgsl")?,
             lines: read("lines.wgsl")?,
-            canvas: read("canvas.wgsl")?,
             outline: read("outline.wgsl")?,
         })
     }
@@ -170,7 +166,6 @@ mod tests {
                 ("resolve.wgsl", &sources.resolve),
                 ("unlit.wgsl", &sources.unlit),
                 ("lines.wgsl", &sources.lines),
-                ("canvas.wgsl", &sources.canvas),
                 ("outline.wgsl", &sources.outline),
             ] {
                 fs::write(directory.join(name), text).expect("written");

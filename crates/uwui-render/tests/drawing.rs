@@ -10,7 +10,6 @@ use std::sync::Arc;
 
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, GfxError, Gpu, RenderPassDescriptor, RenderTarget, TextureFormat};
-use slime_render::{CanvasImage, RenderError, Renderer};
 use uwui::Rect;
 use uwui::display::{
     BoxPrimitive, DisplayList, ImageKey, ImageKind, ImagePrimitive, TextPrimitive,
@@ -18,6 +17,7 @@ use uwui::display::{
 use uwui::style::{Align, Dimension};
 use uwui::text::{Fonts, GlyphPixels, GlyphRasterizer, TextBounds, TextLayout, TextStyle};
 use uwui::tree::{Element, LayoutDirection, RootSettings, Ui};
+use uwui_render::canvas::CanvasImage;
 use uwui_render::{ATLAS_PAGE_SIZE, UiRenderer};
 
 const FORMAT: TextureFormat = TextureFormat::Rgba16Float;
@@ -76,7 +76,6 @@ fn sentence(
 
 struct Setup {
     gpu: Gpu,
-    renderer: Renderer,
     ui: UiRenderer,
 }
 
@@ -84,12 +83,8 @@ impl Setup {
     fn new(budget: u64) -> Self {
         let gpu =
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        let renderer = Renderer::new(&gpu, FORMAT).expect("the renderer is created");
-        Self {
-            gpu,
-            renderer,
-            ui: UiRenderer::new(budget),
-        }
+        let ui = UiRenderer::with_budget(&gpu, FORMAT, budget).expect("the renderer is created");
+        Self { gpu, ui }
     }
 
     fn target(&self) -> RenderTarget {
@@ -115,14 +110,7 @@ impl Setup {
         let target = self.target();
         let stats = self
             .ui
-            .draw(
-                &self.gpu,
-                &mut self.renderer,
-                fonts,
-                list,
-                |_| None,
-                &target,
-            )
+            .draw(&self.gpu, fonts, list, |_| None, &target)
             .expect("drawn");
         let image = self
             .gpu
@@ -345,7 +333,6 @@ fn an_image_is_drawn_as_the_program_gives_it_and_one_it_does_not_give_is_left_ou
         .ui
         .draw(
             &setup.gpu,
-            &mut setup.renderer,
             &fonts,
             &list,
             |key| (key == ImageKey(7)).then_some(CanvasImage::Texture(&red)),
@@ -378,19 +365,9 @@ fn a_lost_device_stops_the_drawing_and_a_new_renderer_draws_the_text_again() {
     setup.gpu.lose();
     let error = setup
         .ui
-        .draw(
-            &setup.gpu,
-            &mut setup.renderer,
-            &fonts,
-            &list,
-            |_| None,
-            &target,
-        )
+        .draw(&setup.gpu, &fonts, &list, |_| None, &target)
         .expect_err("the device is lost");
-    assert!(
-        matches!(error, RenderError::Gfx(GfxError::DeviceLost { .. })),
-        "{error:?}"
-    );
+    assert!(matches!(error, GfxError::DeviceLost { .. }), "{error:?}");
     let mut again = Setup::new(uwui_render::GLYPH_ATLAS_BUDGET);
     let (image, stats) = again.draw(&fonts, &list);
     assert!(stats.rasterized > 0);
@@ -472,7 +449,6 @@ fn each_image_is_asked_for_once_a_draw_and_a_glyph_larger_than_a_page_is_left_ou
             .ui
             .draw(
                 &setup.gpu,
-                &mut setup.renderer,
                 &fonts,
                 &list,
                 |_| {

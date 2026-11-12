@@ -3026,6 +3026,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uwui",
+ "uwui-render",
 ]
 
 [[package]]
@@ -3112,7 +3113,6 @@ dependencies = [
  "slime-render",
  "slime-world",
  "uwui",
- "uwui-render",
 ]
 
 [[package]]
@@ -3136,7 +3136,6 @@ dependencies = [
  "thiserror 2.0.21",
  "tracing",
  "uwui",
- "uwui-render",
 ]
 
 [[package]]
@@ -3159,7 +3158,6 @@ dependencies = [
  "slime-world-render",
  "tracing",
  "uwui",
- "uwui-render",
 ]
 
 [[package]]
@@ -3756,7 +3754,6 @@ dependencies = [
  "etagere",
  "slime-color",
  "slime-gfx",
- "slime-render",
  "tracing",
  "uwui",
 ]

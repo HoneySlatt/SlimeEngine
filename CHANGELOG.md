@@ -8,6 +8,21 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- The interface's canvas moves from the renderer into uwui (ADR-0244): `Renderer::draw_canvas`,
+  the canvas's types, `Canvas`, `CanvasBox`, `CanvasGradient`, `CanvasShadow`, `CanvasImage`,
+  `CanvasStats`, `ImageQuad`, `ImageId`, `PixelRect`, `Radii` and `MAX_CANVAS_ITEMS`, and
+  `ShaderSources::canvas` leave `slime-render` for `uwui_render::canvas`, where `CanvasRenderer`
+  draws a canvas, `ImagePart` names a part of an image and `ImageKind` is
+  `uwui::display::ImageKind`, and for
+  `slime_app::InterfaceRenderer`, through which the engine's programs draw uwui, their images given
+  as `InterfaceImage`s. A canvas is data alone: an `ImageId` is the index of an image in the list
+  given when it is drawn, and `Canvas::add_image` is gone. `UiRenderer::new(gpu, format)` holds
+  its canvas's renderer, `UiRenderer::with_budget` takes the atlas's budget, and `UiRenderer::draw`
+  takes no `Renderer`; all three return a `GfxError`, and `UiRenderer::default()` is gone.
+  `slime_devui::Overlay::draw(gpu, target)` takes no renderer and returns a `GfxError`. A game that
+  watches its shaders no longer reloads the canvas's: only a program that holds a
+  `CanvasRenderer` itself replaces it, through `CanvasRenderer::set_shader`.
+  `slime-app`, and so every game, compiles `uwui-render`; `slime-devui` depends on `slime-app`.
 - uwui's styles are typed declarations, applied without reflection (ADR-0229): a rule sets a
   colour whole, and a rule that names a kind and sets what that kind does not read is refused.
   Each kind starts from defaults whose colours are the core's seven roles, `canvas_text`, `accent`

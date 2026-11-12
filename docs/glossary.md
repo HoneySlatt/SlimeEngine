@@ -171,11 +171,11 @@ origin as at it ([ADR-0048](adr/0048-rendering-relative-to-the-camera.md),
 **Candela (cd).** The unit of luminous intensity, lumens per steradian: the strength of a point or
 spot light (`intensity`). A surface facing such a light d metres away receives intensity / d² *lux*.
 
-**Canvas.** What the renderer draws in two dimensions, after the *views*, into any target: boxes
+**Canvas.** What uwui draws in two dimensions, after the *views*, into any target: boxes
 with rounded corners and borders, their shadows, boxes filled with a gradient between their corners'
 colors ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)), and images, each
-clipped, in the order given
-(`slime_render::Canvas`, `Renderer::draw_canvas`). Into an sRGB target, its colors mix as their
+clipped, in the order given (`uwui_render::canvas::Canvas`, drawn by `CanvasRenderer::draw`, and
+by the engine through `slime_app::InterfaceRenderer`). Into an sRGB target, its colors mix as their
 *sRGB encoding*'s values do, as design tools mix them ([ADR-0137](adr/0137-the-canvas.md)). The
 engine's UI framework draws its *display list* through it, glyphs as images of the *glyph atlas*
 ([ADR-0132](adr/0132-the-engines-ui-framework.md)).
@@ -335,7 +335,7 @@ go on with a new device, for which it creates its objects again
 
 **Display list.** What an interface of the engine's UI framework draws in a frame, as data that the
 framework owns and hands over: boxes, shadows, texts laid out and parts of images, each with its
-clip (`uwui::display::DisplayList`). `uwui-render` turns it into the renderer's *canvas*,
+clip (`uwui::display::DisplayList`). `uwui-render` turns it into a *canvas*,
 its texts' glyphs read from the *glyph atlas* ([ADR-0132](adr/0132-the-engines-ui-framework.md),
 [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
 

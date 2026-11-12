@@ -1,25 +1,25 @@
 //! The dev overlay over a program's view
 //! (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`): an interface in the editor's look
-//! whose panels float over the view, drawn after it with the view's renderer.
+//! whose panels float over the view, drawn after it through the engine's bridge to uwui.
 
-use slime_gfx::{Gpu, RenderTarget};
+use slime_app::InterfaceRenderer;
+use slime_gfx::{GfxError, Gpu, RenderTarget};
 use slime_platform::PhysicalSize;
-use slime_render::{RenderError, RenderStats, Renderer};
+use slime_render::RenderStats;
 use uwui::action::{Action, ActionKind, Intent};
 use uwui::look::{self, Colors, Density};
 use uwui::shortcuts::Shortcuts;
 use uwui::style::{Dimension, FlexDirection};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementId, Layer, LayoutDirection, Place, RootSettings, Ui};
-use uwui_render::UiRenderer;
 
 /// The space between a panel and the window's edges, in logical pixels.
 const MARGIN: f32 = 12.0;
 
 /// The dev overlay over a program's view: an interface in the editor's look
 /// (`uwui::look`), whose panels float over the window, each opened and closed by the program,
-/// moved, sized and folded by the user, and drawn over the view's image with the view's renderer
-/// ([`Overlay::draw`]).
+/// moved, sized and folded by the user, and drawn over the view's image through the engine's bridge
+/// to uwui, [`InterfaceRenderer`] ([`Overlay::draw`]).
 ///
 /// It is the presentation's one interface (`slime_app::Presentation::ui`, [`Overlay::ui_mut`]): the
 /// run gives it the window's events first, and a press over a panel, or a key that one of its
@@ -34,13 +34,15 @@ const MARGIN: f32 = 12.0;
 /// in logical pixels, so that it stays where it is as the window's scale factor changes, and opens
 /// again where it was when it closed.
 ///
-/// It holds GPU objects, the atlas of its glyphs: [`Overlay::release`] drops them once the device
-/// is lost, and the next draw makes them again on the new device. Its panels are kept.
+/// It holds GPU objects, its renderer and the atlas of its glyphs, made by its first draw:
+/// [`Overlay::release`] drops them once the device is lost, and the next draw makes them again on
+/// the new device. Its panels are kept.
 pub struct Overlay {
     ui: Ui,
     /// The root as large as the window, which draws nothing, and which the panels float over.
     window: ElementId,
-    renderer: UiRenderer,
+    /// What draws it, made by the first draw for its target's format.
+    renderer: Option<InterfaceRenderer>,
     panels: Vec<Panel>,
     /// Whether [`Overlay::set_window`] gave the window's size.
     sized: bool,
@@ -107,7 +109,7 @@ impl Overlay {
         Self {
             ui,
             window,
-            renderer: UiRenderer::default(),
+            renderer: None,
             panels: Vec::new(),
             sized: false,
         }
@@ -310,36 +312,38 @@ impl Overlay {
     }
 
     /// Lays the overlay out and draws its panels over what `target` holds, the window's image
-    /// after the view, with `renderer`, the view's, whose canvas it draws with
-    /// (`uwui_render::UiRenderer::draw`). A frame with no panel open draws nothing.
+    /// after the view ([`InterfaceRenderer::draw`]). Its first draw, and the first after
+    /// [`Overlay::release`], makes its renderer for `target`'s format. A frame with no panel open
+    /// draws nothing.
     ///
     /// # Errors
     ///
-    /// As `UiRenderer::draw`: the GPU out of memory or the device lost, nothing drawn then.
+    /// As [`InterfaceRenderer::draw`]: the GPU out of memory or the device lost, nothing drawn
+    /// then.
     ///
     /// # Panics
     ///
-    /// As `UiRenderer::draw`: if `target` does not have the renderer's format, or holds several
-    /// samples per pixel.
-    pub fn draw(
-        &mut self,
-        gpu: &Gpu,
-        renderer: &mut Renderer,
-        target: &RenderTarget,
-    ) -> Result<(), RenderError> {
+    /// As [`InterfaceRenderer::draw`]: if `target` does not have the format of the target that made
+    /// its renderer, or holds several samples per pixel.
+    pub fn draw(&mut self, gpu: &Gpu, target: &RenderTarget) -> Result<(), GfxError> {
         let (display, _) = self.ui.frame();
         if display.items().is_empty() {
             return Ok(());
         }
-        self.renderer
-            .draw(gpu, renderer, self.ui.fonts(), &display, |_| None, target)?;
+        let renderer = match &mut self.renderer {
+            Some(renderer) => renderer,
+            None => self
+                .renderer
+                .insert(InterfaceRenderer::new(gpu, target.format())?),
+        };
+        renderer.draw(gpu, self.ui.fonts(), &display, |_| None, target)?;
         Ok(())
     }
 
     /// Drops the overlay's GPU objects, once the GPU device is lost: the next draw makes them
-    /// again, with the renderer of the new device. Its panels and what they show are kept.
+    /// again, on the new device. Its panels and what they show are kept.
     pub fn release(&mut self) {
-        self.renderer = UiRenderer::default();
+        self.renderer = None;
     }
 }
 
@@ -394,9 +398,8 @@ fn settings(size: [f32; 2], scale: f32) -> RootSettings {
 
 #[cfg(test)]
 mod tests {
-    use slime_gfx::{GfxError, RenderPassDescriptor, TextureFormat};
+    use slime_gfx::{RenderPassDescriptor, TextureFormat};
     use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
-    use slime_render::RenderError;
     use uwui::tree::Role;
 
     use super::*;
@@ -606,41 +609,28 @@ mod tests {
     #[test]
     fn the_panels_are_drawn_over_the_view_and_again_with_the_device_that_replaces_a_lost_one() {
         let gpu = Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists them");
-        let mut renderer =
-            Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the device is not lost");
         let (mut overlay, statistics, _) = overlay();
         // No panel open: nothing drawn.
         let target = cleared(&gpu);
         let black = pixels(&gpu, &target);
         frame(&mut overlay, statistics);
-        overlay
-            .draw(&gpu, &mut renderer, &target)
-            .expect("the device is not lost");
+        overlay.draw(&gpu, &target).expect("the device is not lost");
         assert_eq!(pixels(&gpu, &target), black);
         overlay.open(statistics);
         frame(&mut overlay, statistics);
-        overlay
-            .draw(&gpu, &mut renderer, &target)
-            .expect("the device is not lost");
+        overlay.draw(&gpu, &target).expect("the device is not lost");
         let drawn = pixels(&gpu, &target);
         assert_ne!(drawn, black, "the panel is drawn");
         // The device lost, the draw fails without a panic; released, the overlay draws the same with
-        // a new device's renderer.
+        // a new device.
         gpu.lose();
-        let lost = overlay.draw(&gpu, &mut renderer, &target);
-        assert!(
-            matches!(lost, Err(RenderError::Gfx(GfxError::DeviceLost { .. }))),
-            "{lost:?}"
-        );
+        let lost = overlay.draw(&gpu, &target);
+        assert!(matches!(lost, Err(GfxError::DeviceLost { .. })), "{lost:?}");
         overlay.release();
         let gpu = Gpu::new().expect("a new device");
-        let mut renderer =
-            Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the device is not lost");
         let target = cleared(&gpu);
         frame(&mut overlay, statistics);
-        overlay
-            .draw(&gpu, &mut renderer, &target)
-            .expect("the device is not lost");
+        overlay.draw(&gpu, &target).expect("the device is not lost");
         assert_eq!(pixels(&gpu, &target), drawn, "drawn again as it was");
     }
 }

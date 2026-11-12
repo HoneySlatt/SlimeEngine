@@ -34,8 +34,7 @@ pub enum Projection {
 /// corner; [`ImagePart::WHOLE`] is the whole image. Of a camera's image, what a view draws of it,
 /// as a split screen draws half of an image and a magnifier a small part of it (ADR-0111): the
 /// view's output gives the part's aspect, the whole image as many times wider and higher as the
-/// part is a fraction of it. Of an image that a canvas draws, what an
-/// [`ImageQuad`](crate::ImageQuad) shows of it.
+/// part is a fraction of it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ImagePart {
     /// The part's left edge, from 0 at the image's left edge to 1 at its right.

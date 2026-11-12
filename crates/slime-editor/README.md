@@ -146,11 +146,11 @@ editor's other panels come with Stage 6c's next milestones.
 whose metadata files give a level's asset ID, and which writes files whole or not at all;
 `slime-app`, with its `development` feature, on which its program runs, `slime-channel`, whose
 requests it answers, and `slime-assets`, the cooked data of the prefabs that a level places; for its
-window, `uwui`, with the editor's look, `uwui-render` and `slime-render`, which draw it,
-`slime-world-render`, what the viewport draws of the world, `slime-gfx` and `slime-color`, the GPU
-and the color an image starts from, `slime-platform`, the window's events, and `slime-devui`, whose
-world panel the window shows; `serde_json`, which reads cargo's messages as Play builds the game;
-`thiserror`, which derives `EditError`, and `tracing`, the program's log.
+window, `uwui`, with the editor's look, which `slime-app`'s bridge draws, `slime-render`, the
+viewport's renderer, `slime-world-render`, what the viewport draws of the world, `slime-gfx` and
+`slime-color`, the GPU and the color an image starts from, `slime-platform`, the window's events,
+and `slime-devui`, whose world panel the window shows; `serde_json`, which reads cargo's messages
+as Play builds the game; `thiserror`, which derives `EditError`, and `tracing`, the program's log.
 
 ## Must not
 

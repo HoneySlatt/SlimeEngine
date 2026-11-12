@@ -11,7 +11,8 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-# The engine's log, and the trace that SLIME_TRACE asks for.
+# The engine's log, the trace that SLIME_TRACE asks for, and the bridge through which the engine
+# draws uwui, which `render.canvas` and `ui.draw.menu` draw through (ADR-0244).
 slime-app.workspace = true
 slime-assets.workspace = true
 slime-color.workspace = true
@@ -32,7 +33,8 @@ hunnawood-editor.workspace = true
 uwui = { workspace = true, features = ["editor-look"] }
 # uwui's reader of KDL, the notation of its documents (ADR-0241).
 uwui-kdl.workspace = true
-# The interface drawn from a display list (ADR-0139).
+# The canvas that `render.canvas` fills, and the canvas's renderer, whose cost against the renderer's
+# `tests/canvas_cost.rs` measures (ADR-0139, ADR-0180).
 uwui-render.workspace = true
 slime-world.workspace = true
 slime-world-render.workspace = true

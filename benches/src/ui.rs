@@ -329,23 +329,24 @@ pub fn raster(_: &mut Context) -> Result<Vec<Row>, String> {
 /// and buttons of `render.canvas`'s menu, without its icons, laid out for 1920 × 1080 and scaled to
 /// fit, and real texts, laid out with the fonts of uwui's tests at the screen's scale: a
 /// description of some 1 500 characters, 34 rows of statistics, 30 buttons' labels and 100 counts,
-/// some 2 400 glyphs. The first draw, which rasterizes its glyphs into the atlas, the renderer
-/// warmed before it; then the CPU of `UiRenderer::draw` once they are there, and the canvas's GPU
-/// time, which ADR-0137 bounds.
+/// some 2 400 glyphs, drawn through the engine's bridge, `slime_app::InterfaceRenderer`. The first
+/// draw, which rasterizes its glyphs into the atlas, the canvas warmed before it; then the CPU of
+/// `UiRenderer::draw` once they are there, and the canvas's GPU time, which ADR-0137 bounds.
 pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
     use std::sync::Arc;
 
-    use slime_render::Renderer;
+    use slime_app::InterfaceRenderer;
+    use slime_gfx::GfxError;
     use uwui::Rect;
     use uwui::display::{BoxPrimitive, DisplayList, ShadowPrimitive, TextPrimitive};
     use uwui::text::{TEXT_CACHE_BUDGET, TextCache};
-    use uwui_render::{GLYPH_ATLAS_BUDGET, UiRenderer};
+    use uwui_render::canvas::{Canvas, CanvasBox, PixelRect};
 
     use crate::render::{CANVAS_FRAMES, FORMAT, TIERS, canvas_frames};
 
     let runs = context.runs(CANVAS_FRAMES);
     let gpu = &context.gpu;
-    let error = |error: slime_render::RenderError| error.to_string();
+    let error = |error: GfxError| error.to_string();
     let mut fonts = fonts()?;
     let path = Context::root().join("crates/uwui/tests/texts/english.txt");
     let english =
@@ -357,7 +358,6 @@ pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
         .take(14)
         .collect::<Vec<_>>()
         .join(" ");
-    let mut renderer = Renderer::new(gpu, FORMAT).map_err(error)?;
     let mut rows = Vec::new();
     for (width, height) in TIERS {
         let target = gpu
@@ -502,19 +502,34 @@ pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
         );
 
         let at = format!("at {width} × {height}");
-        // The renderer warmed by another bridge, so that the first draw measures the atlas.
-        UiRenderer::new(GLYPH_ATLAS_BUDGET)
-            .draw(gpu, &mut renderer, &fonts, &list, |_| None, &target)
+        // The canvas warmed, so that the first draw measures the atlas: another bridge's draw gives
+        // the menu's items, and the fresh bridge's canvas, its pipeline made with it, draws as many
+        // boxes, which grows its buffer to hold them and uses its pipeline once, its atlas left
+        // cold.
+        let warming = InterfaceRenderer::new(gpu, FORMAT)
+            .and_then(|mut other| other.draw(gpu, &fonts, &list, |_| None, &target))
             .map_err(error)?;
+        let mut ui = InterfaceRenderer::new(gpu, FORMAT).map_err(error)?;
+        let mut boxes = Canvas::new();
+        for _ in 0..warming.canvas.items {
+            boxes.draw_box(&CanvasBox {
+                rect: PixelRect::new(0.0, 0.0, 1.0, 1.0),
+                radii: [0.0; 4],
+                fill: LinearColor::BLACK,
+                border_width: 0.0,
+                border: LinearColor::BLACK,
+                clip: None,
+            });
+        }
+        ui.draw_canvas(gpu, &boxes, &[], &target).map_err(error)?;
         gpu.wait_idle().map_err(|error| error.to_string())?;
-        let mut ui = UiRenderer::new(GLYPH_ATLAS_BUDGET);
-        let (first, cold) = timed(|| ui.draw(gpu, &mut renderer, &fonts, &list, |_| None, &target));
+        let (first, cold) = timed(|| ui.draw(gpu, &fonts, &list, |_| None, &target));
         let first = first.map_err(error)?;
         gpu.wait_idle().map_err(|error| error.to_string())?;
         let (cpu, gpu_times, last) = canvas_frames(
             gpu,
             runs,
-            || ui.draw(gpu, &mut renderer, &fonts, &list, |_| None, &target),
+            || ui.draw(gpu, &fonts, &list, |_| None, &target),
             |stats| stats.canvas.gpu_time,
         )?;
         rows.push(Row::new(
@@ -525,7 +540,10 @@ pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
             format!("glyphs rasterized by the first draw {at}"),
             first.rasterized,
         ));
-        rows.extend(Row::times(&format!("CPU of `UiRenderer::draw` {at}"), &cpu));
+        rows.extend(Row::times(
+            &format!("CPU of `InterfaceRenderer::draw` {at}"),
+            &cpu,
+        ));
         if !gpu_times.is_empty() {
             rows.push(Row::new(
                 format!(

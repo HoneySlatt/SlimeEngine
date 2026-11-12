@@ -2,15 +2,16 @@
 //! inside its rounded corners and its border inside its edges; a shadow fades from under its box,
 //! where its offset puts it; a gradient mixes its corners' colors; a clip cuts what lies outside
 //! it; an image is drawn in a color or as it is, and so is a view's target; items are drawn in
-//! their order, few draws for many items; shapes drawn at twice the scale keep their place; the
-//! canvas's shader is replaced with the others; a lost device stops it, and a new renderer draws it
-//! again. Runs on whatever adapter the machine offers.
+//! their order, few draws for many items; an item that reads an image not given is refused; shapes
+//! drawn at twice the scale keep their place; the canvas's shader is replaced, and a broken one
+//! refused; a lost device stops it, and a new renderer draws it again. Runs on whatever adapter the
+//! machine offers.
 
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, GfxError, Gpu, RenderPassDescriptor, RenderTarget, TextureFormat};
-use slime_render::{
-    Canvas, CanvasBox, CanvasGradient, CanvasImage, CanvasShadow, ImageKind, ImagePart, ImageQuad,
-    MAX_CANVAS_ITEMS, PixelRect, RenderError, Renderer, ShaderSources,
+use uwui_render::canvas::{
+    Canvas, CanvasBox, CanvasGradient, CanvasImage, CanvasRenderer, CanvasShadow, ImageId,
+    ImageKind, ImagePart, ImageQuad, MAX_CANVAS_ITEMS, PixelRect, SHADER,
 };
 
 const SIZE: u32 = 64;
@@ -21,14 +22,14 @@ const GREY: LinearColor = LinearColor::rgb(0.5, 0.5, 0.5);
 
 struct Setup {
     gpu: Gpu,
-    renderer: Renderer,
+    renderer: CanvasRenderer,
 }
 
 impl Setup {
     fn new() -> Self {
         let gpu =
             Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        let renderer = Renderer::new(&gpu, FORMAT).expect("the renderer is created");
+        let renderer = CanvasRenderer::new(&gpu, FORMAT).expect("the renderer is created");
         Self { gpu, renderer }
     }
 
@@ -51,11 +52,11 @@ impl Setup {
         target
     }
 
-    /// `canvas` drawn over a black target, read back.
-    fn draw(&mut self, canvas: &Canvas<'_>) -> FloatImage {
+    /// `canvas` drawn over a black target with `images`, read back.
+    fn draw(&mut self, canvas: &Canvas, images: &[CanvasImage<'_>]) -> FloatImage {
         let target = self.target("canvas");
         self.renderer
-            .draw_canvas(&self.gpu, canvas, &target)
+            .draw(&self.gpu, canvas, images, &target)
             .expect("drawn");
         self.gpu
             .read_float_render_target(&target)
@@ -98,7 +99,7 @@ fn a_box_fills_inside_its_rounded_corners_and_its_border_inside_its_edges() {
         border_width: 4.0,
         ..shape(PixelRect::new(8.0, 8.0, 48.0, 48.0))
     });
-    let image = setup.draw(&canvas);
+    let image = setup.draw(&canvas, &[]);
     // The fill, inside the border.
     assert_eq!(pixel(&image, (32, 32))[..3], [0.0, 0.0, 1.0]);
     // The border, 4 pixels wide inside each edge: its left at x 8 to 11, its bottom at y 52 to 55.
@@ -132,7 +133,7 @@ fn a_shadow_fades_from_under_its_box_where_its_offset_puts_it() {
         spread: 0.0,
         clip: None,
     });
-    let image = setup.draw(&canvas);
+    let image = setup.draw(&canvas, &[]);
     // Whole under the middle of the box moved by its offset, (32, 32): its alpha.
     assert!(
         close(pixel(&image, (32, 32))[0], 0.8),
@@ -162,7 +163,7 @@ fn a_shadow_fades_from_under_its_box_where_its_offset_puts_it() {
         spread: 2.0,
         clip: None,
     });
-    let image = setup.draw(&sharp);
+    let image = setup.draw(&sharp, &[]);
     assert!(close(pixel(&image, (14, 28))[0], 1.0));
     assert_eq!(pixel(&image, (13, 28))[0], 0.0);
 }
@@ -201,7 +202,7 @@ fn a_shadow_is_its_box_blurred_by_a_gaussian_within_a_few_hundredths() {
             spread: 0.0,
             clip: None,
         });
-        let image = setup.draw(&canvas);
+        let image = setup.draw(&canvas, &[]);
         // The canvas counts a pixel's own width in the blur, a variance of 1/12.
         let sigma = (f64::from(blur / 2.0).powi(2) + 1.0 / 12.0).sqrt();
         let mut worst = (0.0, (0, 0));
@@ -287,8 +288,8 @@ fn into_an_srgb_target_colors_mix_as_srgb_values_and_into_another_as_linear_ones
             &[188, 188, 188, 255],
         )
         .expect("the GPU has memory for it");
+    let images = [CanvasImage::Texture(&grey)];
     let mut canvas = Canvas::new();
-    let grey_image = canvas.add_image(CanvasImage::Texture(&grey));
     canvas.draw_box(&CanvasBox {
         fill: LinearColor::WHITE,
         ..shape(PixelRect::new(0.0, 0.0, 64.0, 64.0))
@@ -303,18 +304,20 @@ fn into_an_srgb_target_colors_mix_as_srgb_values_and_into_another_as_linear_ones
     });
     canvas.draw_image(&ImageQuad {
         rect: PixelRect::new(56.0, 0.0, 8.0, 64.0),
-        image: grey_image,
+        image: ImageId(0),
         part: ImagePart::WHOLE,
         kind: ImageKind::Color,
         color: LinearColor::WHITE,
         clip: None,
     });
     let mut renderer =
-        Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer is created");
+        CanvasRenderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer is created");
     let target = gpu
         .create_render_target("srgb", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
         .expect("the GPU has memory for it");
-    renderer.draw_canvas(&gpu, &canvas, &target).expect("drawn");
+    renderer
+        .draw(&gpu, &canvas, &images, &target)
+        .expect("drawn");
     let image = gpu.read_render_target(&target).expect("read back");
     // Half of white's 255 as sRGB stores it, where linear mixing stores 188, its encoding of 0.5.
     for x in [16, 48] {
@@ -325,7 +328,7 @@ fn into_an_srgb_target_colors_mix_as_srgb_values_and_into_another_as_linear_ones
     let red = image.pixels[((32 * SIZE + 60) * 4) as usize];
     assert!(red.abs_diff(188) <= 1, "{red}");
     // Into a target of floats, linear: one half.
-    let linear = setup.draw(&canvas);
+    let linear = setup.draw(&canvas, &images);
     for x in [16, 48] {
         assert!(close(pixel(&linear, (x, 32))[0], 0.5));
     }
@@ -354,17 +357,17 @@ fn into_an_srgb_target_a_border_s_color_is_encoded_and_a_shadow_keeps_its_shape(
         clip: None,
     });
     let mut renderer =
-        Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer is created");
+        CanvasRenderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer is created");
     let target = gpu
         .create_render_target("srgb", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
         .expect("the GPU has memory for it");
-    renderer.draw_canvas(&gpu, &canvas, &target).expect("drawn");
+    renderer.draw(&gpu, &canvas, &[], &target).expect("drawn");
     let image = gpu.read_render_target(&target).expect("read back");
     let red = |(x, y): (u32, u32)| image.pixels[((y * SIZE + x) * 4) as usize];
     assert!(red((1, 32)).abs_diff(128) <= 1, "{}", red((1, 32)));
     // On the arc, the shadow covers as much of the pixel as in a target of floats: white over
     // black is its coverage in either.
-    let linear = setup.draw(&canvas);
+    let linear = setup.draw(&canvas, &[]);
     let covered = pixel(&linear, (36, 4))[0];
     assert!(covered > 0.05 && covered < 0.95, "{covered}");
     let stored = f32::from(red((36, 4))) / 255.0;
@@ -383,7 +386,7 @@ fn a_clip_between_two_pixels_covers_them_in_part_and_an_empty_one_leaves_its_ite
     canvas.draw_box(&white(PixelRect::new(10.25, 0.0, 20.0, 32.0)));
     // A tenth of a pixel wide.
     canvas.draw_box(&white(PixelRect::new(40.3, 0.0, 0.1, 64.0)));
-    let image = setup.draw(&canvas);
+    let image = setup.draw(&canvas, &[]);
     assert!(close(pixel(&image, (10, 16))[0], 0.75));
     assert!(close(pixel(&image, (20, 16))[0], 1.0));
     assert!(close(pixel(&image, (30, 16))[0], 0.25));
@@ -394,7 +397,7 @@ fn a_clip_between_two_pixels_covers_them_in_part_and_an_empty_one_leaves_its_ite
     empty.draw_box(&white(PixelRect::new(10.5, 0.0, 0.0, 64.0)));
     empty.draw_box(&white(PixelRect::new(10.7, 0.0, -0.4, 64.0)));
     assert!(empty.is_empty());
-    let image = setup.draw(&empty);
+    let image = setup.draw(&empty, &[]);
     assert_eq!(pixel(&image, (10, 32))[0], 0.0);
 }
 
@@ -414,17 +417,17 @@ fn an_image_cut_by_its_clip_keeps_its_place() {
             ],
         )
         .expect("the GPU has memory for it");
+    let images = [CanvasImage::Texture(&texture)];
     let mut canvas = Canvas::new();
-    let image = canvas.add_image(CanvasImage::Texture(&texture));
     canvas.draw_image(&ImageQuad {
         rect: PixelRect::new(0.0, 0.0, 64.0, 64.0),
-        image,
+        image: ImageId(0),
         part: ImagePart::WHOLE,
         kind: ImageKind::Color,
         color: LinearColor::WHITE,
         clip: Some(PixelRect::new(32.0, 0.0, 32.0, 64.0)),
     });
-    let drawn = setup.draw(&canvas);
+    let drawn = setup.draw(&canvas, &images);
     assert_eq!(pixel(&drawn, (16, 32))[..3], [0.0; 3]);
     let [r, g, b, _] = pixel(&drawn, (48, 32));
     assert!(close(r, 0.0) && g == 0.0 && close(b, 1.0), "{r} {g} {b}");
@@ -440,7 +443,7 @@ fn past_its_bound_a_canvas_leaves_its_last_items_out() {
     let target = setup.target("full");
     let stats = setup
         .renderer
-        .draw_canvas(&setup.gpu, &canvas, &target)
+        .draw(&setup.gpu, &canvas, &[], &target)
         .expect("drawn");
     assert_eq!((stats.items, stats.left_out), (MAX_CANVAS_ITEMS, 3));
 }
@@ -455,7 +458,7 @@ fn a_target_of_another_format_is_refused() {
         .expect("the GPU has memory for it");
     let mut canvas = Canvas::new();
     canvas.draw_box(&shape(PixelRect::new(0.0, 0.0, 8.0, 8.0)));
-    let _ = setup.renderer.draw_canvas(&setup.gpu, &canvas, &target);
+    let _ = setup.renderer.draw(&setup.gpu, &canvas, &[], &target);
 }
 
 #[test]
@@ -468,7 +471,27 @@ fn a_target_of_several_samples_is_refused() {
         .expect("the GPU has memory for it");
     let mut canvas = Canvas::new();
     canvas.draw_box(&shape(PixelRect::new(0.0, 0.0, 8.0, 8.0)));
-    let _ = setup.renderer.draw_canvas(&setup.gpu, &canvas, &target);
+    let _ = setup.renderer.draw(&setup.gpu, &canvas, &[], &target);
+}
+
+#[test]
+#[should_panic(expected = "an item of the canvas reads image 1, beyond the images given (1)")]
+fn an_item_that_reads_an_image_not_given_is_refused() {
+    let mut setup = Setup::new();
+    let texture = setup
+        .gpu
+        .create_texture_with_levels("given", 1, 1, TextureFormat::R8Unorm, &[&[255]])
+        .expect("the GPU has memory for it");
+    let mut canvas = Canvas::new();
+    canvas.draw_image(&ImageQuad {
+        rect: PixelRect::new(0.0, 0.0, 8.0, 8.0),
+        image: ImageId(1),
+        part: ImagePart::WHOLE,
+        kind: ImageKind::Coverage,
+        color: LinearColor::WHITE,
+        clip: None,
+    });
+    setup.draw(&canvas, &[CanvasImage::Texture(&texture)]);
 }
 
 #[test]
@@ -488,7 +511,7 @@ fn a_clip_cuts_what_lies_outside_it() {
         spread: 0.0,
         clip: Some(PixelRect::new(16.0, 0.0, 16.0, 64.0)),
     });
-    let image = setup.draw(&canvas);
+    let image = setup.draw(&canvas, &[]);
     assert_eq!(pixel(&image, (31, 32))[..3], [0.0, 0.0, 1.0]);
     assert_eq!(pixel(&image, (32, 32))[..3], [0.0; 3]);
     assert_eq!(pixel(&image, (20, 4))[..3], [1.0; 3]);
@@ -514,9 +537,12 @@ fn an_image_is_drawn_in_a_color_or_as_it_is() {
             &[255, 0, 0, 255, 0, 255, 0, 0],
         )
         .expect("the GPU has memory for it");
+    let images = [
+        CanvasImage::Texture(&coverage),
+        CanvasImage::Texture(&colors),
+    ];
+    let (coverage, colors) = (ImageId(0), ImageId(1));
     let mut canvas = Canvas::new();
-    let coverage = canvas.add_image(CanvasImage::Texture(&coverage));
-    let colors = canvas.add_image(CanvasImage::Texture(&colors));
     let quad = |image, kind, color, y| ImageQuad {
         rect: PixelRect::new(0.0, y, 64.0, 16.0),
         image,
@@ -532,7 +558,7 @@ fn an_image_is_drawn_in_a_color_or_as_it_is() {
         LinearColor::rgba(1.0, 1.0, 1.0, 0.5),
         32.0,
     ));
-    let image = setup.draw(&canvas);
+    let image = setup.draw(&canvas, &images);
     // Coverage: none at the left, the color at the right, between in the middle.
     assert_eq!(pixel(&image, (4, 8))[..3], [0.0; 3]);
     assert!(close(pixel(&image, (60, 8))[0], 0.5));
@@ -557,20 +583,20 @@ fn a_target_that_a_view_drew_is_drawn_as_an_image_into_a_panel() {
     });
     setup
         .renderer
-        .draw_canvas(&setup.gpu, &drawn, &view)
+        .draw(&setup.gpu, &drawn, &[], &view)
         .expect("drawn");
     // A panel of 32 × 32 pixels at (16, 16) that shows it, shrunk by half.
+    let images = [CanvasImage::Target(&view)];
     let mut canvas = Canvas::new();
-    let shown = canvas.add_image(CanvasImage::Target(&view));
     canvas.draw_image(&ImageQuad {
         rect: PixelRect::new(16.0, 16.0, 32.0, 32.0),
-        image: shown,
+        image: ImageId(0),
         part: ImagePart::WHOLE,
         kind: ImageKind::Color,
         color: LinearColor::WHITE,
         clip: None,
     });
-    let image = setup.draw(&canvas);
+    let image = setup.draw(&canvas, &images);
     assert_eq!(pixel(&image, (20, 32))[..3], [0.0, 0.0, 1.0]);
     assert_eq!(pixel(&image, (44, 32))[..3], [1.0, 0.0, 0.0]);
     assert_eq!(pixel(&image, (8, 32))[..3], [0.0; 3]);
@@ -586,9 +612,9 @@ fn items_are_drawn_in_their_order_few_draws_for_many() {
             .expect("the GPU has memory for it")
     };
     let (first, second) = (texture("first"), texture("second"));
+    let images = [CanvasImage::Texture(&first), CanvasImage::Texture(&second)];
+    let (first, second) = (ImageId(0), ImageId(1));
     let mut canvas = Canvas::new();
-    let first = canvas.add_image(CanvasImage::Texture(&first));
-    let second = canvas.add_image(CanvasImage::Texture(&second));
     let glyph = |image, x| ImageQuad {
         rect: PixelRect::new(x, 40.0, 8.0, 8.0),
         image,
@@ -609,7 +635,7 @@ fn items_are_drawn_in_their_order_few_draws_for_many() {
     let target = setup.target("ordered");
     let stats = setup
         .renderer
-        .draw_canvas(&setup.gpu, &canvas, &target)
+        .draw(&setup.gpu, &canvas, &images, &target)
         .expect("drawn");
     assert_eq!((stats.items, stats.draws, stats.left_out), (5, 2, 0));
     let image = setup.gpu.read_float_render_target(&target).expect("read");
@@ -635,8 +661,8 @@ fn shapes_drawn_at_twice_the_scale_keep_their_place() {
         });
         canvas
     };
-    let one = setup.draw(&at(1.0));
-    let two = setup.draw(&at(2.0));
+    let one = setup.draw(&at(1.0), &[]);
+    let two = setup.draw(&at(2.0), &[]);
     // A pixel of the first, and the four that it becomes in the second: each the same part.
     for (x, y) in [(14, 14), (5, 14), (14, 5), (5, 5), (8, 6)] {
         let small = pixel(&one, (x, y));
@@ -655,38 +681,35 @@ fn shapes_drawn_at_twice_the_scale_keep_their_place() {
 }
 
 #[test]
-fn the_canvas_s_shader_is_replaced_with_the_others_and_a_broken_one_refused() {
+fn the_canvas_s_shader_is_replaced_and_a_broken_one_refused() {
     let mut setup = Setup::new();
     let mut canvas = Canvas::new();
     canvas.draw_box(&shape(PixelRect::new(0.0, 0.0, 64.0, 64.0)));
-    let embedded = ShaderSources::embedded();
     let output = "return color * clipped;";
-    assert!(embedded.canvas.contains(output));
-    let swapped = ShaderSources {
-        canvas: embedded
-            .canvas
-            .replace(output, "return color.bgra * clipped;"),
-        ..embedded.clone()
-    };
+    assert!(SHADER.contains(output));
+    let swapped = SHADER.replace(output, "return color.bgra * clipped;");
     setup
         .renderer
-        .set_shaders(&setup.gpu, &swapped)
+        .set_shader(&setup.gpu, &swapped)
         .expect("compiled");
-    assert_eq!(pixel(&setup.draw(&canvas), (32, 32))[..3], [1.0, 0.0, 0.0]);
-    let broken = ShaderSources {
-        canvas: format!("fn broken() {{ let x = ; }}\n{}", embedded.canvas),
-        ..embedded
-    };
+    assert_eq!(
+        pixel(&setup.draw(&canvas, &[]), (32, 32))[..3],
+        [1.0, 0.0, 0.0]
+    );
+    let broken = format!("fn broken() {{ let x = ; }}\n{SHADER}");
     let error = setup
         .renderer
-        .set_shaders(&setup.gpu, &broken)
+        .set_shader(&setup.gpu, &broken)
         .expect_err("refused");
-    let RenderError::Gfx(GfxError::Shader { label, .. }) = &error else {
+    let GfxError::Shader { label, .. } = &error else {
         panic!("{error:?}");
     };
     assert_eq!(label, "canvas.wgsl");
-    // The shaders before, kept.
-    assert_eq!(pixel(&setup.draw(&canvas), (32, 32))[..3], [1.0, 0.0, 0.0]);
+    // The shader before, kept.
+    assert_eq!(
+        pixel(&setup.draw(&canvas, &[]), (32, 32))[..3],
+        [1.0, 0.0, 0.0]
+    );
 }
 
 #[test]
@@ -698,14 +721,14 @@ fn a_lost_device_stops_the_canvas_and_a_new_renderer_draws_it_again() {
     setup.gpu.lose();
     let error = setup
         .renderer
-        .draw_canvas(&setup.gpu, &canvas, &target)
+        .draw(&setup.gpu, &canvas, &[], &target)
         .expect_err("the device is lost");
-    assert!(
-        matches!(error, RenderError::Gfx(GfxError::DeviceLost { .. })),
-        "{error:?}"
-    );
+    assert!(matches!(error, GfxError::DeviceLost { .. }), "{error:?}");
     let mut again = Setup::new();
-    assert_eq!(pixel(&again.draw(&canvas), (32, 32))[..3], [0.0, 0.0, 1.0]);
+    assert_eq!(
+        pixel(&again.draw(&canvas, &[]), (32, 32))[..3],
+        [0.0, 0.0, 1.0]
+    );
 }
 
 #[test]
@@ -721,7 +744,7 @@ fn the_canvas_s_time_on_the_gpu_comes_back_where_the_adapter_times() {
     for _ in 0..20 {
         let stats = setup
             .renderer
-            .draw_canvas(&setup.gpu, &canvas, &target)
+            .draw(&setup.gpu, &canvas, &[], &target)
             .expect("drawn");
         setup.gpu.wait_idle().expect("the device is there");
         if stats.gpu_time.is_some() {
@@ -750,7 +773,7 @@ fn a_gradient_mixes_its_corners_by_each_point_s_place() {
         clip: None,
     });
     // Into a target of floats, linear: the corners at the corners, their mixes between.
-    let linear = setup.draw(&canvas);
+    let linear = setup.draw(&canvas, &[]);
     let top_left = pixel(&linear, (0, 0));
     let top_right = pixel(&linear, (63, 0));
     assert!(
@@ -770,11 +793,11 @@ fn a_gradient_mixes_its_corners_by_each_point_s_place() {
     assert!(pixel(&linear, (40, 63))[0] < 0.03, "black at the bottom");
     // Into an sRGB target, mixed on the encoding, as CSS mixes: half of 255, not linear's 188.
     let mut renderer =
-        Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer is created");
+        CanvasRenderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer is created");
     let target = gpu
         .create_render_target("srgb", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
         .expect("the GPU has memory for it");
-    renderer.draw_canvas(&gpu, &canvas, &target).expect("drawn");
+    renderer.draw(&gpu, &canvas, &[], &target).expect("drawn");
     let image = gpu.read_render_target(&target).expect("read back");
     let green = image.pixels[(32 * 4 + 1) as usize];
     assert!(green.abs_diff(128) <= 3, "{green}");
@@ -786,7 +809,7 @@ fn a_gradient_mixes_its_corners_by_each_point_s_place() {
         corners: [LinearColor::WHITE; 4],
         clip: Some(PixelRect::new(0.0, 0.0, 64.0, 32.0)),
     });
-    let rounded = setup.draw(&canvas);
+    let rounded = setup.draw(&canvas, &[]);
     assert_eq!(pixel(&rounded, (0, 0))[0], 0.0, "outside its corner");
     assert!(close(pixel(&rounded, (32, 16))[0], 1.0));
     assert_eq!(pixel(&rounded, (32, 48))[0], 0.0, "outside its clip");

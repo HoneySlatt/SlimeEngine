@@ -744,8 +744,8 @@ impl Presentation for YardView {
                 }
             })
             .collect();
-        // Over the views, with their renderer.
-        if let Err(error) = self.overlay.draw(gpu, renderer, target) {
+        // Over the views.
+        if let Err(error) = self.overlay.draw(gpu, target) {
             ctx.exit_with_error(error);
             return;
         }

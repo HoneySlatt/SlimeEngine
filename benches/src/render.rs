@@ -4,13 +4,16 @@
 use std::f32::consts::PI;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use slime_app::{InterfaceImage, InterfaceRenderer};
 use slime_color::LinearColor;
 use slime_gfx::{GfxError, Gpu, RenderTarget, Texture, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
-    Camera, Canvas, CanvasBox, CanvasImage, CanvasShadow, DirectionalLight, Environment, ImageKind,
-    ImagePart, ImageQuad, Instance, Light, Material, MaterialData, MeshData, PixelRect,
+    Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, MeshData,
     RenderStats, Renderer, Scene, ShaderSources, Sky, ViewDraw,
+};
+use uwui_render::canvas::{
+    Canvas, CanvasBox, CanvasShadow, ImageId, ImageKind, ImagePart, ImageQuad, PixelRect,
 };
 
 use crate::measure::{Context, Row, ms, percentile, timed};
@@ -288,13 +291,13 @@ pub fn shaders(context: &mut Context) -> Result<Vec<Row>, String> {
 
 /// Two screens drawn by the canvas (`docs/adr/0137-the-canvas.md`) at the tiers' sizes, each laid
 /// out for 1920 × 1080: an editor's ([`editor_screen`]) and a game's menu ([`game_screen`]). At
-/// each, the CPU of `Renderer::draw_canvas`, the canvas on the GPU, which ADR-0137 bounds, and its
-/// items and draws.
+/// each, the CPU of `InterfaceRenderer::draw_canvas`, the canvas on the GPU, which ADR-0137 bounds,
+/// and its items and draws.
 pub fn canvas(context: &mut Context) -> Result<Vec<Row>, String> {
     let runs = context.runs(CANVAS_FRAMES);
     let gpu = &context.gpu;
     let gfx = |error: GfxError| error.to_string();
-    let mut renderer = Renderer::new(gpu, FORMAT).map_err(|error| error.to_string())?;
+    let mut renderer = InterfaceRenderer::new(gpu, FORMAT).map_err(gfx)?;
     // An atlas of glyphs, 1 024 × 1 024 texels, in cells of 16 × 16 that a glyph covers in part.
     let glyphs: Vec<u8> = (0..1024 * 1024)
         .map(|index| {
@@ -341,21 +344,23 @@ pub fn canvas(context: &mut Context) -> Result<Vec<Row>, String> {
         let (w, h) = (width as f32, height as f32);
         let at = format!("at {width} × {height}");
         let mut editor = Canvas::new();
-        editor_screen(&mut editor, &glyphs, &pictures, w, h);
+        let images = editor_screen(&mut editor, &glyphs, &pictures, w, h);
         rows.extend(measure_canvas(
             gpu,
             &mut renderer,
             &editor,
+            &images,
             &target,
             &format!("the editor's screen {at}"),
             runs,
         )?);
         let mut game = Canvas::new();
-        game_screen(&mut game, &glyphs, &icons, w, h);
+        let images = game_screen(&mut game, &glyphs, &icons, w, h);
         rows.extend(measure_canvas(
             gpu,
             &mut renderer,
             &game,
+            &images,
             &target,
             &format!("the game's menu {at}"),
             runs,
@@ -364,12 +369,13 @@ pub fn canvas(context: &mut Context) -> Result<Vec<Row>, String> {
     Ok(rows)
 }
 
-/// The rows of `canvas` drawn into `target`, `what` naming it and its size: the CPU of
-/// `Renderer::draw_canvas`, the canvas on the GPU, and its items and draws.
+/// The rows of `canvas` drawn with `images` into `target`, `what` naming it and its size: the CPU
+/// of `InterfaceRenderer::draw_canvas`, the canvas on the GPU, and its items and draws.
 fn measure_canvas(
     gpu: &Gpu,
-    renderer: &mut Renderer,
-    canvas: &Canvas<'_>,
+    renderer: &mut InterfaceRenderer,
+    canvas: &Canvas,
+    images: &[InterfaceImage<'_>],
     target: &RenderTarget,
     what: &str,
     runs: usize,
@@ -377,11 +383,11 @@ fn measure_canvas(
     let (cpu, gpu_times, stats) = canvas_frames(
         gpu,
         runs,
-        || renderer.draw_canvas(gpu, canvas, target),
+        || renderer.draw_canvas(gpu, canvas, images, target),
         |stats| stats.gpu_time,
     )?;
     let mut rows = Vec::from(Row::times(
-        &format!("CPU of `Renderer::draw_canvas`, {what}"),
+        &format!("CPU of `InterfaceRenderer::draw_canvas`, {what}"),
         &cpu,
     ));
     if !gpu_times.is_empty() {
@@ -407,7 +413,7 @@ pub const CANVAS_FRAMES: usize = 30;
 pub fn canvas_frames<T>(
     gpu: &Gpu,
     runs: usize,
-    mut draw: impl FnMut() -> Result<T, slime_render::RenderError>,
+    mut draw: impl FnMut() -> Result<T, GfxError>,
     gpu_time: impl Fn(&T) -> Option<Duration>,
 ) -> Result<(Vec<Duration>, Vec<Duration>, T), String> {
     let (mut cpu, mut gpu_times) = (Vec::new(), Vec::new());
@@ -428,20 +434,22 @@ pub fn canvas_frames<T>(
 /// An editor's screen, laid out for 1920 × 1080, scaled to `height` and its columns spread over
 /// `width`: a background; 100 panels with their shadows; 2 000 boxes with rounded corners, a quarter
 /// of them bordered, as rows of lists; 20 000 glyphs from `glyphs`; the 16 `pictures`; half the boxes
-/// and glyphs clipped to the screen's left three quarters.
+/// and glyphs clipped to the screen's left three quarters. Returns the images that its quads name by
+/// their index: `glyphs`, then the `pictures`.
 fn editor_screen<'a>(
-    canvas: &mut Canvas<'a>,
+    canvas: &mut Canvas,
     glyphs: &'a Texture,
     pictures: &'a [Texture],
     w: f32,
     h: f32,
-) {
+) -> Vec<InterfaceImage<'a>> {
     let scale = h / 1080.0;
-    let glyphs = canvas.add_image(CanvasImage::Texture(glyphs));
-    let pictures: Vec<_> = pictures
-        .iter()
-        .map(|picture| canvas.add_image(CanvasImage::Texture(picture)))
+    let images = std::iter::once(glyphs)
+        .chain(pictures)
+        .map(InterfaceImage::Texture)
         .collect();
+    let glyphs = ImageId(0);
+    let pictures: Vec<_> = (1..=pictures.len() as u32).map(ImageId).collect();
     canvas.draw_box(&CanvasBox {
         rect: PixelRect::new(0.0, 0.0, w, h),
         radii: [0.0; 4],
@@ -525,6 +533,7 @@ fn editor_screen<'a>(
             clip: None,
         });
     }
+    images
 }
 
 /// A game's menu over its image, laid out for 1920 × 1080 and scaled to fit `w` × `h`, centred: the
@@ -532,13 +541,14 @@ fn editor_screen<'a>(
 /// bordered slots, each with a frame and a count, half of them with an icon of `icons`; 34 rows of
 /// statistics and 30 buttons, with their text; a description of 32 lines, clipped to its panel, as
 /// the statistics are. Some 290 boxes, 20 shadows, 3 900 glyphs from `glyphs` and 50 icons.
+/// Returns the images that its quads name by their index: `glyphs`, then `icons`.
 fn game_screen<'a>(
-    canvas: &mut Canvas<'a>,
+    canvas: &mut Canvas,
     glyphs: &'a Texture,
     icons: &'a Texture,
     w: f32,
     h: f32,
-) {
+) -> Vec<InterfaceImage<'a>> {
     let scale = (w / 1920.0).min(h / 1080.0);
     let (left, top) = ((w - 1920.0 * scale) / 2.0, (h - 1080.0 * scale) / 2.0);
     // A rectangle of the layout, on the screen.
@@ -550,8 +560,11 @@ fn game_screen<'a>(
             height * scale,
         )
     };
-    let glyphs = canvas.add_image(CanvasImage::Texture(glyphs));
-    let icons = canvas.add_image(CanvasImage::Texture(icons));
+    let images = vec![
+        InterfaceImage::Texture(glyphs),
+        InterfaceImage::Texture(icons),
+    ];
+    let (glyphs, icons) = (ImageId(0), ImageId(1));
     let plain = |rect: PixelRect, radius: f32, fill: LinearColor| CanvasBox {
         rect,
         radii: [radius * scale; 4],
@@ -562,7 +575,7 @@ fn game_screen<'a>(
     };
     // `count` glyphs of 8 × 14, `per_line` to a line, the lines 16 apart, from (`x`, `y`).
     let mut cell = 0;
-    let mut text = |canvas: &mut Canvas<'a>,
+    let mut text = |canvas: &mut Canvas,
                     (x, y): (f32, f32),
                     count: usize,
                     per_line: usize,
@@ -713,4 +726,5 @@ fn game_screen<'a>(
         56,
         Some(rect(920.0, 80.0, 500.0, 520.0)),
     );
+    images
 }

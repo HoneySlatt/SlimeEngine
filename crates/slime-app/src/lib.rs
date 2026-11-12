@@ -7,6 +7,7 @@ mod app;
 mod channel;
 mod data;
 mod diagnostics;
+mod drawing;
 mod error;
 mod game;
 mod host;
@@ -24,6 +25,7 @@ pub use data::{HeldFile, data_directory, set_aside, state_directory};
 pub use diagnostics::{
     DEFAULT_LOG_FILTER, LOG_ENV_VAR, error_chain, init_diagnostics, since_start,
 };
+pub use drawing::{InterfaceImage, InterfaceRenderer};
 pub use error::{AppError, RunError};
 pub use game::{PickAnswer, Presentation, Reflected, ShownView, Simulation};
 pub use host::{Context, Host, SimulationContext};
@@ -45,5 +47,6 @@ mod threads {
         send_and_sync::<AppConfig>();
         send_and_sync::<RunError>();
         send_and_sync::<Waker>();
+        send_and_sync::<InterfaceRenderer>();
     }
 }

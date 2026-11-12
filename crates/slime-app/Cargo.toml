@@ -27,6 +27,8 @@ slime-platform.workspace = true
 # The interface that a presentation gives, which the development channel reads and acts on
 # (ADR-0143).
 uwui.workspace = true
+# The bridge through which the engine draws uwui's display lists and canvases (ADR-0244).
+uwui-render.workspace = true
 slime-world.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

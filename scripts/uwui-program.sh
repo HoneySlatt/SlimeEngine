@@ -51,10 +51,8 @@ slime-app = { path = "$root/crates/slime-app", features = [$features_list] }
 slime-color = { path = "$root/crates/slime-color" }
 slime-gfx = { path = "$root/crates/slime-gfx" }
 slime-platform = { path = "$root/crates/slime-platform" }
-slime-render = { path = "$root/crates/slime-render" }
 slime-world = { path = "$root/crates/slime-world" }
 uwui = { path = "$root/crates/uwui", features = ["editor-look"] }
-uwui-render = { path = "$root/crates/uwui-render" }
 png = "0.18.1"
 tracing = { version = "0.1.44", default-features = false, features = ["std"] }
 

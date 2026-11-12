@@ -662,8 +662,8 @@ fn a_view_resized_gives_its_old_targets_back() {
     assert!(resized > first, "larger targets: {first} then {resized}");
     // Less than the smallest of the view's images at the larger size, its high-dynamic-range one of
     // 2 MiB: the allocators keep a little differently from one frame to the next, a few kilobytes
-    // on Vulkan, and 1.3 MiB more on Direct3D 12 on WARP once the canvas's objects joined the
-    // renderer, where Vulkan's figures did not change.
+    // on Vulkan, and 1.3 MiB more on Direct3D 12 on WARP, measured while the renderer still held
+    // the interface's canvas, where Vulkan's figures did not change.
     let again = held_after(&small);
     assert!(
         again < first + 2 * MIB,

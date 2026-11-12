@@ -1,6 +1,6 @@
 //! The image tests of the `widgets` example (`docs/adr/0148-widgets.md`): its interface, in the
-//! editor's look, drawn by the renderer's canvas, must match the reference images of
-//! `tests/reference/` within a tolerance, at 960 × 600 pixels:
+//! editor's look, drawn by uwui's canvas through the engine's bridge, must match the reference
+//! images of `tests/reference/` within a tolerance, at 960 × 600 pixels:
 //!
 //! - `widgets-inspector.png`: the inspector as it opens, in the dark theme;
 //! - `widgets-light.png`: the same in the light theme;
@@ -35,9 +35,9 @@ mod style_fixture;
 #[path = "../common/widgets_panel.rs"]
 mod widgets_panel;
 
+use slime_app::InterfaceRenderer;
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderPassDescriptor, TextureFormat};
-use slime_render::Renderer;
 use uwui::Rect;
 use uwui::action::{Action, ActionKind};
 use uwui::look::{Colors, Density};
@@ -45,7 +45,6 @@ use uwui::preferences::{Preferences, TextSize};
 use uwui::style::Display;
 use uwui::text::TextBounds;
 use uwui::tree::{ElementId, Kind, LayoutDirection};
-use uwui_render::UiRenderer;
 
 use widgets_panel::WidgetsPanel;
 
@@ -58,8 +57,7 @@ const FORMAT: TextureFormat = TextureFormat::Rgba8UnormSrgb;
 fn check(panel: &mut WidgetsPanel, name: &str) {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    let mut renderer = Renderer::new(&gpu, FORMAT).expect("the renderer is created");
-    let mut bridge = UiRenderer::default();
+    let mut bridge = InterfaceRenderer::new(&gpu, FORMAT).expect("the renderer is created");
     let target = gpu
         .create_render_target(name, SIZE.0, SIZE.1, FORMAT)
         .expect("the GPU has memory for it");
@@ -76,14 +74,7 @@ fn check(panel: &mut WidgetsPanel, name: &str) {
             |_| {},
         );
         bridge
-            .draw(
-                &gpu,
-                &mut renderer,
-                panel.ui.fonts(),
-                &display,
-                |_| None,
-                &target,
-            )
+            .draw(&gpu, panel.ui.fonts(), &display, |_| None, &target)
             .expect("drawn");
     }
     let image = gpu

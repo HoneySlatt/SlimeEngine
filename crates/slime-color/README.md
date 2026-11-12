@@ -11,7 +11,7 @@ The color type of the engine's API, and the sRGB transfer function
   `slime-world`, and those of the interface's styles, themes and color wells in `uwui`.
 - `srgb8_to_linear` and `linear_to_srgb8`: the sRGB transfer function between bytes and linear
   values, which `LinearColor::from_srgb8`, the mipmaps of `slime-gfx` and the cooker's mipmaps use;
-  `linear_to_srgb`, the encoding not rounded to a byte, with which the renderer's canvas encodes
+  `linear_to_srgb`, the encoding not rounded to a byte, with which `uwui-render`'s canvas encodes
   the colors that it mixes as sRGB values (`docs/adr/0137-the-canvas.md`), and `srgb_to_linear`,
   its inverse, with which the interface's color wells read the colors that they pick
   (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).

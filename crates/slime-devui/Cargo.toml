@@ -18,17 +18,16 @@ slime-color.workspace = true
 slime-gfx.workspace = true
 # The window's size that the panels are laid out over.
 slime-platform.workspace = true
-# The panels on the engine's interface, in the editor's look (ADR-0152), drawn with the canvas of the
-# view's renderer, whose statistics they show.
+# The panels drawn through the engine's bridge to uwui (ADR-0244), without the run's features.
+slime-app.workspace = true
+# The statistics of the view's renderer, which the panels show.
 slime-render.workspace = true
+# The panels on the engine's interface, in the editor's look (ADR-0152).
 uwui = { workspace = true, features = ["editor-look"] }
-uwui-render.workspace = true
 # The world panel lists a world's entities and edits their components through reflection.
 slime-reflect.workspace = true
 slime-world.workspace = true
 
-# The README's example implements an application.
 [dev-dependencies]
-slime-app.workspace = true
 # The tests use the panels as a person does: the pointer and the keys.
 slime-input.workspace = true

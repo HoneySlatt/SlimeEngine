@@ -25,11 +25,7 @@ and one material together. It draws into a view what a client draws besides the 
 instances, as an editor's grid, icons and the box of what is selected, and an outline around
 instances, dimmed where the scene hides them, as around what an editor selects; and says which
 instance is drawn at each pixel of an area of a view, a frame or more later (picking). It blends unlit surfaces
-over the others, without sorting them by depth, and does not yet blend physically based ones. It
-draws an interface's canvas over any of its targets: boxes with rounded corners and borders, their
-shadows, boxes filled with a gradient between their corners' colors, and images, each clipped, their
-colors mixed, into an sRGB target, as their sRGB values; text reaches it as images of
-the glyphs' atlas that `uwui-render` keeps.
+over the others, without sorting them by depth, and does not yet blend physically based ones.
 
 ## Role
 
@@ -54,10 +50,6 @@ the glyphs' atlas that `uwui-render` keeps.
   (`docs/adr/0073-loading-scenes-in-the-background.md`, `docs/adr/0107-the-execution-model.md`,
   `docs/adr/0118-the-task-pool-and-the-copies-to-the-gpu.md`). It computes the sky's environment
   as frame tasks of the same pool.
-- Draws an interface's *canvas*, after the views, in a pass of its own: the items that a client adds
-  to a `Canvas` each frame, in their order, from a storage buffer, with one pipeline and its shader,
-  `canvas.wgsl` ([ADR-0137](../../docs/adr/0137-the-canvas.md)). The interface's framework,
-  `uwui`, knows no GPU: `uwui-render`, the bridge, turns its display list into a canvas.
 - Draws what it is given: a flat list of instances that the application builds for each frame.
   It has no scene graph; `slime-world-render` builds such lists from a world
   (`docs/adr/0084-what-the-world-draws.md`).
@@ -247,16 +239,6 @@ fn main() -> Result<(), RenderError> {
   draws a light, by the rule of `slime_assets::SceneLight::check` for its values: `render` leaves
   out, with a warning, a light that it refuses, which a game's data may hold, and the shader bounds
   the light that each light gives a point.
-- `Canvas::new()` starts what an interface draws in a frame: `draw_box` adds a `CanvasBox`, its
-  corners rounded and its border inside its edges, `draw_shadow` the `CanvasShadow` that a box
-  casts, `draw_gradient` a `CanvasGradient`, a box without a border whose corners' colors mix
-  across it ([ADR-0152](../../docs/adr/0152-the-dev-overlay-on-the-engines-interface.md)), and
-  `draw_image` an `ImageQuad`, a part of an image that `add_image` gave an `ImageId`: a
-  texture of colors, one of coverage that a color tints (`ImageKind`), or a render target that a
-  view drew, as a panel shows it (`CanvasImage`). Each item has its clip, and coordinates are the
-  target's pixels (`PixelRect`). `Renderer::draw_canvas(gpu, &canvas, &target)` draws it over the
-  target and returns its `CanvasStats`, its GPU time among them; into an sRGB target, colors mix as
-  their sRGB values do ([ADR-0137](../../docs/adr/0137-the-canvas.md)).
 - `RenderError`: an invalid mesh or material, or a failure of the GPU layer (`GfxError`): a shader
   or pipeline the driver rejects, memory that runs out, or a lost device.
 - `slime_render::glam` re-exports the math crate the API uses (`DVec3`, `DAffine3`, `Vec3`), so
@@ -299,6 +281,8 @@ errors.
 - Use wgpu: it draws through `slime-gfx`'s types only.
 - Depend on `slime-platform` or `slime-app`: it draws into any render target, with or without a
   window.
+- Draw an interface, or depend on uwui: `uwui-render`'s canvas draws one over any render target
+  ([ADR-0244](../../docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)).
 - Keep a scene between frames: it draws what it is given; what it keeps from one frame to the next
   is memory it reuses or a cache of what it is given
   ([ADR-0111](../../docs/adr/0111-the-frame-contract.md)).

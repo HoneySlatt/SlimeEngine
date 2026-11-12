@@ -15,7 +15,7 @@ use crate::text::TextLayout;
 /// (`docs/adr/0111-the-frame-contract.md`); its texts are shared with the
 /// [`TextCache`](crate::text::TextCache) that laid them out. Coordinates are pixels of the screen,
 /// from its top left corner, y down: an interface lays itself out at the screen's scale.
-/// `uwui-render` draws it through the renderer's canvas.
+/// `uwui-render` draws it through its canvas.
 ///
 /// ```
 /// use slime_color::LinearColor;

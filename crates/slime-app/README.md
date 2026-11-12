@@ -38,6 +38,9 @@ missing is listed in `docs/debt.md`, the known debt.
 - With its `accessibility` feature, which the examples turn on, and the editor once it has a window,
   and games leave out until Stage 7, gives screen readers what the presentation's interface means,
   through AccessKit's adapter of the window (`docs/adr/0146-screen-readers.md`).
+- Draws uwui's display lists and canvases over the engine's targets, with its images, through
+  `uwui-render`: the engine's bridge to uwui (`InterfaceRenderer`,
+  `docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md`).
 - Sets up the engine's diagnostics.
 
 ## Entry points
@@ -144,7 +147,7 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   once it knows it (`docs/adr/0130-picking.md`), and `ui`, its interface, if it has one, which a
   tool reads, acts on and captures element by element
   (`docs/adr/0143-what-agents-see-of-the-interface.md`), which the presentation draws in `render`
-  itself (`uwui-render`), and to which the dev overlay adds its panels as roots
+  itself (`InterfaceRenderer`, below), and to which the dev overlay adds its panels as roots
   (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`); the run connects it to the window:
   each event goes to the interface first, and to `on_event` and the game's input only when the
   interface did not take it, but a key or a button let go, which always reaches the input; the
@@ -256,6 +259,15 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   arrives, even during a `start` or in the middle of a frame, and, with the `development` feature,
   the end of the tool that started the game with a token, whose pipe on the game's standard input
   closed.
+- `InterfaceRenderer`: the engine's bridge to uwui, through which presentations, the dev overlay,
+  the editor's window and the benchmarks draw their interfaces
+  (`docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md`). Made for the format of
+  the targets that it draws into, `InterfaceRenderer::new(gpu, format)`, it draws a display list
+  over a target, `draw(gpu, &fonts, &list, images, &target)`, the engine's images given by their
+  keys as `InterfaceImage`s, textures or targets that views drew, or a canvas that the program
+  fills itself, `draw_canvas(gpu, &canvas, &images, &target)`, through `uwui-render`, whose
+  glyphs' atlas it keeps. A program drops it when the GPU device is lost, and makes it again with
+  the new one.
 - `time`: `Time` holds a frame's real time, `FrameTime` (index, delta, elapsed time), and its game
   time, `GameTime`: the fixed steps run, the game time the frame added, and the fraction of a step
   accumulated but not run (`alpha`), at which the world draws what moved during the last step
@@ -348,6 +360,8 @@ the name the graphics API gives it.
   read and change them; the world depends on it in every build.
 - `uwui`: the interface that a presentation gives, which the run connects to the window and
   the development channel reads and acts on; it needs no window nor GPU.
+- `uwui-render`: the canvas and the glyphs' atlas through which `InterfaceRenderer` draws uwui's
+  display lists; every program built on `slime-app` compiles it.
 - `slime-channel` and `slime-serialize`, with the `development` feature only: the development
   channel, and the documents through which it reads and writes values as text.
 - `accesskit`, with the `accessibility` feature only: the tree that screen readers read, which it

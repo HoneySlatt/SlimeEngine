@@ -103,7 +103,8 @@ slime-reflect = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6
 slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
 slime-world = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
 slime-world-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
-# A game's interface (`Presentation::ui`), drawn through the renderer's canvas. uwui's crates bear
+# A game's interface (`Presentation::ui`), drawn through the renderer's canvas in 0.6, through
+# `slime-app`'s `InterfaceRenderer` on `main`. uwui's crates bear
 # their names from 0.7 on, and on `main`, where `package` goes; 0.6 names them `slime-ui` and
 # `slime-ui-render`.
 uwui = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0", package = "slime-ui" }

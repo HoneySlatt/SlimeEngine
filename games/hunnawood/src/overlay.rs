@@ -5,9 +5,9 @@
 //! (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
 
 use slime_devui::{Corner, Overlay, PanelId, PanelSpec, ValueEditor, WorldPanel, render_figures};
-use slime_gfx::{Gpu, RenderTarget};
+use slime_gfx::{GfxError, Gpu, RenderTarget};
 use slime_platform::PhysicalSize;
-use slime_render::{RenderError, RenderStats, Renderer, ViewSettings};
+use slime_render::{RenderStats, ViewSettings};
 use slime_world::{Command, World};
 use uwui::action::{ActionKind, FieldValue};
 use uwui::style::FlexDirection;
@@ -208,19 +208,13 @@ impl DevOverlay {
         asked
     }
 
-    /// Draws over `target`, after the view, what [`DevOverlay::build`] made, with `renderer`, the
-    /// view's.
+    /// Draws over `target`, after the view, what [`DevOverlay::build`] made.
     ///
     /// # Errors
     ///
     /// As [`Overlay::draw`].
-    pub fn render(
-        &mut self,
-        gpu: &Gpu,
-        renderer: &mut Renderer,
-        target: &RenderTarget,
-    ) -> Result<(), RenderError> {
-        self.overlay.draw(gpu, renderer, target)
+    pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget) -> Result<(), GfxError> {
+        self.overlay.draw(gpu, target)
     }
 }
 
