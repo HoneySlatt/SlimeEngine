@@ -10,7 +10,7 @@ use slime_input::{
 };
 use uwui::action::{ActionKind, SurfaceInput};
 use uwui::display::{ImageKey, Primitive};
-use uwui::shortcuts::Shortcuts;
+use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::style::{Dimension, FlexDirection};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementId, ItemMark, LayoutDirection, RootSettings, Ui};
@@ -20,7 +20,8 @@ use uwui::tree::{Element, ElementId, ItemMark, LayoutDirection, RootSettings, Ui
 /// and the surface.
 fn interface() -> (Ui, ElementId, ElementId) {
     let mut ui = Ui::new(Fonts::new());
-    let table = "[global]\nT = \"theme\"\n\"Ctrl+S\" = \"save\"\n";
+    ui.set_platform(Platform::Linux);
+    let table = "scope global {\n    T theme\n    Primary+S save\n}\n";
     ui.set_shortcuts(&[Shortcuts::from_text("keys", table)])
         .expect("a table");
     let settings = RootSettings {
@@ -258,8 +259,9 @@ fn the_wheel_over_a_surface_reaches_it_and_elsewhere_does_not() {
 #[test]
 fn a_button_s_chord_holds_with_more_modifiers_held_and_the_most_named_wins() {
     let mut ui = Ui::new(Fonts::new());
-    let table = "[viewport]\nLeftButton = \"select\"\n\"Alt+LeftButton\" = \"orbit\"\n\
-                 MiddleButton = \"pan\"\n\"Shift+MiddleButton\" = \"slide\"\n";
+    ui.set_platform(Platform::Linux);
+    let table = "scope viewport {\n    LeftButton select\n    Alt+LeftButton orbit\n    \
+                 MiddleButton pan\n    Shift+MiddleButton slide\n}\n";
     ui.set_shortcuts(&[Shortcuts::from_text("keys", table)])
         .expect("a table");
     let held = |shift: bool, alt: bool| {
@@ -289,7 +291,7 @@ fn a_button_s_chord_holds_with_more_modifiers_held_and_the_most_named_wins() {
         None
     );
     // A later table wins for one chord, and the chords read as they are written.
-    let blender = "[viewport]\nMiddleButton = \"orbit\"\n";
+    let blender = "scope viewport { MiddleButton orbit; }\n";
     ui.set_shortcuts(&[
         Shortcuts::from_text("keys", table),
         Shortcuts::from_text("blender", blender),
@@ -306,6 +308,6 @@ fn a_button_s_chord_holds_with_more_modifiers_held_and_the_most_named_wins() {
             .contains(&("Alt+LeftButton".to_owned(), "orbit".to_owned()))
     );
     // A button that no chord can name is refused.
-    let wrong = Shortcuts::from_text("wrong", "[viewport]\nWheelButton = \"zoom\"\n");
+    let wrong = Shortcuts::from_text("wrong", "scope viewport { WheelButton zoom; }\n");
     assert!(ui.set_shortcuts(&[wrong]).is_err());
 }

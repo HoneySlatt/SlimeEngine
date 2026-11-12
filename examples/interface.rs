@@ -22,7 +22,7 @@
 //! button "close" closes; with no dialog open, Escape leaves the focus, then, nothing focused,
 //! quits, as closing the window or Ctrl+C does. The bar shows what the last action did, and counts
 //! the presses of its buttons. The shortcuts are those of
-//! `examples/assets/ui/interface.keys`. The list scrolls with time, not with the wheel. The bar
+//! `examples/assets/ui/interface.keys.kdl`. The list scrolls with time, not with the wheel. The bar
 //! holds a field of text and a field of numbers (`docs/adr/0145-text-edited.md`), which take the
 //! text that is typed, pasted or composed through an input method, and which the program reads as
 //! their commits; the field of numbers is dragged left and right too. `slime-app` gives the
@@ -353,7 +353,8 @@ impl Interface {
         );
         let theme = Theme::from_text(name(theme), String::from_utf8(self.assets.theme(theme)?)?);
         self.ui.set_style(&[sheet], std::slice::from_ref(&theme))?;
-        let keys = Shortcuts::from_binary(name(KEYS), self.assets.shortcuts(KEYS)?);
+        let keys =
+            Shortcuts::from_text(name(KEYS), String::from_utf8(self.assets.shortcuts(KEYS)?)?);
         self.ui.set_shortcuts(&[keys])?;
         Ok(())
     }

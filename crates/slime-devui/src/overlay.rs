@@ -149,13 +149,14 @@ impl Overlay {
             waiting: false,
             place: None,
         });
-        let mut table = String::from("[global]\n");
+        let mut table = String::from("scope global {\n");
         for panel in &self.panels {
             table.push_str(&format!(
-                "{:?} = {:?}\n",
+                "    {:?} {:?}\n",
                 panel.spec.chord, panel.spec.command
             ));
         }
+        table.push_str("}\n");
         self.ui
             .set_shortcuts(&[Shortcuts::from_text("the dev overlay's panels", table)])
             .unwrap_or_else(|error| panic!("{error}"));

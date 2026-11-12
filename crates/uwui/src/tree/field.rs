@@ -16,7 +16,7 @@ use super::meaning::{FieldText, RUN_CHARACTERS, RunCharacter, TextRun};
 use super::{ElementId, Kind, Ui};
 use crate::Rect;
 use crate::action::{Action, ActionKind, FieldValue};
-use crate::shortcuts;
+use crate::shortcuts::{self, Platform};
 use crate::text::{Affinity, Alignment, TextBounds, TextLayout, TextPosition};
 
 /// How many edits a field undoes.
@@ -655,7 +655,8 @@ impl Ui {
     /// A key reached the field `id`, which holds the focus: gives whether the field took it. It
     /// takes what it types and edits with, a dead key and a key that the engine does not name,
     /// which type through an input method, and leaves Tab, Escape, the keys that it has no use
-    /// for and, in a field of one line, the up and down arrows, to the focus and the shortcuts.
+    /// for and, in a field of one line, the up and down arrows, but ⌘ and them on macOS, which go
+    /// to the text's ends, to the focus and the shortcuts.
     /// While
     /// an input method composes, the keys that reach the field are the input method's: it takes
     /// them all, and edits with none.
@@ -678,15 +679,20 @@ impl Ui {
             }
         );
         let modifiers = self.interaction.modifiers;
+        let platform = self.interaction.platform;
         let shift = modifiers.shift;
-        let control = modifiers.control && !modifiers.alt;
+        // The platform's modifier of shortcuts, Ctrl or ⌘, which copies, pastes and undoes, and its
+        // modifier of words, Ctrl or Option, which moves and deletes by words.
+        let primary = platform.primary_held(modifiers);
+        let word = platform.word_held(modifiers);
+        let mac = platform == Platform::Mac;
         // The letter of a chord, as shortcuts read it.
         let letter = match &event.logical {
             Key::Character(character) if character.is_ascii() => character.to_lowercase(),
             Key::Character(_) => shortcuts::position_letter(event).unwrap_or_default(),
             _ => String::new(),
         };
-        if control {
+        if primary {
             let clipboard = |ui: &mut Self, cut: bool| {
                 let selected = ui
                     .node(id)
@@ -741,6 +747,7 @@ impl Ui {
                     }
                     return true;
                 }
+                // Redo is Shift and Z, or Y, as Primary gives them (ADR-0145).
                 "z" | "y" => {
                     let redo = letter == "y" || shift;
                     self.edit_text(id, |field, _| field.undo(redo));
@@ -752,34 +759,20 @@ impl Ui {
         if let Key::Named(named) = &event.logical {
             type Move = fn(&Selection, &Layout<()>, bool) -> Selection;
             let moved: Option<Move> = match named {
-                NamedKey::ArrowLeft if control => Some(Selection::previous_visual_word),
+                NamedKey::ArrowLeft if word => Some(Selection::previous_visual_word),
+                // ⌘ and an arrow go to the line's ends on macOS, and up or down to the text's.
+                NamedKey::ArrowLeft if mac && primary => Some(Selection::line_start),
                 NamedKey::ArrowLeft => Some(Selection::previous_visual),
-                NamedKey::ArrowRight if control => Some(Selection::next_visual_word),
+                NamedKey::ArrowRight if word => Some(Selection::next_visual_word),
+                NamedKey::ArrowRight if mac && primary => Some(Selection::line_end),
                 NamedKey::ArrowRight => Some(Selection::next_visual),
+                NamedKey::ArrowUp if mac && primary => Some(text_start),
+                NamedKey::ArrowDown if mac && primary => Some(text_end),
                 NamedKey::ArrowUp if multiline => Some(Selection::previous_line),
                 NamedKey::ArrowDown if multiline => Some(Selection::next_line),
-                NamedKey::Home if control => Some(|selection, layout, extend| {
-                    let start = Cursor::from_byte_index(layout, 0, ParleyAffinity::Downstream);
-                    if extend {
-                        selection.extend(start)
-                    } else {
-                        start.into()
-                    }
-                }),
+                NamedKey::Home if primary && !mac => Some(text_start),
                 NamedKey::Home => Some(Selection::line_start),
-                NamedKey::End if control => Some(|selection, layout, extend| {
-                    // The text's end, where its last line ends.
-                    let length = layout
-                        .lines()
-                        .last()
-                        .map_or(0, |line| line.text_range().end);
-                    let end = Cursor::from_byte_index(layout, length, ParleyAffinity::Upstream);
-                    if extend {
-                        selection.extend(end)
-                    } else {
-                        end.into()
-                    }
-                }),
+                NamedKey::End if primary && !mac => Some(text_end),
                 NamedKey::End => Some(Selection::line_end),
                 _ => None,
             };
@@ -795,7 +788,7 @@ impl Ui {
                     let back = *named == NamedKey::Backspace;
                     self.edit_text(id, |field, layout| {
                         let caret = field.selection.focus();
-                        let other = match (back, control) {
+                        let other = match (back, word) {
                             (true, true) => caret.previous_logical_word(layout).index(),
                             (true, false) => caret
                                 .upstream_cluster(layout)
@@ -809,7 +802,7 @@ impl Ui {
                     });
                     return true;
                 }
-                NamedKey::Enter if multiline && !control => {
+                NamedKey::Enter if multiline && !primary => {
                     self.edit_text(id, |field, _| field.insert("\n", true));
                     return true;
                 }
@@ -820,14 +813,14 @@ impl Ui {
                 _ => {}
             }
         }
-        // Text typed: without Ctrl or Alt, or with both, as AltGr gives them on Windows.
+        // Text typed: without the modifiers of shortcuts, as the platform has them (AltGr on
+        // Windows is Ctrl and Alt, and Option types on macOS).
         let typed = event
             .text
             .as_deref()
             .filter(|text| !text.is_empty() && !text.chars().any(char::is_control));
         if let Some(text) = typed
-            && modifiers.control == modifiers.alt
-            && !modifiers.super_key
+            && platform.types(modifiers)
         {
             let text = text.to_owned();
             self.edit_text(id, |field, _| field.insert(&text, true));
@@ -1592,4 +1585,28 @@ fn selection(layout: &Layout<()>, anchor: usize, focus: usize) -> Selection {
         Cursor::from_byte_index(layout, anchor, affinity(anchor, focus)),
         Cursor::from_byte_index(layout, focus, affinity(focus, anchor)),
     )
+}
+
+/// `selection` moved to the text's start, or extended to it.
+fn text_start(selection: &Selection, layout: &Layout<()>, extend: bool) -> Selection {
+    let start = Cursor::from_byte_index(layout, 0, ParleyAffinity::Downstream);
+    if extend {
+        selection.extend(start)
+    } else {
+        start.into()
+    }
+}
+
+/// `selection` moved to the text's end, where its last line ends, or extended to it.
+fn text_end(selection: &Selection, layout: &Layout<()>, extend: bool) -> Selection {
+    let length = layout
+        .lines()
+        .last()
+        .map_or(0, |line| line.text_range().end);
+    let end = Cursor::from_byte_index(layout, length, ParleyAffinity::Upstream);
+    if extend {
+        selection.extend(end)
+    } else {
+        end.into()
+    }
 }

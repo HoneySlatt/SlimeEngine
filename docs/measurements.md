@@ -2504,6 +2504,40 @@ Every job stays within its limit of 20 minutes. `check (headless)` took as long 
 its margin 3 min 12 s; `windows-release` 1 min 51 s less, its margin 5 min 23 s. The new crate
 and its 338 tests of KDL add some seconds to the jobs that test the workspace.
 
+## M6d.3c1, shortcuts in KDL
+
+The editor's tables of shortcuts read in KDL by uwui's own reader, in place of the engine's
+reflection ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)), on
+2026-11-12. `ui.tree.look` reads them, its own and Blender's way laid over it, beside the look's
+documents, as the editor does at its start.
+
+Reading the editor's two tables allocates 324 times, from 1 117, in a debug build, as CI counts
+them; reading the look's documents is unchanged, 3 376, and so is every other counter. Of the 324,
+the table that finds two chords of the same keys, on each platform, takes some 120: it keeps the
+reading linear in the table, where comparing each chord with every other took 205 allocations and
+time that grew with the square of a scope's size.
+
+On 2026-11-12, an AMD Ryzen 7 5800X, 16 logical CPUs, Linux, release builds on lavapipe's settings.
+*Before* is `96bd624`, its tables in TOML read through reflection, the benchmark's reading of them
+added alone; *after* is the milestone's code before its closing review, which then made the search
+for chords given twice linear: these times were not taken again, the machine busy. The two binaries ran in turn, twice each, the load
+average 0.92 at the start and 3.48 at the end, another session's build starting during the second
+round:
+
+| Measure, median of 15 | Before | After |
+|---|---|---|
+| the editor's tables of shortcuts read, its own and Blender's way, by `Ui::set_shortcuts` | 94.4, 97.8 µs | 44.8, 46.2 µs |
+| the look's documents read, its sheet and its themes, by `Ui::set_style` | 685.2, 824.5 µs | 694.8, 756.9 µs |
+
+- Reading the tables took half the time: what reflection allocated for each chord, its path and its
+  value, is gone.
+- The editor's documents read at its start, the look and the tables, take some 0.75 ms; the look's
+  reading changes within the runs' spread.
+
+The cooker's time of compiling again was not measured: other sessions' benchmarks kept the machine
+busy ([`debt.md`](debt.md)). Its dependencies did not change; it no longer encodes a table of
+shortcuts into the binary form.
+
 ## M6d.3b2, style sheets in KDL
 
 The look's style sheet read in KDL by the code that `uwui-macros` derives, as its themes are

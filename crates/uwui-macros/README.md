@@ -40,4 +40,4 @@ Its name is provisional: the names of uwui's crates are settled at M6d.10
 - Depend on any crate of the engine: it moves with uwui (M6d.11).
 - Read a document's text itself: `uwui-kdl` reads it, and the generated code reads its nodes.
   `S::named`, which reads a part read by reflection, serves uwui's tests alone, and goes with
-  reflection (M6d.3c).
+  reflection (M6d.3c3).

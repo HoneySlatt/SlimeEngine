@@ -1,17 +1,18 @@
 //! The editor's tables of shortcuts, read, kept as a fixture: each scope's chords and commands, as
-//! the sheet of shortcuts lists them (`uwui::tree::Ui::shortcuts`), for the editor's own table and
-//! for it with Blender's way laid over it
+//! the sheet of shortcuts lists them on Linux and Windows (`uwui::tree::Ui::shortcuts`), for the
+//! editor's own table and for it with Blender's way laid over it, under the names that the tables
+//! had in TOML, `editor.keys` and `editor-blender.keys`
 //! (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
 //!
 //! The fixture, `tests/reference/shortcuts.txt`, was recorded through the reflected reader of the
 //! tables in TOML, before they became KDL, and outlives it: the reader of KDL must read the
-//! converted tables to the same lines on Linux and Windows. `SLIME_UPDATE_REFERENCE_IMAGES` writes
+//! converted tables, `Ctrl` written `Primary`, to the same lines. `SLIME_UPDATE_REFERENCE_IMAGES` writes
 //! it again: a change of a table changes it on purpose; a change of the reader must not.
 
 use std::path::Path;
 
 use slime_editor::{BLENDER_SHORTCUTS, SHORTCUTS};
-use uwui::shortcuts::Shortcuts;
+use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::text::Fonts;
 use uwui::tree::Ui;
 
@@ -21,18 +22,20 @@ fn lines() -> String {
     let stacks: [(&str, Vec<Shortcuts>); 2] = [
         (
             "editor.keys",
-            vec![Shortcuts::from_text("editor.keys", SHORTCUTS)],
+            vec![Shortcuts::from_text("editor.keys.kdl", SHORTCUTS)],
         ),
         (
             "editor.keys, editor-blender.keys",
             vec![
-                Shortcuts::from_text("editor.keys", SHORTCUTS),
-                Shortcuts::from_text("editor-blender.keys", BLENDER_SHORTCUTS),
+                Shortcuts::from_text("editor.keys.kdl", SHORTCUTS),
+                Shortcuts::from_text("editor-blender.keys.kdl", BLENDER_SHORTCUTS),
             ],
         ),
     ];
     for (heading, tables) in stacks {
         let mut ui = Ui::new(Fonts::new());
+        // As Linux and Windows write them, which the fixture recorded: `Primary` is Ctrl there.
+        ui.set_platform(Platform::Linux);
         ui.set_shortcuts(&tables)
             .unwrap_or_else(|error| panic!("{heading}: {error}"));
         out.push_str(&format!("# {heading}\n"));

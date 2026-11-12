@@ -48,8 +48,8 @@
 //! on the yard as the editor holds it, steps not written included (`docs/adr/0164-play.md`), the
 //! steps made while it runs reaching it (`docs/adr/0165-editing-while-playing.md`). *Help* opens
 //! the palette of operations (Ctrl+Shift+P) and the sheet of shortcuts (F1);
-//! `crates/slime-editor/README.md` lists the shortcuts too, and `crates/slime-editor/editor.keys`
-//! binds them.
+//! `crates/slime-editor/README.md` lists the shortcuts too, and
+//! `crates/slime-editor/editor.keys.kdl` binds them.
 //!
 //! A person runs its operations from the menus, the shortcuts and the palette; an agent runs the
 //! same, by name, through the engine's MCP server (`crates/slime-mcp/README.md`), and makes steps

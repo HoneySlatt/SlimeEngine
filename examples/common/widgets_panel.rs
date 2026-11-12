@@ -130,17 +130,18 @@ const ACCENTS: [(&str, &str); 4] = [
 ];
 /// The keys that change the look, as a table of shortcuts names them.
 const KEYS: &str = r#"
-[global]
-T = "switch-colors"
-D = "switch-density"
-A = "switch-accent"
-M = "switch-motion"
-"Ctrl+N" = "new-level"
-"Ctrl+O" = "open"
-"Ctrl+Q" = "quit"
-"Ctrl+S" = "save"
-"Ctrl+Shift+P" = "palette"
-F1 = "shortcuts"
+scope global {
+    T switch-colors
+    D switch-density
+    A switch-accent
+    M switch-motion
+    Primary+N new-level
+    Primary+O open
+    Primary+Q quit
+    Primary+S save
+    Primary+Shift+P palette
+    F1 shortcuts
+}
 "#;
 
 /// A slider of the inspector: its label, its value, its bounds and its step.
@@ -613,49 +614,44 @@ impl WidgetsPanel {
         false
     }
 
-    /// The items of `menu`: each its label, its shortcut, its mark and what it does.
-    fn entries(&self, menu: Menu) -> Vec<(String, &'static str, ItemMark, Item)> {
-        let entry = |label: &str, shortcut, mark, item| (label.to_owned(), shortcut, mark, item);
+    /// The items of `menu`: each its label, its shortcut, its mark and what it does. A command's
+    /// shortcut is its chord in the example's table, as the platform writes it
+    /// (`Ui::command_chord`).
+    fn entries(&self, menu: Menu) -> Vec<(String, String, ItemMark, Item)> {
+        let entry = |label: &str, mark, item: Item| {
+            let shortcut = match &item {
+                Item::Command(command) => self.ui.command_chord(command).unwrap_or_default(),
+                _ => String::new(),
+            };
+            (label.to_owned(), shortcut, mark, item)
+        };
         match menu {
             Menu::File => vec![
-                entry(
-                    "New level",
-                    "Ctrl+N",
-                    ItemMark::None,
-                    Item::Command("new-level"),
-                ),
-                entry("Open…", "Ctrl+O", ItemMark::None, Item::Command("open")),
-                entry("Save", "Ctrl+S", ItemMark::None, Item::Command("save")),
-                entry("Recent", "", ItemMark::Submenu, Item::Submenu(Menu::Recent)),
-                entry("Quit", "Ctrl+Q", ItemMark::None, Item::Command("quit")),
+                entry("New level", ItemMark::None, Item::Command("new-level")),
+                entry("Open…", ItemMark::None, Item::Command("open")),
+                entry("Save", ItemMark::None, Item::Command("save")),
+                entry("Recent", ItemMark::Submenu, Item::Submenu(Menu::Recent)),
+                entry("Quit", ItemMark::None, Item::Command("quit")),
             ],
             Menu::Recent => RECENT
                 .iter()
-                .map(|&level| entry(level, "", ItemMark::None, Item::Recent(level)))
+                .map(|&level| entry(level, ItemMark::None, Item::Recent(level)))
                 .collect(),
             Menu::View => vec![
                 entry(
                     "Statistics",
-                    "",
                     ItemMark::Check(self.statistics.is_some()),
                     Item::Command("statistics"),
                 ),
-                entry("Colors", "", ItemMark::Submenu, Item::Submenu(Menu::Colors)),
+                entry("Colors", ItemMark::Submenu, Item::Submenu(Menu::Colors)),
                 entry(
                     "Less motion",
-                    "M",
                     ItemMark::Check(self.ui.preferences().reduced_motion),
                     Item::Command("switch-motion"),
                 ),
-                entry(
-                    "Command palette…",
-                    "Ctrl+Shift+P",
-                    ItemMark::None,
-                    Item::Command("palette"),
-                ),
+                entry("Command palette…", ItemMark::None, Item::Command("palette")),
                 entry(
                     "Keyboard shortcuts",
-                    "F1",
                     ItemMark::None,
                     Item::Command("shortcuts"),
                 ),
@@ -668,14 +664,14 @@ impl WidgetsPanel {
             .into_iter()
             .map(|(label, colors)| {
                 let mark = ItemMark::Check(self.colors == colors);
-                entry(label, "", mark, Item::Colors(colors))
+                entry(label, mark, Item::Colors(colors))
             })
             .collect(),
             Menu::Entity(row) => ["rename", "duplicate", "delete"]
                 .into_iter()
                 .map(|verb| {
                     let label = format!("{}{}", verb[..1].to_uppercase(), &verb[1..]);
-                    entry(&label, "", ItemMark::None, Item::Entity(verb, row))
+                    entry(&label, ItemMark::None, Item::Entity(verb, row))
                 })
                 .collect(),
         }
@@ -699,7 +695,7 @@ impl WidgetsPanel {
                         let line = Element::container().class("separator");
                         menu.add("separator", line, |_| {});
                     }
-                    let element = Element::menu_item(label.as_str(), shortcut, mark);
+                    let element = Element::menu_item(label.as_str(), shortcut.as_str(), mark);
                     items.push((menu.add(label.as_str(), element, |_| {}), item));
                 }
             });

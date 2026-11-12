@@ -7,7 +7,7 @@ use slime_input::{
     ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey, ScrollDelta,
 };
 use uwui::action::{Action, ActionKind, Intent};
-use uwui::shortcuts::Shortcuts;
+use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::style::{Dimension, Display, FlexDirection, StyleBuilder, Track};
 use uwui::text::{Alignment, Fonts};
 use uwui::theme::{StyleSheet, Theme};
@@ -494,8 +494,9 @@ fn shortcuts_name_commands_by_the_key_s_meaning_in_the_scopes_of_the_focus() {
         buttons.push(children.add("outside", button(), |_| {}));
     });
     ui.frame();
-    let table = "[global]\n\"Ctrl+Z\" = \"undo\"\nDelete = \"delete everything\"\nT = \"theme\"\n\n\
-                 [hierarchy]\nDelete = \"delete\"\n";
+    let table = "scope global {\n    Primary+Z undo\n    Delete \"delete everything\"\n    T theme\n}\n\
+                 scope hierarchy {\n    Delete delete\n}\n";
+    ui.set_platform(Platform::Linux);
     ui.set_shortcuts(&[Shortcuts::from_text("editor.keys", table)])
         .expect("a table of shortcuts");
     let command = |ui: &mut Ui, event: KeyEvent| {
@@ -508,7 +509,7 @@ fn shortcuts_name_commands_by_the_key_s_meaning_in_the_scopes_of_the_focus() {
             })
             .collect::<Vec<_>>()
     };
-    // Ctrl+Z is the key that means `z`: on an AZERTY keyboard, the key labelled Z, at the place of
+    // Primary+Z, Ctrl+Z on Linux, is the key that means `z`: on an AZERTY keyboard, the key labelled Z, at the place of
     // a US keyboard's W.
     let mut control = Modifiers::default();
     control.control = true;
@@ -538,7 +539,7 @@ fn shortcuts_name_commands_by_the_key_s_meaning_in_the_scopes_of_the_focus() {
         ["delete everything"]
     );
     // A later table wins for one chord in one scope; a wrong chord is refused by its place.
-    let later = Shortcuts::from_text("game.keys", "[global]\nT = \"talk\"\n");
+    let later = Shortcuts::from_text("game.keys", "scope global { T talk; }\n");
     ui.set_shortcuts(&[Shortcuts::from_text("editor.keys", table), later])
         .expect("two tables");
     assert_eq!(
@@ -549,10 +550,13 @@ fn shortcuts_name_commands_by_the_key_s_meaning_in_the_scopes_of_the_focus() {
         ["talk"]
     );
     for (wrong, problem) in [
-        ("[global]\n\"Cmd+Z\" = \"undo\"\n", "is not a modifier"),
-        ("[global]\nDel = \"delete\"\n", "does not end with a key"),
-        ("undo = \"Ctrl+Z\"\n", "is not a scope"),
-        ("[global]\n\"Ctrl+Shift+1\" = \"first\"\n", "has no case"),
+        ("scope global { Cmd+Z undo; }\n", "is not a modifier"),
+        ("scope global { Del delete; }\n", "does not end with a key"),
+        ("undo Primary+Z\n", "is not a scope"),
+        (
+            "scope global { \"Primary+Shift+1\" first; }\n",
+            "has no case",
+        ),
     ] {
         let error = ui
             .set_shortcuts(&[Shortcuts::from_text("wrong.keys", wrong)])
@@ -568,8 +572,9 @@ fn shortcuts_name_commands_by_the_key_s_meaning_in_the_scopes_of_the_focus() {
 #[test]
 fn shift_is_left_out_of_a_character_without_case_and_a_letter_of_another_script_is_its_place() {
     let (mut ui, _) = row();
-    let table = "[global]\n\"Ctrl++\" = \"zoom\"\n\"Ctrl+1\" = \"first\"\n\"Ctrl+Z\" = \"undo\"\n\
-                 \"Ctrl+Shift+Z\" = \"redo\"\n";
+    let table = "scope global {\n    Primary++ zoom\n    \"Primary+1\" first\n    Primary+Z undo\n    \
+                 Primary+Shift+Z redo\n}\n";
+    ui.set_platform(Platform::Linux);
     ui.set_shortcuts(&[Shortcuts::from_text("editor.keys", table)])
         .expect("a table of shortcuts");
     let command = |ui: &mut Ui, shift: bool, event: KeyEvent| {

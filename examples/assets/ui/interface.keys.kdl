@@ -1,0 +1,8 @@
+// The shortcuts of the `interface` example (docs/adr/0142-input-and-focus.md): each `scope` is
+// `global` or the class of an element that holds the focus, and each of its children a chord of the
+// keys' meaning, which names a command that the example does; `Primary` is Ctrl, or ⌘ on macOS.
+
+scope global {
+    T switch-theme
+    Primary+O open
+}

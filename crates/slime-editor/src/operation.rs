@@ -424,13 +424,13 @@ pub const OPERATIONS: &[Operation] = &[
 /// The editor's table of shortcuts, a document of `uwui`'s notation
 /// (`uwui::shortcuts`), whose every command is an operation's name, but those of the scope
 /// `viewport`, which say what the buttons of the mouse do over the viewport.
-pub const SHORTCUTS: &str = include_str!("../editor.keys");
+pub const SHORTCUTS: &str = include_str!("../editor.keys.kdl");
 
 /// What Blender's way changes of [`SHORTCUTS`], laid over it when a person turns it on, *View* >
 /// *Keys of Blender* (`view.keys_blender`): the middle button orbits, Alt and a click go through
 /// what lies behind, and a few keys are Blender's
 /// (`docs/adr/0160-two-viewports-and-blenders-way.md`).
-pub const BLENDER_SHORTCUTS: &str = include_str!("../editor-blender.keys");
+pub const BLENDER_SHORTCUTS: &str = include_str!("../editor-blender.keys.kdl");
 
 /// The operation named `name`, if there is one.
 pub fn operation(name: &str) -> Option<&'static Operation> {

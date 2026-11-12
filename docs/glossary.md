@@ -1267,6 +1267,11 @@ world, without writing it, and asks for changes as *commands*
 ([ADR-0107](adr/0107-the-execution-model.md),
 [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)).
 
+**Primary modifier.** In a chord, `Primary`: the platform's own modifier of shortcuts, Ctrl on
+Linux and Windows, ⌘ on macOS, while `Ctrl` names the Control key everywhere. The platform is a
+value, `uwui::shortcuts::Platform`, the one the program is built for until a host or a test sets
+another (`Ui::set_platform`, [ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+
 **Priority (assets).** How urgently a *request* wants its assets, one of three classes
 (`slime_render::Priority`): *now*, what a view draws and lacks; *soon*, what a game fetches ahead;
 *later*, what is fetched far ahead and the editor's thumbnails. The loads' tasks and their copies to
@@ -1529,10 +1534,12 @@ shapes the engine's text ([ADR-0136](adr/0136-the-interfaces-text.md)).
 the tables of shortcuts by scope, each with the name of its command (`Ui::open_shortcut_sheet`,
 [ADR-0151](adr/0151-rich-widgets.md)).
 
-**Shortcut.** A chord, modifiers and a key named by its meaning, `Ctrl+Z`, that names a command in
-a scope, `global` or the class of an element around the *focus*, read from a table of shortcuts,
-a document cooked from a `.keys` file (`uwui::shortcuts::Shortcuts`,
-[ADR-0142](adr/0142-input-and-focus.md)). A chord may name a button of the mouse in place of a
+**Shortcut.** A chord, modifiers and a key named by its meaning, `Primary+Z`, that names a command
+in a scope, `global` or the class of an element around the *focus*, read from a table of shortcuts,
+a document of KDL in a `.keys.kdl` file, cooked as its text (`uwui::shortcuts::Shortcuts`,
+[ADR-0142](adr/0142-input-and-focus.md),
+[ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). A menu shows it as
+its platform writes it, `Ctrl+Shift+Z` on Linux and Windows, `⇧⌘Z` on macOS (`Ui::command_chord`). A chord may name a button of the mouse in place of a
 key, `Shift+MiddleButton`: it runs no command of its own, and the program reads what it names, as
 the editor reads what each button does over its viewport (`Ui::button_command`,
 [ADR-0160](adr/0160-two-viewports-and-blenders-way.md)).

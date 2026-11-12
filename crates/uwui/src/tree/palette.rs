@@ -155,14 +155,21 @@ impl Ui {
                     .style(|s| column(s).max_height(Dimension::Pixels(tallest)));
                 sheet.add("shortcuts", rows_box, |rows| {
                     for (number, (scope, chords)) in scopes.iter().enumerate() {
-                        // Keys by the scope's place, which no chord nor scope's name can repeat.
+                        // Keys by the scope's place and the chord as it shows, which an agent reaches
+                        // a row by; a chord that shows as an earlier one, as Tab and `⇥` on macOS,
+                        // takes its place too.
                         let heading = super::Element::label(scope.as_str()).class("sheet-scope");
                         rows.add(format!("scope {number}"), heading, |_| {});
-                        for (chord, command) in chords {
+                        let mut keys = std::collections::HashSet::new();
+                        for (place, (chord, command)) in chords.iter().enumerate() {
                             let row = super::Element::container()
                                 .style(|s| s.column_gap(12.0))
                                 .class("sheet-row");
-                            rows.add(format!("{number} {chord}"), row, |row| {
+                            let mut key = format!("{number} {chord}");
+                            if !keys.insert(key.clone()) {
+                                key = format!("{number} {chord} {place}");
+                            }
+                            rows.add(key, row, |row| {
                                 let keys = super::Element::label(chord.as_str())
                                     // At least as wide as most chords, wider for a chord in a larger text.
                                     .style(|s| s.min_width(Dimension::Pixels(140.0)).shrink(0.0))

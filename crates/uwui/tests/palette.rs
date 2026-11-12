@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
-use uwui::shortcuts::Shortcuts;
+use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::text::Fonts;
 use uwui::theme::StyleSheet;
 use uwui::tree::{
@@ -17,13 +17,15 @@ use uwui::tree::{
 };
 
 const KEYS: &str = r#"
-[global]
-"Ctrl+S" = "save"
-"Ctrl+Shift+P" = "palette"
-F1 = "shortcuts"
+scope global {
+    Primary+S save
+    Primary+Shift+P palette
+    F1 shortcuts
+}
 
-[viewport]
-G = "grid"
+scope viewport {
+    G grid
+}
 "#;
 
 /// An interface of 800 by 600 whose font is the tests' Noto Sans, its shortcuts [`KEYS`].
@@ -34,6 +36,7 @@ fn interface() -> (Ui, ElementId) {
         .register(std::fs::read(path).expect("the test font"))
         .expect("a font");
     let mut ui = Ui::new(fonts);
+    ui.set_platform(Platform::Linux);
     ui.set_shortcuts(&[Shortcuts::from_text("test.keys", KEYS)])
         .expect("valid shortcuts");
     // Every element in the tests' font, what the interface builds for itself too.
@@ -490,7 +493,7 @@ fn enter_in_a_composition_is_the_input_methods_and_a_chord_given_again_is_the_la
     assert!(ui.palette_open(), "Enter was the input method's");
     assert!(actions(&mut ui).is_empty());
     // A later table that gives Ctrl+S another command: save has its chord no more.
-    let later = Shortcuts::from_text("later.keys", "[global]\n\"Ctrl+S\" = \"save-all\"\n");
+    let later = Shortcuts::from_text("later.keys", "scope global { Primary+S save-all; }\n");
     ui.set_shortcuts(&[Shortcuts::from_text("test.keys", KEYS), later])
         .expect("valid shortcuts");
     assert_eq!(ui.command_chord("save"), None);

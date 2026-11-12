@@ -130,8 +130,8 @@ impl CookedAssets {
         self.file(id, AssetKind::Theme).map(|(_, bytes)| bytes)
     }
 
-    /// Reads the table of shortcuts `id`: its document in the engine's binary encoding, which
-    /// `uwui` reads (`uwui::shortcuts::Shortcuts::from_binary`).
+    /// Reads the table of shortcuts `id`: its text, a document of KDL whose syntax the cooker
+    /// checked, which `uwui` reads (`uwui::shortcuts::Shortcuts::from_text`).
     ///
     /// # Errors
     ///

@@ -49,9 +49,10 @@ editor's other panels come with Stage 6c's next milestones.
 - `OPERATIONS`, `operation(name)`, `SHORTCUTS` and `BLENDER_SHORTCUTS`: the registry of the
   editor's operations, each its name, `file.save`, its label, its parameters and what it changes
   (`Changes`), of which only steps enter the history; the editor's table of shortcuts,
-  `editor.keys`, which binds keys to operations' names and the mouse's buttons to what they do over
-  the viewport; and what Blender's way changes of it, `editor-blender.keys`, laid over it when the
-  user chooses it.
+  `editor.keys.kdl`, which binds keys to operations' names and the mouse's buttons to what they do
+  over the viewport, `Primary` naming Ctrl, or ⌘ on macOS; and what Blender's way changes of it,
+  `editor-blender.keys.kdl`, laid over it when the user chooses it. The shortcuts below write Ctrl
+  as Linux and Windows show it.
 - `run(&Program)`: the editor's program, which a game's editor package calls with the game's level,
   key, cooked data and types, and the `editor` example with the yard's. An application of
   `slime-app` whose simulation is the editor's core and whose presentation is its window, both

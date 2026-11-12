@@ -66,6 +66,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   sheet is its text, which `slime-cook` checks and `CookedAssets::style_sheet` gives, and the cooker
   refuses a `.style` file of TOML; a sheet's metadata follows its new name, `x.style.kdl.meta`, or
   the sheet takes a new ID. Every error of a sheet is placed at its line, and gathered.
+- uwui's tables of shortcuts are KDL (ADR-0241): each scope a node, `scope global { … }`, each
+  chord a child whose argument is its command, `Primary+Z edit.undo`; files end in `.keys.kdl`. A
+  chord names `Primary`, Ctrl on Linux and Windows and ⌘ on macOS, while `Ctrl` is the Control key
+  everywhere; the repository's tables write `Primary` where they wrote `Ctrl`. The platform is a
+  value, `uwui::shortcuts::Platform`, the one built for until `Ui::set_platform`; a text field
+  copies, pastes and undoes with `Primary`, and on macOS moves by words with Option and to a line's
+  or the text's ends with ⌘ and the arrows. `Ui::command_chord` and `Ui::shortcuts` give a chord
+  as the platform writes it, `Ctrl+Shift+Z` or `⇧⌘Z`, as `uwui::shortcuts::shown` does for a chord
+  outside the tables; modifiers in the order Ctrl, Alt, Shift, then Super on Linux, the Windows key
+  first on Windows, `Win+`. A table is refused for a scope given twice, two chords of a scope that
+  are the same keys on some platform, `Primary+Z` beside `Ctrl+Z`, and an annotation, a property,
+  a child, a second argument or `#null` where none goes; `Ui::set_shortcuts` gives every error at
+  its line, as `DocumentErrors`. `Shortcuts::from_binary` is gone: a cooked table is its text,
+  which `slime-cook` checks and `CookedAssets::shortcuts` gives, and the cooker refuses a `.keys`
+  file of TOML; a table's metadata follows its new name, `x.keys.kdl.meta`, or the table takes a
+  new ID.
 - Compiling within its budgets (ADR-0221): dependencies are optimised at the first level in debug
   builds; the Nix shell links with mold on Linux; the examples' editor's Play builds `world` with
   the workspace's features, which share every engine crate with the editor's.

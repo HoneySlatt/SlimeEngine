@@ -642,20 +642,21 @@ fn a_library_of_cooked_data_reads_again_the_scenes_that_changed_and_those_that_p
 }
 
 #[test]
-fn the_interface_s_documents_are_cooked_their_syntax_checked_a_sheet_and_a_theme_as_their_text() {
+fn the_interface_s_documents_are_cooked_as_their_text_their_syntax_checked() {
     const SHEET: AssetId = AssetId::from_u128(0x0011);
     const THEME: AssetId = AssetId::from_u128(0x0012);
     const KEYS: AssetId = AssetId::from_u128(0x0013);
     const OLD: AssetId = AssetId::from_u128(0x0014);
     const OLD_SHEET: AssetId = AssetId::from_u128(0x0015);
+    const OLD_KEYS: AssetId = AssetId::from_u128(0x0016);
     let root = directory("styles").join("sources");
     let output = root.with_file_name("cooked");
     let sheet = "// The panels.\npanel {\n    select { classes panel; }\n    paint background=$surface\n}\n";
     let theme = "// The surfaces.\ncolor {\n    surface \"#26282C\"\n}\n";
     source(&root, "interface.style.kdl", SHEET, sheet.as_bytes());
     source(&root, "dark.theme.kdl", THEME, theme.as_bytes());
-    let keys = "[global]\n\"Ctrl+Z\" = \"undo\"\n";
-    source(&root, "editor.keys", KEYS, keys.as_bytes());
+    let keys = "// The editor's.\nscope global {\n    Primary+Z undo\n}\n";
+    source(&root, "editor.keys.kdl", KEYS, keys.as_bytes());
     // A file of KDL of no kind of the interface's is no source: left aside, not imported as glTF.
     fs::write(root.join("notes.kdl"), "note \"left aside\"\n").expect("written");
     cook(&root, &output).expect("cooked");
@@ -663,14 +664,13 @@ fn the_interface_s_documents_are_cooked_their_syntax_checked_a_sheet_and_a_theme
     for (id, kind, path) in [
         (SHEET, AssetKind::StyleSheet, "interface.style.kdl"),
         (THEME, AssetKind::Theme, "dark.theme.kdl"),
-        (KEYS, AssetKind::Shortcuts, "editor.keys"),
+        (KEYS, AssetKind::Shortcuts, "editor.keys.kdl"),
     ] {
         let entry = assets.manifest().get(id).expect("listed");
         assert_eq!((entry.kind, entry.source.as_str()), (kind, path));
         assert!(entry.needs.is_empty());
     }
     assert_eq!(assets.manifest().len(), 3, "the notes left aside");
-    let encoded = |text| slime_serialize::encode(text).expect("TOML");
     assert_eq!(
         assets.style_sheet(SHEET).expect("read"),
         sheet.as_bytes(),
@@ -681,13 +681,16 @@ fn the_interface_s_documents_are_cooked_their_syntax_checked_a_sheet_and_a_theme
         theme.as_bytes(),
         "a theme cooked as its text, its comments kept"
     );
-    assert_eq!(assets.shortcuts(KEYS).expect("read"), encoded(keys));
+    assert_eq!(
+        assets.shortcuts(KEYS).expect("read"),
+        keys.as_bytes(),
+        "a table of shortcuts cooked as its text, its comments kept"
+    );
     assert!(
         assets.style_sheet(THEME).is_err(),
         "a theme is not a style sheet"
     );
-    // A document that is not KDL, or a table of shortcuts that is not TOML, is refused, by its
-    // file and its line.
+    // A document that is not KDL is refused, by its file and its line.
     source(
         &root,
         "dark.theme.kdl",
@@ -712,14 +715,20 @@ fn the_interface_s_documents_are_cooked_their_syntax_checked_a_sheet_and_a_theme
         "{error}"
     );
     source(&root, "interface.style.kdl", SHEET, sheet.as_bytes());
-    source(&root, "editor.keys", KEYS, b"[global\n");
+    source(
+        &root,
+        "editor.keys.kdl",
+        KEYS,
+        b"scope global {\n    Z (\n}\n",
+    );
     let error = cook(&root, &output).unwrap_err().to_string();
     assert!(
-        error.contains("editor.keys") && error.contains("line 1"),
+        error.contains("editor.keys.kdl") && error.contains("line 2"),
         "{error}"
     );
-    source(&root, "editor.keys", KEYS, keys.as_bytes());
-    // A theme or a style sheet of TOML is refused by its name, not left aside unseen.
+    source(&root, "editor.keys.kdl", KEYS, keys.as_bytes());
+    // A theme, a style sheet or a table of shortcuts of TOML is refused by its name, not left aside
+    // unseen.
     source(&root, "old.theme", OLD, b"surface = \"#26282C\"\n");
     let error = cook(&root, &output).unwrap_err().to_string();
     assert!(
@@ -732,6 +741,14 @@ fn the_interface_s_documents_are_cooked_their_syntax_checked_a_sheet_and_a_theme
     let error = cook(&root, &output).unwrap_err().to_string();
     assert!(
         error.contains("old.style") && error.contains("a style sheet is KDL"),
+        "{error}"
+    );
+    fs::remove_file(root.join("old.style")).expect("removed");
+    fs::remove_file(root.join("old.style.meta")).expect("removed");
+    source(&root, "old.keys", OLD_KEYS, b"[global]\nZ = \"undo\"\n");
+    let error = cook(&root, &output).unwrap_err().to_string();
+    assert!(
+        error.contains("old.keys") && error.contains("a table of shortcuts is KDL"),
         "{error}"
     );
 }

@@ -32,7 +32,8 @@ const FOLD_WIDTH: f32 = 18.0;
 /// ([`Hierarchy::set_search`]).
 pub const SEARCH_PAUSE: Duration = Duration::from_millis(125);
 
-/// The class of the hierarchy's list, the scope of its shortcuts, `editor.keys`' `[hierarchy]`.
+/// The class of the hierarchy's list, the scope of its shortcuts, `scope hierarchy` of
+/// `editor.keys.kdl`.
 pub(crate) const SCOPE: &str = "hierarchy";
 
 /// A row of the hierarchy: an entity, its depth, and whether it has children.

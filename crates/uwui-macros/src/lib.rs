@@ -37,7 +37,7 @@ use syn::{Attribute, Data, DeriveInput, Fields, Ident, Type};
 ///   measure (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`);
 /// - `S::named`, in uwui's tests alone, the declarations of the leaves that a part of `S` read by
 ///   reflection names, each holding the value that a whole `S` gives it, an array's every element:
-///   the reflected reader's, the oracle of `S::read_fields` until reflection leaves uwui (M6d.3c);
+///   the reflected reader's, the oracle of `S::read_fields` until reflection leaves uwui (M6d.3c3);
 /// - `Same` for `S`, field by field;
 /// - `Colors` for `S`, the colors of its fields marked `#[declare(color)]` and of its nested
 ///   fields, in the order of the struct: the one list of colors that transitions move.
@@ -464,7 +464,7 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
             /// Gives `out` the declarations of the fields that `part`, a part of this type as
             /// reflection reads one, names, each holding the value that `self`, the whole value
             /// laid under the part, gives it; in the order of the part: the reflected reader's,
-            /// kept as the oracle of the reader of KDL until reflection leaves uwui (M6d.3c).
+            /// kept as the oracle of the reader of KDL until reflection leaves uwui (M6d.3c3).
             #[cfg(test)]
             pub(crate) fn named(
                 &self,

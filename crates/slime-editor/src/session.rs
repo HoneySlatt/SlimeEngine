@@ -35,8 +35,13 @@ const NO_DATA_DIRECTORY: &str =
 /// its lists of recent levels.
 pub(crate) const DIRECTORY: &str = "slime-editor";
 
-/// What the first run of a program tells the user, once.
-const HINT: &str = "Ctrl+Shift+P finds every operation of the editor by its name.";
+/// What the first run of a program tells the user, once: the palette's chord, as the platform
+/// writes it.
+fn hint() -> String {
+    let chord = uwui::shortcuts::shown("Primary+Shift+P", uwui::shortcuts::Platform::BUILT)
+        .expect("a chord");
+    format!("{chord} finds every operation of the editor by its name.")
+}
 
 /// The editor's program as a simulation: the editor's core, once a level is opened.
 pub(crate) struct Session {
@@ -1362,7 +1367,7 @@ impl Simulation for Session {
         self.opened(&level::whole(&level));
         self.list_prefabs(world);
         if first_run {
-            self.tell(false, HINT.to_owned());
+            self.tell(false, hint());
         }
         self.publish();
         Ok(())

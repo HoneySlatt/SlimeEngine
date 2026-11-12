@@ -13,12 +13,13 @@ use slime_input::{
 };
 use uwui::action::{ActionKind, FieldValue};
 use uwui::display::Primitive;
-use uwui::shortcuts::Shortcuts;
+use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::style::{Dimension, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{Clipboard, Element, ElementId, LayoutDirection, RootSettings, Ui};
 
-/// An interface whose fonts are the tests' Noto Sans and Noto Sans Hebrew.
+/// An interface whose fonts are the tests' Noto Sans and Noto Sans Hebrew, following Linux's ways
+/// with keys, Ctrl the modifier of shortcuts, whatever the platform the tests run on.
 fn ui() -> Ui {
     let mut fonts = Fonts::new();
     for file in ["NotoSans.ttf", "NotoSansHebrew.ttf"] {
@@ -27,7 +28,9 @@ fn ui() -> Ui {
             .register(std::fs::read(path).expect("the test font"))
             .expect("a font");
     }
-    Ui::new(fonts)
+    let mut ui = Ui::new(fonts);
+    ui.set_platform(Platform::Linux);
+    ui
 }
 
 /// Writes 200 by 30 logical pixels, of the tests' fonts.
@@ -385,7 +388,7 @@ fn words_are_moved_through_as_they_show_in_text_from_right_to_left() {
 #[test]
 fn a_field_takes_what_it_types_before_the_shortcuts_and_leaves_tab_to_the_focus() {
     let (mut ui, _, field, button) = interface(Element::text_field("").style(style));
-    let table = Shortcuts::from_text("keys", "[global]\nT = \"theme\"\n");
+    let table = Shortcuts::from_text("keys", "scope global { T theme; }\n");
     ui.set_shortcuts(&[table]).expect("a table");
     ui.set_focus(Some(field));
     assert!(ui.key(&typed("t")));
@@ -543,6 +546,83 @@ fn a_field_of_one_line_leaves_up_down_and_escape_to_the_focus() {
     assert_eq!(kinds, [ActionKind::Intent(uwui::action::Intent::Cancel)]);
 }
 
+/// The modifiers `held`, by their names in [`Modifiers`]: `command` for ⌘, the key with the
+/// system's logo, as macOS gives it.
+fn held(shift: bool, control: bool, alt: bool, command: bool) -> Modifiers {
+    let mut modifiers = Modifiers::default();
+    modifiers.shift = shift;
+    modifiers.control = control;
+    modifiers.alt = alt;
+    modifiers.super_key = command;
+    modifiers
+}
+
+#[test]
+fn on_macos_a_field_copies_and_undoes_with_command_moves_by_words_with_option_and_option_types() {
+    let (mut ui, _, field, _) = interface(Element::text_field("hello big world").style(style));
+    ui.set_platform(Platform::Mac);
+    let board = Board::default();
+    ui.set_clipboard(Box::new(board.clone()));
+    ui.set_focus(Some(field));
+    let command = held(false, false, false, true);
+    let option = held(false, false, true, false);
+    // ⌘A and ⌘C, as Apple lists them (https://support.apple.com/en-us/102650); Control and A
+    // selects nothing, and types nothing.
+    chord(&mut ui, control(), &typed("a"));
+    chord(&mut ui, control(), &typed("c"));
+    assert_eq!(*board.0.lock().unwrap(), None);
+    assert_eq!(ui.field_text(field), Some("hello big world"));
+    chord(&mut ui, command, &typed("a"));
+    chord(&mut ui, command, &typed("c"));
+    assert_eq!(board.0.lock().unwrap().as_deref(), Some("hello big world"));
+    // ⌘ and the left arrow, the line's start; ⌘ and the right arrow, its end; Option and the left
+    // arrow, a word back.
+    chord(&mut ui, command, &named(NamedKey::ArrowLeft));
+    type_text(&mut ui, "X");
+    chord(&mut ui, command, &named(NamedKey::ArrowRight));
+    chord(&mut ui, option, &named(NamedKey::ArrowLeft));
+    type_text(&mut ui, "Y");
+    assert_eq!(ui.field_text(field), Some("Xhello big Yworld"));
+    // ⌘ and the up arrow, the text's start; Shift, ⌘ and the down arrow, selected to its end.
+    chord(&mut ui, command, &named(NamedKey::ArrowUp));
+    chord(
+        &mut ui,
+        held(true, false, false, true),
+        &named(NamedKey::ArrowDown),
+    );
+    chord(&mut ui, command, &typed("x"));
+    assert_eq!(ui.field_text(field), Some(""));
+    assert_eq!(
+        board.0.lock().unwrap().as_deref(),
+        Some("Xhello big Yworld")
+    );
+    // Option and Delete, the word before the caret deleted.
+    type_text(&mut ui, "one two");
+    chord(&mut ui, option, &named(NamedKey::Backspace));
+    assert_eq!(ui.field_text(field), Some("one "));
+    // Option types a character of its own; ⌘Z undoes, ⇧⌘Z and ⌘Y redo, the field's own, which no
+    // shortcut of the program's reaches while it holds the focus.
+    let table = "scope global {\n    Primary+Y redo-level\n}\n";
+    ui.set_shortcuts(&[Shortcuts::from_text("keys", table)])
+        .expect("a table");
+    assert!(chord(&mut ui, option, &typed("π")));
+    assert_eq!(ui.field_text(field), Some("one π"));
+    chord(&mut ui, command, &typed("z"));
+    assert_eq!(ui.field_text(field), Some("one "));
+    chord(&mut ui, held(true, false, false, true), &typed("Z"));
+    assert_eq!(ui.field_text(field), Some("one π"));
+    chord(&mut ui, command, &typed("z"));
+    ui.take_actions();
+    assert!(chord(&mut ui, command, &typed("y")));
+    assert_eq!(ui.field_text(field), Some("one π"));
+    assert!(
+        !ui.take_actions().iter().any(
+            |action| matches!(&action.kind, ActionKind::Command(name) if name == "redo-level")
+        ),
+        "the field's redo, not the program's"
+    );
+}
+
 #[test]
 fn ctrl_reads_a_letter_of_another_script_by_its_place_and_altgr_types() {
     let (mut ui, _, field, _) = interface(Element::text_field("").style(style));
@@ -553,11 +633,15 @@ fn ctrl_reads_a_letter_of_another_script_by_its_place_and_altgr_types() {
     cyrillic.physical = KeyCode::KeyZ;
     chord(&mut ui, control(), &cyrillic);
     assert_eq!(ui.field_text(field), Some(""));
-    // Ctrl and Alt together, as AltGr gives them on Windows: the character typed.
+    // Ctrl and Alt together, as AltGr gives them on Windows: the character typed, on Windows and
+    // on Linux alike.
     let mut altgr = control();
     altgr.alt = true;
     assert!(chord(&mut ui, altgr, &typed("@")));
     assert_eq!(ui.field_text(field), Some("@"));
+    ui.set_platform(Platform::Windows);
+    assert!(chord(&mut ui, altgr, &typed("€")));
+    assert_eq!(ui.field_text(field), Some("@€"));
 }
 
 #[test]

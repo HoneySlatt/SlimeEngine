@@ -384,10 +384,10 @@ impl Model {
     /// Takes the editor's shortcuts, Blender's way laid over them if `blender`.
     fn set_keys(&mut self, blender: bool) {
         self.blender = blender;
-        let mut tables = vec![Shortcuts::from_text("editor.keys", SHORTCUTS)];
+        let mut tables = vec![Shortcuts::from_text("editor.keys.kdl", SHORTCUTS)];
         if blender {
             tables.push(Shortcuts::from_text(
-                "editor-blender.keys",
+                "editor-blender.keys.kdl",
                 BLENDER_SHORTCUTS,
             ));
         }
@@ -3065,8 +3065,8 @@ mod tests {
         }
         let mut ui = Ui::new(Fonts::new());
         ui.set_shortcuts(&[
-            Shortcuts::from_text("editor.keys", SHORTCUTS),
-            Shortcuts::from_text("editor-blender.keys", BLENDER_SHORTCUTS),
+            Shortcuts::from_text("editor.keys.kdl", SHORTCUTS),
+            Shortcuts::from_text("editor-blender.keys.kdl", BLENDER_SHORTCUTS),
         ])
         .expect("valid shortcuts");
         let scopes = ui.shortcuts();

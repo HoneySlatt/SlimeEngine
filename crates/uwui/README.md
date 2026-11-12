@@ -97,12 +97,14 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   [ADR-0153](../../docs/adr/0153-tab-and-f6-in-a-games-interface.md)); a root may be a popup at a
   place of its own, or modal, keeping the input and the focus while it is open. An element's
   description, its tooltip, and whether a press opens a layer beside it, are part of what it means.
-- `shortcuts::Shortcuts` is a table of shortcuts, read from a document: chords of the keys' meaning
+- `shortcuts::Shortcuts` is a table of shortcuts, a document of KDL: chords of the keys' meaning
   that name commands, in scopes, the classes of the elements around the focus; `Ui::set_shortcuts`
-  takes them. A chord may name a button of the mouse, whose command the program reads,
+  takes them. A chord's `Primary` is Ctrl, or ⌘ on macOS, after the platform that the interface
+  follows (`shortcuts::Platform`, `Ui::set_platform`), which a field's keys follow too; a menu
+  shows a chord as that platform writes it, as `shortcuts::shown` writes one for a hint. A chord may name a button of the mouse, whose command the program reads,
   `Ui::button_command`, as the editor reads which button orbits its viewport
-  (`docs/adr/0160-two-viewports-and-blenders-way.md`). Its errors are a `DocumentError`; the
-  style sheets' and themes', `DocumentErrors`.
+  (`docs/adr/0160-two-viewports-and-blenders-way.md`). Its errors, as the style sheets' and
+  themes', are `DocumentErrors`.
 - A field (`Element::text_field`, `Element::text_area`, `Element::number_field`) keeps what the
   user types, selects with the keys and the pointer, undoes, copies and pastes through the clipboard
   that the program gives (`tree::Clipboard`, `Ui::set_clipboard`), which the program reads and
@@ -239,9 +241,10 @@ Its logo is not under the code's licenses: its author keeps its rights, and
 parley, fontique and swash, the text; taffy, the tree's flexbox and grid, run through its traits on
 the tree's arena; their types stay inside the crate (`docs/adr/0132-the-engines-ui-framework.md`).
 icu_properties, for the writing system of a character; `slime-color`, the colors of the styles and
-the display list; `uwui-kdl`, the reader of its documents in KDL, its themes and style sheets
-today; `slime-reflect` and `slime-serialize`, the styles described and the shortcuts read, until
-M6d.3c; `uwui-macros`, the derives of the styles' declarations and of their readers
+the display list; `uwui-kdl`, the reader of its documents in KDL, its themes, style sheets and
+tables of shortcuts today, docks' layouts at M6d.3c2; `slime-reflect` and `slime-serialize`, the
+styles and docks' layouts described, and the reflected readers that its tests keep as oracles,
+until M6d.3c3; `uwui-macros`, the derives of the styles' declarations and of their readers
 (`docs/adr/0229-styles-typed-as-declarations.md`); `slime-input`, the input it takes; thiserror and
 tracing. No other engine
 crate: text is laid out and rasterized on the CPU, `uwui-render` draws the display list, a

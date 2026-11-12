@@ -37,8 +37,8 @@ pub enum ActionKind {
     /// a check box or a button that toggles turned, a list to choose from or a control of segments
     /// given another choice. A field of numbers whose text reads as no number gives none.
     Changed(FieldValue),
-    /// What a field holds, given by the user: by Enter in a field of one line, Ctrl+Enter in a
-    /// field of several, the focus leaving the field, the release of a drag of a field of numbers,
+    /// What a field holds, given by the user: by Enter in a field of one line, Primary and Enter,
+    /// Ctrl or ⌘, in a field of several, the focus leaving the field, the release of a drag of a field of numbers,
     /// or an agent's `Accept` while it holds the focus, once the user changed it since it took the
     /// focus or since its last commit; a check box or a button that toggles turned, and a list to
     /// choose from or a control of segments given another choice, after their change; the release

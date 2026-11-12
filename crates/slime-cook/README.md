@@ -17,20 +17,20 @@ images beside them or GLB, into meshes, with MikkTSpace tangents when they have 
 scenes, and cooks the textures their materials read in the roles they read them; their nodes'
 `slime:<type name>` properties become typed components. It cooks scene files into the engine's
 binary encoding of documents, after it checks them
-([ADR-0095](../../docs/adr/0095-cooked-scene-files.md)), and the interface's tables of shortcuts,
-`.keys` files, their syntax checked ([ADR-0142](../../docs/adr/0142-input-and-focus.md)). It cooks
-the interface's style sheets and themes, `.style.kdl` and `.theme.kdl` files, as their text, their
-syntax and limits checked by uwui's reader of KDL, so that an error keeps its line; a style sheet
-or a theme of TOML, `.style` or `.theme`, is refused by its name
+([ADR-0095](../../docs/adr/0095-cooked-scene-files.md)). It cooks the interface's style sheets,
+themes and tables of shortcuts, `.style.kdl`, `.theme.kdl` and `.keys.kdl` files, as their text,
+their syntax and limits checked by uwui's reader of KDL, so that an error keeps its line; one of
+TOML, `.style`, `.theme` or `.keys`, is refused by its name
 ([ADR-0141](../../docs/adr/0141-style-sheets-and-themes.md),
-([ADR-0241](../../docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). It cooks a directory again each time
+[ADR-0142](../../docs/adr/0142-input-and-focus.md),
+[ADR-0241](../../docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). It cooks a directory again each time
 one of its files changes, for games that load their data again while they run
 ([ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)).
 
 ## Role
 
 - Knows which files are sources: glTF scenes (`.gltf`, `.glb`), PNG and JPEG images, scene files
-  (`.scene`), and the interface's documents (`.style.kdl`, `.theme.kdl`, `.keys`), an extension
+  (`.scene`), and the interface's documents (`.style.kdl`, `.theme.kdl`, `.keys.kdl`), an extension
   holding a dot where the end of a name has two parts.
 - Gives each source file a random ID the first time it meets it, in a *metadata file* beside it,
   `<file>.meta`, committed with it: a file moved or renamed with its metadata file keeps its ID.
@@ -52,10 +52,9 @@ one of its files changes, for games that load their data again while they run
   not a scene, a parent missing, entities that would be each other's ancestors and scene files that
   place each other; warns of a path that a table gives where the source is not; writes their
   binary encoding, which needs the assets of their table.
-- Cooks the interface's tables of shortcuts into their binary encoding, refusing by file and line
-  a document that is not TOML, and its style sheets and themes as their text, refusing by file and
-  line one that is not KDL or exceeds the reader's limits, and one of TOML by its name; `uwui`
-  checks their types when it reads them.
+- Cooks the interface's style sheets, themes and tables of shortcuts as their text, refusing by
+  file and line one that is not KDL or exceeds the reader's limits, and one of TOML by its name;
+  `uwui` checks their types when it reads them.
 - Names each cooked file by the hash of all that made it, so that what is already cooked, and
   reads back whole, is not cooked again, and the same sources cook into the same bytes on one
   platform. Writes its files, and the metadata files it gives, under temporary names of the

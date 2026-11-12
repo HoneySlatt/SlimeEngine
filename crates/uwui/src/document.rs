@@ -1,30 +1,9 @@
-//! The documents that the interface reads, style sheets, themes and tables of shortcuts: how a
-//! program gives them, and why one cannot be taken.
+//! Why a document that the interface reads, a style sheet, a theme or a table of shortcuts, cannot
+//! be taken.
 
 use std::fmt;
 
-use slime_reflect::Registry;
-use slime_serialize::{Document, Mode, ReadError};
-
-/// A document read through reflection, a table of shortcuts until M6d.3c, as a program has it: a
-/// text, as its author wrote it, or its binary encoding, as the cooker writes it
-/// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
-#[derive(Clone, Debug)]
-pub(crate) enum Source {
-    Text(String),
-    Binary(Vec<u8>),
-}
-
-impl Source {
-    /// The document, parsed strictly, as a source written by a person is, with the types of
-    /// `registry`.
-    pub(crate) fn parse<'a>(&'a self, registry: &'a Registry) -> Result<Document<'a>, ReadError> {
-        match self {
-            Self::Text(text) => Document::parse(registry, text, Mode::Strict),
-            Self::Binary(bytes) => Document::parse_binary(registry, bytes, Mode::Strict),
-        }
-    }
-}
+use slime_serialize::ReadError;
 
 /// Why a style sheet, a theme or a table of shortcuts cannot be taken: the document at fault, and
 /// what is wrong, and where in it.
@@ -40,11 +19,12 @@ pub struct DocumentError {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Fault {
-    /// In a document of KDL, a theme or a style sheet: its line, its column and what is wrong.
+    /// In a document of KDL, a theme, a style sheet or a table of shortcuts: its line, its column
+    /// and what is wrong.
     Kdl(uwui_kdl::Error),
-    /// In a document still read through reflection, a table of shortcuts until M6d.3c, which then
-    /// reads KDL too
-    /// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
+    /// In a document read through reflection: only the oracles of uwui's tests read one, until
+    /// reflection leaves uwui (M6d.3c3,
+    /// `docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
     Reflected(ReadError),
 }
 
@@ -93,8 +73,8 @@ impl std::error::Error for Fault {
     }
 }
 
-/// Why style sheets and themes cannot be taken: each error found, up to [`DocumentErrors::MOST`];
-/// the interface keeps the style it had. The themes are read first, every value of each in turn,
+/// Why style sheets and themes, or tables of shortcuts, cannot be taken: each error found, up to
+/// [`DocumentErrors::MOST`]; the interface keeps the style or the shortcuts it had. The themes are read first, every value of each in turn,
 /// then the names that the values give one another, then the tokens; the style sheets are read
 /// only once the themes are taken, in their order, each rule in the order of its file, and in a
 /// rule its `select` first, wherever it is written, then what it sets, then whether its kind reads

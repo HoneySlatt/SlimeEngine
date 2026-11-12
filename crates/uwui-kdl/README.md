@@ -13,8 +13,8 @@ Its name is provisional: the names of uwui's crates are settled at M6d.10
 - `read` and `read_within` read a text into a `Document`: a flat tree of nodes and entries, each
   placed in the text by its span, strings of one line without escapes borrowed. The reader checks
   the syntax alone; what a node means is the typed layer's work above it, in `uwui`, which reads
-  themes and style sheets through it today, and in `slime-cook`, which checks the syntax of the
-  themes and style sheets it cooks.
+  its themes, style sheets and tables of shortcuts through it, and in `slime-cook`, which checks
+  the syntax of the documents it cooks.
 - `Limits` bound what content from outside may hold: its size, its depth, its count of nodes and
   entries. The reader never recurses; its time grows with its text alone.
 - An `Error` names its line, its column in characters, and what is wrong; `Error::at` places one

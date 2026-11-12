@@ -270,7 +270,7 @@ mod documents_tests;
 mod reflected_tests;
 pub(crate) mod sheet;
 mod token;
-mod values;
+pub(crate) mod values;
 
 pub use token::{
     AnyToken, Color, Duration, Fallback, Length, Number, Token, TokenError, TokenKind, TokenOr,
@@ -573,7 +573,7 @@ pub(crate) struct Rule {
 }
 
 /// The registry of the types that style sheets hold, as reflection reads them: the oracle's of the
-/// tests while reflection is in uwui (M6d.3c).
+/// tests while reflection is in uwui (M6d.3c3).
 #[cfg(test)]
 pub(crate) fn registry() -> Registry {
     let mut registry = Registry::new();

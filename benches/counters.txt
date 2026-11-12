@@ -101,6 +101,7 @@ ui.tree.list.100k	elements	164
 ui.tree.list.100k	elements visited by a frame standing still	328
 ui.tree.list.100k	items of a frame standing still	110
 ui.tree.look	allocations of a frame of the transition	96763
+ui.tree.look	allocations of reading the editor's tables of shortcuts	324
 ui.tree.look	allocations of reading the look's documents	3376
 ui.tree.look	allocations of the first frame at twice the size of text	894720
 ui.tree.look	allocations of the frame after the size of text changed	894229

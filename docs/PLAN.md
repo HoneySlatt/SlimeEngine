@@ -200,6 +200,10 @@ made after Stage 6e's first milestone runs on `games/open-world` where it names 
 - **The build for shipping on Windows** (C1): `cargo build --profile shipping -p hunnawood
   --no-default-features` in the Windows virtual machine, then the game run with `--new --save
   <a file of its own>`.
+- **Shortcuts on macOS** (M6d.3c1): the editor's menus and sheet of shortcuts in the macOS virtual
+  machine, `⇧⌘Z` and Apple's symbols; ⌘C, ⌘V and ⌘Z, Option and the arrows, and Option typing a
+  character, in a field; Blender's `Alt+A`, whose logical key Option changes; Option alone, which
+  opens the bar of menus.
 
 ## Known debt
 

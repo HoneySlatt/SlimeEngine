@@ -6,9 +6,9 @@ use slime_input::{ButtonState, Key, KeyEvent, Modifiers, MouseButton, NamedKey, 
 
 use super::field::DRAG_THRESHOLD;
 use super::{ElementId, ElementState, Kind, LayoutDirection, Node, Place, Ui};
-use crate::DocumentError;
+use crate::DocumentErrors;
 use crate::action::{Action, ActionKind, Intent, SurfaceInput};
-use crate::shortcuts::{self, Binding, Shortcuts};
+use crate::shortcuts::{self, Binding, Platform, Shortcuts};
 use crate::style::Display;
 
 /// How far a line of the wheel scrolls, in logical pixels.
@@ -47,6 +47,8 @@ pub(super) struct Interaction {
     pub(super) actions: Vec<Action>,
     /// The shortcuts, in the order of their tables.
     bindings: Vec<Binding>,
+    /// The platform whose ways the keys follow.
+    pub(super) platform: Platform,
     /// Whether what lies under the pointer may have changed since it was found: the tree was laid
     /// out, scrolled or cut since.
     moved: bool,
@@ -991,30 +993,46 @@ impl Ui {
     }
 
     /// Reads the shortcuts of `tables`, in their order, those of a later table winning over an
-    /// earlier one's for one chord in one scope.
+    /// earlier one's for one chord in one scope, as the platform resolves it ([`Ui::platform`]).
     ///
     /// # Errors
     ///
-    /// [`DocumentError`] if a table is not a document of scopes, of chords and the names of
-    /// commands, or a chord names no key or modifier: the interface keeps the shortcuts it had.
-    pub fn set_shortcuts(&mut self, tables: &[Shortcuts]) -> Result<(), DocumentError> {
+    /// [`DocumentErrors`] if a table is not a document of scopes, of chords and the names of
+    /// commands, a chord names no key or modifier, or two chords of a scope are the same keys on
+    /// some platform ([`Shortcuts`]): the interface keeps the shortcuts it had.
+    pub fn set_shortcuts(&mut self, tables: &[Shortcuts]) -> Result<(), DocumentErrors> {
         self.interaction.bindings = shortcuts::bindings(tables)?;
         Ok(())
     }
 
-    /// The chord of a key that gives `command`, as a table writes it, `Ctrl+S`: of the scope
-    /// `global` first, then of the first scope that gives it, in the order of [`Ui::shortcuts`]; a
-    /// chord that a later table gives another command in its scope gives this one no more. None
-    /// for a command that no key's shortcut gives: a button's chord gives none of its own
-    /// ([`Ui::button_command`]).
+    /// The platform whose ways the keys follow: which modifier `Primary` is, which moves a field's
+    /// caret by words, and how a shortcut is written for a person ([`Ui::command_chord`]). The one
+    /// that the program is built for, [`Platform::BUILT`], until [`Ui::set_platform`].
+    #[must_use]
+    pub fn platform(&self) -> Platform {
+        self.interaction.platform
+    }
+
+    /// Follows the ways of `platform` with keys: a host that knows the system better than the
+    /// build does, a program on the web, or a test of another platform's ways.
+    pub fn set_platform(&mut self, platform: Platform) {
+        self.interaction.platform = platform;
+    }
+
+    /// The chord of a key that gives `command`, as the platform writes it for a person, `Ctrl+S` on
+    /// Linux and Windows, `⌘S` on macOS: of the scope `global` first, then of the first scope that
+    /// gives it, in the order of [`Ui::shortcuts`]; a chord that a later table gives another
+    /// command in its scope gives this one no more. None for a command that no key's shortcut
+    /// gives: a button's chord gives none of its own ([`Ui::button_command`]).
     pub fn command_chord(&self, command: &str) -> Option<String> {
+        let platform = self.interaction.platform;
         let scopes = self.shortcuts();
         let buttons: Vec<String> = self
             .interaction
             .bindings
             .iter()
             .filter(|binding| binding.chord.is_button())
-            .map(|binding| binding.chord.text())
+            .map(|binding| binding.chord.shown(platform))
             .collect();
         let chord = |(_, chords): &(String, Vec<(String, String)>)| {
             chords
@@ -1045,7 +1063,12 @@ impl Ui {
             .iter()
             .rev()
             .filter(|binding| binding.scope == scope)
-            .filter_map(|binding| Some((binding.chord.holds(button, modifiers)?, binding)))
+            .filter_map(|binding| {
+                let named = binding
+                    .chord
+                    .holds(button, modifiers, self.interaction.platform)?;
+                Some((named, binding))
+            })
             .fold(
                 None,
                 |best: Option<(usize, &Binding)>, (named, binding)| match best {
@@ -1057,12 +1080,13 @@ impl Ui {
     }
 
     /// The shortcuts that the tables give, by scope, each scope's in the order of the tables:
-    /// its name, then each chord, as a table writes it, and its command. A chord that a later
-    /// table gives again in a scope is given once, with the later command.
+    /// its name, then each chord, as the platform writes it for a person ([`Ui::platform`]), and
+    /// its command. A chord that a later table gives again in a scope, as the platform resolves
+    /// it, is given once, with the later command.
     pub fn shortcuts(&self) -> Vec<(String, Vec<(String, String)>)> {
-        let mut scopes: Vec<(String, Vec<(String, String)>)> = Vec::new();
+        let platform = self.interaction.platform;
+        let mut scopes: Vec<(String, Vec<&Binding>)> = Vec::new();
         for binding in &self.interaction.bindings {
-            let chord = binding.chord.text();
             let at = match scopes.iter().position(|(scope, _)| *scope == binding.scope) {
                 Some(at) => at,
                 None => {
@@ -1071,10 +1095,19 @@ impl Ui {
                 }
             };
             let chords = &mut scopes[at].1;
-            chords.retain(|(held, _)| *held != chord);
-            chords.push((chord, binding.command.clone()));
+            chords.retain(|held| !held.chord.same(&binding.chord, platform));
+            chords.push(binding);
         }
         scopes
+            .into_iter()
+            .map(|(scope, chords)| {
+                let chords = chords
+                    .into_iter()
+                    .map(|binding| (binding.chord.shown(platform), binding.command.clone()))
+                    .collect();
+                (scope, chords)
+            })
+            .collect()
     }
 
     /// The element that the pointer would reach at `x` and `y`, in pixels of the screen: the
@@ -1213,7 +1246,12 @@ impl Ui {
                 .bindings
                 .iter()
                 .rev()
-                .find(|binding| binding.scope == *scope && binding.chord.matches(event, modifiers))
+                .find(|binding| {
+                    binding.scope == *scope
+                        && binding
+                            .chord
+                            .matches(event, modifiers, self.interaction.platform)
+                })
                 .map(|binding| binding.command.clone())
         })
     }
