@@ -121,8 +121,8 @@ in git.
   [M6d.4a](#m6d4a--the-canvass-prototype-and-its-adr), the canvas's prototype and its ADR, on
   2026-11-12 ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)); then
   M6d.4b1, the canvas on wgpu as it is, cut in two on 2026-11-12
-  ([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)): in progress,
-  [M6d.4b1a](#m6d4b1a--the-canvas-moved-into-uwui-render), the canvas moved; then
+  ([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)): done,
+  [M6d.4b1a](#m6d4b1a--the-canvas-moved-into-uwui-render), the canvas moved, on the same day; then
   [M6d.4b1b](#m6d4b1b--the-canvas-on-wgpu), the canvas on wgpu, and
   [M6d.4b2](#m6d4b2--the-canvass-layout-chosen), its layout chosen.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
@@ -1497,8 +1497,46 @@ through a guarded door of `slime-gfx`, and draws uwui from `slime-app`
 
 ### M6d.4b1a — The canvas moved into uwui-render
 
-In progress: its card is in [`PLAN.md`](PLAN.md#m6d4b1a--the-canvas-moved-into-uwui-render), back
-here with its result when it is done.
+The first half of M6d.4b1, cut at its start, on 2026-11-12
+([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)). It follows the rules
+of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The canvas and the glyphs' atlas live in `uwui-render`, still on `slime-gfx`'s
+  handles, and the engine draws them through `slime-app`; images and figures unchanged.
+- **Crates.** `uwui-render`, `slime-render`, `slime-app`, `slime-devui`, `slime-editor`,
+  `slime-benches`, the examples; `scripts/`.
+- **Delivers.**
+  - The canvas's types, shader and renderer, and its tests, moved into `uwui-render`; a canvas's
+    images given when it is drawn, so that a canvas is data alone; `uwui-render` without
+    `slime-render`.
+  - `Renderer::draw_canvas`, the canvas's types and its shader gone from `slime-render`.
+  - `slime-app`'s bridge, which draws a display list or a canvas over the engine's target with its
+    images; every caller through it, in the form that M6d.4b1b keeps.
+  - The probe of the canvas's cost moved to the benchmarks; `CHANGELOG.md`'s breaks.
+- **Done when.** The canvas's tests pass in `uwui-render`; the editor, the dev overlay, *Hunna
+  Wood*'s menus and the `interface` and `widgets` examples draw their images unchanged;
+  `slime-render` holds no canvas; CI is green.
+- **Measured.** `render.canvas` and `ui.draw.menu` before and after, at 3840 × 2160 on the
+  RX 6900 XT, within the interface's 0.5 ms; CI's jobs.
+- **Result.** Done on 2026-11-12, CI green
+  ([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)):
+  - `uwui-render` holds the canvas, its shader and its renderer, `uwui_render::canvas`, still on
+    `slime-gfx`'s handles; a canvas is data alone, its images given when it is drawn; its
+    `ImageKind` is the display list's own. `slime-render` holds no canvas.
+  - `slime_app::InterfaceRenderer`, the engine's bridge to uwui, draws a display list or a canvas
+    with the engine's images, `InterfaceImage`; the dev overlay, the editor, the examples and the
+    benchmarks draw through it, the overlay and the editor making it at their first draw. The
+    probe of the canvas's cost moved to the benchmarks.
+  - Images unchanged: the canvas's tests, moved whole, the editor's and the `widgets` example's
+    reference images, the dev overlay's tests, *Hunna Wood*'s menus among them, and the
+    `interface` example's image, identical byte for byte to the one before.
+  - `render.canvas` and `ui.draw.menu` kept their GPU time at 3840 × 2160 on the RX 6900 XT, and
+    their CPU did not grow
+    ([measurements](measurements.md#m6d4b1a-the-canvas-moved-into-uwui-render)). A program on
+    uwui no longer compiles the renderer; every game compiles `uwui-render`.
+  - Debt: none added. The items of [`debt.md`](debt.md) on the canvas that the move touched keep
+    their milestones: transforms, and items written only when they change, at uwui's first stage;
+    the store's size at M6d.4b2. No counter added: the items and draws counted are the same.
 
 ### M6d.4b1b — The canvas on wgpu
 

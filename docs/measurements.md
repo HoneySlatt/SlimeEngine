@@ -2504,6 +2504,89 @@ Every job stays within its limit of 20 minutes. `check (headless)` took as long 
 its margin 3 min 12 s; `windows-release` 1 min 51 s less, its margin 5 min 23 s. The new crate
 and its 338 tests of KDL add some seconds to the jobs that test the workspace.
 
+## M6d.4b1a, the canvas moved into uwui-render
+
+The canvas moved out of `slime-render` into `uwui-render`, still on `slime-gfx`'s handles, and
+drawn through `slime-app`'s `InterfaceRenderer`
+([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)).
+
+### `render.canvas` and `ui.draw.menu` before and after
+
+At 3840 × 2160 on the RX 6900 XT (RADV, Mesa 26.2.6), the GPU's clock fixed at `high`, offscreen,
+release builds, three runs each, on 2026-11-12: before on `fbbfdf8`, after on `58199e1`, the
+change rebased since without a change of code. Each figure is a median of 30 frames; the range
+is that of the three runs. The GPU time is the canvas's pass, as `render.canvas` has always
+measured it
+([ADR-0245](adr/0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md) keeps it for
+M6d.4b1).
+
+| Screen | GPU before | GPU after | CPU before | CPU after |
+|---|---|---|---|---|
+| `render.canvas`, the editor's screen | 291.8–292.1 µs | 291.2–291.3 µs | 624.7–730.4 µs | 555.3–568.1 µs |
+| `render.canvas`, the game's menu | 233.9–234.1 µs | 233.6 µs | 198.9–216.4 µs | 189.6–195.6 µs |
+| `ui.draw.menu` | 207.7–208.0 µs | 207.6–207.9 µs | 365.2–396.5 µs | 339.3–372.5 µs |
+| `ui.draw.menu`, the first draw | — | — | 2.13–2.83 ms | 2.00–2.09 ms |
+
+What they say:
+
+- The GPU's work did not change: the same items, draws and bytes, the same pass.
+- The CPU did not grow: the bridge's conversion of the images and the check of their indices are
+  lost in the runs' spread, and the machine was quieter for the runs after.
+- Every screen keeps the interface's 0.5 ms. The CPU's rows are named after the call that they
+  time: `InterfaceRenderer::draw_canvas` and `InterfaceRenderer::draw`, where they named
+  `Renderer::draw_canvas` and `UiRenderer::draw`.
+- The counters of CI are unchanged: items and draws are the same, and `counters.txt` did not
+  change. M6d.4b1a touched no phase of uwui's that it counts, so it adds no counter.
+
+### What a program on uwui compiles now
+
+[`scripts/uwui-program.sh`](../scripts/uwui-program.sh), as in
+[M6d.0a](#what-a-program-on-uwui-compiles): the `widgets` example in a package of its own, its
+dependencies listed anew, since it no longer names `slime-render` nor `uwui-render`. Times on a
+machine that other sessions loaded during the runs, from 1.5 to 16: only the counts and the sizes
+compare.
+
+| | `development`, `accessibility` | No feature |
+|---|---|---|
+| Crates compiled, the engine's among them | 271, 15 | 207, 14 |
+| `slime-render`, `slime-world`, `slime-editor` | not, compiled, not | not, compiled, not |
+| Debug build, from nothing / after a change of its code | 68.0 s / 0.9 s | 49.0 s / 0.8 s |
+| Release build, from nothing / after a change of its code | 56.0 s / 2.2 s | 41.6 s / 2.1 s |
+| Release binary / stripped | 31.4 MB / 23.8 MB | 24.6 MB / 18.8 MB |
+
+A program on uwui no longer compiles the renderer, which ADR-0180 asked for; it still compiles
+the world, through `slime-app`, which M6d.5 and M6d.7 follow. Stripped and without the development
+channel, its binary is 1.2 MB within uwui's budget of 20 MB.
+
+### The canvas's cost, against the renderer's
+
+`scripts/canvas-cost.sh --runs 1` ran on lavapipe, from its new home, `benches/tests/canvas_cost.rs`:
+the canvas built in 4.0 ms and drawn first in 13.2 ms, the renderer beside it in 135.2 ms and
+146.0 ms. One run on the CPU's driver checks the probe; its figures on the GPU wait for the next
+series that needs them. The dev overlay now builds its canvas at the first frame that shows a
+panel, where the view's renderer built it before: those 4 ms on lavapipe move there.
+
+### CI
+
+GitHub's hosted runners, on 2026-11-12, each run green, on `68af09b`; `Compositors` ran, since
+`slime-app` changed:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 6 min 45 s |
+| `check (headless)` | 11 min 57 s |
+| `check (windowed)` | 7 min 58 s |
+| `check (game)` | 12 min 26 s |
+| `windows (tests)` | 14 min 50 s |
+| `windows (render)` | 7 min 4 s |
+| `windows (game)` | 7 min 52 s |
+| `windows-release` | 9 min 53 s |
+| `compositors`, the longest, KWin | 14 min 6 s |
+| Docs' `links` | 20 s |
+
+Every job stays within its limit of 20 minutes; the closest, `windows (tests)`, has 5 min 10 s to
+spare.
+
 ## M6d.3c1, shortcuts in KDL
 
 The editor's tables of shortcuts read in KDL by uwui's own reader, in place of the engine's
