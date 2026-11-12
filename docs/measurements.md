@@ -2627,6 +2627,67 @@ GitHub's hosted runners, on 2026-11-12, each run green, on `68af09b`; `Composito
 Every job stays within its limit of 20 minutes; the closest, `windows (tests)`, has 5 min 10 s to
 spare.
 
+## M6d.4b1b, the canvas on wgpu
+
+`uwui-render` draws with a wgpu device, its queue and its host's encoder, lent through
+`slime-gfx`'s guarded door by `slime-app`'s bridge
+([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)).
+
+### `render.canvas` and `ui.draw.menu` before and after
+
+At 3840 × 2160 on the RX 6900 XT (RADV, Mesa 26.2.6), the GPU's clock fixed at `high`, offscreen,
+release builds, on 2026-11-12: three runs of each, before on `bb0adb5`, M6d.4b1a's code, and after
+on `37b17fb`, in turn, run after run, in the same minute, the load average under 1.5 at their
+start. Each figure is a median of 30 frames; the range is that of the three runs. The GPU time is
+the canvas's pass, as M6d.4b1a measured it
+([ADR-0245](adr/0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md) keeps it for
+M6d.4b1).
+
+| Screen | GPU before | GPU after | CPU before | CPU after |
+|---|---|---|---|---|
+| `render.canvas`, the editor's screen | 291.9 µs | 291.7–291.8 µs | 648.6–969.9 µs | 364.1–407.7 µs |
+| `render.canvas`, the game's menu | 233.8–234.0 µs | 234.1 µs | 219.1–254.3 µs | 145.5–168.8 µs |
+| `ui.draw.menu` | 207.7–207.8 µs | 207.7–208.0 µs | 364.6–375.1 µs | 330.2–396.7 µs |
+| `ui.draw.menu`, the first draw | — | — | 2.41–2.55 ms | 2.10–2.19 ms |
+
+What they say:
+
+- The GPU's work did not change: the same items, draws and pass. The canvas's images are the same,
+  byte for byte, in the `interface` example's five images, dark and light, mirrored, at twice the
+  scale and with its dialog, drawn on lavapipe before and after.
+- The CPU of drawing a canvas fell by some 40 %. Its first form on wgpu cost more than M6d.4b1a,
+  the editor's screen 697–791 µs against 545–704 µs in five runs in turn: timed inside the draw,
+  the door, its scopes and its probe took about 65 µs, and writing the 19 377 items' bytes
+  381 µs before and 513 µs after, from the same source. The writer appended each item's 36 values
+  one by one to a growing vector, as fast as the compiler inlined that growth, which the crates'
+  new shape changed. Each item is now laid out in place, then appended at once.
+- `ui.draw.menu` keeps its CPU within the runs' spread: its 2 645 items weigh less beside its
+  text's work. Every screen keeps the interface's 0.5 ms.
+- The counters of CI are unchanged: items and draws are the same, and `counters.txt` did not
+  change. M6d.4b1b touched no phase of uwui's that it counts, so it adds no counter.
+
+### CI
+
+GitHub's hosted runners, on 2026-11-12, each run green, on `37b17fb`; `Compositors` ran, since
+`slime-app` changed:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 9 min 59 s |
+| `check (headless)` | 13 min 54 s |
+| `check (windowed)` | 11 min 11 s |
+| `check (game)` | 7 min 49 s |
+| `windows (tests)` | 13 min 46 s |
+| `windows (render)` | 6 min 26 s |
+| `windows (game)` | 6 min 9 s |
+| `windows-release` | 15 min 45 s |
+| `compositors`, the longest, sway | 15 min 31 s |
+| Docs' `links` | 18 s |
+
+Every job stays within its limit of 20 minutes; the closest, `windows-release`, has 4 min 15 s to
+spare. `check (lint)` and `check (headless)` took 3 and 2 minutes more than at M6d.4b1a, all their
+jobs starting together: the door's check adds a `cargo tree` and a `git grep`, seconds.
+
 ## M6d.3c1, shortcuts in KDL
 
 The editor's tables of shortcuts read in KDL by uwui's own reader, in place of the engine's
