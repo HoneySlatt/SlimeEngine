@@ -41,8 +41,13 @@ documentation was updated and reread. Every milestone is also checked on Windows
     wgpu, closed on 2026-11-12: [M6d.4a](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr),
     [M6d.4b1a](stage-6d.md#m6d4b1a--the-canvas-moved-into-uwui-render),
     [M6d.4b1b](stage-6d.md#m6d4b1b--the-canvas-on-wgpu) and
-    [M6d.4b2](stage-6d.md#m6d4b2--the-canvass-layout-chosen), its layout chosen.
-  - M6d.5 may start, M6d.3 and M6d.4 done; M6d.10 to M6d.12 run alone.
+    [M6d.4b2](stage-6d.md#m6d4b2--the-canvass-layout-chosen), its layout chosen; then M6d.5,
+    the host's API, cut in five on 2026-11-12
+    ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): in progress,
+    [M6d.5a](#m6d5a--the-apis-adr-and-its-table).
+  - M6d.5's parts run beside track A in ADR-0248's order; M6d.5a's ADR fixes three seams before
+    M6d.9a1b starts: one waker, meaning followed by each reader, an element's capture.
+  - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: the deletion of the branches `m6d1b-bench` and `m6d4a-prototype`, the
   last kept while measurements link to its code; the mirror of the game's assets, a private repository, which `scripts/fetch-assets.sh`
@@ -60,7 +65,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.4b1a — The canvas moved into uwui-render](stage-6d.md#m6d4b1a--the-canvas-moved-into-uwui-render) | Done |
 | [M6d.4b1b — The canvas on wgpu](stage-6d.md#m6d4b1b--the-canvas-on-wgpu) | Done |
 | [M6d.4b2 — The canvas's layout chosen](stage-6d.md#m6d4b2--the-canvass-layout-chosen) | Done |
-| [M6d.5 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Planned |
+| [M6d.5a — The API's ADR and its table](#m6d5a--the-apis-adr-and-its-table) | In progress |
+| [M6d.5b to M6d.5e — The rest of M6d.5](stage-6d.md#m6d5b--the-times) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
@@ -92,6 +98,28 @@ Started on 2026-11-12, the first fifth of M6d.9a
   served the rest; a program logs the agent that connected; CI is green.
 - **Measured.** At rest, with the owner's go: an answer of the channel, the median of 21 on the
   loopback, against 0.14 ms before.
+
+## M6d.5a — The API's ADR and its table
+
+Started on 2026-11-12, the first fifth of M6d.5
+([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)), under
+[the stage's rules](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Every item of the host's API decided and checked against the five platforms before
+  its code.
+- **Crates.** None: `docs/adr/`; a prototype on a branch, thrown away.
+- **Delivers.**
+  - The API's ADR: each item of [M6d.5's card](stage-6d.md#m6d5--the-hosts-api) in its channel,
+    events, questions or outputs, what M6d.5 builds and what waits for its reader.
+  - Its table: for each item, how it maps or why it needs nothing, on Android, the web, UIKit,
+    AppKit, the engine, and winit, split into Wayland, X11, Windows and macOS where it gives
+    nothing; each cell with its source.
+  - The three seams with track A.
+  - A prototype without a window, over `Ui`: an input method's synchronous question, a paste as
+    the web gives it, two targets; thrown away, its findings in the ADR.
+- **Done when.** The owner accepts the ADR; its table has no empty cell; the prototype's cases pass
+  on its branch; CI is green.
+- **Measured.** Nothing.
 
 ## Ideas waiting for their milestone
 

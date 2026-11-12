@@ -143,7 +143,13 @@ in git.
   link to its code. M6d.1c's prototypes go on from it, on `m6d1c-bench`.
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and
   its open decisions; its code moves there at M6d.11.
-- May be cut at its start: M6d.5, AccessKit's translation apart.
+- In progress on track B: [M6d.5](#m6d5--the-hosts-api), the host's API, cut in five at its
+  start, on 2026-11-12
+  ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): in progress,
+  [M6d.5a](#m6d5a--the-apis-adr-and-its-table), the API's ADR and its table; then
+  [M6d.5b](#m6d5b--the-times), [M6d.5c](#m6d5c--input-and-output-in-uwui),
+  [M6d.5d](#m6d5d--accesskits-translation-in-uwui) and
+  [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -1772,6 +1778,75 @@ the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
   each item, how it maps or why it needs no mapping on each of the five, on the engine, and on
   winit, split into Wayland, X11, Windows and macOS where it gives nothing; the editor's and the game's
   sessions, rest and input to present are unchanged; CI is green.
+- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **Measured.** Rest; input to present; the editor's start.
+- **Cut in five** at its start, on 2026-11-12
+  ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): built where it is
+  read, the rest described and checked in the table; three channels, events, questions and
+  outputs, and one callback, the waker; AccessKit's translation in a crate of its own. The
+  system's preferences come from uwui's reader at its first stage
+  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); M6d.5
+  carries those that uwui reads. Its parts run beside track A in the order that ADR-0248 gives.
+
+### M6d.5a — The API's ADR and its table
+
+The first fifth of M6d.5; in progress, its card in [`PLAN.md`](PLAN.md#m6d5a--the-apis-adr-and-its-table).
+
+### M6d.5b — The times
+
+- **Goal.** uwui reads the host's times as ADR-0227 decides, and the engine gives what it can.
+- **Crates.** `uwui`, `slime-app`.
+- **Delivers.** `Instant` and `RootTime`, in whole nanoseconds; each window's frame given its time
+  and its source, the engine's the frame's start; each root its clock, its time and its speed;
+  each event's time and its source, the engine's stamped at reception; the next frame due and the
+  next wake in place of `Ui::next_change`, a wake running uwui's timers without drawing; the
+  host's clock counting a suspend, its dependency put to the owner at the start.
+- **Done when.** uwui's motion and timers read the host's times alone; the editor's and the game's
+  rest are unchanged; CI is green.
+- **How to test.** uwui's tests of motion and timers on times that the test gives;
+  `cargo test --workspace`.
+- **Measured.** The editor's and the game's rest.
+
+### M6d.5c — Input and output in uwui
+
+- **Goal.** A host gives uwui its input and reads what uwui asks of it through the three channels.
+- **Crates.** `uwui`, `slime-app` (`interface.rs`), `slime-editor`, `slime-devui`.
+- **Delivers.** Events with their target, time, source and answer: the pointer, its moves gathered
+  for each frame, the wheel, the keyboard, input methods' composition and commit, copy, cut and
+  paste. The host's questions: the text around the caret, the selection and the composition, a
+  range's rectangle, the character at a point, whether a point is uwui's. The outputs for each
+  target: the frame due and the next wake, the cursor, the input method's state with the field's
+  purpose and its surrounding text, writes to the clipboard and requests to read it. The
+  clipboard through events in place of the `Clipboard` trait; the editor's paste a request and
+  its answer.
+- **Done when.** M6d.5a's three hard cases pass in uwui's tests; the engine's input reaches uwui
+  through the events; the editor's tests of input and the clipboard pass; CI is green.
+- **How to test.** `cargo test --workspace`.
+- **Measured.** Input to present; a pointer's move, counted in uwui's benchmarks.
+
+### M6d.5d — AccessKit's translation in uwui
+
+- **Goal.** Any host of uwui gives screen readers its tree through one crate of uwui's.
+- **Crates.** `uwui-accesskit`, new, its name M6d.10's; `uwui`; `slime-app`.
+- **Delivers.** `slime-app`'s translation and its tests moved into the crate, over uwui's public
+  meaning; each reader of meaning following its own changes, the agents' among them; late answers
+  to a screen reader numbered; `accesskit` moved from `slime-app` to the crate.
+- **Done when.** The translation's tests pass in the crate; `scripts/screen-reader-check.sh`
+  passes; `slime-app` holds no translation; CI is green.
+- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **Measured.** The crate's compiling time.
+
+### M6d.5e — slime-app a host through the API alone
+
+- **Goal.** `slime-app` reaches uwui through the host's API alone, the engine's sessions unchanged.
+- **Crates.** `slime-app`, `slime-platform`; `slime-editor`, `slime-devui`, *Hunna Wood*.
+- **Delivers.** The lifecycle given to uwui: focus, suspend and resume, occlusion where winit gives
+  it; the surface lost and made again rather than ending the run; each root's size and scale given
+  by the host, the presentations no longer reading the window; the table's column of the engine
+  checked against its code.
+- **Done when.** `slime-app` reaches uwui through the API alone, the agents' surface apart
+  (M6d.9a); the editor's and the game's sessions, rest and input to present are unchanged; CI is
+  green.
 - **How to test.** `cargo test --workspace`; `scripts/check.sh`.
 - **Measured.** Rest; input to present; the editor's start.
 
