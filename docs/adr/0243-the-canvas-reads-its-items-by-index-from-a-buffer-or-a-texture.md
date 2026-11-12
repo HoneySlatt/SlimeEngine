@@ -3,7 +3,9 @@
 - Status: Accepted; amends [0137](0137-the-canvas.md) (the items read from a storage buffer or a
   texture, their fields one by one; a target drawn without a second view where the backend has
   none; the canvas's passes) and [0181](0181-uwuis-scope.md) (one shader with two ways of reading
-  an item, not one path of instances)
+  an item, not one path of instances); amended by
+  [0245](0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md) (its glass's figures
+  counted the game's view under the menu)
 - Date: 2026-11-12
 
 ## Context

@@ -182,7 +182,7 @@ the ADR linking to it.
 | [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115, 0120, 0126, 0127 and 0129 |
 | [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amended by 0125, 0155 and 0217 |
 | [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amended by 0120 and 0128 |
-| [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120, 0138, 0175, 0208, 0215 and 0216 |
+| [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120, 0138, 0175, 0208, 0215, 0216 and 0245 |
 | [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117, 0129, 0130, 0132, 0159 and 0216 |
 | [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted; amended by 0124, 0126 and 0131 |
 | [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted; amended by 0128 and 0138 |
@@ -205,7 +205,7 @@ the ADR linking to it.
 | [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 and 0155 |
 | [0135](0135-the-editors-program.md) | The editor's program | Accepted; amended by 0156 and 0161 |
 | [0136](0136-the-interfaces-text.md) | The interface's text | Accepted |
-| [0137](0137-the-canvas.md) | The canvas | Accepted; amended by 0152, 0175, 0234 and 0243 |
+| [0137](0137-the-canvas.md) | The canvas | Accepted; amended by 0152, 0175, 0234, 0243 and 0245 |
 | [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted; amended by 0175 |
 | [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |
 | [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143, 0146 and 0175 |
@@ -311,5 +311,6 @@ the ADR linking to it.
 | [0240](0240-the-series-input-its-table-and-its-jobs.md) | The series' input, its table and its jobs | Accepted; amends 0195 |
 | [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) | Every document of uwui in KDL, read by a reader of its own | Accepted; amends 0141, 0142, 0181, 0220, 0225, 0229 and 0238 |
 | [0242](0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md) | The canvas moved in three steps, its prototype on wgpu's GL backend; tokens read when drawn at uwui's first stage | Accepted; amends 0220 and 0238; amended by 0244 |
-| [0243](0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md) | The canvas reads its items by their index, from a storage buffer or a texture, and draws in passes | Accepted; amends 0137 and 0181 |
+| [0243](0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md) | The canvas reads its items by their index, from a storage buffer or a texture, and draws in passes | Accepted; amends 0137 and 0181; amended by 0245 |
 | [0244](0244-the-engine-lends-its-device-through-a-guarded-door.md) | The engine lends its device to uwui through a guarded door, and draws uwui from `slime-app` | Accepted; amends 0016, 0031, 0181 and 0242 |
+| [0245](0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md) | The interface's GPU budget counts what it adds to the frame | Accepted; amends 0114, 0137 and 0243 |

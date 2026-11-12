@@ -1517,7 +1517,9 @@ The last third of M6d.4
   on GL; CI is green, each job within 20 minutes.
 - **How to test.** `cargo test -p uwui-render`; `scripts/check.sh`.
 - **Measured.** `render.canvas` and `ui.draw.menu` at 3840 × 2160 on the RX 6900 XT, against
-  M6d.4b1's.
+  M6d.4b1's; then, added to them, what the interface adds to a frame over a view, its own span
+  and the passes a frame takes, counted in CI
+  ([ADR-0245](adr/0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md)).
 
 ### M6d.5 — The host's API
 
