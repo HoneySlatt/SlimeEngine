@@ -129,6 +129,8 @@ fn random_stacks_of_themes_read_as_the_fixture_records() {
             &case.verdict,
         ));
     }
+    // Shown by `cargo test -- --nocapture`, and in CI's logs: what each platform needs.
+    println!("the largest difference of a color's number: {largest:e}");
     // Both outcomes are recorded.
     assert!(
         refused > 20 && refused < cases.len() * 3 / 4,
