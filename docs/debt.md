@@ -622,18 +622,28 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Every view of four samples makes its depth so, whether it outlines or not, which some GPUs may compress less; nothing has measured it.
 - **A comment within a value written on several lines is lost** when the editor writes the level again, but for the end of the value's first line (`slime_serialize::keep_comments`).
 - **The canvas draws nothing turned or scaled** ([ADR-0137](adr/0137-the-canvas.md)).
-  The items' transforms, whose place they keep, come with uwui's first stage ([ADR-0194](adr/0194-stage-6d-uwui-leaving-the-engine.md)).
+  The items name a transform, which the store holds after them, the identity alone; transforms of their own come with uwui's first stage, which builds what turns and scales items ([ADR-0194](adr/0194-stage-6d-uwui-leaving-the-engine.md), [ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)).
   Drawn turned on radeonsi's OpenGL ES, an image of colours differs from Vulkan's by up to 10/255 on a few pixels, in M6d.4a's prototype; Mesa's GL on the CPU does not show it; its cause is not known; followed at uwui's first stage, which turns items ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)).
   An image is read at its first level: one drawn much smaller than it is shows steps.
   An image's edges are neither rounded nor smoothed between two pixels.
   An image of colors darkens where an opaque texel meets a transparent one of another color, its texels filtered before they are multiplied by their alpha.
   A shadow is an approximation, a few hundredths of its alpha from the box blurred exactly.
-  A canvas holds at most `MAX_CANVAS_ITEMS` items.
+  A canvas holds at most as many items as its store, a storage buffer or a texture, fewer in a texture on a device whose textures are small, as WebGL2's (`CanvasRenderer::max_items`).
   The interface's budget is checked on the RX 6900 XT alone, through ADR-0114's ratios.
   Writing a canvas's items into its buffer costs the CPU in proportion to their number, item by item ([`docs/measurements.md`](measurements.md), M6b.3a): 100,000 items made in 3.1 ms and written in 2.9 ms, one written alone in 1.2 µs ([M6d.4a](measurements.md#m6d4a-the-canvass-prototype)); followed at uwui's first stage, whose drawing keeps the items across frames and writes what changed ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)).
 - **`uwui-render` reads its error scopes at once** ([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)).
-  On Vulkan, Direct3D 12 and Metal, wgpu answers a scope before the call returns; in a browser it answers later, and `uwui-render` then knows no error: memory that runs out, or a shader refused, goes unreported there.
+  On every backend of wgpu's own, Vulkan, Direct3D 12, Metal, GL and WebGL2, wgpu answers a scope before the call returns; through a browser's WebGPU it answers later, and `uwui-render` then knows no error: memory that runs out, or a shader refused, goes unreported there.
   Followed at the web's trial, where uwui draws in a browser ([`stage-6d.md`](stage-6d.md#stage-6d--uwui-leaves-the-engine)).
+- **The canvas's choice of a texture on a device that refuses storage buffers to the vertex stage is not tested** ([ADR-0247](adr/0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md)).
+  Such a device, of OpenGL ES 3.1, counts storage buffers in the fragment stage alone; the canvas tries a layout with one in both stages in an error scope, and takes a texture when it is refused.
+  No device of CI or of the owner's machine refuses it: Vulkan, Direct3D 12 and Mesa's desktop GL accept it, and OpenGL ES 3.0 counts none.
+  Nor do GL's own storage buffers run, which desktop GL and OpenGL ES 3.1 give: the tests on GL take WebGL2's limits.
+  wgpu's GL backend on Windows is type-checked by clippy, neither built nor run; on a GPU's GL driver, it ran in M6d.4a's prototype alone.
+  Followed at uwui's trial on Android, whose devices of OpenGL ES 3.1 may count storage buffers in the fragment stage alone ([ADR-0233](adr/0233-uwuis-platforms-apples-chips-ios-and-the-tvs.md)).
+- **The interface's budget is not measured where the device gives no timestamps** ([ADR-0245](adr/0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md)).
+  ADR-0245 takes the difference there on the wall time of a loop that the GPU bounds; `render.canvas` and `ui.draw.menu` give what the interface adds only from timestamps, and on OpenGL ES nothing but its passes' count.
+  Their frames with and without the interface alternate in blocks of three, the times of a block's second frame kept, rather than frame by frame as ADR-0245 writes: a frame's times come back at the next frame, so that a block reports a frame of its own kind.
+  Followed at the web's trial, which measures on devices without timestamps ([`stage-6d.md`](stage-6d.md#stage-6d--uwui-leaves-the-engine)).
 - **uwui writes five of its errors by hand** ([ADR-0008](adr/0008-errors-logging-and-assertions.md)), where `uwui-render` and uwui's others derive them with `thiserror`.
   They are `DocumentError` and `DocumentErrors` in `document.rs`, `ReadError` and `WriteError` in `dock/document.rs`, and `TokenError` in `theme/token.rs`.
   Four could be derived; `DocumentErrors` could not, its message walking a list.
@@ -656,7 +666,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   M6c.Q2d measures the editor's start against its budget, and follows it.
 - **CI's jobs and their limit of 20 minutes** ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md), [ADR-0144](adr/0144-the-cooked-zones-key-in-ci.md), [ADR-0155](adr/0155-the-editors-design.md), [ADR-0175](adr/0175-the-quality-bar.md), [ADR-0228](adr/0228-ci-split-again-each-job-within-20-minutes.md)).
   Each job of CI must end within 20 minutes, and every milestone adds to the checks.
-  Since ADR-0228, four Linux jobs run `scripts/check.sh`'s four parts side by side, and the Windows tests run in three jobs beside `windows-release`; each builds the workspace from nothing, which no cache keeps.
+  Since ADR-0228, Linux jobs run `scripts/check.sh`'s parts side by side, five since ADR-0247, and the Windows tests run in three jobs beside `windows-release`; each builds the workspace from nothing, which no cache keeps.
   `check (headless)` has the least room: the runners' speed varies by about 40 % from one day to the next, the same code included, which would take it near its limit on the slowest day seen ([ADR-0228](adr/0228-ci-split-again-each-job-within-20-minutes.md)).
   The cooked zone is cached, keyed on the packages that the cooker is built from: a change of the cooker's sources or packages cooks it again, which adds about 3 minutes to `check (game)`, `windows (game)` and `windows-release`.
   `check (game)` also runs the benchmarks' counters, about 2 minutes ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)).

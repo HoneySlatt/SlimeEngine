@@ -36,6 +36,12 @@ render.canvas	items, the editor's screen at 3840 × 2160	19377
 render.canvas	items, the game's menu at 1280 × 800	4155
 render.canvas	items, the game's menu at 1920 × 1080	4155
 render.canvas	items, the game's menu at 3840 × 2160	4155
+render.canvas	passes of the interface, the editor's screen at 1280 × 800	1
+render.canvas	passes of the interface, the editor's screen at 1920 × 1080	1
+render.canvas	passes of the interface, the editor's screen at 3840 × 2160	1
+render.canvas	passes of the interface, the game's menu at 1280 × 800	1
+render.canvas	passes of the interface, the game's menu at 1920 × 1080	1
+render.canvas	passes of the interface, the game's menu at 3840 × 2160	1
 render.instances.100k	draw calls of the scene at 1280 × 800	8
 render.instances.100k	draw calls of the scene at 1920 × 1080	8
 render.instances.100k	draw calls of the scene at 3840 × 2160	8
@@ -78,6 +84,9 @@ ui.draw.menu	glyphs rasterized by the first draw at 3840 × 2160	256
 ui.draw.menu	items at 1280 × 800	2645
 ui.draw.menu	items at 1920 × 1080	2645
 ui.draw.menu	items at 3840 × 2160	2645
+ui.draw.menu	passes of the interface, at 1280 × 800	1
+ui.draw.menu	passes of the interface, at 1920 × 1080	1
+ui.draw.menu	passes of the interface, at 3840 × 2160	1
 ui.kdl.read	allocations of reading the large document	49
 ui.kdl.read	allocations of reading the look document	28
 ui.kdl.read	allocations of reading the most nodes document	20

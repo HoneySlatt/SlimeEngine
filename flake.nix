@@ -87,6 +87,13 @@
           # every machine and in CI, which has no GPU.
           SLIME_LAVAPIPE_ICD = "${pkgs.mesa}/share/vulkan/icd.d/lvp_icd.x86_64.json";
 
+          # Mesa's EGL and glvnd's loader of it, which wgpu's GL backend opens at run time:
+          # `scripts/check.sh gles` draws uwui's canvas with Mesa's GL on the CPU (llvmpipe), and
+          # KWin and Mutter draw with it in `.#compositors`. Outside NixOS, as on CI's runners, the
+          # loader finds no driver of nixpkgs' own; each script names it to its programs.
+          SLIME_MESA_EGL = "${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json";
+          SLIME_GLVND = "${pkgs.libglvnd}/lib";
+
           # mold links what is built for Linux, in this shell only, so that a contributor without
           # Nix still builds with rustc's own linker (ADR-0221). A `RUSTFLAGS` of one's own replaces
           # it.
@@ -113,9 +120,6 @@
           LD_LIBRARY_PATH = "${shell.LD_LIBRARY_PATH}:${pkgs.lib.makeLibraryPath [ pkgs.libei ]}";
           # Tells scripts/compositors.sh that it runs in this shell.
           SLIME_COMPOSITORS = "1";
-          # Mesa's EGL, which KWin and Mutter draw with: outside NixOS, as on CI's runners, the
-          # loader of EGL finds no driver of nixpkgs' own. scripts/compositors.sh names it to them.
-          SLIME_MESA_EGL = "${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json";
         });
       };
     };

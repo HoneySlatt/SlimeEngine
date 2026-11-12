@@ -7,8 +7,10 @@
   [0044](0044-running-out-of-gpu-memory.md) (running out of memory is not a bug),
   [0098](0098-the-games-the-engine-aims-at.md) (native backends after wgpu, at Stage 9c),
   [0114](0114-hardware-tiers-and-the-gpus-limits.md) (the adapter's limits, above a floor checked at
-  startup) and [0244](0244-the-engine-lends-its-device-through-a-guarded-door.md) (wgpu reaches
-  `uwui-render`, and `slime-app` through a guarded door of `slime-gfx`)
+  startup), [0244](0244-the-engine-lends-its-device-through-a-guarded-door.md) (wgpu reaches
+  `uwui-render`, and `slime-app` through a guarded door of `slime-gfx`) and
+  [0247](0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md) (wgpu's GL backend
+  for `uwui-render`'s tests alone)
 - Date: 2026-10-12
 
 ## Context

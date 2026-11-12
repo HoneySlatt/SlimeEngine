@@ -15,11 +15,15 @@ guarded door.
 - Holds the canvas (`canvas`): what an interface draws in a frame, as data alone, boxes with
   rounded corners and borders, their shadows, boxes filled with a gradient between their corners'
   colors, and parts of images, each clipped, in their order; and what draws it over a target of
-  one format, after the views, in a pass of its own recorded into its host's encoder, its items
-  read by their index from a storage buffer by one pipeline and its shader, `canvas.wgsl`, the
-  pass timed where the device has timestamps. Into an sRGB target, its colors mix as their sRGB
-  values do, as design tools mix them, through a view of the target without its encoding, which
-  the target must allow.
+  one format, after the views, in a pass of its own recorded into its host's encoder, the pass
+  timed where the device has timestamps. One pipeline and its shader, `canvas.wgsl`, read each
+  item by its index, each field when the item's kind needs it, from the *store*: a storage buffer
+  where the device lets both stages read one, else a texture of `Rgba32Uint`, as on WebGL2 and
+  OpenGL ES, read by `read_buffer.wgsl` or `read_texture.wgsl`, appended to the shader
+  ([ADR-0243](../../docs/adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)).
+  Into an sRGB target, its colors mix as their sRGB values do, as design tools mix them, through a
+  view of the target without its encoding, which the target must allow; into `Rgba8Unorm` or
+  `Bgra8Unorm`, they are written encoded the same way.
 - Turns a `uwui::display::DisplayList`, data that knows no GPU, into a canvas, and draws it:
   boxes, shadows, gradients and images as they are, each text's glyphs as images of the atlas.
 - Keeps the glyphs' atlas: textures, pages of coverage for the glyphs of letters and pages of
@@ -54,7 +58,9 @@ guarded door.
   target's that a view drew, and returns its `CanvasStats`, its GPU time among them;
   `set_shader(&device, source)` replaces its shader while a program that holds it runs, keeping
   the one it had when the new one is refused; `UiRenderer` and the engine's bridge do not offer
-  it. A canvas holds at most `MAX_CANVAS_ITEMS` items.
+  it. `item_store()` says where it keeps the items (`ItemStore`), and `max_items()` how many a
+  canvas holds: `MAX_CANVAS_ITEMS` at most, fewer in a texture of a device whose textures are
+  small.
 - `UiRenderer::new(&device, &queue, format)`, or `UiRenderer::with_budget(&device, &queue,
   format, budget)`, makes a renderer of display lists into targets of `format`, with its own
   canvas's renderer, whose atlas takes at most `budget` bytes, `GLYPH_ATLAS_BUDGET` by default.
@@ -69,8 +75,9 @@ guarded door.
 wgpu cannot be asked whether a device is lost, and `uwui-render` sets no callback to learn it: its
 host does. On a lost device, wgpu makes invalid objects without a word, and drops the errors of the
 loss. `uwui-render` uses none of wgpu's helpers that panic then (`create_buffer_init`, `poll`), and
-fills the buffer it grows through its mapping, which an invalid buffer refuses: a renderer made
-before the loss draws nothing and raises no error. wgpu still raises errors of validation for what
+fills the store it grows through a buffer's mapping, which an invalid buffer refuses, a texture
+then copied from that buffer: a renderer made after the loss draws nothing, and none raises an
+error. wgpu still raises errors of validation for what
 a host makes after the loss: a host that opens its own device, rather than the engine's door,
 ignores them once the device is lost, as `tests/common/mod.rs` does.
 
@@ -81,6 +88,15 @@ a host that is not the engine does, its requests read with a waker that does not
 canvas's shapes, a display list's texts in every writing system, a tree of elements, and a lost
 device on which nothing is drawn. The engine's bridge draws through the door in `slime-app`'s
 tests.
+
+The device takes every limit its adapter offers, or WebGL2's when `UWUI_RENDER_LIMITS=webgl2`,
+which gives no storage buffer: `scripts/check.sh` runs the tests both ways on lavapipe, and a test
+compares the bytes that both stores draw. The `gles` feature, off by default and turned on by
+nothing else in the workspace, gives wgpu's GL backend: `scripts/check.sh gles` runs the tests on
+Mesa's OpenGL ES 3.0 on the CPU at WebGL2's limits, and compares its images with lavapipe's
+([ADR-0247](../../docs/adr/0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md)).
+There, two tests say that they are skipped: the pass's time, which OpenGL ES does not give, and an
+sRGB target, which it cannot draw into.
 
 The rustdoc holds the contracts: the canvas's and the atlas's figures, what is left out, the errors
 and panics.

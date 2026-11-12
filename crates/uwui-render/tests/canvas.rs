@@ -10,12 +10,12 @@
 
 mod common;
 
-use common::{Bare, FloatImage, view};
+use common::{Bare, FloatImage, Limits, platform, view};
 use slime_color::LinearColor;
 use uwui_render::Error;
 use uwui_render::canvas::{
     Canvas, CanvasBox, CanvasGradient, CanvasRenderer, CanvasShadow, CanvasStats, ImageId,
-    ImageKind, ImagePart, ImageQuad, MAX_CANVAS_ITEMS, PixelRect, SHADER,
+    ImageKind, ImagePart, ImageQuad, ItemStore, MAX_CANVAS_ITEMS, PixelRect, SHADER,
 };
 
 const SIZE: u32 = 64;
@@ -306,10 +306,9 @@ fn into_an_srgb_target_colors_mix_as_srgb_values_and_into_another_as_linear_ones
         color: LinearColor::WHITE,
         clip: None,
     });
-    let mut renderer =
-        CanvasRenderer::new(&gpu.device, &gpu.queue, wgpu::TextureFormat::Rgba8UnormSrgb)
-            .expect("the renderer is created");
-    let target = gpu.target("srgb", SIZE, SIZE, wgpu::TextureFormat::Rgba8UnormSrgb);
+    let mut renderer = CanvasRenderer::new(&gpu.device, &gpu.queue, gpu.encoded())
+        .expect("the renderer is created");
+    let target = gpu.target("srgb", SIZE, SIZE, gpu.encoded());
     gpu.record(|context| renderer.draw(context, &canvas, &images, &target))
         .expect("drawn");
     let image = gpu.read_bytes(&target);
@@ -350,10 +349,9 @@ fn into_an_srgb_target_a_border_s_color_is_encoded_and_a_shadow_keeps_its_shape(
         spread: 0.0,
         clip: None,
     });
-    let mut renderer =
-        CanvasRenderer::new(&gpu.device, &gpu.queue, wgpu::TextureFormat::Rgba8UnormSrgb)
-            .expect("the renderer is created");
-    let target = gpu.target("srgb", SIZE, SIZE, wgpu::TextureFormat::Rgba8UnormSrgb);
+    let mut renderer = CanvasRenderer::new(&gpu.device, &gpu.queue, gpu.encoded())
+        .expect("the renderer is created");
+    let target = gpu.target("srgb", SIZE, SIZE, gpu.encoded());
     gpu.record(|context| renderer.draw(context, &canvas, &[], &target))
         .expect("drawn");
     let image = gpu.read_bytes(&target);
@@ -427,22 +425,22 @@ fn an_image_cut_by_its_clip_keeps_its_place() {
 #[test]
 fn past_its_bound_a_canvas_leaves_its_last_items_out() {
     let mut setup = Setup::new();
+    let max = setup.renderer.max_items();
+    assert!(max <= MAX_CANVAS_ITEMS);
     let mut canvas = Canvas::new();
-    for _ in 0..MAX_CANVAS_ITEMS + 3 {
+    for _ in 0..max + 3 {
         canvas.draw_box(&shape(PixelRect::new(0.0, 0.0, 1.0, 1.0)));
     }
     let target = setup.target("full");
     let stats = setup.draw_into(&canvas, &[], &target).expect("drawn");
-    assert_eq!((stats.items, stats.left_out), (MAX_CANVAS_ITEMS, 3));
+    assert_eq!((stats.items, stats.left_out), (max, 3));
 }
 
 #[test]
 #[should_panic(expected = "the renderer draws canvases into")]
 fn a_target_of_another_format_is_refused() {
     let mut setup = Setup::new();
-    let target = setup
-        .gpu
-        .target("other", SIZE, SIZE, wgpu::TextureFormat::Rgba8UnormSrgb);
+    let target = setup.gpu.target("other", SIZE, SIZE, setup.gpu.encoded());
     let mut canvas = Canvas::new();
     canvas.draw_box(&shape(PixelRect::new(0.0, 0.0, 8.0, 8.0)));
     let _ = setup.draw_into(&canvas, &[], &target);
@@ -606,7 +604,18 @@ fn items_are_drawn_in_their_order_few_draws_for_many() {
     canvas.draw_image(&glyph(second, 32.0));
     let target = setup.target("ordered");
     let stats = setup.draw_into(&canvas, &images, &target).expect("drawn");
-    assert_eq!((stats.items, stats.draws, stats.left_out), (5, 2, 0));
+    assert_eq!(
+        (stats.items, stats.draws, stats.passes, stats.left_out),
+        (5, 2, 1, 0)
+    );
+    let empty = setup
+        .draw_into(&Canvas::new(), &[], &target)
+        .expect("drawn");
+    assert_eq!(
+        (empty.draws, empty.passes),
+        (0, 0),
+        "nothing to draw, no pass"
+    );
     let image = setup.gpu.read_floats(&target);
     assert_eq!(pixel(&image, (24, 24))[..3], [1.0, 0.0, 0.0]);
     assert_eq!(pixel(&image, (8, 8))[..3], [0.0, 0.0, 1.0]);
@@ -721,7 +730,11 @@ fn on_a_lost_device_the_canvas_draws_nothing_without_a_panic_and_a_new_renderer_
         .gpu
         .record(|context| made_after.draw(context, &canvas, &images, &target))
         .expect("nothing is known of the loss");
-    assert_eq!(stats.items, 0, "its buffer refused, nothing drawn");
+    assert_eq!(
+        (stats.items, stats.passes),
+        (0, 0),
+        "its store refused, nothing drawn"
+    );
     assert_eq!(setup.gpu.errors_after_loss(), 0);
     let mut again = Setup::new();
     let texture = again
@@ -737,6 +750,7 @@ fn on_a_lost_device_the_canvas_draws_nothing_without_a_panic_and_a_new_renderer_
 fn the_canvas_s_time_on_the_gpu_comes_back_where_the_adapter_times() {
     let mut setup = Setup::new();
     if !setup.gpu.can_time() {
+        eprintln!("skipped: the device does not time passes, as OpenGL ES");
         return;
     }
     let mut canvas = Canvas::new();
@@ -791,10 +805,9 @@ fn a_gradient_mixes_its_corners_by_each_point_s_place() {
     assert!((down[0] - 0.5).abs() < 0.03, "{down:?}");
     assert!(pixel(&linear, (40, 63))[0] < 0.03, "black at the bottom");
     // Into an sRGB target, mixed on the encoding, as CSS mixes: half of 255, not linear's 188.
-    let mut renderer =
-        CanvasRenderer::new(&gpu.device, &gpu.queue, wgpu::TextureFormat::Rgba8UnormSrgb)
-            .expect("the renderer is created");
-    let target = gpu.target("srgb", SIZE, SIZE, wgpu::TextureFormat::Rgba8UnormSrgb);
+    let mut renderer = CanvasRenderer::new(&gpu.device, &gpu.queue, gpu.encoded())
+        .expect("the renderer is created");
+    let target = gpu.target("srgb", SIZE, SIZE, gpu.encoded());
     gpu.record(|context| renderer.draw(context, &canvas, &[], &target))
         .expect("drawn");
     let image = gpu.read_bytes(&target);
@@ -812,4 +825,201 @@ fn a_gradient_mixes_its_corners_by_each_point_s_place() {
     assert_eq!(pixel(&rounded, (0, 0))[0], 0.0, "outside its corner");
     assert!(close(pixel(&rounded, (32, 16))[0], 1.0));
     assert_eq!(pixel(&rounded, (32, 48))[0], 0.0, "outside its clip");
+}
+
+/// A canvas of every kind of item, `count` small boxes among them, some clipped, laid over
+/// `SIZE` × `SIZE` pixels: its images are a texture of coverage and one of colors.
+fn every_kind(count: usize, images: [ImageId; 2]) -> Canvas {
+    let mut canvas = Canvas::new();
+    canvas.draw_gradient(&CanvasGradient {
+        rect: PixelRect::new(2.0, 2.0, 60.0, 60.0),
+        radii: [12.0, 4.0, 0.0, 20.0],
+        corners: [RED, BLUE, GREY, LinearColor::rgba(0.0, 1.0, 0.0, 0.5)],
+        clip: None,
+    });
+    canvas.draw_shadow(&CanvasShadow {
+        rect: PixelRect::new(10.0, 10.0, 30.0, 20.0),
+        radii: [6.0; 4],
+        offset: [3.0, 4.0],
+        blur: 8.0,
+        spread: 1.0,
+        color: LinearColor::rgba(0.0, 0.0, 0.0, 0.6),
+        clip: None,
+    });
+    canvas.draw_shadow(&CanvasShadow {
+        rect: PixelRect::new(40.0, 36.0, 12.0, 12.0),
+        radii: [0.0; 4],
+        offset: [1.5, 1.5],
+        blur: 0.0,
+        spread: 0.0,
+        color: LinearColor::rgba(0.2, 0.0, 0.4, 0.8),
+        clip: Some(PixelRect::new(0.0, 0.0, 48.5, 64.0)),
+    });
+    canvas.draw_box(&CanvasBox {
+        rect: PixelRect::new(8.5, 30.25, 40.0, 24.0),
+        radii: [8.0, 2.0, 10.0, 0.0],
+        fill: LinearColor::rgba(0.9, 0.8, 0.1, 0.7),
+        border_width: 2.5,
+        border: LinearColor::rgba(0.1, 0.3, 0.9, 0.9),
+        clip: Some(PixelRect::new(4.0, 4.0, 50.5, 50.0)),
+    });
+    for index in 0..count {
+        let (x, y) = ((index % 60) as f32, (index / 60 % 60) as f32);
+        canvas.draw_box(&CanvasBox {
+            rect: PixelRect::new(x + 0.25, y + 0.5, 1.5, 1.25),
+            radii: [0.5; 4],
+            fill: LinearColor::rgba(x / 60.0, y / 60.0, 0.5, 0.25),
+            border_width: 0.0,
+            border: LinearColor::BLACK,
+            clip: (index % 3 == 0).then(|| PixelRect::new(0.0, 0.0, 30.5, 64.0)),
+        });
+    }
+    canvas.draw_image(&ImageQuad {
+        rect: PixelRect::new(20.0, 4.0, 24.0, 12.0),
+        image: images[0],
+        part: ImagePart {
+            x: 0.25,
+            y: 0.0,
+            width: 0.5,
+            height: 1.0,
+        },
+        kind: ImageKind::Coverage,
+        color: LinearColor::rgba(1.0, 1.0, 1.0, 0.9),
+        clip: None,
+    });
+    canvas.draw_image(&ImageQuad {
+        rect: PixelRect::new(44.0, 44.0, 16.0, 16.0),
+        image: images[1],
+        part: ImagePart::WHOLE,
+        kind: ImageKind::Color,
+        color: LinearColor::rgba(1.0, 1.0, 1.0, 0.75),
+        clip: Some(PixelRect::new(0.0, 0.0, 56.0, 58.5)),
+    });
+    canvas
+}
+
+/// What a new renderer of `gpu` draws into targets of `format` of [`every_kind`]'s canvas, once
+/// for each of `counts`, the store growing and then written again: where it keeps its items, the
+/// bytes of the images, and the items of each draw.
+fn drawn_bytes(
+    gpu: &Bare,
+    format: wgpu::TextureFormat,
+    counts: &[usize],
+) -> (ItemStore, Vec<u8>, Vec<usize>) {
+    let coverage = gpu.texture(
+        "coverage",
+        4,
+        2,
+        wgpu::TextureFormat::R8Unorm,
+        &[0, 64, 128, 255, 255, 128, 64, 0],
+    );
+    let colors = gpu.texture(
+        "colors",
+        2,
+        2,
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+        &[
+            255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 0, 200, 200, 200, 255,
+        ],
+    );
+    let (coverage, colors) = (view(&coverage), view(&colors));
+    let images = [&coverage, &colors];
+    let mut renderer = CanvasRenderer::new(&gpu.device, &gpu.queue, format).expect("made");
+    let (mut bytes, mut items) = (Vec::new(), Vec::new());
+    for &count in counts {
+        let canvas = every_kind(count, [ImageId(0), ImageId(1)]);
+        let target = gpu.target("both", SIZE, SIZE, format);
+        let stats = gpu
+            .record(|context| renderer.draw(context, &canvas, &images, &target))
+            .expect("drawn");
+        bytes.extend(gpu.read_bytes_of(&target));
+        items.push(stats.items);
+    }
+    (renderer.item_store(), bytes, items)
+}
+
+/// The boxes of each draw of [`drawn_bytes`], some left out by their clip.
+const COUNTS: [usize; 6] = [200, 300, 600, 600, 1060, 5000];
+
+/// The items that [`COUNTS`] draw, in the store's texture of rows of 2048 words, 9 an item, 2 of
+/// transforms after them: 179 within a row's start; 261 over a row and the next's start, growing;
+/// 516 over three rows, growing; the same written again; 910 filling four rows whole, written
+/// again; 4259 over nineteen rows, growing.
+const ITEMS: [usize; 6] = [179, 261, 516, 516, 910, 4259];
+
+/// A store of items in a texture, which a device without storage buffers takes, draws the same
+/// bytes as a storage buffer: every kind of item, clips, and items over the texture's rows as
+/// [`ITEMS`] says, the store growing between draws and written again into the texture it had. On
+/// the engine's graphics API, whatever `WGPU_BACKEND` asks.
+#[test]
+fn items_read_from_a_texture_draw_the_same_bytes_as_from_a_buffer() {
+    let buffer = Bare::on(platform(), Limits::Adapter);
+    let texture = Bare::on(platform(), Limits::WebGl2);
+    for format in [
+        wgpu::TextureFormat::Rgba16Float,
+        wgpu::TextureFormat::Rgba8Unorm,
+    ] {
+        let (store, from_buffer, items) = drawn_bytes(&buffer, format, &COUNTS);
+        assert_eq!(store, ItemStore::Buffer, "the adapter's limits");
+        assert_eq!(items, ITEMS);
+        let (store, from_texture, items) = drawn_bytes(&texture, format, &COUNTS);
+        assert_eq!(store, ItemStore::Texture, "WebGL2's limits");
+        assert_eq!(items, ITEMS);
+        assert!(from_buffer == from_texture, "{format:?}: the images differ");
+    }
+}
+
+/// Into a target of 8 bits a channel without sRGB, as OpenGL ES and WebGL2 draw into, the canvas
+/// writes its colors encoded: the bytes that an sRGB target holds, drawn into without its
+/// encoding.
+#[test]
+fn into_a_target_of_8_bits_without_srgb_colors_are_written_encoded() {
+    let gpu = Bare::new();
+    if !gpu.views_without_srgb() {
+        eprintln!("skipped: the device draws into no sRGB target, as OpenGL ES");
+        return;
+    }
+    let (_, unorm, _) = drawn_bytes(&gpu, wgpu::TextureFormat::Rgba8Unorm, &[600]);
+    let (_, srgb, _) = drawn_bytes(&gpu, wgpu::TextureFormat::Rgba8UnormSrgb, &[600]);
+    assert!(unorm == srgb, "the images differ");
+}
+
+/// On wgpu's GL backend, Mesa's OpenGL ES 3.0 on the CPU at WebGL2's limits, which reads the items
+/// from a texture through shaders of GLSL ES, the canvas draws what Vulkan or Direct3D 12 draw
+/// from a storage buffer, within 1/255 a channel: 106 channels of 65,536 differ so on llvmpipe,
+/// where ADR-0243's prototype allowed 2/255
+/// (`docs/adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md`).
+#[cfg(feature = "gles")]
+#[test]
+fn on_opengl_es_the_canvas_draws_what_a_storage_buffer_draws() {
+    let reference = Bare::on(platform(), Limits::Adapter);
+    let gl = Bare::on(wgpu::Backends::GL, Limits::WebGl2);
+    let format = wgpu::TextureFormat::Rgba8Unorm;
+    let (store, expected, _) = drawn_bytes(&reference, format, &COUNTS);
+    assert_eq!(store, ItemStore::Buffer);
+    let (store, drawn, _) = drawn_bytes(&gl, format, &COUNTS);
+    assert_eq!(store, ItemStore::Texture, "OpenGL ES has no storage buffer");
+    let differences: Vec<u8> = expected
+        .iter()
+        .zip(&drawn)
+        .map(|(a, b)| a.abs_diff(*b))
+        .collect();
+    let largest = differences.iter().copied().max().unwrap_or(0);
+    let off = differences
+        .iter()
+        .filter(|&&difference| difference > 0)
+        .count();
+    assert!(largest <= 1, "{off} channels differ, by up to {largest}");
+}
+
+/// A storage buffer holds `MAX_CANVAS_ITEMS` items; a texture as many as its rows of 2048 words
+/// hold, 9 an item after the 2 of the transforms, at most as many: 466,033 in WebGL2's 2048 rows.
+#[test]
+fn a_store_holds_as_many_items_as_its_device_allows() {
+    let buffer = Bare::on(platform(), Limits::Adapter);
+    let made = CanvasRenderer::new(&buffer.device, &buffer.queue, FORMAT).expect("made");
+    assert_eq!(made.max_items(), MAX_CANVAS_ITEMS);
+    let texture = Bare::on(platform(), Limits::WebGl2);
+    let made = CanvasRenderer::new(&texture.device, &texture.queue, FORMAT).expect("made");
+    assert_eq!(made.max_items(), 466_033);
 }

@@ -194,8 +194,8 @@ Play, then building a part of the game's zone again by hand as the stage's exit 
 ([`docs/stage-6c.md`](stage-6c.md), [ADR-0155](adr/0155-the-editors-design.md)).
 
 **Checks (the).** The automated checks of the *definition of done*, which `scripts/check.sh` runs
-and the four Linux CI jobs run unchanged, one for each of its parts, `lint`, `headless`,
-`windowed` and `game` ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md),
+and the five Linux CI jobs run unchanged, one for each of its parts, `lint`, `headless`,
+`windowed`, `game` and `gles` ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md),
 [ADR-0155](adr/0155-the-editors-design.md),
 [ADR-0228](adr/0228-ci-split-again-each-job-within-20-minutes.md)): formatting, clippy (for Windows too), the
 build, the tests on lavapipe, rustdoc, the dependency rules, the source assets and their cooking,
@@ -1648,6 +1648,12 @@ and after it (`slime_editor::Editor`, [ADR-0134](adr/0134-the-editors-core.md)).
 (`slime_gfx::StorageBuffer`): the renderer's instances find their values in one by their number
 ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)). See *uniform buffer*, which holds the
 values that a whole draw reads.
+
+**Store (canvas).** Where the *canvas*'s renderer keeps a frame's items, then the transforms that
+they name, for its shader to read by their index (`uwui_render::canvas::ItemStore`): a *storage
+buffer* where the device lets both stages of a pipeline read one, or else a texture of
+`Rgba32Uint`, a word of four 32-bit values a texel, as on WebGL2 and OpenGL ES
+([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)).
 
 **Stretch.** How much an entity's own meshes and shapes are scaled along its own axes, which its
 children do not inherit: a wall longer than it is tall. Children inherit a uniform scale only, so

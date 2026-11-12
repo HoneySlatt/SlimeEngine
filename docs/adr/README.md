@@ -84,7 +84,7 @@ the ADR linking to it.
 | [0013](0013-windowed-smoke-test-in-weston.md) | Windowed smoke test in a headless Weston compositor | Accepted; amended by 0020, 0024 |
 | [0014](0014-amend-roadmap-for-stage-2-and-windows.md) | Amend the roadmap for Stage 2 and for Windows | Accepted |
 | [0015](0015-platforms-and-ci.md) | Platforms and CI on Linux and Windows | Accepted; amended by 0173 |
-| [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted; amended by 0022, 0031, 0025, 0036, 0044, 0098, 0114 and 0244 |
+| [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted; amended by 0022, 0031, 0025, 0036, 0044, 0098, 0114, 0244 and 0247 |
 | [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted; amended by 0026, 0033 and 0044 |
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028, 0030 |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
@@ -311,7 +311,8 @@ the ADR linking to it.
 | [0240](0240-the-series-input-its-table-and-its-jobs.md) | The series' input, its table and its jobs | Accepted; amends 0195 |
 | [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) | Every document of uwui in KDL, read by a reader of its own | Accepted; amends 0080, 0085, 0141, 0142, 0174, 0181, 0220, 0225, 0229 and 0238 |
 | [0242](0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md) | The canvas moved in three steps, its prototype on wgpu's GL backend; tokens read when drawn at uwui's first stage | Accepted; amends 0220 and 0238; amended by 0244 |
-| [0243](0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md) | The canvas reads its items by their index, from a storage buffer or a texture, and draws in passes | Accepted; amends 0137 and 0181; amended by 0245 |
+| [0243](0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md) | The canvas reads its items by their index, from a storage buffer or a texture, and draws in passes | Accepted; amends 0137 and 0181; amended by 0245 and 0247 |
 | [0244](0244-the-engine-lends-its-device-through-a-guarded-door.md) | The engine lends its device to uwui through a guarded door, and draws uwui from `slime-app` | Accepted; amends 0016, 0031, 0181 and 0242 |
 | [0245](0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md) | The interface's GPU budget counts what it adds to the frame | Accepted; amends 0114, 0137 and 0243 |
 | [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) | One core for agents cut in five: a session without input or output, in JSON-RPC, versioned by family | Accepted; amends 0122 and 0218 |
+| [0247](0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md) | The canvas tested on OpenGL ES through a feature of `uwui-render` alone | Accepted; amends 0016 and 0243 |

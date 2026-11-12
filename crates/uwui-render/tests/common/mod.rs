@@ -23,6 +23,17 @@ pub struct Bare {
     lost: Arc<AtomicBool>,
     /// The errors that wgpu raised once the device was lost.
     errors_after_loss: Arc<AtomicUsize>,
+    /// Whether a texture can be viewed in another format: an sRGB one without its encoding.
+    view_formats: bool,
+}
+
+/// The limits that a test's device is opened with.
+#[derive(Clone, Copy, Debug)]
+pub enum Limits {
+    /// Every limit that the adapter offers: the canvas reads its items from a storage buffer.
+    Adapter,
+    /// WebGL2's, which give no storage buffer: the canvas reads its items from a texture.
+    WebGl2,
 }
 
 /// An image read back from a target of floats: four channels a pixel, rows from the top.
@@ -36,6 +47,15 @@ pub struct Image {
     pub pixels: Vec<u8>,
 }
 
+/// The engine's graphics API: Direct3D 12 on Windows, Vulkan elsewhere.
+pub fn platform() -> wgpu::Backends {
+    if cfg!(windows) {
+        wgpu::Backends::DX12
+    } else {
+        wgpu::Backends::VULKAN
+    }
+}
+
 /// What `future` gives, which wgpu's native backends give before it is first polled.
 fn now<F: Future>(future: F) -> F::Output {
     match pin!(future).poll(&mut Context::from_waker(Waker::noop())) {
@@ -46,27 +66,51 @@ fn now<F: Future>(future: F) -> F::Output {
 
 impl Bare {
     /// Opens the most capable adapter of the engine's graphics API, Direct3D 12 on Windows and
-    /// Vulkan elsewhere, or of `WGPU_BACKEND`, with every limit it offers and timestamps where it
-    /// has them. Direct3D 12 compiles shaders with wgpu's default compiler, where the engine looks
-    /// for DXC beside its program.
+    /// Vulkan elsewhere ([`platform`]), or of `WGPU_BACKEND`, with timestamps where it has them,
+    /// and every limit it offers, or WebGL2's if `UWUI_RENDER_LIMITS` is `webgl2`
+    /// ([`Limits::WebGl2`]). Direct3D 12 compiles shaders with wgpu's default compiler, where the
+    /// engine looks for DXC beside its program.
     pub fn new() -> Self {
-        let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
-        let platform = if cfg!(windows) {
-            wgpu::Backends::DX12
-        } else {
-            wgpu::Backends::VULKAN
+        let limits = match std::env::var("UWUI_RENDER_LIMITS").as_deref() {
+            Ok("webgl2") => Limits::WebGl2,
+            Ok("") | Err(_) => Limits::Adapter,
+            Ok(other) => panic!("UWUI_RENDER_LIMITS is `webgl2` or unset, not `{other}`"),
         };
-        descriptor.backends = wgpu::Backends::from_env().unwrap_or(platform);
+        Self::on(wgpu::Backends::from_env().unwrap_or(platform()), limits)
+    }
+
+    /// Opens the most capable adapter of `backends`, with `limits`, as [`Bare::new`] does. wgpu's
+    /// GL backend is taken on Mesa's GL on the CPU alone, in OpenGL ES 3.0, whose shaders are
+    /// WebGL2's: wgpu takes desktop GL wherever it is offered, and a GPU's driver draws its own
+    /// images (`scripts/check.sh gles` asks Mesa for them).
+    pub fn on(backends: wgpu::Backends, limits: Limits) -> Self {
+        let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
+        descriptor.backends = backends;
         let instance = wgpu::Instance::new(descriptor);
         let adapter = now(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             ..Default::default()
         }))
         .expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
+        let info = adapter.get_info();
+        if info.backend == wgpu::Backend::Gl {
+            assert!(
+                info.device_type == wgpu::DeviceType::Cpu
+                    && info.driver_info.starts_with("OpenGL ES 3.0"),
+                "the tests on GL take Mesa's GL on the CPU in OpenGL ES 3.0, not {info:?}"
+            );
+        }
+        let view_formats = adapter
+            .get_downlevel_capabilities()
+            .flags
+            .contains(wgpu::DownlevelFlags::VIEW_FORMATS);
         let (device, queue) = now(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("uwui-render's tests"),
             required_features: adapter.features() & wgpu::Features::TIMESTAMP_QUERY,
-            required_limits: adapter.limits(),
+            required_limits: match limits {
+                Limits::Adapter => adapter.limits(),
+                Limits::WebGl2 => wgpu::Limits::downlevel_webgl2_defaults(),
+            },
             ..Default::default()
         }))
         .expect("the adapter opens a device");
@@ -88,7 +132,24 @@ impl Bare {
             queue,
             lost,
             errors_after_loss,
+            view_formats,
         }
+    }
+
+    /// A format of 8 bits a channel into which the canvas writes colors encoded as sRGB: sRGB's,
+    /// drawn into without its encoding, where the device views a texture in another format;
+    /// `Rgba8Unorm`, which holds the same bytes, where it does not, as OpenGL ES.
+    pub fn encoded(&self) -> wgpu::TextureFormat {
+        if self.view_formats {
+            wgpu::TextureFormat::Rgba8UnormSrgb
+        } else {
+            wgpu::TextureFormat::Rgba8Unorm
+        }
+    }
+
+    /// Whether the device views an sRGB target without its encoding.
+    pub fn views_without_srgb(&self) -> bool {
+        self.view_formats
     }
 
     /// Whether the device times passes.
@@ -235,6 +296,15 @@ impl Bare {
             width: target.width(),
             pixels,
         }
+    }
+
+    /// The bytes of `target`'s pixels, of 4 or 8 bytes each, row after row.
+    pub fn read_bytes_of(&self, target: &wgpu::Texture) -> Vec<u8> {
+        let texel = target
+            .format()
+            .block_copy_size(None)
+            .expect("a format of texels");
+        self.read(target, texel)
     }
 
     /// The pixels of `target`, of 4 bytes a pixel.

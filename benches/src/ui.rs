@@ -331,7 +331,8 @@ pub fn raster(_: &mut Context) -> Result<Vec<Row>, String> {
 /// description of some 1 500 characters, 34 rows of statistics, 30 buttons' labels and 100 counts,
 /// some 2 400 glyphs, drawn through the engine's bridge, `slime_app::InterfaceRenderer`. The first
 /// draw, which rasterizes its glyphs into the atlas, the canvas warmed before it; then the CPU of
-/// `UiRenderer::draw` once they are there, and the canvas's GPU time, which ADR-0137 bounds.
+/// `UiRenderer::draw` once they are there, and the canvas's GPU time, alone and what it adds to a
+/// frame over a view (`render::ViewUnder`), which ADR-0137 bounds as ADR-0245 counts it.
 pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
     use std::sync::Arc;
 
@@ -342,7 +343,7 @@ pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
     use uwui::text::{TEXT_CACHE_BUDGET, TextCache};
     use uwui_render::canvas::{Canvas, CanvasBox, PixelRect};
 
-    use crate::render::{CANVAS_FRAMES, FORMAT, TIERS, canvas_frames};
+    use crate::render::{CANVAS_FRAMES, FORMAT, TIERS, ViewUnder, canvas_frames};
 
     let runs = context.runs(CANVAS_FRAMES);
     let gpu = &context.gpu;
@@ -359,6 +360,7 @@ pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
         .collect::<Vec<_>>()
         .join(" ");
     let mut rows = Vec::new();
+    let mut view = ViewUnder::new(gpu)?;
     for (width, height) in TIERS {
         let target = gpu
             .create_render_target("benchmark frame", width, height, FORMAT)
@@ -560,6 +562,11 @@ pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
             format!("bytes of the atlas {at}"),
             last.atlas_bytes,
         ));
+        rows.extend(view.measure(gpu, &target, runs, &at, || {
+            ui.draw(gpu, &fonts, &list, |_| None, &target)
+                .map(|stats| stats.canvas)
+                .map_err(error)
+        })?);
     }
     Ok(rows)
 }

@@ -13,7 +13,8 @@ use slime_render::{
     RenderStats, Renderer, Scene, ShaderSources, Sky, ViewDraw,
 };
 use uwui_render::canvas::{
-    Canvas, CanvasBox, CanvasShadow, ImageId, ImageKind, ImagePart, ImageQuad, PixelRect,
+    Canvas, CanvasBox, CanvasShadow, CanvasStats, ImageId, ImageKind, ImagePart, ImageQuad,
+    PixelRect,
 };
 
 use crate::measure::{Context, Row, ms, percentile, timed};
@@ -291,13 +292,15 @@ pub fn shaders(context: &mut Context) -> Result<Vec<Row>, String> {
 
 /// Two screens drawn by the canvas (`docs/adr/0137-the-canvas.md`) at the tiers' sizes, each laid
 /// out for 1920 × 1080: an editor's ([`editor_screen`]) and a game's menu ([`game_screen`]). At
-/// each, the CPU of `InterfaceRenderer::draw_canvas`, the canvas on the GPU, which ADR-0137 bounds,
-/// and its items and draws.
+/// each, the CPU of `InterfaceRenderer::draw_canvas`, the canvas on the GPU, alone and what it adds
+/// to a frame over a view ([`ViewUnder`]), which ADR-0137 bounds as ADR-0245 counts it, and its
+/// items, draws and passes.
 pub fn canvas(context: &mut Context) -> Result<Vec<Row>, String> {
     let runs = context.runs(CANVAS_FRAMES);
     let gpu = &context.gpu;
     let gfx = |error: GfxError| error.to_string();
     let mut renderer = InterfaceRenderer::new(gpu, FORMAT).map_err(gfx)?;
+    let mut view = ViewUnder::new(gpu)?;
     // An atlas of glyphs, 1 024 × 1 024 texels, in cells of 16 × 16 that a glyph covers in part.
     let glyphs: Vec<u8> = (0..1024 * 1024)
         .map(|index| {
@@ -348,8 +351,8 @@ pub fn canvas(context: &mut Context) -> Result<Vec<Row>, String> {
         rows.extend(measure_canvas(
             gpu,
             &mut renderer,
-            &editor,
-            &images,
+            &mut view,
+            (&editor, &images),
             &target,
             &format!("the editor's screen {at}"),
             runs,
@@ -359,8 +362,8 @@ pub fn canvas(context: &mut Context) -> Result<Vec<Row>, String> {
         rows.extend(measure_canvas(
             gpu,
             &mut renderer,
-            &game,
-            &images,
+            &mut view,
+            (&game, &images),
             &target,
             &format!("the game's menu {at}"),
             runs,
@@ -369,13 +372,14 @@ pub fn canvas(context: &mut Context) -> Result<Vec<Row>, String> {
     Ok(rows)
 }
 
-/// The rows of `canvas` drawn with `images` into `target`, `what` naming it and its size: the CPU
-/// of `InterfaceRenderer::draw_canvas`, the canvas on the GPU, and its items and draws.
+/// The rows of a screen, a canvas drawn with its images, into `target`, `what` naming it and its
+/// size: the CPU of `InterfaceRenderer::draw_canvas`, the canvas on the GPU, alone and over `view`,
+/// and its items, draws and passes.
 fn measure_canvas(
     gpu: &Gpu,
     renderer: &mut InterfaceRenderer,
-    canvas: &Canvas,
-    images: &[InterfaceImage<'_>],
+    view: &mut ViewUnder,
+    (canvas, images): (&Canvas, &[InterfaceImage<'_>]),
     target: &RenderTarget,
     what: &str,
     runs: usize,
@@ -401,7 +405,138 @@ fn measure_canvas(
     }
     rows.push(Row::count(format!("items, {what}"), stats.items));
     rows.push(Row::count(format!("draws, {what}"), stats.draws));
+    rows.extend(view.measure(gpu, target, runs, what, || {
+        renderer
+            .draw_canvas(gpu, canvas, images, target)
+            .map_err(|error| error.to_string())
+    })?);
     Ok(rows)
+}
+
+/// A view that the renderer draws under an interface, as a game's menu lies over its world: the
+/// examples' sky and its sun, seen at the horizon, its bloom and its tone mapping, no object
+/// (`docs/adr/0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md`).
+pub struct ViewUnder {
+    renderer: Renderer,
+    scene: Scene,
+}
+
+/// The frames drawn of each kind, with the interface and without it, before one is measured: a
+/// frame's times come back once the GPU has finished it, at the next frame, so that the frame
+/// measured reports one of its own kind.
+const FRAMES_OF_A_KIND: usize = 3;
+
+impl ViewUnder {
+    /// The renderer and the scene of the view.
+    pub fn new(gpu: &Gpu) -> Result<Self, String> {
+        let error = |error: slime_render::RenderError| error.to_string();
+        let renderer = Renderer::new(gpu, FORMAT).map_err(error)?;
+        let (sky, sun) = sky_and_sun();
+        let mut scene = Scene::new(Vec::new());
+        scene.lights = vec![Light::Directional(sun)];
+        scene.environment = Some(Environment::new(gpu, &sky).map_err(error)?);
+        scene.exposure = EXPOSURE;
+        scene.bloom = 0.04;
+        Ok(Self { renderer, scene })
+    }
+
+    /// What `interface`, which draws over `target`, adds to a frame of the view on the GPU, `what`
+    /// naming it and its size: frames with the interface and without it, in blocks of
+    /// [`FRAMES_OF_A_KIND`] interleaved, `runs` of each, the order of each pair alternating; each
+    /// frame's GPU time the sum of its passes', which on Vulkan count the wait at each boundary.
+    /// Rows: the median of what the interface added in each pair, the median of its own passes'
+    /// time within the frame, and how many passes it took, a counter. None but the counter where
+    /// the device does not time passes.
+    pub fn measure(
+        &mut self,
+        gpu: &Gpu,
+        target: &RenderTarget,
+        runs: usize,
+        what: &str,
+        mut interface: impl FnMut() -> Result<CanvasStats, String>,
+    ) -> Result<Vec<Row>, String> {
+        let error = |error: slime_render::RenderError| error.to_string();
+        // A view for each size: one view drawn at another size would draw into its first targets
+        // until the new size held still (ADR-0127), stretched.
+        let mut view = self
+            .renderer
+            .create_view(gpu, "benchmark under an interface")
+            .map_err(error)?;
+        let camera = Camera {
+            eye: DVec3::new(0.0, 2.0, 0.0),
+            target: DVec3::new(0.0, 2.5, 10.0),
+            ..Camera::default()
+        };
+        let (mut added, mut own) = (Vec::new(), Vec::new());
+        let mut passes = 0;
+        for run in 0..runs {
+            let mut frame = [None; 2];
+            // With the interface first in even runs, last in odd ones.
+            for with in [run % 2 == 0, run % 2 == 1] {
+                let mut interface_time = None;
+                for _ in 0..FRAMES_OF_A_KIND {
+                    let mut draws = [ViewDraw::new(&mut view, camera, target)];
+                    self.renderer
+                        .render(gpu, &self.scene, &mut draws)
+                        .map_err(error)?;
+                    if with {
+                        let stats = interface()?;
+                        passes = stats.passes;
+                        interface_time = stats.gpu_time;
+                    }
+                    gpu.wait_idle().map_err(|error| error.to_string())?;
+                }
+                let view_time = passes_gpu_time(&view.stats());
+                frame[usize::from(with)] = if with {
+                    view_time.zip(interface_time).map(|(view, ui)| {
+                        own.push(ui);
+                        view + ui
+                    })
+                } else {
+                    view_time
+                };
+            }
+            if let [Some(without), Some(with)] = frame {
+                added.push(with.as_secs_f64() - without.as_secs_f64());
+            }
+        }
+        let mut rows = Vec::new();
+        if !added.is_empty() {
+            added.sort_unstable_by(f64::total_cmp);
+            let median = added[added.len() / 2];
+            rows.push(Row::new(
+                format!(
+                    "what the interface adds to a frame over a view, on the GPU, {what}, median \
+                     of {} pairs",
+                    added.len()
+                ),
+                signed_ms(median),
+            ));
+            rows.push(Row::new(
+                format!(
+                    "the interface's passes on the GPU within the frame, summed, {what}, median of \
+                     {}",
+                    own.len()
+                ),
+                ms(percentile(&own, 0.5)),
+            ));
+        }
+        rows.push(Row::count(
+            format!("passes of the interface, {what}"),
+            passes,
+        ));
+        Ok(rows)
+    }
+}
+
+/// `seconds`, which may be below zero, in microseconds or milliseconds as [`ms`] writes them.
+fn signed_ms(seconds: f64) -> String {
+    let written = ms(Duration::from_secs_f64(seconds.abs()));
+    if seconds < 0.0 {
+        format!("-{written}")
+    } else {
+        written
+    }
 }
 
 /// How many times a canvas is drawn and measured.

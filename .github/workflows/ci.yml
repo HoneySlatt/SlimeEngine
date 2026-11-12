@@ -29,18 +29,20 @@ permissions:
 
 jobs:
   # Every check, in the same Nix shell that contributors use: a local run of scripts/check.sh does
-  # what these four jobs do together (docs/adr/0007-documentation-tooling-and-ci.md). Each runs one
+  # what these five jobs do together (docs/adr/0007-documentation-tooling-and-ci.md). Each runs one
   # part of the script, side by side, each within the owner's limit of 20 minutes
   # (docs/adr/0123-the-linux-checks-in-two-jobs.md, docs/adr/0155-the-editors-design.md,
   # docs/adr/0228-ci-split-again-each-job-within-20-minutes.md): `lint`, the checks that read the
   # code without running it, `headless`, the build, the tests and the runs that need neither a
   # compositor nor the sample game's zone, `windowed`, the examples and the windowed lifecycle test
-  # run in headless Weston compositors, and `game`, everything that reads the zone.
+  # run in headless Weston compositors, `game`, everything that reads the zone, and `gles`,
+  # uwui-render's canvas on wgpu's GL backend, which nothing else builds
+  # (docs/adr/0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md).
   check:
     strategy:
       fail-fast: false
       matrix:
-        part: [lint, headless, windowed, game]
+        part: [lint, headless, windowed, game, gles]
     name: check (${{ matrix.part }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30

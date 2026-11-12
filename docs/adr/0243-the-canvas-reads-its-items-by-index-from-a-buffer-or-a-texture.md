@@ -5,7 +5,9 @@
   none; the canvas's passes) and [0181](0181-uwuis-scope.md) (one shader with two ways of reading
   an item, not one path of instances); amended by
   [0245](0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md) (its glass's figures
-  counted the game's view under the menu)
+  counted the game's view under the menu) and
+  [0247](0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md) (the store chosen
+  from the device's limits and a layout it accepts)
 - Date: 2026-11-12
 
 ## Context

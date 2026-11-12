@@ -125,8 +125,8 @@ scripts/screen-reader-check.sh <the interface example's program> <cooked data>  
 cargo run --quiet -p slime-mcp                            # the engine's MCP server, through which an agent drives a game (crates/slime-mcp/README.md)
 ```
 
-`scripts/check.sh lint`, `headless`, `windowed` and `game` run one of its four parts, as CI's four
-Linux jobs do ([Checks](#checks)); `scripts/check.sh docs` checks the links between Markdown files and
+`scripts/check.sh lint`, `headless`, `windowed`, `game` and `gles` run one of its five parts, as
+CI's five Linux jobs do ([Checks](#checks)); `scripts/check.sh docs` checks the links between Markdown files and
 the lengths of `AGENTS.md` and `docs/PLAN.md` alone, without the development shell, as CI's
 `docs` workflow does.
 
@@ -459,6 +459,10 @@ nix develop -c scripts/check.sh
 [`scripts/check.sh`](scripts/check.sh) runs rustfmt, clippy with warnings as errors, the build and
 tests of every target, the renderer's and the world's tests again with glam's assertions on
 (`--features glam/debug-glam-assert`, which a game that turns them on also turns on in the engine),
+with `uwui-render`'s `gles` feature, clippy for Linux and Windows, then its tests again on a
+device of WebGL2's limits, its canvas reading its items from a texture, on lavapipe and on Mesa's
+OpenGL ES 3.0 on the CPU, its images compared with lavapipe's
+([ADR-0247](docs/adr/0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md)),
 rustdoc with warnings as errors, once more for `uwui` with its feature `editor-look`,
 `cargo deny --locked check` (dependency licenses, security advisories and sources; it downloads the
 advisory database, so it needs network access), the list of the sample game's source assets
@@ -505,7 +509,8 @@ shipping, which must hold neither the development channel nor the dev overlay
 no adapter for screen readers ([ADR-0146](docs/adr/0146-screen-readers.md)), no code but
 `slime-app`'s bridge and the engine's tests that opens `slime-gfx`'s door to wgpu, and no engine
 crate but `slime-color` among `uwui-render`'s dependencies
-([ADR-0244](docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)), `lychee` (links
+([ADR-0244](docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)), no GL backend of
+wgpu in the workspace's tree but through `uwui-render`'s `gles` feature, `lychee` (links
 between Markdown files), and the lengths of the two files that every agent reads at each
 session's start: `AGENTS.md`, at most 1,500 words, and `docs/PLAN.md`, at most 2,000; what does
 not fit goes to its home ([`AGENTS.md`](AGENTS.md#one-home-per-fact)).
@@ -524,7 +529,7 @@ weekly run runs CI whole: a project at rest still
 learns of new advisories against its dependencies (`cargo deny`) and of changes to CI's
 environment. A push during the weekly run supersedes it, as it supersedes any run of its branch.
 GitHub turns the weekly run off after 60 days without activity in a public repository; a click in
-the repository's Actions tab turns it on again. Four Linux jobs run the same script side by side, each one of its four parts
+the repository's Actions tab turns it on again. Five Linux jobs run the same script side by side, each one of its five parts
 ([ADR-0123](docs/adr/0123-the-linux-checks-in-two-jobs.md),
 [ADR-0155](docs/adr/0155-the-editors-design.md),
 [ADR-0228](docs/adr/0228-ci-split-again-each-job-within-20-minutes.md)): `scripts/check.sh lint`,
@@ -536,8 +541,8 @@ the windowed lifecycle test run in headless Weston compositors, which cooks firs
 and `scripts/check.sh game`,
 everything that reads the sample game's zone, which it fetches and cooks first: the tests that read
 it, the agent's session with its editor, the benchmarks' counters, and the game's runs in a headless
-Weston compositor; without
-an argument, the script runs the four, one after the other. Four Windows jobs run beside them
+Weston compositor, and `scripts/check.sh gles`, `uwui-render` with wgpu's GL backend; without
+an argument, the script runs the five, one after the other. Four Windows jobs run beside them
 ([ADR-0104](docs/adr/0104-the-build-ci-and-measurements.md),
 [ADR-0228](docs/adr/0228-ci-split-again-each-job-within-20-minutes.md)). Three are the parts of
 `windows`: `windows (tests)` runs the workspace's tests but the renderer's, then the headless

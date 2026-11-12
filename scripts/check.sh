@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
 # Runs every automated check of the definition of done (AGENTS.md); CONTRIBUTING.md, "Checks", says
-# what they are. CI runs it unchanged, inside the Nix development shell, in four jobs side by side
-# (ADR-0123, ADR-0155, ADR-0228): `nix develop --no-update-lock-file -c scripts/check.sh lint`, the
+# what they are. CI runs it unchanged, inside the Nix development shell, in five jobs side by side
+# (ADR-0123, ADR-0155, ADR-0228, ADR-0247): `nix develop --no-update-lock-file -c scripts/check.sh lint`, the
 # checks that read the code without running it, formatting, clippy, rustdoc, the dependencies and
 # the documentation's links, `... scripts/check.sh headless`, the build, the tests and every run
 # that needs neither a compositor nor the sample game's zone, `... scripts/check.sh windowed`, the
 # examples and the windowed lifecycle test run in headless Weston compositors, and
 # `... scripts/check.sh game`, everything that reads the sample game's zone, which it fetches and
-# cooks first (the flag makes an incomplete flake.lock an error instead of a silent update). Without
-# an argument, it runs the four parts, one after the other. `docs` checks the links between
-# Markdown files and the lengths of AGENTS.md and docs/PLAN.md alone, which the lint part does too:
-# CI's `docs` workflow runs it, with lychee alone, on a change of Markdown files outside the crates
-# (ADR-0188).
+# cooks first (the flag makes an incomplete flake.lock an error instead of a silent update), and
+# `... scripts/check.sh gles`, uwui-render's canvas on wgpu's GL backend, which nothing else builds
+# (ADR-0247). Without an argument, it runs the five parts, one after the other. `docs` checks the
+# links between Markdown files and the lengths of AGENTS.md and docs/PLAN.md alone, which the lint
+# part does too: CI's `docs` workflow runs it, with lychee alone, on a change of Markdown files
+# outside the crates (ADR-0188).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 part=${1:-all}
 case "$part" in
-    all | lint | headless | windowed | game | docs) ;;
+    all | lint | headless | windowed | game | gles | docs) ;;
     *)
-        echo "usage: scripts/check.sh [lint|headless|windowed|game|docs]" >&2
+        echo "usage: scripts/check.sh [lint|headless|windowed|game|gles|docs]" >&2
         exit 2
         ;;
 esac
@@ -132,6 +133,15 @@ if runs lint; then
         --prefix none)
     if grep -E '^slime-(reflect|serialize) ' <<< "$uwui_dependencies"; then
         echo "uwui depends on the engine's reflection through the crates above"
+        exit 1
+    fi
+
+    step "Nothing in the workspace builds wgpu's GL backend, which uwui-render's gles feature alone turns on (ADR-0247)"
+    # glow, the GL bindings that the backend alone brings, stands for it in the tree.
+    workspace_dependencies=$(cargo tree --locked --workspace -e normal,build,dev --target all \
+        --prefix none)
+    if grep '^glow ' <<< "$workspace_dependencies"; then
+        echo "the workspace builds wgpu's GL backend: only scripts/check.sh gles may"
         exit 1
     fi
 fi
@@ -422,6 +432,33 @@ if runs headless; then
         echo "the game depends on AccessKit's adapter"
         exit 1
     fi
+fi
+
+if runs gles; then
+    step "uwui-render's gles feature, wgpu's GL backend, on Linux and Windows"
+    cargo clippy --locked -p uwui-render --all-targets --features gles -- -D warnings
+    cargo clippy --locked -p uwui-render --all-targets --features gles --target x86_64-pc-windows-msvc -- -D warnings
+
+    # wgpu asks EGL for desktop GL 3.3 first: Mesa, told to offer desktop GL up to 3.2 alone,
+    # refuses it, and wgpu falls back to OpenGL ES 3.0, whose shaders are WebGL2's; the tests
+    # refuse any other context. glvnd's loader of EGL and Mesa's driver of it are named, which a
+    # runner outside NixOS lacks (flake.nix).
+    mesa_gles=(
+        LD_LIBRARY_PATH="$SLIME_GLVND:$LD_LIBRARY_PATH" __EGL_VENDOR_LIBRARY_FILENAMES="$SLIME_MESA_EGL"
+        LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
+        MESA_GL_VERSION_OVERRIDE=3.2 MESA_GLES_VERSION_OVERRIDE=3.0
+    )
+
+    step "uwui-render's tests on lavapipe at WebGL2's limits, its canvas reading from a texture (ADR-0243)"
+    # The device gives no storage buffer; the test that compares OpenGL ES with lavapipe runs too.
+    env -u WAYLAND_DISPLAY -u DISPLAY "${mesa_gles[@]}" \
+        VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" UWUI_RENDER_LIMITS=webgl2 \
+        cargo test --locked -p uwui-render --features gles
+
+    step "uwui-render's tests on Mesa's OpenGL ES 3.0 on the CPU, at WebGL2's limits, and compared with lavapipe's (ADR-0247)"
+    env -u WAYLAND_DISPLAY -u DISPLAY "${mesa_gles[@]}" \
+        WGPU_BACKEND=gl UWUI_RENDER_LIMITS=webgl2 VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        cargo test --locked -p uwui-render --features gles
 fi
 
 if runs lint || [ "$part" = docs ]; then

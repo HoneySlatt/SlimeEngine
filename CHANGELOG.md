@@ -146,6 +146,16 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- uwui's canvas draws where a device gives no storage buffer to both stages of a pipeline, as
+  WebGL2 and OpenGL ES 3.0: `CanvasRenderer` keeps its items in a texture there, chosen from the
+  device, its images the same (ADR-0243, ADR-0247). `CanvasRenderer::item_store` says which
+  (`ItemStore`), and `CanvasRenderer::max_items` how many items a canvas holds, fewer in a texture
+  on a device whose textures are small. `CanvasStats::passes` counts the canvas's render passes. A
+  replaced shader (`CanvasRenderer::set_shader`) must not declare `word` nor
+  `@group(0) @binding(1)`, which the renderer appends. Into `Rgba8Unorm` and `Bgra8Unorm` targets,
+  the canvas writes its colors encoded as sRGB, as into an sRGB one. `uwui-render`'s `gles`
+  feature gives wgpu's GL backend, for its tests on Mesa's OpenGL ES; nothing else in the
+  workspace turns it on.
 - `uwui-kdl`, uwui's reader of KDL 2.0, through which uwui is to read every document: a
   flat tree whose items name their place in the text, limits of size, depth and count, errors at
   their line and column; it passes KDL's official tests (ADR-0241).

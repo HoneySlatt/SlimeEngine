@@ -24,3 +24,9 @@ tracing.workspace = true
 # The GPU that the canvas draws with, its host's device, queue and encoder (ADR-0244): the
 # workspace's version and features, Vulkan and Direct3D 12, without the GL backend.
 wgpu.workspace = true
+
+[features]
+# wgpu's GL backend, the path that WebGL2 and OpenGL ES take, for the canvas's tests on Mesa's GL
+# alone: `scripts/check.sh gles` and its job of CI turn it on; nothing in the workspace does, which
+# `scripts/check.sh` checks (ADR-0247).
+gles = ["wgpu/gles"]

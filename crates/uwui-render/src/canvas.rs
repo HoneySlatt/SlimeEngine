@@ -4,7 +4,9 @@
 //! A [`Canvas`] is data alone: the items of a frame, in their order, each image named by its index
 //! ([`ImageId`]) in the list of images given when it is drawn. A [`CanvasRenderer`] draws it over a
 //! target, with one pipeline, its shader [`SHADER`], the items read by their index from a storage
-//! buffer (`docs/adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md`). It
+//! buffer, or from a texture where the device cannot read a storage buffer in both stages of a
+//! pipeline, as WebGL2
+//! (`docs/adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md`). It
 //! draws with wgpu, recording into its host's encoder
 //! (`docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md`).
 //!
@@ -21,19 +23,42 @@ use slime_color::{LinearColor, linear_to_srgb};
 use crate::gpu::{DrawContext, Error, within_checks, within_memory};
 
 /// The canvas's shader, in WGSL, which [`CanvasRenderer::new`] compiles: `canvas.wgsl`, embedded in
-/// the program when it is compiled.
+/// the program when it is compiled. It reads the canvas's store through one function, `word`, which
+/// the renderer appends to it as its device allows ([`ItemStore`]), so that the lines of an error
+/// are those of this source.
 pub const SHADER: &str = include_str!("canvas.wgsl");
+
+/// `word` from a storage buffer ([`ItemStore::Buffer`]).
+const READ_BUFFER: &str = include_str!("read_buffer.wgsl");
+
+/// `word` from a texture ([`ItemStore::Texture`]).
+const READ_TEXTURE: &str = include_str!("read_texture.wgsl");
 
 /// The label of the canvas's shader, which a shader's error names ([`Error::Shader`]'s
 /// `label`).
 const SHADER_LABEL: &str = "canvas.wgsl";
 
-/// The bytes of an item as the shader reads it: nine `vec4`s.
-const ITEM_SIZE: u64 = 9 * 16;
+/// The bytes of a word of the store, four 32-bit values: a texel of the store's texture.
+const WORD_SIZE: u64 = 16;
 
-/// The most items one canvas draws: past them, the last ones are left out, with a warning. Their
-/// buffer, 144 bytes an item, grows by powers of two up to 128 MiB, the largest storage buffer that
-/// every device of the engine's floor binds.
+/// The bytes of an item as the shader reads it: nine words.
+const ITEM_SIZE: u64 = 9 * WORD_SIZE;
+
+/// The transforms of the plane that items name, after the items in the store, two words each:
+/// the identity alone until uwui's first stage (`docs/debt.md`).
+const TRANSFORMS: [[f32; 8]; 1] = [[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]];
+
+/// The bytes of the transforms in the store.
+const TRANSFORMS_SIZE: u64 = TRANSFORMS.len() as u64 * 2 * WORD_SIZE;
+
+/// The width of the store's texture, in texels: the largest texture that every WebGL2 device
+/// makes. `read_texture.wgsl`'s `STORE_ROW`.
+const STORE_ROW: u32 = 2048;
+
+/// The most items one canvas draws, on any device: past them, or past what a renderer's store holds
+/// ([`CanvasRenderer::max_items`]), the last ones are left out, with a warning. A storage buffer of
+/// items, 144 bytes an item, grows by powers of two up to 128 MiB, the largest that every device
+/// of the engine's floor binds.
 pub const MAX_CANVAS_ITEMS: usize = 1 << 19;
 
 /// A rectangle of a target, in its pixels, from its top left corner, y down; fractions of a pixel
@@ -96,8 +121,8 @@ pub struct CanvasBox {
 
 /// A box filled with a gradient: a rectangle with rounded corners, its corners' colors mixed across
 /// it, each point's the mix of the four by its place, as the target mixes colors: on their sRGB
-/// encoding into an sRGB target, as CSS mixes a gradient, linear into another
-/// (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`). It has no border.
+/// encoding into an sRGB target or one of 8 bits a channel, as CSS mixes a gradient, linear into
+/// one of floats (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`). It has no border.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CanvasGradient {
     /// Where it lies.
@@ -203,7 +228,7 @@ struct Item {
     shape: [f32; 4],
     radii: [f32; 4],
     /// The fill, or the shadow's or the quad's color, straight: not multiplied by its alpha, which
-    /// [`item_bytes`] does, as the target mixes colors.
+    /// [`store_bytes`] does, as the target mixes colors.
     color: [f32; 4],
     /// A box's border's color, straight; a shadow's exponents (`canvas.wgsl`).
     border: [f32; 4],
@@ -524,18 +549,46 @@ fn erf(x: f32) -> f32 {
 pub struct CanvasStats {
     /// The items drawn.
     pub items: usize,
-    /// The items left out, past [`MAX_CANVAS_ITEMS`].
+    /// The items left out, past what the renderer's store holds ([`CanvasRenderer::max_items`]).
     pub left_out: usize,
     /// The draws it took: one per run of items that read one image.
     pub draws: usize,
+    /// The render passes it took: one, none for a canvas that draws nothing. Each boundary
+    /// between passes costs the GPU a wait, which the interface's budget counts
+    /// (`docs/adr/0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md`).
+    pub passes: usize,
     /// How long a canvas took on the GPU: the latest that the renderer drew whose time came back, a
     /// few canvases ago, which is not this frame's total where it draws several; none where the
     /// device does not time passes (wgpu's `TIMESTAMP_QUERY`).
     pub gpu_time: Option<Duration>,
 }
 
+/// Where a renderer keeps a canvas's items for its shader to read, chosen when it is made from what
+/// its device allows, not from its backend
+/// (`docs/adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md`). The items'
+/// bytes, the draws and the CPU's work are the same with both: only the binding and the write
+/// differ.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemStore {
+    /// A storage buffer, which both stages of a pipeline read: on Vulkan, Direct3D 12 and Metal,
+    /// and on GL where its vertex stage reads one.
+    Buffer,
+    /// A texture of `Rgba32Uint`, 2048 texels wide, a word of four 32-bit values a texel, floats
+    /// as their bits: where a device cannot read a storage buffer in both stages, as WebGL2 and
+    /// OpenGL ES 3.0, or one of OpenGL ES 3.1 that counts them in the fragment stage alone.
+    Texture,
+}
+
+/// The store's GPU object, grown as canvases grow.
+enum Store {
+    /// The buffer, and its size in bytes.
+    Buffer(Option<(wgpu::Buffer, u64)>),
+    /// The texture and its view, and how many rows it may grow to: the device's largest texture.
+    Texture(Option<(wgpu::Texture, wgpu::TextureView)>, u32),
+}
+
 /// What draws canvases into targets of one format: its pipeline, made from [`SHADER`] or from
-/// the source that [`CanvasRenderer::set_shader`] gives, its layouts, its buffers, grown as canvases
+/// the source that [`CanvasRenderer::set_shader`] gives, its layouts, its store, grown as canvases
 /// grow, its sampler, an image for the items that read none, and its timer.
 ///
 /// It holds wgpu objects of the device it was made with, and none of the device itself: after a
@@ -549,9 +602,10 @@ pub struct CanvasRenderer {
     pipeline: wgpu::RenderPipeline,
     format: wgpu::TextureFormat,
     frame: wgpu::Buffer,
-    /// The items' buffer, and its size in bytes.
-    items: Option<(wgpu::Buffer, u64)>,
-    transforms: wgpu::Buffer,
+    /// The items, then the transforms that they name.
+    store: Store,
+    /// The most items that the store holds.
+    max_items: usize,
     sampler: wgpu::Sampler,
     blank: wgpu::TextureView,
     /// Behind a lock, so that the canvas's renderer is shared between threads: a timer receives its
@@ -563,7 +617,14 @@ pub struct CanvasRenderer {
 impl CanvasRenderer {
     /// What draws canvases into targets of `format`, with `device`, its embedded shader,
     /// [`SHADER`], compiled; `queue` writes its first values. Its passes are timed where the device
-    /// has wgpu's `TIMESTAMP_QUERY`.
+    /// has wgpu's `TIMESTAMP_QUERY`. It keeps its items in a storage buffer where the device's
+    /// limits allow one and the device accepts it in the vertex stage, a layout tried in an error
+    /// scope of its own; in a texture otherwise ([`ItemStore`]).
+    ///
+    /// `format` is one that the canvas draws into: `Rgba8Unorm` or `Bgra8Unorm`, into which it
+    /// writes colors already encoded as sRGB; their sRGB forms, which it draws into through a view
+    /// without the encoding, which the device must allow (not on OpenGL ES nor WebGL2); or
+    /// `Rgba16Float`, linear.
     ///
     /// # Errors
     ///
@@ -575,21 +636,7 @@ impl CanvasRenderer {
         queue: &wgpu::Queue,
         format: wgpu::TextureFormat,
     ) -> Result<Self, Error> {
-        let frame_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("canvas"),
-            entries: &[
-                buffer_entry(0, wgpu::BufferBindingType::Uniform, 16),
-                buffer_entry(
-                    1,
-                    wgpu::BufferBindingType::Storage { read_only: true },
-                    ITEM_SIZE,
-                ),
-                wgpu::BindGroupLayoutEntry {
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ..buffer_entry(2, wgpu::BufferBindingType::Storage { read_only: true }, 32)
-                },
-            ],
-        });
+        let (frame_layout, item_store) = frame_layout(device);
         let image_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("canvas image"),
             entries: &[
@@ -616,19 +663,13 @@ impl CanvasRenderer {
             bind_group_layouts: &[Some(&frame_layout), Some(&image_layout)],
             immediate_size: 0,
         });
-        let pipeline = pipeline(device, &pipeline_layout, format, SHADER)?;
-        let (frame, transforms, blank, timer) = within_memory(device, "canvas", || {
+        let pipeline = pipeline(device, &pipeline_layout, format, item_store, SHADER)?;
+        let (frame, blank, timer) = within_memory(device, "canvas", || {
             let frame = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("canvas"),
                 size: 16,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
-            });
-            let transforms = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("canvas transforms"),
-                size: 32,
-                usage: wgpu::BufferUsages::STORAGE,
-                mapped_at_creation: true,
             });
             let blank = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("canvas blank"),
@@ -648,18 +689,8 @@ impl CanvasRenderer {
                 .features()
                 .contains(wgpu::Features::TIMESTAMP_QUERY)
                 .then(|| Timer::new(device, queue));
-            (frame, transforms, blank, timer)
+            (frame, blank, timer)
         })?;
-        // The identity, the one transform until uwui's first stage, written through the buffer's
-        // mapping: on a lost device, the buffer is invalid, and the queue would refuse to write it,
-        // an error that no loss excuses, where its mapping is refused without a word.
-        let mut identity = Vec::new();
-        push_f32s(&mut identity, &[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
-        if let Ok(mut mapped) = transforms.get_mapped_range_mut(..) {
-            mapped.copy_from_slice(&identity);
-            drop(mapped);
-            transforms.unmap();
-        }
         queue.write_texture(
             blank.as_image_copy(),
             &[255; 4],
@@ -683,6 +714,16 @@ impl CanvasRenderer {
             min_filter: wgpu::FilterMode::Linear,
             ..wgpu::SamplerDescriptor::default()
         });
+        let (store, max_items) = match item_store {
+            ItemStore::Buffer => (Store::Buffer(None), MAX_CANVAS_ITEMS),
+            ItemStore::Texture => {
+                let rows = device.limits().max_texture_dimension_2d;
+                let words = u64::from(STORE_ROW) * u64::from(rows);
+                let items = (words - TRANSFORMS_SIZE / WORD_SIZE) / (ITEM_SIZE / WORD_SIZE);
+                let items = usize::try_from(items).unwrap_or(usize::MAX);
+                (Store::Texture(None, rows), items.min(MAX_CANVAS_ITEMS))
+            }
+        };
         Ok(Self {
             frame_layout,
             image_layout,
@@ -690,8 +731,8 @@ impl CanvasRenderer {
             pipeline,
             format,
             frame,
-            items: None,
-            transforms,
+            store,
+            max_items,
             sampler,
             blank: blank.create_view(&wgpu::TextureViewDescriptor::default()),
             timer: timer.map(Mutex::new),
@@ -703,15 +744,38 @@ impl CanvasRenderer {
     /// program that reloads its shaders while it runs asks, with `device`, the renderer's. A source
     /// that does not compile, or whose pipeline is refused, leaves the pipeline as it was: the
     /// canvas draws on with it. Its errors are caught in scopes of its own: they never reach the
-    /// device's handler, nor a scope of its host.
+    /// device's handler, nor a scope of its host. As for [`SHADER`], the renderer appends to it the
+    /// function that reads its store, `word`, and the store's binding, `@group(0) @binding(1)`,
+    /// which `source` must not declare.
     ///
     /// # Errors
     ///
     /// [`Error::Shader`] if the shader does not compile, labelled `canvas.wgsl`, with the line and
     /// column of the error; [`Error::Pipeline`] if its pipeline is refused.
     pub fn set_shader(&mut self, device: &wgpu::Device, source: &str) -> Result<(), Error> {
-        self.pipeline = pipeline(device, &self.pipeline_layout, self.format, source)?;
+        self.pipeline = pipeline(
+            device,
+            &self.pipeline_layout,
+            self.format,
+            self.item_store(),
+            source,
+        )?;
         Ok(())
+    }
+
+    /// Where it keeps a canvas's items, as its device allows.
+    pub fn item_store(&self) -> ItemStore {
+        match self.store {
+            Store::Buffer(_) => ItemStore::Buffer,
+            Store::Texture(..) => ItemStore::Texture,
+        }
+    }
+
+    /// The most items that one canvas draws with it: [`MAX_CANVAS_ITEMS`] from a storage buffer;
+    /// from a texture, those that the device's largest texture holds, 466,033 in 2048 rows, at
+    /// most [`MAX_CANVAS_ITEMS`].
+    pub fn max_items(&self) -> usize {
+        self.max_items
     }
 
     /// Records `canvas`, drawn over what `target` holds, into `context`'s encoder, in a pass of its
@@ -730,7 +794,8 @@ impl CanvasRenderer {
     /// design tools mix them: it draws through a view of the target without the encoding, its colors
     /// encoded first, which the target must allow, its format without sRGB among its view formats
     /// (`docs/adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md`); into
-    /// one of another format, `Rgba16Float`, they mix linearly. The view is made at each draw, and
+    /// `Rgba8Unorm` or `Bgra8Unorm`, they are written encoded the same way; into `Rgba16Float`,
+    /// they mix linearly. The view is made at each draw, and
     /// kept by none.
     ///
     /// The queue writes the items before the host submits the encoder, which it does before this
@@ -766,7 +831,7 @@ impl CanvasRenderer {
             "a canvas draws into targets of one sample per pixel, not of {}",
             target.sample_count()
         );
-        let count = canvas.items.len().min(MAX_CANVAS_ITEMS);
+        let count = canvas.items.len().min(self.max_items);
         let left_out = canvas.items.len() - count;
         let batches = canvas.batches(count);
         // The image of a run is the image of each of its items that reads one.
@@ -783,8 +848,9 @@ impl CanvasRenderer {
         if left_out > 0 && !self.warned_of_items {
             tracing::warn!(
                 left_out,
-                "a canvas draws more than {MAX_CANVAS_ITEMS} items: the last ones are left out (said \
-                 once per renderer)"
+                "a canvas draws more than {} items: the last ones are left out (said once per \
+                 renderer)",
+                self.max_items
             );
             self.warned_of_items = true;
         }
@@ -801,49 +867,28 @@ impl CanvasRenderer {
             });
         }
         let device = context.device;
-        let encode = self.format.is_srgb();
-        let written = item_bytes(&canvas.items[..count], encode);
-        let bytes = (count as u64 * ITEM_SIZE)
-            .next_power_of_two()
-            .max(ITEM_SIZE * 64);
-        if self.items.as_ref().is_none_or(|&(_, size)| size < bytes) {
-            let items = within_memory(device, "canvas items", || {
-                device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("canvas items"),
-                    size: bytes,
-                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: true,
-                })
-            })?;
-            // A buffer made on a lost device is invalid: it cannot be mapped, and the queue would
-            // refuse to write it, an error that no loss excuses. Nothing is drawn then.
-            let Ok(mut mapped) = items.get_mapped_range_mut(..) else {
-                return Ok(CanvasStats {
-                    left_out,
-                    gpu_time,
-                    ..CanvasStats::default()
-                });
-            };
-            mapped.slice(..written.len()).copy_from_slice(&written);
-            drop(mapped);
-            items.unmap();
-            self.items = Some((items, bytes));
-        } else {
-            let (items, _) = self.items.as_ref().expect("checked above");
-            context.queue.write_buffer(items, 0, &written);
-        }
-        let (items, _) = self.items.as_ref().expect("made or written above");
-        let mut size = Vec::new();
+        let encode = encodes(self.format);
+        let written = store_bytes(&canvas.items[..count], encode);
+        if !self.store.write(context, &written)? {
+            return Ok(CanvasStats {
+                left_out,
+                gpu_time,
+                ..CanvasStats::default()
+            });
+        };
+        let mut frame = Vec::new();
         push_f32s(
-            &mut size,
+            &mut frame,
             &[
                 target.width() as f32,
                 target.height() as f32,
                 if encode { 1.0 } else { 0.0 },
-                0.0,
             ],
         );
-        context.queue.write_buffer(&self.frame, 0, &size);
+        let transforms =
+            u32::try_from(count as u64 * ITEM_SIZE / WORD_SIZE).expect("within MAX_CANVAS_ITEMS");
+        frame.extend_from_slice(&transforms.to_le_bytes());
+        context.queue.write_buffer(&self.frame, 0, &frame);
         let frame_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("canvas"),
             layout: &self.frame_layout,
@@ -854,11 +899,13 @@ impl CanvasRenderer {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: items.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: self.transforms.as_entire_binding(),
+                    resource: match &self.store {
+                        Store::Buffer(Some((buffer, _))) => buffer.as_entire_binding(),
+                        Store::Texture(Some((_, view)), _) => {
+                            wgpu::BindingResource::TextureView(view)
+                        }
+                        _ => unreachable!("written above"),
+                    },
                 },
             ],
         });
@@ -925,9 +972,218 @@ impl CanvasRenderer {
             items: count,
             left_out,
             draws: batches.len(),
+            passes: 1,
             gpu_time,
         })
     }
+}
+
+impl Store {
+    /// Writes `bytes`, the items and the transforms, into the store, grown to hold them; `false`
+    /// on a lost device, where a store made after the loss is invalid, and nothing is to be drawn.
+    ///
+    /// A store made anew is filled through a buffer's mapping, which a buffer made on a lost
+    /// device refuses without a word, where the queue would refuse to write it with an error that
+    /// no loss excuses; a texture is then copied from that buffer in the encoder. The queue writes
+    /// a store made before.
+    fn write(&mut self, context: &mut DrawContext<'_>, bytes: &[u8]) -> Result<bool, Error> {
+        let device = context.device;
+        let length = bytes.len() as u64;
+        match self {
+            Store::Buffer(buffer) => {
+                let size = length.next_power_of_two().max(ITEM_SIZE * 64);
+                if buffer.as_ref().is_none_or(|&(_, held)| held < size) {
+                    let grown = within_memory(device, "canvas items", || {
+                        device.create_buffer(&wgpu::BufferDescriptor {
+                            label: Some("canvas items"),
+                            size,
+                            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                            mapped_at_creation: true,
+                        })
+                    })?;
+                    let Ok(mut mapped) = grown.get_mapped_range_mut(..) else {
+                        return Ok(false);
+                    };
+                    mapped.slice(..bytes.len()).copy_from_slice(bytes);
+                    drop(mapped);
+                    grown.unmap();
+                    *buffer = Some((grown, size));
+                } else {
+                    let (held, _) = buffer.as_ref().expect("checked above");
+                    context.queue.write_buffer(held, 0, bytes);
+                }
+                Ok(true)
+            }
+            Store::Texture(texture, max_rows) => {
+                let used = rows(bytes.len()).map(|part| part.y + part.height).max();
+                let height = used.unwrap_or(1).next_power_of_two().min(*max_rows);
+                if let Some((held, _)) = texture.as_ref()
+                    && held.height() >= height
+                {
+                    for part in rows(bytes.len()) {
+                        context.queue.write_texture(
+                            part.texel_copy(held),
+                            &bytes[part.bytes.clone()],
+                            part.layout(0),
+                            part.extent(),
+                        );
+                    }
+                    return Ok(true);
+                }
+                let (grown, staging) = within_memory(device, "canvas items", || {
+                    let grown = device.create_texture(&wgpu::TextureDescriptor {
+                        label: Some("canvas items"),
+                        size: wgpu::Extent3d {
+                            width: STORE_ROW,
+                            height,
+                            depth_or_array_layers: 1,
+                        },
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2,
+                        format: wgpu::TextureFormat::Rgba32Uint,
+                        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                        view_formats: &[],
+                    });
+                    let staging = device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("canvas items staging"),
+                        size: length,
+                        usage: wgpu::BufferUsages::COPY_SRC,
+                        mapped_at_creation: true,
+                    });
+                    (grown, staging)
+                })?;
+                // A texture made anew is filled through a buffer's mapping, as a buffer is, which a
+                // device lost refuses without a word, then copied in the encoder.
+                let Ok(mut mapped) = staging.get_mapped_range_mut(..) else {
+                    return Ok(false);
+                };
+                mapped.copy_from_slice(bytes);
+                drop(mapped);
+                staging.unmap();
+                for part in rows(bytes.len()) {
+                    context.encoder.copy_buffer_to_texture(
+                        wgpu::TexelCopyBufferInfo {
+                            buffer: &staging,
+                            layout: part.layout(part.bytes.start as u64),
+                        },
+                        part.texel_copy(&grown),
+                        part.extent(),
+                    );
+                }
+                let view = grown.create_view(&wgpu::TextureViewDescriptor::default());
+                *texture = Some((grown, view));
+                Ok(true)
+            }
+        }
+    }
+}
+
+/// A part of the store's texture that one copy writes: rows of `STORE_ROW` texels, or the start
+/// of one row.
+struct Rows {
+    /// The part's bytes in the store's.
+    bytes: std::ops::Range<usize>,
+    /// Its first row.
+    y: u32,
+    /// Its width and height, in texels.
+    width: u32,
+    height: u32,
+}
+
+/// The parts of the store's texture that `length` bytes fill: their full rows in one copy, then
+/// the last row's start in another, so that no padding is written. Each row of 32 KiB keeps the
+/// alignment that a copy from a buffer asks.
+fn rows(length: usize) -> impl Iterator<Item = Rows> {
+    let row = STORE_ROW as usize * WORD_SIZE as usize;
+    let full = length / row;
+    let rest = (length % row) / WORD_SIZE as usize;
+    [
+        Rows {
+            bytes: 0..full * row,
+            y: 0,
+            width: STORE_ROW,
+            height: full as u32,
+        },
+        Rows {
+            bytes: full * row..length,
+            y: full as u32,
+            width: rest as u32,
+            height: 1,
+        },
+    ]
+    .into_iter()
+    .filter(|part| !part.bytes.is_empty())
+}
+
+impl Rows {
+    fn texel_copy<'t>(&self, texture: &'t wgpu::Texture) -> wgpu::TexelCopyTextureInfo<'t> {
+        wgpu::TexelCopyTextureInfo {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d {
+                x: 0,
+                y: self.y,
+                z: 0,
+            },
+            aspect: wgpu::TextureAspect::All,
+        }
+    }
+
+    /// The layout of its bytes, from `offset`: a row's length given for several rows alone, whose
+    /// 32 KiB keep the alignment that a copy from a buffer asks; a single row needs none.
+    fn layout(&self, offset: u64) -> wgpu::TexelCopyBufferLayout {
+        wgpu::TexelCopyBufferLayout {
+            offset,
+            bytes_per_row: (self.height > 1).then_some(STORE_ROW * WORD_SIZE as u32),
+            rows_per_image: None,
+        }
+    }
+
+    fn extent(&self) -> wgpu::Extent3d {
+        wgpu::Extent3d {
+            width: self.width,
+            height: self.height,
+            depth_or_array_layers: 1,
+        }
+    }
+}
+
+/// The layout of the frame's values and of the store, and the store it reads: a storage buffer
+/// where the device's limits allow one and the device accepts it in the vertex stage, which a
+/// device of OpenGL ES may refuse, its limits counting the fragment stage's alone; a texture
+/// otherwise. The device has no downlevel flags to ask: the buffer's layout is tried in a scope of
+/// its own, and refused, a texture's is made instead.
+fn frame_layout(device: &wgpu::Device) -> (wgpu::BindGroupLayout, ItemStore) {
+    let layout = |store: wgpu::BindGroupLayoutEntry| {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("canvas"),
+            entries: &[buffer_entry(0, wgpu::BufferBindingType::Uniform, 16), store],
+        })
+    };
+    if device.limits().max_storage_buffers_per_shader_stage >= 1 {
+        let (buffer, refused) = within_checks(device, || {
+            layout(buffer_entry(
+                1,
+                wgpu::BufferBindingType::Storage { read_only: true },
+                ITEM_SIZE,
+            ))
+        });
+        if refused.is_none() {
+            return (buffer, ItemStore::Buffer);
+        }
+    }
+    let texture = layout(wgpu::BindGroupLayoutEntry {
+        binding: 1,
+        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+        ty: wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Uint,
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled: false,
+        },
+        count: None,
+    });
+    (texture, ItemStore::Texture)
 }
 
 /// A uniform or storage buffer of `size` bytes at least, at `binding`, which both stages read.
@@ -948,19 +1204,24 @@ fn buffer_entry(
     }
 }
 
-/// The canvas's pipeline, from the WGSL `source`, for targets of `format`, which it draws into
-/// without their sRGB encoding if they have one; the shader and the pipeline checked in scopes of
-/// their own.
+/// The canvas's pipeline, from the WGSL `source` and the reader of `store` appended to it, for
+/// targets of `format`, which it draws into without their sRGB encoding if they have one; the
+/// shader and the pipeline checked in scopes of their own.
 fn pipeline(
     device: &wgpu::Device,
     layout: &wgpu::PipelineLayout,
     format: wgpu::TextureFormat,
+    store: ItemStore,
     source: &str,
 ) -> Result<wgpu::RenderPipeline, Error> {
+    let reader = match store {
+        ItemStore::Buffer => READ_BUFFER,
+        ItemStore::Texture => READ_TEXTURE,
+    };
     let (module, error) = within_checks(device, || {
         device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some(SHADER_LABEL),
-            source: wgpu::ShaderSource::Wgsl(source.into()),
+            source: wgpu::ShaderSource::Wgsl(format!("{source}\n{reader}").into()),
         })
     });
     if let Some(error) = error {
@@ -1172,10 +1433,22 @@ impl Drop for Returned {
     }
 }
 
-/// `items`, laid out as the shader reads them, little-endian, their colors mixed as the target
-/// mixes them ([`mixed`]): sRGB-encoded if `encode`.
-fn item_bytes(items: &[Item], encode: bool) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(items.len() * ITEM_SIZE as usize);
+/// Whether the canvas encodes its colors as sRGB before they mix, into a target of `format`: one
+/// of sRGB, which it draws into without the encoding, or of 8 bits a channel without one, which
+/// holds colors encoded
+/// (`docs/adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md`).
+fn encodes(format: wgpu::TextureFormat) -> bool {
+    format.is_srgb()
+        || matches!(
+            format,
+            wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Bgra8Unorm
+        )
+}
+
+/// The store's bytes, as the shader reads them, little-endian: `items`, their colors mixed as the
+/// target mixes them ([`mixed`]), sRGB-encoded if `encode`, then the transforms.
+fn store_bytes(items: &[Item], encode: bool) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(items.len() * ITEM_SIZE as usize + TRANSFORMS_SIZE as usize);
     // Items in a row often share their colors, as the glyphs of a text do: each is mixed once.
     let mut last = [([f32::NAN; 4], [0.0; 4]); 2];
     let mut mix = |color: [f32; 4], slot: usize| {
@@ -1219,6 +1492,7 @@ fn item_bytes(items: &[Item], encode: bool) -> Vec<u8> {
         }
         bytes.extend_from_slice(&laid_out);
     }
+    push_f32s(&mut bytes, TRANSFORMS.as_flattened());
     bytes
 }
 
@@ -1226,5 +1500,38 @@ fn item_bytes(items: &[Item], encode: bool) -> Vec<u8> {
 fn push_f32s(bytes: &mut Vec<u8>, values: &[f32]) {
     for value in values {
         bytes.extend_from_slice(&value.to_le_bytes());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The parts of the store's texture that `items` and the transforms fill: (first word, first
+    /// row, width, height) of each.
+    fn parts(items: usize) -> Vec<(usize, u32, u32, u32)> {
+        let length = items * ITEM_SIZE as usize + TRANSFORMS_SIZE as usize;
+        rows(length)
+            .map(|part| {
+                (
+                    part.bytes.start / WORD_SIZE as usize,
+                    part.y,
+                    part.width,
+                    part.height,
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_store_s_bytes_fill_whole_rows_then_the_start_of_one() {
+        // 9 words an item and 2 of transforms: 227 items within a row's 2048 words.
+        assert_eq!(parts(0), [(0, 0, 2, 1)]);
+        assert_eq!(parts(227), [(0, 0, 2045, 1)]);
+        // A row whole, then the start of the next.
+        assert_eq!(parts(300), [(0, 0, 2048, 1), (2048, 1, 654, 1)]);
+        // Rows whole and nothing more: 910 items and the transforms are 8192 words.
+        assert_eq!(parts(910), [(0, 0, 2048, 4)]);
+        assert_eq!(parts(911), [(0, 0, 2048, 4), (8192, 4, 9, 1)]);
     }
 }

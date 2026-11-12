@@ -2,54 +2,57 @@
 // gradients and images, drawn in two dimensions over a target, each a quad of two triangles built from the
 // vertex's index alone, in the order given, every item clipped to its rectangle. Colors come
 // multiplied by their alpha, and are laid over the target so: into a target of an sRGB format,
-// which the canvas draws into without its encoding, encoded first, so that they mix as sRGB values,
-// as design tools and browsers mix them; into another, as they are, linear. `canvas.rs` mixes the
+// which the canvas draws into without its encoding, or of 8 bits a channel without one, encoded
+// first, so that they mix as sRGB values, as design tools and browsers mix them; into one of
+// floats, as they are, linear. `canvas.rs` mixes the
 // items' colors so; an image's texels are encoded here.
 
 struct Frame {
     // The target's size, in pixels.
     size: vec2<f32>,
     // 1 if colors are encoded before they mix: the target is sRGB, drawn into without its
-    // encoding.
+    // encoding, or of 8 bits a channel without one.
     encode: f32,
-    unused: f32,
+    // Where the transforms start in the store, in words: past the items.
+    transforms: u32,
 }
 
-// What `Canvas` in `canvas.rs` writes of each item. A shadow keeps in some fields the values of
-// its approximation, which the fragment shader reads.
-struct Item {
-    // The quad drawn, the pixels that the item may touch: left, top, right, bottom, in pixels of
-    // the target.
-    quad: vec4<f32>,
-    // The box that a box draws, the same edges; for a shadow, the box of the approximation.
-    shape: vec4<f32>,
-    // The radii of a box's corners: top left, top right, bottom right, bottom left; for a shadow,
-    // the approximation's radius at each corner.
-    radii: vec4<f32>,
-    // The box's fill, or the shadow's or an image's color, multiplied by its alpha, mixed as the
-    // target mixes colors.
-    color: vec4<f32>,
-    // The border's color, the same way; for a shadow, the approximation's exponent at each corner.
-    border: vec4<f32>,
-    // The image's coordinates at the quad's corners: left, top, right, bottom; for a shadow, the
-    // inverse of the exponent at each corner.
-    uv: vec4<f32>,
-    // The clip: left, top, right, bottom.
-    clip: vec4<f32>,
-    // The border's width; for a shadow, the box's shorter side, the approximation's scale, and the
-    // inverse of its deviation, 0 for a sharp shadow.
-    widths: vec4<f32>,
-    // What the item is (BOX, SHADOW, COVERAGE, IMAGE or GRADIENT), then the indices of its transform
-    // and of its layer. A gradient keeps its corners' colors, mixed as the target mixes colors, in
-    // `color`, `border`, `uv` and `widths`: top left, top right, bottom right, bottom left.
-    kind: vec4<u32>,
-}
-
-// A transform of the plane: x' = x.x * x + x.y * y + x.z, and y' likewise with y.
-struct Transform {
-    x: vec4<f32>,
-    y: vec4<f32>,
-}
+// The store: what `Canvas` in `canvas.rs` writes, as words of four 32-bit values, floats as their
+// bits. Each item is nine words, the item `i`'s field `f` the word `9 i + f`; the transforms follow
+// the items, two words each. `word(at)`, the one function that reads it, is appended to this source
+// by `canvas.rs`, as the device allows: from a storage buffer (`read_buffer.wgsl`) or from a
+// texture (`read_texture.wgsl`), as `docs/adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md`
+// decides. Each stage reads the fields that the item's kind needs, and no other.
+//
+// An item's fields: a shadow keeps in some of them the values of its approximation, which the
+// fragment shader reads; a gradient keeps its corners' colors, mixed as the target mixes colors,
+// in COLOR, BORDER, UV and WIDTHS: top left, top right, bottom right, bottom left.
+//
+// The quad drawn, the pixels that the item may touch: left, top, right, bottom, in pixels of the
+// target.
+const QUAD: u32 = 0u;
+// The box that a box draws, the same edges; for a shadow, the box of the approximation.
+const SHAPE: u32 = 1u;
+// The radii of a box's corners: top left, top right, bottom right, bottom left; for a shadow, the
+// approximation's radius at each corner.
+const RADII: u32 = 2u;
+// The box's fill, or the shadow's or an image's color, multiplied by its alpha, mixed as the target
+// mixes colors.
+const COLOR: u32 = 3u;
+// The border's color, the same way; for a shadow, the approximation's exponent at each corner.
+const BORDER: u32 = 4u;
+// The image's coordinates at the quad's corners: left, top, right, bottom; for a shadow, the
+// inverse of the exponent at each corner.
+const UV: u32 = 5u;
+// The clip: left, top, right, bottom.
+const CLIP: u32 = 6u;
+// The border's width; for a shadow, the box's shorter side, the approximation's scale, and the
+// inverse of its deviation, 0 for a sharp shadow.
+const WIDTHS: u32 = 7u;
+// What the item is (BOX, SHADOW, COVERAGE, IMAGE or GRADIENT), then the index of its transform
+// and that of its layer, as unsigned integers.
+const KIND: u32 = 8u;
+const ITEM_WORDS: u32 = 9u;
 
 const BOX: u32 = 0u;
 const SHADOW: u32 = 1u;
@@ -61,10 +64,13 @@ const IMAGE: u32 = 3u;
 const GRADIENT: u32 = 4u;
 
 @group(0) @binding(0) var<uniform> frame: Frame;
-@group(0) @binding(1) var<storage, read> items: array<Item>;
-@group(0) @binding(2) var<storage, read> transforms: array<Transform>;
 @group(1) @binding(0) var image: texture_2d<f32>;
 @group(1) @binding(1) var image_sampler: sampler;
+
+// The field `field` of the item `index`, as four floats.
+fn field(index: u32, field: u32) -> vec4<f32> {
+    return bitcast<vec4<f32>>(word(index * ITEM_WORDS + field));
+}
 
 // The fragment shader reads its item again by its index: handing the item on as values of the
 // vertices costs more for the many small quads of glyphs (`docs/measurements.md`, M6b.3a).
@@ -79,25 +85,32 @@ struct VertexOutput {
 @vertex
 fn vs_main(@builtin(vertex_index) vertex: u32) -> VertexOutput {
     let index = vertex / 6u;
-    let item = items[index];
+    let quad = field(index, QUAD);
+    let kind = word(index * ITEM_WORDS + KIND);
     // Two triangles: the corners (0, 0), (1, 0), (0, 1), then (0, 1), (1, 0), (1, 1).
     let corners = array<vec2<f32>, 6>(
         vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0), vec2<f32>(0.0, 1.0),
         vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 0.0), vec2<f32>(1.0, 1.0),
     );
     let corner = corners[vertex % 6u];
-    let point = mix(item.quad.xy, item.quad.zw, corner);
-    let transform = transforms[item.kind.y];
+    let point = mix(quad.xy, quad.zw, corner);
+    let at = frame.transforms + kind.y * 2u;
+    let transform_x = bitcast<vec4<f32>>(word(at));
+    let transform_y = bitcast<vec4<f32>>(word(at + 1u));
     let placed = vec2<f32>(
-        dot(transform.x.xyz, vec3<f32>(point, 1.0)),
-        dot(transform.y.xyz, vec3<f32>(point, 1.0)),
+        dot(transform_x.xyz, vec3<f32>(point, 1.0)),
+        dot(transform_y.xyz, vec3<f32>(point, 1.0)),
     );
     var out: VertexOutput;
     // Pixels from the top left, y down, to clip space, y up.
     let ndc = placed / frame.size * 2.0 - 1.0;
     out.position = vec4<f32>(ndc.x, -ndc.y, 0.0, 1.0);
     out.point = point;
-    out.uv = mix(item.uv.xy, item.uv.zw, corner);
+    out.uv = vec2<f32>(0.0);
+    if kind.x == COVERAGE || kind.x == IMAGE {
+        let uv = field(index, UV);
+        out.uv = mix(uv.xy, uv.zw, corner);
+    }
     out.index = index;
     return out;
 }
@@ -142,65 +155,71 @@ fn linear_to_srgb(linear: vec3<f32>) -> vec3<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let item = items[in.index];
+    let index = in.index;
+    let item_clip = field(index, CLIP);
     let p = in.point;
     // The share of the pixel inside the clip: its overlap with the clip across, times its overlap
     // down.
     let clip = clamp(
-        min(item.clip.zw, p + 0.5) - max(item.clip.xy, p - 0.5),
+        min(item_clip.zw, p + 0.5) - max(item_clip.xy, p - 0.5),
         vec2<f32>(0.0),
         vec2<f32>(1.0),
     );
     let clipped = clip.x * clip.y;
     var color = vec4<f32>(0.0);
-    switch item.kind.x {
+    switch word(index * ITEM_WORDS + KIND).x {
         case BOX: {
-            let outer = coverage(rounded_box(p, item.shape, item.radii));
-            let width = item.widths.x;
+            let shape = field(index, SHAPE);
+            let radii = field(index, RADII);
+            let outer = coverage(rounded_box(p, shape, radii));
+            let width = field(index, WIDTHS).x;
             var filled = outer;
             if width > 0.0 {
-                let inner_edges = item.shape + vec4<f32>(width, width, -width, -width);
-                let inner_radii = max(item.radii - width, vec4<f32>(0.0));
+                let inner_edges = shape + vec4<f32>(width, width, -width, -width);
+                let inner_radii = max(radii - width, vec4<f32>(0.0));
                 filled = min(coverage(rounded_box(p, inner_edges, inner_radii)), outer);
             }
-            color = item.color * filled + item.border * (outer - filled);
+            color = field(index, COLOR) * filled + field(index, BORDER) * (outer - filled);
         }
         case SHADOW: {
             // Raph Levien's approximation of a rounded box blurred by a Gaussian, from the values
             // that `Canvas::draw_shadow` made: the distance to the box, its corners measured as
             // superellipses, and across it the Gaussian's integral over the box's shorter side.
-            let center = (item.shape.xy + item.shape.zw) * 0.5;
-            let half_size = (item.shape.zw - item.shape.xy) * 0.5;
+            let shape = field(index, SHAPE);
+            let center = (shape.xy + shape.zw) * 0.5;
+            let half_size = (shape.zw - shape.xy) * 0.5;
             let q = p - center;
-            let radius = of_corner(item.radii, q);
+            let radius = of_corner(field(index, RADII), q);
             let d = abs(q) - half_size + radius;
             let beyond = max(d, vec2<f32>(0.0));
             // Along an edge, the distance beyond it; past a corner, the superellipse's.
             var corner = beyond.x + beyond.y;
             if beyond.x > 0.0 && beyond.y > 0.0 {
-                let exponent = of_corner(item.border, q);
-                corner = pow(pow(beyond.x, exponent) + pow(beyond.y, exponent), of_corner(item.uv, q));
+                let exponent = of_corner(field(index, BORDER), q);
+                corner = pow(pow(beyond.x, exponent) + pow(beyond.y, exponent), of_corner(field(index, UV), q));
             }
             let distance = corner + min(max(d.x, d.y), 0.0) - radius;
-            let inverse = item.widths.z;
+            let widths = field(index, WIDTHS);
+            let inverse = widths.z;
             var shade = coverage(distance);
             if inverse > 0.0 {
-                shade = item.widths.y * (erf((item.widths.x + distance) * inverse) - erf(distance * inverse));
+                shade = widths.y * (erf((widths.x + distance) * inverse) - erf(distance * inverse));
             }
-            color = item.color * shade;
+            color = field(index, COLOR) * shade;
         }
         case GRADIENT: {
-            let outer = coverage(rounded_box(p, item.shape, item.radii));
-            let size = max(item.shape.zw - item.shape.xy, vec2<f32>(1e-6));
-            let t = clamp((p - item.shape.xy) / size, vec2<f32>(0.0), vec2<f32>(1.0));
-            let top = mix(item.color, item.border, t.x);
-            let bottom = mix(item.widths, item.uv, t.x);
+            let shape = field(index, SHAPE);
+            let outer = coverage(rounded_box(p, shape, field(index, RADII)));
+            let size = max(shape.zw - shape.xy, vec2<f32>(1e-6));
+            let t = clamp((p - shape.xy) / size, vec2<f32>(0.0), vec2<f32>(1.0));
+            let top = mix(field(index, COLOR), field(index, BORDER), t.x);
+            let bottom = mix(field(index, WIDTHS), field(index, UV), t.x);
             color = mix(top, bottom, t.y) * outer;
         }
         case COVERAGE: {
             // Level 0, the image's own pixels, as an interface draws them.
             let texel = textureSampleLevel(image, image_sampler, in.uv, 0.0);
-            color = item.color * texel.r;
+            color = field(index, COLOR) * texel.r;
         }
         default: {
             let texel = textureSampleLevel(image, image_sampler, in.uv, 0.0);
@@ -208,7 +227,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             if frame.encode > 0.0 {
                 rgb = linear_to_srgb(min(rgb, vec3<f32>(1.0)));
             }
-            color = vec4<f32>(rgb * texel.a, texel.a) * item.color.a;
+            color = vec4<f32>(rgb * texel.a, texel.a) * field(index, COLOR).a;
         }
     }
     return color * clipped;
