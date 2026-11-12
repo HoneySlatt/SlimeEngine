@@ -1540,29 +1540,8 @@ of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
 
 ### M6d.4b1b — The canvas on wgpu
 
-The second half of M6d.4b1
-([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)). It follows the rules
-of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** `uwui-render` draws with a wgpu device, its queue, an encoder and a target, and knows
-  no engine crate; the engine lends its device through a guarded door.
-- **Crates.** `uwui-render`, `slime-gfx`, `slime-app`; `scripts/`, `AGENTS.md`.
-- **Delivers.**
-  - `Gpu::with_wgpu`: the loss checked first, the closure in scopes of memory, validation and
-    internal errors, the encoder submitted under the engine's lock, a window's image marked drawn,
-    the device probed after, a loss before memory, any other error a panic; the engine's targets
-    and textures, each checked to be of the device; the adapter's downlevel capabilities.
-  - The canvas, the atlas and the canvas's GPU timer on wgpu, recording into the host's encoder;
-    a shader checked in scopes of their own; none of wgpu's helpers that panic on a lost device.
-  - `slime-app`'s bridge through the door; `uwui-render` without `slime-gfx`.
-  - A check in `scripts/check.sh` that only `slime-app` and the engine's tests open the door;
-    `AGENTS.md`'s rule on wgpu's types.
-- **Done when.** The images of M6d.4b1a, unchanged; a test draws a tree of uwui with a bare wgpu
-  device, and a lost one draws nothing without a panic; tests of the door: a loss, memory that
-  runs out, an object of another device, a broken shader kept out; CI is green.
-- **How to test.** `cargo test -p uwui-render -p slime-gfx -p slime-app`; `scripts/check.sh`.
-- **Measured.** `render.canvas` and `ui.draw.menu` at 3840 × 2160 on the RX 6900 XT, against
-  M6d.4b1a's, within the interface's 0.5 ms.
+In progress: its card is in [`PLAN.md`](PLAN.md#m6d4b1b--the-canvas-on-wgpu), back here with its
+result when it is done.
 
 ### M6d.4b2 — The canvas's layout chosen
 

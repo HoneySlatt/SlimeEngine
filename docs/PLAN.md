@@ -35,18 +35,10 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
   session.
   - Track A, uwui's core, in the main checkout: M6d.3a to M6d.3b2, then M6d.3c1 to M6d.3c3.
-  - Track B, beside it, in a worktree: [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors),
-    the series of compositors, done on 2026-11-11
-    ([ADR-0240](adr/0240-the-series-input-its-table-and-its-jobs.md)); then M6d.4, cut in three
-    at its start, on 2026-11-11
-    ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)): done,
-    [M6d.4a](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr), the canvas's prototype, on
-    2026-11-12 ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md));
-    M6d.4b1 cut in two on 2026-11-12
-    ([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)): done,
-    [M6d.4b1a](stage-6d.md#m6d4b1a--the-canvas-moved-into-uwui-render), the canvas moved, on the
-    same day; next [M6d.4b1b](stage-6d.md#m6d4b1b--the-canvas-on-wgpu), on wgpu, and
-    [M6d.4b2](stage-6d.md#m6d4b2--the-canvass-layout-chosen).
+  - Track B, in a worktree: [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors),
+    done; then M6d.4: done, [M6d.4a](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr) and
+    [M6d.4b1a](stage-6d.md#m6d4b1a--the-canvas-moved-into-uwui-render); in progress,
+    [M6d.4b1b](#m6d4b1b--the-canvas-on-wgpu), then M6d.4b2.
   - M6d.5 waits for M6d.3 and M6d.4, which both touch `slime-app`; M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: the deletion of the branches `m6d1b-bench` and `m6d4a-prototype`, the
@@ -66,7 +58,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.3c3 — Reflection out of uwui](stage-6d.md#m6d3c3--reflection-out-of-uwui) | Planned |
 | [M6d.4a — The canvas's prototype and its ADR](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr) | Done |
 | [M6d.4b1a — The canvas moved into uwui-render](stage-6d.md#m6d4b1a--the-canvas-moved-into-uwui-render) | Done |
-| [M6d.4b1b — The canvas on wgpu](stage-6d.md#m6d4b1b--the-canvas-on-wgpu) | Planned |
+| [M6d.4b1b — The canvas on wgpu](#m6d4b1b--the-canvas-on-wgpu) | In progress |
 | [M6d.4b2 — The canvas's layout chosen](stage-6d.md#m6d4b2--the-canvass-layout-chosen) | Planned |
 | [M6d.5 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
@@ -100,6 +92,30 @@ follows the rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-l
   aside; CI green.
 - **Measured.** Reading the editor's documents at its start, `ui.tree.look`; the cooker's compile
   time, at rest.
+
+## M6d.4b1b — The canvas on wgpu
+
+Started on 2026-11-12 ([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)),
+under [the stage's rules](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** `uwui-render` draws with a wgpu device, its queue, an encoder and a target, knowing
+  no engine crate; the engine lends its device through a guarded door.
+- **Crates.** `uwui-render`, `slime-gfx`, `slime-app`; `scripts/`, `AGENTS.md`.
+- **Delivers.**
+  - `Gpu::with_wgpu`: the loss checked first, the closure in scopes of memory, validation and
+    internal errors, the encoder submitted under the engine's lock, a window's image marked drawn,
+    the device probed after, a loss before memory, any other error a panic; the engine's targets
+    and textures, each checked to be of the device; the adapter's downlevel capabilities.
+  - The canvas, the atlas and the canvas's GPU timer on wgpu, recording into the host's encoder;
+    a shader checked in scopes of its own; none of wgpu's helpers that panic on a lost device.
+  - `slime-app`'s bridge through the door; `uwui-render` without `slime-gfx`.
+  - A check in `scripts/check.sh` that only `slime-app` and the engine's tests open the door;
+    `AGENTS.md`'s rule on wgpu's types.
+- **Done when.** The images of M6d.4b1a, unchanged; a test draws a tree of uwui with a bare wgpu
+  device, a lost one nothing, without a panic; tests of the door: a loss, memory that
+  runs out, an object of another device, a broken shader kept out; CI is green.
+- **Measured.** `render.canvas` and `ui.draw.menu` at 3840 × 2160 on the RX 6900 XT, against
+  M6d.4b1a's, within the interface's 0.5 ms.
 
 ## Ideas waiting for their milestone
 
