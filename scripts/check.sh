@@ -135,6 +135,14 @@ if runs lint; then
         echo "uwui depends on the engine's reflection through the crates above"
         exit 1
     fi
+    # uwui's core for agents depends on no other crate of uwui's nor of the engine's, so that a tool
+    # speaks the protocol without building uwui's text and layout (ADR-0246).
+    uwui_agent_dependencies=$(cargo tree --locked -p uwui-agent -e normal --target all \
+        --all-features --prefix none)
+    if grep -E '^(uwui|slime)-' <<< "$uwui_agent_dependencies" | grep -v '^uwui-agent '; then
+        echo "uwui-agent depends on the crates above"
+        exit 1
+    fi
 
     step "Nothing in the workspace builds wgpu's GL backend, which uwui-render's gles feature alone turns on (ADR-0247)"
     # glow, the GL bindings that the backend alone brings, stands for it in the tree.

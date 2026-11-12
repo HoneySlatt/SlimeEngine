@@ -6,8 +6,11 @@ engine's MCP server, tests, and later the editor
 
 ## Status
 
-The protocol, version 13: the host's controls (pause, resume, speed, steps, stop), the game's window
-minimized (`docs/adr/0187-a-hidden-window-at-rest.md`), commands that set
+The engine's families on the session of uwui's core for agents (`uwui-agent`,
+`docs/adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md`): `play`,
+`world`, `editing` and `interface`, each at its version (`FAMILIES`). They hold the host's
+controls (pause, resume, speed, steps, stop), the game's window minimized
+(`docs/adr/0187-a-hidden-window-at-rest.md`), commands that set
 a part of a component, the world's commands applied from their texts, which an editor sends the game
 that it plays (`docs/adr/0165-editing-while-playing.md`), questions on the world, captures of the
 game's image or of one of its views (`docs/adr/0126-views-apart-from-the-renderer.md`), the settings
@@ -29,12 +32,16 @@ listens, with its token (`docs/adr/0165-editing-while-playing.md`). Only program
 
 - A game started with a token in its environment, `TOKEN_ENV_VAR`, listens on `127.0.0.1`, on a
   port that the system chooses, which it writes on its standard output (`ANNOUNCEMENT`). It
-  accepts a connection only with the token and the same version of the protocol, and tells a
+  accepts a connection only with the token and the same version of the core, and tells a
   connection that it refuses why.
-- Messages are reflected values in the engine's binary encoding (`slime-serialize`), each followed
-  by bytes of its own, empty but for an image's pixels. Entities are named by persistent identities, values
-  given and answered as text in the engine's notation, which the game reads with its types: a tool
-  needs none of them.
+- It carries the session of uwui's core for agents, `uwui-agent`: JSON-RPC 2.0 a message a line,
+  a request named by its method, `family/name`, `play/pause`. The first message, the hello, names
+  the agent and the program that carries it, as they name themselves, which the game logs, gives
+  the token, and lists the families that the tool speaks: one of another version is refused alone,
+  and the rest served. `Request` and `Reply` are the families' messages, written through `serde`;
+  a reply carries bytes of its own after its line, an image's pixels; `Reply::Failed` crosses as an
+  error of the core's. Entities are named by persistent identities, values given and answered as
+  text in the engine's notation, which the game reads with its types: a tool needs none of them.
 - Who starts a game draws its token, 128 bits of the system's randomness, and gives it to the game
   in its environment only, never on its command line.
 
@@ -42,7 +49,7 @@ listens, with its token (`docs/adr/0165-editing-while-playing.md`). Only program
 
 ```rust
 use std::thread;
-use slime_channel::{Client, Listener, Reply, Request, Token};
+use slime_channel::{Client, Listener, Named, Reply, Request, Token};
 
 let token = Token::generate().expect("random bits");
 let listener = Listener::open(token.clone(), "my game", || {}).expect("a port");
@@ -56,7 +63,10 @@ let game = thread::spawn(move || loop {
     }
     thread::yield_now();
 });
-let mut client = Client::connect(address, &token).expect("the token is the game's");
+let agent = Named::new("my agent", "1.0");
+let server = Named::new("my MCP server", "0.1");
+let mut client =
+    Client::connect(address, &token, &agent, &server).expect("the token is the game's");
 assert_eq!(client.program(), "my game");
 let (reply, _) = client.request(&Request::Pause).expect("an answer");
 assert_eq!(reply, Reply::Done);
@@ -71,7 +81,8 @@ game.join().expect("the game answered");
   with `Incoming::answer`, or with `Incoming::answer_with` when the reply carries an image's
   pixels.
 - `launch(&mut command, timeout)`: starts a game with a new token, and waits for it to say where it
-  listens; `Client::connect(address, &token)` then opens a connection, and `Client::request`
+  listens; `Client::connect(address, &token, &agent, &client)` then opens a connection for an
+  agent and the program that carries its requests, and `Client::request`
   sends a `Request` and waits for its `Reply`. The game's standard input is a pipe that the tool
   holds, and the game ends once it closes, so that no game outlives the tool that started it.
   Both ends send each message at once, Nagle's algorithm off, so that a request is answered
@@ -84,7 +95,8 @@ The rustdoc holds the contracts: each request and its reply, the limits, the err
 ## Dependencies
 
 - `getrandom`: the token's random bits, which the standard library does not give yet.
-- `slime-reflect` and `slime-serialize`: the messages are reflected values, in the binary encoding.
+- `serde`: the families' messages, which `uwui-agent` writes as JSON.
+- `uwui-agent`: the session that the channel carries.
 - `thiserror`: derives `ChannelError`'s `Display` and `Error` implementations.
 - `tracing`: the connections accepted and refused.
 

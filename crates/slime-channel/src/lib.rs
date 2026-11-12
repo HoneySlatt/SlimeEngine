@@ -11,14 +11,26 @@ pub use client::{Client, Launched, launch, launch_unless};
 pub use error::ChannelError;
 pub use listener::{Incoming, Listener};
 pub use message::{
-    ComponentText, Edit, EditorHistory, ElementSummary, EntitySummary, GameState, Hello,
-    InterfaceAction, LogLine, OperationSummary, Reply, Request, ViewSummary,
+    ComponentText, Edit, EditorHistory, ElementSummary, EntitySummary, GameState, InterfaceAction,
+    LogLine, OperationSummary, Reply, Request, ViewSummary,
 };
 pub use token::Token;
+pub use uwui_agent::Named;
 
-/// The version of the protocol: a tool and a game of other versions refuse each other, rather
-/// than misread each other's messages.
-pub const PROTOCOL_VERSION: u32 = 13;
+/// The families of requests that the channel carries, each at its version: a tool and a game that
+/// speak another version of one refuse that family alone, and the rest is served
+/// (`docs/adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md`). The
+/// version of the core's session is `uwui_agent::CORE_VERSION`.
+pub const FAMILIES: [(&str, u32); 4] =
+    [("play", 1), ("world", 1), ("editing", 1), ("interface", 1)];
+
+/// [`FAMILIES`], as the core's session names them.
+pub(crate) fn families() -> Vec<uwui_agent::Family> {
+    FAMILIES
+        .iter()
+        .map(|&(name, version)| uwui_agent::Family::new(name, version))
+        .collect()
+}
 
 /// The environment variable that gives a game its token: a game started without it does not
 /// listen. A game started with it ends once its standard input closes, but when that input is a
@@ -54,7 +66,6 @@ mod threads {
     #[test]
     fn the_channel_s_types_cross_threads() {
         send_and_sync::<Token>();
-        send_and_sync::<Hello>();
         send_and_sync::<Request>();
         send_and_sync::<Reply>();
         send_and_sync::<ChannelError>();

@@ -1,0 +1,17 @@
+[package]
+name = "uwui-agent"
+description = "uwui's core for agents: a session without input or output, its messages in JSON-RPC 2.0, and its families' versions."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT OR Apache-2.0"
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The messages are JSON-RPC 2.0, a message a line, as MCP's own (ADR-0246).
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

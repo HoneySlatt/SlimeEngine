@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-use slime_channel::{Client, Edit, Reply, Request, launch};
+use slime_channel::{Client, Edit, Named, Reply, Request, launch};
 
 use crate::measure::{Context, Row};
 
@@ -171,7 +171,8 @@ fn measure(
         .stderr(log);
     let mut launched =
         launch(&mut command, Duration::from_secs(120)).map_err(|error| error.to_string())?;
-    let measured = Client::connect(launched.address, &launched.token)
+    let bench = Named::new("the benchmark of Play", env!("CARGO_PKG_VERSION"));
+    let measured = Client::connect(launched.address, &launched.token, &bench, &bench)
         .map_err(|error| error.to_string())
         .and_then(|mut client| {
             let measured = plays(&mut client);

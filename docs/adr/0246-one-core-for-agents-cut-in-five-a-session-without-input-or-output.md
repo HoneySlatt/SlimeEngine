@@ -1,8 +1,10 @@
 # 0246. One core for agents cut in five: a session without input or output, in JSON-RPC, versioned by family
 
-- Status: Accepted; amends [0122](0122-the-development-channel.md) (the channel's messages in
-  JSON-RPC through `serde`, versioned by family, `slime-reflect` and `slime-serialize` gone from
-  `slime-channel`) and [0218](0218-one-core-for-agents-in-uwui.md) (M6d.9a cut in five)
+- Status: Accepted; amends [0110](0110-how-the-editor-runs-a-games-code.md) (the messages in
+  JSON-RPC, not in the engine's binary encoding), [0122](0122-the-development-channel.md) (the
+  channel's messages in JSON-RPC through `serde`, versioned by family, `slime-reflect` and
+  `slime-serialize` gone from `slime-channel`) and [0218](0218-one-core-for-agents-in-uwui.md)
+  (M6d.9a cut in five)
 - Date: 2026-11-12
 
 ## Context

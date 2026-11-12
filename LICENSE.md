@@ -11,8 +11,8 @@ without one and what GitHub's terms of service let its users do on GitHub.
 
 What this notice does not cover:
 
-- **uwui**, the user-interface framework in `crates/uwui`, `crates/uwui-render`, `crates/uwui-kdl`
-  and `crates/uwui-macros`, and `crates/slime-color` and `crates/slime-input`, which move to
+- **uwui**, the user-interface framework in `crates/uwui`, `crates/uwui-agent`,
+  `crates/uwui-render`, `crates/uwui-kdl` and `crates/uwui-macros`, and `crates/slime-color` and `crates/slime-input`, which move to
   uwui's repository, are licensed under either of the MIT license or the Apache License 2.0, at
   your choice, as the `LICENSE-MIT` and `LICENSE-APACHE` files in each of these crates say. uwui
   still depends on four crates of the engine, `slime-reflect`, `slime-serialize`, `slime-gfx` and

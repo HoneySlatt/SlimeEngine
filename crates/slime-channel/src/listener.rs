@@ -8,17 +8,13 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use slime_serialize::MAX_SIZE;
+use uwui_agent::{Fault, FromTool, Limits, ProgramSession, Reader, Value};
 
-use crate::PROTOCOL_VERSION;
 use crate::error::ChannelError;
-use crate::message::{Hello, Reply, Request, decode, encode};
+use crate::message::{Reply, Request};
 use crate::token::Token;
-use crate::wire::{receive, send};
+use crate::wire::{MAX_REQUEST, receive, send};
 
-/// The largest first message that a connection may send: a [`Hello`] holds a number and a token.
-/// Larger ones are refused unread, so that who has no token makes the game read little.
-const MAX_HELLO: usize = 1024;
 /// How long a connection has to send its whole first message: one that does not is closed then,
 /// and its thread ends.
 const HELLO_TIMEOUT: Duration = Duration::from_secs(5);
@@ -30,14 +26,17 @@ const MAX_WAITING: usize = 16;
 const ACCEPT_PAUSE: Duration = Duration::from_millis(100);
 
 /// A game's end of its development channel: it listens on the machine's own address, on a port
-/// that the system chooses, accepts the connections that give its token and speak its version of
-/// the protocol, and hands their requests to the game, which answers each
-/// (`docs/adr/0110-how-the-editor-runs-a-games-code.md`).
+/// that the system chooses, accepts the connections whose hello gives its token and speaks its
+/// version of the core, serves them the [`FAMILIES`](crate::FAMILIES) that they speak at the same
+/// versions, and hands their requests to the game, which answers each
+/// (`docs/adr/0110-how-the-editor-runs-a-games-code.md`,
+/// `docs/adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md`).
 ///
-/// A thread accepts the connections, and one more for each connection reads its requests and
-/// writes the answers: threads that wait rather than compute, as the engine allows threads of their
-/// own (`docs/adr/0107-the-execution-model.md`). A connection's requests are answered one at a
-/// time, in their order; several connections are answered side by side.
+/// It carries the session of uwui's core for agents (`uwui_agent::ProgramSession`): a thread
+/// accepts the connections, and one more for each connection reads its requests and writes the
+/// answers, threads that wait rather than compute, as the engine allows threads of their own
+/// (`docs/adr/0107-the-execution-model.md`). A connection's requests are answered one at a time, in
+/// their order; several connections are answered side by side.
 pub struct Listener {
     address: SocketAddr,
     incoming: Receiver<Incoming>,
@@ -50,12 +49,14 @@ pub struct Incoming {
 }
 
 impl Listener {
-    /// Listens on `127.0.0.1`, on a port that the system chooses, for connections that give
-    /// `token`, from tools that speak [`PROTOCOL_VERSION`]; `program` names the game to those
-    /// accepted. A connection sends its [`Hello`], of at most 1 KiB, within 5 seconds, or is
-    /// refused; one refused is told why, and closed. At most 16 connections wait for their hello at
-    /// once: more are closed unread. Later messages hold at most `slime_serialize::MAX_SIZE` bytes;
-    /// a longer one closes its connection, with the reason.
+    /// Listens on `127.0.0.1`, on a port that the system chooses, for connections whose hello
+    /// gives `token` and speaks `uwui_agent::CORE_VERSION`; `program` names the game to those
+    /// welcomed. A connection sends its hello, of at most 4 KiB, within 5 seconds, or is refused;
+    /// one refused is told why, and closed. At most 16 connections wait for their hello at once:
+    /// more are closed unread. Later requests hold at most 1 MiB, and announce no bytes; a line
+    /// that is not a message, or past that, closes its connection, with the reason. The game logs
+    /// the agent of each connection welcomed, and the program that carries it, as they name
+    /// themselves.
     ///
     /// `wake` is called, on the thread of the connection, each time a request is queued: a game
     /// that waits for something to do runs a frame then, which answers it.
@@ -164,7 +165,20 @@ impl Read for Until<'_> {
     }
 }
 
-/// Serves a connection: checks its first message, then hands its requests to the game, through
+/// `error` and its causes, on one line. `slime_app::error_chain` and `slime-mcp`'s `causes` write
+/// the same for their own errors: `slime-channel` lies below the first and links no logging.
+fn why(error: &dyn std::error::Error) -> String {
+    let mut why = error.to_string();
+    let mut cause = error.source();
+    while let Some(error) = cause {
+        why.push_str(": ");
+        why.push_str(&error.to_string());
+        cause = error.source();
+    }
+    why
+}
+
+/// Serves a connection: welcomes or refuses its hello, then hands its requests to the game, through
 /// `requests`, waking it, and writes the game's answers, until the connection or the game ends.
 /// `waits` counts it among the connections that wait for their first message, until it came.
 fn serve(
@@ -175,163 +189,322 @@ fn serve(
     requests: &Sender<Incoming>,
     wake: &(dyn Fn() + Send + Sync),
 ) {
-    let checked = handshake(&mut stream, token);
+    let mut session = ProgramSession::new(program, crate::families());
+    let mut reader = Reader::new(Limits::HELLO);
+    let first = receive(
+        &mut Until {
+            stream: &stream,
+            until: Instant::now() + HELLO_TIMEOUT,
+        },
+        &mut reader,
+    );
     drop(waits);
-    if let Err(reason) = checked {
-        // Escaped: the reason may quote what the connection sent, which must not make lines of
-        // the log.
-        tracing::warn!("a connection to the development channel is refused: {reason:?}");
-        let _ = reply(&mut stream, &Reply::Refused { reason }, &[]);
+    // A tool waits as long as it likes between its requests.
+    if stream.set_read_timeout(None).is_err() {
         return;
     }
-    let welcome = Reply::Welcome {
-        version: PROTOCOL_VERSION,
-        program: program.to_owned(),
+    let welcomed = match first {
+        Ok(frame) => session.receive(frame, |secret| token.matches(secret)),
+        Err(ChannelError::Io(error)) => {
+            close(
+                &mut stream,
+                &session,
+                &format!("the hello could not be read in time: {error}"),
+            );
+            return;
+        }
+        Err(error) => {
+            close(&mut stream, &session, &why(&error));
+            return;
+        }
     };
-    if reply(&mut stream, &welcome, &[]).is_err() {
-        return;
+    match welcomed {
+        Ok(FromTool::Welcomed {
+            agent,
+            client,
+            reply,
+        }) => {
+            // Escaped, as fields: what a connection says it is must not make lines of the log.
+            tracing::info!(
+                agent = ?agent.to_string(),
+                client = ?client.to_string(),
+                "an agent connected to the development channel"
+            );
+            if send(&mut stream, &reply, &[]).is_err() {
+                return;
+            }
+        }
+        Ok(FromTool::Refused { reason, reply }) => {
+            tracing::warn!("a connection to the development channel is refused: {reason:?}");
+            let _ = send(&mut stream, &reply, &[]);
+            return;
+        }
+        _ => return,
     }
-    tracing::info!("a tool connected to the development channel");
+    reader.set_limits(Limits {
+        line: MAX_REQUEST,
+        bytes: 0,
+    });
     loop {
-        let request = match receive(&mut stream, MAX_SIZE, 0) {
-            Ok((document, _)) => decode::<Request>(&document),
+        let frame = match receive(&mut stream, &mut reader) {
+            Ok(frame) => frame,
             // The tool closed the connection, or broke it.
             Err(ChannelError::Io(_)) => return,
-            // A message refused by its length is left unread, so the next one cannot be found: the
-            // connection is closed, with the reason.
+            // A line that is not a message loses the framing: the next one cannot be found, and
+            // the connection is closed, with the reason.
             Err(error) => {
-                let failed = Reply::Failed {
-                    message: error.to_string(),
-                };
-                let _ = reply(&mut stream, &failed, &[]);
+                close(&mut stream, &session, &why(&error));
                 return;
             }
         };
-        let (answer, answered) = mpsc::channel();
-        let (answer, payload) = match request {
-            Ok(request) => {
-                let sent = requests.send(Incoming { request, answer });
-                if sent.is_ok() {
-                    wake();
-                }
-                match sent.ok().and_then(|()| answered.recv().ok()) {
-                    Some(answer) => answer,
-                    None => (
-                        Reply::Failed {
-                            message: "the game has stopped".to_owned(),
-                        },
-                        Vec::new(),
-                    ),
-                }
+        let answer = match session.receive(frame, |_| false) {
+            Ok(FromTool::Request {
+                id,
+                family,
+                name,
+                params,
+                ..
+            }) => {
+                let (outcome, payload) = answered(&family, &name, params, requests, wake);
+                session
+                    .answer(id, outcome, payload.len())
+                    .map(|line| (line, payload))
             }
-            // A hello among them too: the connection is open already.
-            Err(error) => (
-                Reply::Failed {
-                    message: error.to_string(),
-                },
-                Vec::new(),
-            ),
+            Ok(FromTool::Answered { reply }) => Ok((reply, Vec::new())),
+            Ok(_) => continue,
+            Err(_) => return,
         };
-        if reply(&mut stream, &answer, &payload).is_err() {
-            return;
+        match answer {
+            Ok((line, payload)) if send(&mut stream, &line, &payload).is_ok() => {}
+            _ => return,
         }
     }
 }
 
-/// Reads a connection's first message, within [`HELLO_TIMEOUT`], and says why it is refused, if it
-/// is: none in time, not a hello, another version of the protocol, another token.
-fn handshake(stream: &mut TcpStream, token: &Token) -> Result<(), String> {
-    let mut until = Until {
-        stream,
-        until: Instant::now() + HELLO_TIMEOUT,
+/// The game's answer to the request `name` of `family` with `params`: the outcome, and the bytes
+/// that follow it.
+fn answered(
+    family: &str,
+    name: &str,
+    params: Value,
+    requests: &Sender<Incoming>,
+    wake: &(dyn Fn() + Send + Sync),
+) -> (Result<Value, Fault>, Vec<u8>) {
+    let request = match Request::read(family, &format!("{family}/{name}"), params) {
+        Ok(request) => request,
+        Err(fault) => return (Err(fault), Vec::new()),
     };
-    let read = receive(&mut until, MAX_HELLO, 0);
-    // A tool waits as long as it likes between its requests.
-    stream
-        .set_read_timeout(None)
-        .map_err(|error| error.to_string())?;
-    let (document, _) = read.map_err(|error| match error {
-        ChannelError::Io(error) => format!("the hello could not be read in time: {error}"),
-        error => error.to_string(),
-    })?;
-    let Hello {
-        version,
-        token: given,
-    } = decode::<Hello>(&document)
-        .map_err(|error| format!("the first message is not a hello: {error}"))?;
-    if version != PROTOCOL_VERSION {
-        Err(format!(
-            "the tool speaks version {version} of the protocol, the game version \
-             {PROTOCOL_VERSION}"
-        ))
-    } else if !token.matches(&given) {
-        Err("the token is not the game's".to_owned())
-    } else {
-        Ok(())
+    let (answer, answers) = mpsc::channel();
+    let sent = requests.send(Incoming { request, answer });
+    if sent.is_ok() {
+        wake();
+    }
+    let (reply, payload) = match sent.ok().and_then(|()| answers.recv().ok()) {
+        Some(answer) => answer,
+        None => (
+            Reply::Failed {
+                message: "the game has stopped".to_owned(),
+            },
+            Vec::new(),
+        ),
+    };
+    match reply.outcome() {
+        Ok(outcome) => (outcome, payload),
+        Err(error) => (Err(Fault::new(Fault::REFUSED, why(&error))), Vec::new()),
     }
 }
 
-/// Writes `answer`, and `payload` after it.
-fn reply(stream: &mut TcpStream, answer: &Reply, payload: &[u8]) -> Result<(), ChannelError> {
-    send(stream, &encode(answer)?, payload)?;
-    Ok(())
+/// Tells the tool why its connection is closed, as an answer to no request.
+fn close(stream: &mut TcpStream, session: &ProgramSession, reason: &str) {
+    // Escaped: the reason may quote what the connection sent.
+    tracing::warn!("a connection to the development channel is closed: {reason:?}");
+    if let Ok(line) = session.unreadable(reason) {
+        let _ = send(stream, &line, &[]);
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
     use std::sync::atomic::AtomicBool;
 
-    use slime_reflect::Reflect;
+    use uwui_agent::{
+        CORE_VERSION, Family, FromProgram, Hello, Message, Named, ToolSession, encode,
+    };
 
     use super::*;
     use crate::Client;
+    use crate::wire::{MAX_BYTES, MAX_LINE};
 
-    /// Sends `message` on `stream`: the reply.
-    fn send_on<T: Reflect>(stream: &mut TcpStream, message: &T) -> Reply {
-        send(stream, &encode(message).expect("encoded"), &[]).expect("sent");
-        let (document, _) = receive(stream, MAX_SIZE, 0).expect("answered");
-        decode(&document).expect("a reply")
+    fn agent() -> Named {
+        Named::new("a test", "1")
     }
 
-    /// Opens a connection to `address` and sends `message` as its first message: the reply.
-    fn first<T: Reflect>(address: SocketAddr, message: &T) -> Reply {
-        send_on(
-            &mut TcpStream::connect(address).expect("listening"),
-            message,
-        )
+    fn client() -> Named {
+        Named::new("slime-channel's tests", "")
     }
 
-    /// A hello with `token`, of this version of the protocol.
+    /// A hello with `token`, of this version of the core, speaking every family.
     fn hello(token: &Token) -> Hello {
         Hello {
-            version: PROTOCOL_VERSION,
-            token: token.to_string(),
+            core: CORE_VERSION,
+            agent: agent(),
+            client: client(),
+            secret: token.to_string(),
+            families: crate::families(),
         }
     }
 
+    /// Reads the next message on `stream`, as a tool's session does.
+    fn read(stream: &mut TcpStream, session: &mut ToolSession) -> FromProgram {
+        let mut reader = Reader::new(Limits {
+            line: MAX_LINE,
+            bytes: MAX_BYTES,
+        });
+        session
+            .receive(receive(stream, &mut reader).expect("a message"))
+            .expect("a message of the session")
+    }
+
+    /// Opens a connection to `address` and sends `line` as its first message: what answers.
+    fn first(address: SocketAddr, line: &[u8]) -> FromProgram {
+        let mut stream = TcpStream::connect(address).expect("listening");
+        stream.write_all(line).expect("sent");
+        let mut session = ToolSession::new();
+        // The session reads the answer to its own hello, numbered 0.
+        session
+            .hello(&hello(&Token::generate().expect("random bits")))
+            .expect("written");
+        read(&mut stream, &mut session)
+    }
+
     #[test]
-    fn a_connection_without_the_token_or_of_another_version_is_refused_with_a_reason() {
+    fn a_connection_without_the_token_or_of_another_core_is_refused_with_a_reason() {
         let token = Token::generate().expect("random bits");
         let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
         let address = listener.address();
         assert!(address.ip().is_loopback());
-        let refused = |reply: Reply, why: &str| match reply {
-            Reply::Refused { reason } => assert!(reason.contains(why), "{reason}"),
+        let refused = |answer: FromProgram, why: &str| match answer {
+            FromProgram::Refused(reason) => assert!(reason.contains(why), "{reason}"),
             other => panic!("refused, not {other:?}"),
         };
         let other = Token::generate().expect("random bits");
-        refused(first(address, &hello(&other)), "token");
+        let line = ToolSession::new().hello(&hello(&other)).expect("written");
+        refused(first(address, &line), "secret");
         let later = Hello {
-            version: PROTOCOL_VERSION + 1,
+            core: CORE_VERSION + 1,
             ..hello(&token)
         };
-        refused(first(address, &later), "version");
-        refused(first(address, &Request::Pause), "hello");
+        let line = ToolSession::new().hello(&later).expect("written");
+        refused(first(address, &line), "version");
+        let pause = encode(
+            &Message::Request {
+                id: 0,
+                method: "play/pause".to_owned(),
+                params: uwui_agent::Value::Null,
+            },
+            0,
+        )
+        .expect("written");
+        refused(first(address, &pause), "hello");
         assert!(matches!(
-            Client::connect(address, &other),
+            Client::connect(address, &other, &agent(), &client()),
             Err(ChannelError::Refused(_))
         ));
         assert!(listener.next().is_none(), "no request reached the game");
+    }
+
+    #[test]
+    fn a_family_of_another_version_is_refused_alone_and_the_rest_served() {
+        let token = Token::generate().expect("random bits");
+        let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
+        let mut families = crate::families();
+        for family in &mut families {
+            if family.name == "editing" {
+                family.version += 1;
+            }
+        }
+        let (mut client, welcome) =
+            Client::connect_speaking(listener.address(), &token, &agent(), &client(), families)
+                .expect("welcomed");
+        assert_eq!(welcome.refused.len(), 1, "{welcome:?}");
+        assert_eq!(welcome.refused[0].family.name, "editing");
+        assert_eq!(welcome.served.len(), crate::FAMILIES.len() - 1);
+        let game = thread::spawn(move || {
+            loop {
+                if let Some(incoming) = listener.next() {
+                    assert_eq!(incoming.request(), &Request::Pause);
+                    incoming.answer(Reply::Done);
+                    return listener;
+                }
+                thread::yield_now();
+            }
+        });
+        let edit = Request::Edit {
+            edit: crate::Edit::Undo,
+        };
+        assert!(
+            matches!(
+                client.request(&edit),
+                Err(ChannelError::Session(uwui_agent::AgentError::NotServed(family))) if family == "editing"
+            ),
+            "the tool's end sends nothing of a family not served"
+        );
+        let (reply, _) = client.request(&Request::Pause).expect("the rest is served");
+        assert_eq!(reply, Reply::Done);
+        let listener = game.join().expect("answered");
+        assert!(listener.next().is_none(), "the edit never reached the game");
+    }
+
+    #[test]
+    fn the_game_answers_a_family_not_served_or_parameters_that_do_not_read_and_serves_on() {
+        let token = Token::generate().expect("random bits");
+        let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
+        let mut stream = TcpStream::connect(listener.address()).expect("listening");
+        let mut session = ToolSession::new();
+        let mut speaking = hello(&token);
+        speaking.families = vec![Family::new("play", 1)];
+        stream
+            .write_all(&session.hello(&speaking).expect("written"))
+            .expect("sent");
+        assert!(matches!(
+            read(&mut stream, &mut session),
+            FromProgram::Welcomed(_)
+        ));
+        let mut ask = |method: &str, params| {
+            let line = encode(
+                &Message::Request {
+                    id: 41,
+                    method: method.to_owned(),
+                    params,
+                },
+                0,
+            )
+            .expect("written");
+            stream.write_all(&line).expect("sent");
+            let mut reader = Reader::new(Limits {
+                line: MAX_LINE,
+                bytes: 0,
+            });
+            match receive(&mut stream, &mut reader).expect("answered").message {
+                Message::Response {
+                    id: Some(41),
+                    outcome: Err(fault),
+                } => fault.code,
+                other => panic!("a failure, not {other:?}"),
+            }
+        };
+        assert_eq!(
+            ask("editing/undo", uwui_agent::Value::Null),
+            Fault::NOT_SERVED
+        );
+        assert_eq!(
+            ask("play/rewind", uwui_agent::Value::Null),
+            Fault::NO_METHOD
+        );
+        let steps = uwui_agent::write(&"three").expect("written");
+        assert_eq!(ask("play/step", steps), Fault::BAD_PARAMS);
+        assert!(listener.next().is_none(), "none reached the game");
     }
 
     #[test]
@@ -349,18 +522,18 @@ mod tests {
         let mut rest = Vec::new();
         one_more.read_to_end(&mut rest).expect("closed");
         assert!(rest.is_empty());
-        // The others are refused once their time has passed, which lets new connections in.
+        // The others are told why once their time has passed, which lets new connections in.
         for mut stream in silent {
-            let (document, _) = receive(&mut stream, MAX_SIZE, 0).expect("answered");
-            let reply: Reply = decode(&document).expect("a reply");
+            let mut reader = Reader::new(Limits::HELLO);
+            let frame = receive(&mut stream, &mut reader).expect("answered");
             assert!(
-                matches!(&reply, Reply::Refused { reason } if reason.contains("hello")),
-                "{reply:?}"
+                matches!(&frame.message, Message::Response { id: None, outcome: Err(fault) } if fault.message.contains("hello")),
+                "{frame:?}"
             );
         }
         let mut accepted = None;
         for _ in 0..100 {
-            if let Ok(client) = Client::connect(listener.address(), &token) {
+            if let Ok(client) = Client::connect(listener.address(), &token, &agent(), &client()) {
                 accepted = Some(client);
                 break;
             }
@@ -373,7 +546,8 @@ mod tests {
     fn a_request_is_answered_in_well_under_the_delay_of_an_acknowledgement() {
         let token = Token::generate().expect("random bits");
         let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
-        let mut client = Client::connect(listener.address(), &token).expect("accepted");
+        let mut client =
+            Client::connect(listener.address(), &token, &agent(), &client()).expect("accepted");
         let stop = Arc::new(AtomicBool::new(false));
         // The game's side: answers each request at once, with a payload as a capture has.
         let answering = {
@@ -412,7 +586,8 @@ mod tests {
     fn a_request_to_a_game_that_stopped_is_answered_so() {
         let token = Token::generate().expect("random bits");
         let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
-        let mut client = Client::connect(listener.address(), &token).expect("accepted");
+        let mut client =
+            Client::connect(listener.address(), &token, &agent(), &client()).expect("accepted");
         drop(listener);
         let (reply, _) = client.request(&Request::State).expect("answered");
         assert_eq!(
@@ -428,28 +603,118 @@ mod tests {
         let token = Token::generate().expect("random bits");
         let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
         let mut stream = TcpStream::connect(listener.address()).expect("listening");
-        let welcome = send_on(&mut stream, &hello(&token));
-        assert!(matches!(welcome, Reply::Welcome { .. }), "{welcome:?}");
-        let again = send_on(&mut stream, &hello(&token));
-        assert!(matches!(again, Reply::Failed { .. }), "{again:?}");
+        let mut session = ToolSession::new();
+        stream
+            .write_all(&session.hello(&hello(&token)).expect("written"))
+            .expect("sent");
+        assert!(matches!(
+            read(&mut stream, &mut session),
+            FromProgram::Welcomed(_)
+        ));
+        let again = encode(
+            &Message::Request {
+                id: 1,
+                method: uwui_agent::HELLO.to_owned(),
+                params: uwui_agent::write(&hello(&token)).expect("written"),
+            },
+            0,
+        )
+        .expect("written");
+        stream.write_all(&again).expect("sent");
+        let mut reader = Reader::new(Limits {
+            line: MAX_LINE,
+            bytes: 0,
+        });
+        let frame = receive(&mut stream, &mut reader).expect("answered");
+        assert!(
+            matches!(&frame.message, Message::Response { id: Some(1), outcome: Err(fault) } if fault.code == Fault::INVALID),
+            "{frame:?}"
+        );
         assert!(listener.next().is_none());
     }
 
     #[test]
-    fn a_message_too_long_closes_the_connection_with_the_reason() {
+    fn a_request_line_too_long_closes_the_connection_with_the_reason() {
         let token = Token::generate().expect("random bits");
         let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
         let mut stream = TcpStream::connect(listener.address()).expect("listening");
-        let welcome = send_on(&mut stream, &hello(&token));
-        assert!(matches!(welcome, Reply::Welcome { .. }), "{welcome:?}");
-        let length = u32::try_from(MAX_SIZE + 1).expect("past the largest document");
-        std::io::Write::write_all(&mut stream, &length.to_le_bytes()).expect("sent");
-        let (document, _) = receive(&mut stream, MAX_SIZE, 0).expect("answered");
-        let reply: Reply = decode(&document).expect("a reply");
-        assert!(matches!(reply, Reply::Failed { .. }), "{reply:?}");
+        let mut session = ToolSession::new();
+        stream
+            .write_all(&session.hello(&hello(&token)).expect("written"))
+            .expect("sent");
+        assert!(matches!(
+            read(&mut stream, &mut session),
+            FromProgram::Welcomed(_)
+        ));
+        // The game may close before it has read all of it: what is left unsent is no failure.
+        let _ = stream.write_all(&vec![b' '; MAX_REQUEST + 1]);
+        let mut reader = Reader::new(Limits {
+            line: MAX_LINE,
+            bytes: 0,
+        });
+        let frame = receive(&mut stream, &mut reader).expect("answered");
+        assert!(
+            matches!(
+                &frame.message,
+                Message::Response {
+                    id: None,
+                    outcome: Err(_)
+                }
+            ),
+            "{frame:?}"
+        );
         let mut rest = Vec::new();
-        stream.read_to_end(&mut rest).expect("closed");
+        let _ = stream.read_to_end(&mut rest);
         assert!(rest.is_empty(), "nothing follows the reason");
         assert!(listener.next().is_none());
+    }
+
+    #[test]
+    fn a_first_line_past_the_hello_s_limit_is_refused() {
+        let token = Token::generate().expect("random bits");
+        let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
+        let mut stream = TcpStream::connect(listener.address()).expect("listening");
+        // The hello's limit, 4 KiB, which the listener's documentation promises, and one more.
+        let _ = stream.write_all(&[b' '; 4 * 1024 + 1]);
+        let mut reader = Reader::new(Limits {
+            line: MAX_LINE,
+            bytes: 0,
+        });
+        let frame = receive(&mut stream, &mut reader).expect("answered");
+        assert!(
+            matches!(&frame.message, Message::Response { id: None, outcome: Err(fault) } if fault.message.contains("line")),
+            "{frame:?}"
+        );
+    }
+
+    #[test]
+    fn a_request_past_the_hello_s_limit_and_a_long_answer_are_served() {
+        let token = Token::generate().expect("random bits");
+        let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
+        let mut client =
+            Client::connect(listener.address(), &token, &agent(), &client()).expect("accepted");
+        let report = "r".repeat(256 * 1024);
+        let game = {
+            let report = report.clone();
+            thread::spawn(move || {
+                loop {
+                    if let Some(incoming) = listener.next() {
+                        let Request::Apply { commands } = incoming.request() else {
+                            panic!("the commands");
+                        };
+                        assert_eq!(commands[0].len(), 64 * 1024);
+                        incoming.answer(Reply::Report { text: report });
+                        return;
+                    }
+                    thread::yield_now();
+                }
+            })
+        };
+        let request = Request::Apply {
+            commands: vec!["c".repeat(64 * 1024)],
+        };
+        let (reply, _) = client.request(&request).expect("answered");
+        assert_eq!(reply, Reply::Report { text: report });
+        game.join().expect("answered");
     }
 }

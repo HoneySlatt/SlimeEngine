@@ -6,8 +6,26 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+### Added
+
+- `uwui-agent`, uwui's core for agents, under MIT OR Apache-2.0 (ADR-0246): a session without input
+  or output, JSON-RPC 2.0 a message a line, a hello that names the agent, and families of requests
+  each at its version.
+
 ### Changed
 
+- The development channel carries the session of uwui's core for agents, `uwui-agent` (ADR-0246):
+  its messages are JSON-RPC 2.0, a message a line, no longer the engine's binary encoding, and a
+  tool or game of before cannot speak to one of after. `PROTOCOL_VERSION` gives way to the core's
+  version, `uwui_agent::CORE_VERSION`, and to a version for each of the channel's families,
+  `slime_channel::FAMILIES`: `play`, `world`, `editing` and `interface`, each named by its
+  methods, `play/pause`. `Client::connect(address, token, agent, client)` names the agent and the
+  program that carries its requests, `slime_channel::Named`, which the game logs. `Hello`,
+  `Reply::Welcome` and `Reply::Refused` are gone; a request of a family that the game does not
+  serve fails with `ChannelError::Session`, which also holds what the session refuses. The
+  channel's messages derive `serde`'s traits, not `slime_reflect::Reflect`, and `slime-channel`
+  depends on neither `slime-reflect` nor `slime-serialize`, whose `read_binary`, which read the
+  channel's messages, is gone.
 - The interface's canvas moves from the renderer into uwui, on wgpu (ADR-0244):
   `Renderer::draw_canvas`, the canvas's types, `Canvas`, `CanvasBox`, `CanvasGradient`,
   `CanvasShadow`, `CanvasStats`, `ImageQuad`, `ImageId`, `PixelRect`, `Radii` and

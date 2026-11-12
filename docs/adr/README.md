@@ -178,7 +178,7 @@ the ADR linking to it.
 | [0107](0107-the-execution-model.md) | The execution model | Accepted; amends 0009, 0010, 0020, 0072, 0073, 0074, 0079 and 0097; amended by 0118, 0121, 0208, 0217 and 0227 |
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted; amended by 0119, 0124 and 0167 |
 | [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116, 0124, 0134 and 0217 |
-| [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116, 0121, 0122, 0134, 0155 and 0175 |
+| [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116, 0121, 0122, 0134, 0155, 0175 and 0246 |
 | [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115, 0120, 0126, 0127 and 0129 |
 | [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amended by 0125, 0155 and 0217 |
 | [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amended by 0120 and 0128 |
@@ -314,5 +314,5 @@ the ADR linking to it.
 | [0243](0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md) | The canvas reads its items by their index, from a storage buffer or a texture, and draws in passes | Accepted; amends 0137 and 0181; amended by 0245 and 0247 |
 | [0244](0244-the-engine-lends-its-device-through-a-guarded-door.md) | The engine lends its device to uwui through a guarded door, and draws uwui from `slime-app` | Accepted; amends 0016, 0031, 0181 and 0242 |
 | [0245](0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md) | The interface's GPU budget counts what it adds to the frame | Accepted; amends 0114, 0137 and 0243 |
-| [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) | One core for agents cut in five: a session without input or output, in JSON-RPC, versioned by family | Accepted; amends 0122 and 0218 |
+| [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) | One core for agents cut in five: a session without input or output, in JSON-RPC, versioned by family | Accepted; amends 0110, 0122 and 0218 |
 | [0247](0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md) | The canvas tested on OpenGL ES through a feature of `uwui-render` alone | Accepted; amends 0016 and 0243 |

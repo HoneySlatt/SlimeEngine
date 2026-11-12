@@ -1904,7 +1904,8 @@ The first fifth of M6d.9a; in progress, its card in [`PLAN.md`](PLAN.md#m6d9a1a-
 - **Goal.** Several requests at once, and events that the program sends.
 - **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `slime-editor`.
 - **Delivers.** Requests in flight, bounded, answered in an order the protocol states, and
-  cancellable; events to a connection that asked for them, the editor's Play their first reader in
+  cancellable; a cursor to the rest of a list that may be long
+  ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)); events to a connection that asked for them, the editor's Play their first reader in
   place of its question every 200 ms; the interface's family moved into `uwui` behind its feature
   `agents`, with the place of the code that wrote an element's own style
   ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)); the build for shipping checked

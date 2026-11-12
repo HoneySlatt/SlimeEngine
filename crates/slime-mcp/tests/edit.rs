@@ -86,6 +86,16 @@ fn main() {
     let (mut session, mut child, _) = Session::start(&workspace, "edit");
     let (said, _) = session.tool("start_game", json!({ "command": command }));
     assert!(said[0].contains("editor runs"), "{said:?}");
+    // The editor logs the agent that connected, as its MCP client named itself, and the server.
+    let (said, _) = session.tool("read_logs", json!({ "after": 0 }));
+    assert!(
+        said.iter().any(|line| {
+            line.contains("an agent connected to the development channel")
+                && line.contains("agent=\"edit 1\"")
+                && line.contains("client=\"slime-mcp ")
+        }),
+        "{said:?}"
+    );
     // Written back unchanged, the yard is the file written by hand.
     let (said, _) = session.tool("write_level", json!({}));
     assert_eq!(said, ["the level is written, whole"]);

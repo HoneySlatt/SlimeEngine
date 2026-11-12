@@ -3348,3 +3348,23 @@ GitHub's hosted runners, on 2026-11-11, each run green, on `e25112c`:
 
 Every job stays within its limit of 20 minutes; `windows (tests)`, the longest, has 5 min 35 s of
 margin. `windows (tests)` ran both fixtures of styles on Windows, and the tests of transitions.
+
+## M6d.9a1a, the development channel on uwui's core for agents
+
+On 2026-11-12, on an AMD Ryzen 7 5800X, the machine at rest (load 0.2, no `cargo` nor `rustc`
+running), no GPU: a request of the development channel answered at once, on the loopback, with 64
+bytes after its answer, the median of 21, as `slime-channel`'s test
+`a_request_is_answered_in_well_under_the_delay_of_an_acknowledgement` measures it, in a release
+build (`cargo test --release -p slime-channel a_request_is_answered -- --nocapture`). Before is
+`0dbe7e4`, the channel's binary encoding through the engine's reflection, built in a worktree of
+its own; after is M6d.9a1a's commit, JSON-RPC a message a line through `uwui-agent`. Five passes
+each, alternated; the median of the five.
+
+| Measure | Before | After |
+|---|---|---|
+| a request of the development channel, answered at once, median of 21, release | 48.2 µs | 42.8 µs |
+| its five passes | 43.1 to 52.5 µs | 41.4 to 44.8 µs |
+
+M6c.0's 0.14 ms came from the same test, its build not recorded, before later changes of the machine
+and the toolchain: it is not compared here. The answer did not grow with JSON; most of it is the
+loopback and the threads that hand a request to the game and its answer back.

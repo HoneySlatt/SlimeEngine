@@ -7,58 +7,93 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use slime_reflect::Reflect;
-use slime_serialize::MAX_SIZE;
+use uwui_agent::{
+    CORE_VERSION, Family, FromProgram, Hello, Limits, Named, Reader, ToolSession, Welcome,
+};
 
 use crate::error::ChannelError;
-use crate::message::{Hello, Reply, Request, decode, encode};
+use crate::message::{Reply, Request};
 use crate::token::Token;
-use crate::wire::{MAX_PAYLOAD, receive, send};
-use crate::{ANNOUNCEMENT, PROTOCOL_VERSION, TOKEN_ENV_VAR};
+use crate::wire::{MAX_BYTES, MAX_LINE, receive, send};
+use crate::{ANNOUNCEMENT, TOKEN_ENV_VAR};
 
 /// How long a connection waits for the game's answer to a request before it gives up: a game
 /// answers at its next frame, which takes seconds on a CPU's renderer, and a step of many fixed
 /// steps once the frames have run them all.
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(600);
 
-/// A connection to a game's development channel, open once the game accepted its token and its
-/// version of the protocol.
+/// A connection to a game's development channel, open once the game welcomed its hello: it carries
+/// the tool's end of the session of uwui's core for agents (`uwui_agent::ToolSession`).
 pub struct Client {
     stream: TcpStream,
+    reader: Reader,
+    session: ToolSession,
     program: String,
     /// Whether a request failed: the connection is given up then ([`ChannelError::Broken`]).
     broken: bool,
 }
 
 impl Client {
-    /// Connects to the game that listens at `address`, with `token`.
+    /// Connects to the game that listens at `address`, with `token`, for `agent`, whose requests
+    /// `client` carries, an MCP server, as they name themselves: the game logs both. It speaks every family of
+    /// [`FAMILIES`](crate::FAMILIES).
     ///
     /// # Errors
     ///
     /// [`ChannelError::Refused`] with the game's reason when it refuses the token or the version of
-    /// the protocol; [`ChannelError::Io`] when no game listens there or the connection breaks;
-    /// [`ChannelError::Malformed`] when what answers does not speak the protocol.
-    pub fn connect(address: SocketAddr, token: &Token) -> Result<Self, ChannelError> {
+    /// the core; [`ChannelError::Io`] when no game listens there or the connection breaks;
+    /// [`ChannelError::Malformed`] or [`ChannelError::Session`] when what answers does not speak
+    /// the protocol.
+    pub fn connect(
+        address: SocketAddr,
+        token: &Token,
+        agent: &Named,
+        client: &Named,
+    ) -> Result<Self, ChannelError> {
+        Self::connect_speaking(address, token, agent, client, crate::families())
+            .map(|(connection, _)| connection)
+    }
+
+    /// Connects as [`Client::connect`] does, speaking `families`: the client, and the game's
+    /// welcome, with the families that it serves and those that it refuses.
+    pub(crate) fn connect_speaking(
+        address: SocketAddr,
+        token: &Token,
+        agent: &Named,
+        client: &Named,
+        families: Vec<Family>,
+    ) -> Result<(Self, Welcome), ChannelError> {
         let stream = TcpStream::connect(address)?;
         // Each message goes out at once, rather than waiting for the acknowledgement of the last.
         stream.set_nodelay(true)?;
         stream.set_read_timeout(Some(ANSWER_TIMEOUT))?;
-        let mut client = Self {
+        let mut connection = Self {
             stream,
+            reader: Reader::new(Limits {
+                line: MAX_LINE,
+                bytes: MAX_BYTES,
+            }),
+            session: ToolSession::new(),
             program: String::new(),
             broken: false,
         };
-        let hello = Hello {
-            version: PROTOCOL_VERSION,
-            token: token.to_string(),
-        };
-        match client.exchange(&hello)? {
-            (Reply::Welcome { program, .. }, _) => {
-                client.program = program;
-                Ok(client)
+        let hello = connection.session.hello(&Hello {
+            core: CORE_VERSION,
+            agent: agent.clone(),
+            client: client.clone(),
+            secret: token.to_string(),
+            families,
+        })?;
+        send(&mut connection.stream, &hello, &[])?;
+        let frame = receive(&mut connection.stream, &mut connection.reader)?;
+        match connection.session.receive(frame)? {
+            FromProgram::Welcomed(welcome) => {
+                connection.program.clone_from(&welcome.program);
+                Ok((connection, welcome))
             }
-            (Reply::Refused { reason }, _) => Err(ChannelError::Refused(reason)),
-            (other, _) => Err(ChannelError::Malformed(format!(
+            FromProgram::Refused(reason) => Err(ChannelError::Refused(reason)),
+            FromProgram::Unreadable(fault) => Err(ChannelError::Refused(fault.message)),
+            other => Err(ChannelError::Malformed(format!(
                 "the game answered {other:?} to a hello"
             ))),
         }
@@ -70,30 +105,53 @@ impl Client {
     }
 
     /// Sends `request`, and waits for the game's answer: the reply, and the bytes that follow it,
-    /// the pixels of an image. Messages hold at most `slime_serialize::MAX_SIZE` bytes.
+    /// the pixels of an image. A request holds at most 1 MiB, which the game refuses past it, closing
+    /// the connection; an answer at most 16 MiB, and its bytes 1 GiB.
     ///
     /// # Errors
     ///
-    /// [`ChannelError::Io`] when the connection breaks, or the game does not answer within ten
-    /// minutes; [`ChannelError::Malformed`] when its answer is not a reply of the protocol. After
-    /// such an error, the game's answer may still come, and would be read as the answer to the next
-    /// request: every later request fails with [`ChannelError::Broken`], and a new connection is
-    /// needed. A request that the game refuses is answered [`Reply::Failed`], which is no error.
+    /// [`ChannelError::Session`] when the game does not serve the request's family on this
+    /// connection, which sends nothing and leaves the connection usable. [`ChannelError::Io`] when
+    /// the connection breaks, or the game does not answer within ten minutes;
+    /// [`ChannelError::Malformed`] or [`ChannelError::Session`] when its answer is not a reply of
+    /// the protocol. After such an error, the game's answer may still come, and would be read as
+    /// the answer to the next request: every later request fails with [`ChannelError::Broken`],
+    /// and a new connection is needed. A request that the game refuses is answered
+    /// [`Reply::Failed`], which is no error.
     pub fn request(&mut self, request: &Request) -> Result<(Reply, Vec<u8>), ChannelError> {
-        self.exchange(request)
-    }
-
-    /// Sends `message`, and waits for the game's answer.
-    fn exchange<T: Reflect>(&mut self, message: &T) -> Result<(Reply, Vec<u8>), ChannelError> {
         if self.broken {
             return Err(ChannelError::Broken);
         }
-        let answer = send(&mut self.stream, &encode(message)?, &[])
-            .map_err(ChannelError::from)
-            .and_then(|()| receive(&mut self.stream, MAX_SIZE, MAX_PAYLOAD))
-            .and_then(|(document, payload)| Ok((decode(&document)?, payload)));
+        let (method, params) = request.call()?;
+        let (id, line) = self.session.request(&method, params)?;
+        let answer = self.exchange(id, &line);
         self.broken = answer.is_err();
         answer
+    }
+
+    /// Sends a request's `line`, and waits for the answer numbered `id`.
+    fn exchange(&mut self, id: u64, line: &[u8]) -> Result<(Reply, Vec<u8>), ChannelError> {
+        send(&mut self.stream, line, &[])?;
+        loop {
+            let frame = receive(&mut self.stream, &mut self.reader)?;
+            match self.session.receive(frame)? {
+                FromProgram::Response {
+                    id: answered,
+                    outcome,
+                    bytes,
+                } if answered == id => return Ok((Reply::read(outcome)?, bytes)),
+                // The channel's families send no event yet.
+                FromProgram::Event { .. } => {}
+                FromProgram::Unreadable(fault) => {
+                    return Err(ChannelError::Malformed(fault.message));
+                }
+                other => {
+                    return Err(ChannelError::Malformed(format!(
+                        "the game answered {other:?}"
+                    )));
+                }
+            }
+        }
     }
 }
 

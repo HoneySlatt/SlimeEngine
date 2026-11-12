@@ -13,10 +13,15 @@ use std::thread;
 use std::time::Duration;
 
 use slime_app::{AppConfig, AppError, Simulation, SimulationContext, run};
-use slime_channel::{ANNOUNCEMENT, Client, Reply, Request, TOKEN_ENV_VAR, Token, launch};
+use slime_channel::{ANNOUNCEMENT, Client, Named, Reply, Request, TOKEN_ENV_VAR, Token, launch};
 use slime_color::LinearColor;
 use slime_platform::KeyCode;
 use slime_world::{Light, Transform, World};
+
+/// The tests, as they name themselves to the game.
+fn tester() -> Named {
+    Named::new("slime-app's tests of the channel", "")
+}
 
 const CHILD_ENV: &str = "SLIME_APP_TEST_CHILD";
 
@@ -148,10 +153,11 @@ fn a_tool_with_the_token_drives_a_headless_run() {
     assert!(launched.address.ip().is_loopback());
     let other = Token::generate().expect("random bits");
     assert!(matches!(
-        Client::connect(launched.address, &other),
+        Client::connect(launched.address, &other, &tester(), &tester()),
         Err(slime_channel::ChannelError::Refused(_))
     ));
-    let mut client = Client::connect(launched.address, &launched.token).expect("accepted");
+    let mut client =
+        Client::connect(launched.address, &launched.token, &tester(), &tester()).expect("accepted");
 
     assert_eq!(ask(&mut client, Request::Pause), Reply::Done);
     let Reply::State { state } = ask(&mut client, Request::State) else {
@@ -321,7 +327,8 @@ fn a_tool_with_the_token_drives_a_headless_run() {
         let reply = ask(&mut client, Request::Step { steps: u32::MAX });
         (client, reply)
     });
-    let mut other = Client::connect(launched.address, &launched.token).expect("accepted");
+    let mut other =
+        Client::connect(launched.address, &launched.token, &tester(), &tester()).expect("accepted");
     thread::sleep(Duration::from_millis(50));
     assert_eq!(ask(&mut other, Request::Resume), Reply::Done);
     let (mut client, dropped) = stepping.join().expect("answered");
@@ -386,7 +393,9 @@ fn a_tool_s_edits_wait_while_the_simulation_says_so() {
         Duration::from_secs(60),
     )
     .expect("the run listens");
-    let connect = || Client::connect(launched.address, &launched.token).expect("accepted");
+    let connect = || {
+        Client::connect(launched.address, &launched.token, &tester(), &tester()).expect("accepted")
+    };
     let mut reader = connect();
     let step = |label: &str| Request::Edit {
         edit: slime_channel::Edit::Step {

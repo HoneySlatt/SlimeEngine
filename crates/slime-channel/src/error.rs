@@ -7,13 +7,18 @@ pub enum ChannelError {
     /// Reading from or writing to the connection, or starting the game, failed.
     #[error("the development channel failed")]
     Io(#[from] std::io::Error),
-    /// The game refused the connection: another token, or another version of the protocol.
+    /// The game refused the connection: another token, or another version of the core.
     #[error("the game refused the connection: {0}")]
     Refused(String),
-    /// A message that the protocol does not hold: not in the binary encoding, not a message of the
-    /// protocol, larger than the protocol allows, or cut short.
+    /// An answer that the protocol does not hold: a reply of the channel that does not read, an
+    /// event or answer where none is awaited, or the game's word that it could not read what the
+    /// tool sent, after which it closes the connection.
     #[error("not a message of the development channel: {0}")]
     Malformed(String),
+    /// The core's session refused what came, or what was to be sent: a line that is not a message,
+    /// larger than the connection allows, or a request of a family that the game does not serve.
+    #[error("the session of the development channel failed")]
+    Session(#[from] uwui_agent::AgentError),
     /// A token that is not 32 hexadecimal digits.
     #[error("a token of the development channel is 32 hexadecimal digits")]
     MalformedToken,

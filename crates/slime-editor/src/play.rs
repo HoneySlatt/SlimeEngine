@@ -17,7 +17,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime};
 
 use slime_app::Waker;
-use slime_channel::{Client, Reply, Request, launch_unless};
+use slime_channel::{Client, Named, Reply, Request, launch_unless};
 
 use crate::program::{Build, Played};
 
@@ -581,7 +581,9 @@ fn start(
     }
     let (address, token) = (launched.address, launched.token.clone());
     *process.lock().unwrap_or_else(PoisonError::into_inner) = Some(launched.child);
-    let client = Client::connect(address, &token).map_err(|error| {
+    // The editor drives the game that it plays as its own agent.
+    let editor = Named::new(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+    let client = Client::connect(address, &token, &editor, &editor).map_err(|error| {
         // A game that crashed as it started, or one that does not answer.
         end(process, "ended", Duration::from_secs(1), || Event::Ended {
             how: format!("the game does not answer: {error}"),

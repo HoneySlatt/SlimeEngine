@@ -19,11 +19,13 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use base64::Engine as _;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerConfig};
+use rmcp::service::RequestContext;
 use rmcp::{
-    ErrorData as McpError, ServerHandler, ServiceExt, schemars, tool, tool_handler, tool_router,
+    ErrorData as McpError, RoleServer, ServerHandler, ServiceExt, schemars, tool, tool_handler,
+    tool_router,
 };
 use serde::Deserialize;
-use slime_channel::{Client, Edit, InterfaceAction, Reply, Request, Token, launch};
+use slime_channel::{Client, Edit, InterfaceAction, Named, Reply, Request, Token, launch};
 
 /// How long a game is given to say where it listens, by default: `cargo run` may build it first.
 const START_TIMEOUT: Duration = Duration::from_secs(600);
@@ -69,11 +71,33 @@ struct Game {
     /// Where it listens, and its token: a new connection replaces one that broke.
     address: SocketAddr,
     token: Token,
+    /// The agent that started it, as its MCP client names itself, which each connection names to
+    /// the game.
+    agent: Named,
     /// The file that holds the game's standard error, its log.
     log: PathBuf,
     /// A connection to the game that the program, an editor, plays, while the game's tools drive
     /// it (`drive_played_game`, `docs/adr/0165-editing-while-playing.md`).
     played: Option<Client>,
+}
+
+/// The server, as it names itself to the games that it connects to.
+fn server() -> Named {
+    Named::new(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
+}
+
+/// The most characters of the agent's name and of its version that the server names to a game: a
+/// game refuses a hello past 4 KiB, and a client's name is what it says it is.
+const MAX_NAME: usize = 200;
+
+/// The agent that sent a request, as its MCP client names itself, each part cut to [`MAX_NAME`]
+/// characters; unnamed when it gives no name.
+fn agent_of(context: &RequestContext<RoleServer>) -> Named {
+    let cut = |text: String| text.chars().take(MAX_NAME).collect::<String>();
+    context.client_info().map_or_else(
+        || Named::new("an unnamed agent", ""),
+        |client| Named::new(cut(client.name), cut(client.version)),
+    )
 }
 
 /// The server: at most one game at a time.
@@ -464,7 +488,7 @@ impl Server {
                 *slot = None;
                 return Err(format!("{error}\n{ended}"));
             }
-            Err(match Client::connect(running.address, &running.token) {
+            Err(match Client::connect(running.address, &running.token, &running.agent, &server()) {
                 Ok(client) => {
                     running.client = client;
                     format!(
@@ -687,9 +711,6 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
         Reply::Played { address, .. } => text(format!(
             "the editor plays a game, which listens at {address}"
         )),
-        Reply::Welcome { .. } | Reply::Refused { .. } => {
-            failure("the game answered as to a connection's start")
-        }
     }
 }
 
@@ -708,8 +729,10 @@ impl Server {
             command,
             timeout_seconds,
         }): Parameters<StartGame>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let game = Arc::clone(&self.game);
+        let agent = agent_of(&context);
         let started = tokio::task::spawn_blocking(move || -> Result<String, String> {
             let mut game = game.lock().unwrap_or_else(PoisonError::into_inner);
             // A game that ended since is forgotten.
@@ -736,7 +759,8 @@ impl Server {
                 timeout,
             )
             .map_err(|error| format!("{}\n{}", causes(&error), tail(&log)))?;
-            let client = match Client::connect(launched.address, &launched.token) {
+            let client = match Client::connect(launched.address, &launched.token, &agent, &server())
+            {
                 Ok(client) => client,
                 Err(error) => {
                     let _ = launched.child.kill();
@@ -756,6 +780,7 @@ impl Server {
                 client,
                 address: launched.address,
                 token: launched.token,
+                agent,
                 log,
                 played: None,
             });
@@ -1196,7 +1221,8 @@ impl Server {
             let token: Token = token
                 .parse()
                 .map_err(|error| format!("the editor gave no token: {error}"))?;
-            let client = Client::connect(address, &token).map_err(|error| causes(&error))?;
+            let client = Client::connect(address, &token, &running.agent, &server())
+                .map_err(|error| causes(&error))?;
             running.played = Some(client);
             Ok(format!(
                 "the game's tools drive the game that the editor plays, which listens at {address}"

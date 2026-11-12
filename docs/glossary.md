@@ -180,6 +180,11 @@ by the engine through `slime_app::InterfaceRenderer`). Into an sRGB target, its 
 engine's UI framework draws its *display list* through it, glyphs as images of the *glyph atlas*
 ([ADR-0132](adr/0132-the-engines-ui-framework.md)).
 
+**Carrier (agents).** The code that owns a connection of uwui's *core for agents*: it gives the
+core's session the bytes that came, and sends the bytes that the session gives back. The engine's,
+on the desktop, is `slime-channel`'s listener and client, on the machine's own address with a
+*token* ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)).
+
 **Cascade (cascaded shadow maps).** One of the *shadow maps* that together hold the shadows of a
 directional light: what the camera sees up to the light's shadow distance is split along its axis
 into slices, and each slice gets its own map, as many texels across for less ground near the camera,
@@ -260,6 +265,12 @@ in a cache under `target/` ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 otherwise compute as it loads them (mipmaps, tangents) and compressing textures. The engine's
 program `slime-cook` cooks, before the game runs ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
+**Core for agents.** uwui's session through which an agent, or any tool, reads and drives a
+program: messages in JSON-RPC 2.0, a first message that names the agent, and *families* of
+requests, each at its version; it holds no connection, which its *carrier* owns. The engine's
+*development channel* speaks it (`uwui-agent`, [ADR-0218](adr/0218-one-core-for-agents-in-uwui.md),
+[ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)).
+
 **Counter (benchmark).** A figure that a benchmark's scenario gives the same on every machine and
 at every run: draw calls, items, elements, elements visited, the bytes of a save, allocations. CI
 checks that each equals the one that `benches/counters.txt` records
@@ -315,8 +326,9 @@ a *shadow map* is read. Depths are reversed (*reversed depth*).
 map* is drawn.
 
 **Development channel.** The link between a running game and the tools that drive it: the *MCP*
-server, tests, and from Stage 6c the editor. A game started with a *token* in its environment
-listens on the machine's own address; through it, a tool pauses, steps and reads the game, changes
+server, tests, and from Stage 6c the editor. It speaks uwui's *core for agents*, the engine's
+*families* on it. A game started with a *token* in its environment listens on the machine's own
+address; through it, a tool pauses, steps and reads the game, changes
 its world, plays it with keys, captures its image or one of its views, reads and changes its views'
 settings, reads its *reports*, picks the entity at a pixel, reads and uses its interface element by
 element ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), and saves and loads its run
@@ -462,6 +474,11 @@ stage ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-it
 
 **Face (font).** One font of a font file, at one point of its variations, a variable font's
 weight among them: what draws a run of *glyphs* ([ADR-0136](adr/0136-the-interfaces-text.md)).
+
+**Family (agents).** A named group of requests and events of the *core for agents*, `play` for
+`play/pause`, versioned on its own: a tool and a program that speak another version of one refuse
+that family alone. The engine's are `play`, `world`, `editing` and `interface` (`slime-channel`,
+[ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)).
 
 **Field (interface).** An element that the user types in: of text, one line or several, or of a
 number, which a drag changes too. It keeps what the user types, its selection and its undo, and the

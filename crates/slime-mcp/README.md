@@ -22,7 +22,8 @@ in scripted input yet: an interface is used through its elements' actions.
 - Speaks MCP on its standard input and output, as agents start their servers: it opens no port of
   its own.
 - Starts the game that an agent names, with a new token in its environment, and connects to the
-  development channel that the game opens; the game's standard error, its log, goes to a file of
+  development channel that the game opens, naming to the game the agent, as its MCP client names
+  itself, and the server, which the game logs; the game's standard error, its log, goes to a file of
   the system's temporary directory, which `start_game` names and which stays there once the game
   ended. A game still running when the agent goes is stopped. After a request that failed, the
   server opens a new connection to the game, so that a late answer is not read as the next one's;

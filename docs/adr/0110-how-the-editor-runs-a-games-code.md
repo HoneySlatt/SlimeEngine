@@ -9,7 +9,9 @@
   [0134](0134-the-editors-core.md) (the editor is a program of the engine's application, and a
   game's editor package comes with Stage 6b), [0155](0155-the-editors-design.md) (Play hands the
   game private copies of the scenes not written, and the editor's steps while it runs)
-  and [0175](0175-the-quality-bar.md) (Play's budget kept in the roadmap's quality bar)
+  and [0175](0175-the-quality-bar.md) (Play's budget kept in the roadmap's quality bar), then by
+  [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) (the messages
+  in JSON-RPC, not in the engine's binary encoding)
 - Date: 2026-10-20
 
 ## Context

@@ -1,79 +1,69 @@
 //! The messages of the protocol, and their encoding.
 
-use std::fmt;
-use std::sync::OnceLock;
-
-use slime_reflect::{Reflect, Registry};
-use slime_serialize::Mode;
+use serde::{Deserialize, Serialize};
+use uwui_agent::{Fault, Value};
 
 use crate::error::ChannelError;
 
-/// The first message of a connection, and only that one: the version of the protocol that the tool
-/// speaks, and the token that the game was started with. Its `Debug` form hides the token.
-#[derive(Clone, PartialEq, Reflect)]
-#[reflect(name = "ChannelHello")]
-pub struct Hello {
-    /// [`PROTOCOL_VERSION`](crate::PROTOCOL_VERSION) of the tool.
-    pub version: u32,
-    /// The token, as its text.
-    pub token: String,
-}
-
-impl fmt::Debug for Hello {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Hello")
-            .field("version", &self.version)
-            .field("token", &"hidden")
-            .finish()
-    }
-}
-
-/// What a tool asks a game once its [`Hello`] is accepted, one message at a time, each answered by
-/// a [`Reply`].
+/// What a tool asks a game once its hello is welcomed, each answered by a [`Reply`]: requests of
+/// the families of play, the world, editing and the interface ([`FAMILIES`](crate::FAMILIES)), each
+/// named on the wire by its method, `play/pause`. Its `serde` form writes and reads every request
+/// but [`Request::Edit`], which crosses as the [`Edit`] that it holds, `editing/undo`: serializing
+/// it alone fails, and reading never gives it.
 ///
 /// Entities are named by their persistent identities, `zone/door`; components by their types'
 /// names, `Transform`; parts of components by property paths, `translation.x`; values, given and
 /// answered, as text in the engine's notation, `12.5`, `{ x = 1.0, y = 0.0, z = 2.0 }`
 /// (`slime_serialize::format`), which the game reads with the types it knows. Keys are named by
 /// their position on the keyboard, as `slime_platform::KeyCode` names them: `KeyW`, `Escape`.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "ChannelRequest")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "method", content = "params")]
 pub enum Request {
     /// The game's state: [`Reply::State`].
+    #[serde(rename = "play/state")]
     State,
     /// Pauses game time.
+    #[serde(rename = "play/pause")]
     Pause,
     /// Lets game time run again, which drops the steps asked for and not run yet.
+    #[serde(rename = "play/resume")]
     Resume,
     /// Runs that many fixed steps of game time, while it is paused, over as many frames as they take:
     /// answered once they have all run.
+    #[serde(rename = "play/step")]
     Step {
         /// How many.
         steps: u32,
     },
     /// Sets the speed of game time, a finite number above zero.
+    #[serde(rename = "play/speed")]
     Speed {
         /// The speed.
         speed: f64,
     },
     /// Asks the game to stop, as its window closed would.
+    #[serde(rename = "play/stop")]
     Stop,
     /// Minimizes the game's window, as the user would, and answers at once: the compositor hides
     /// it. Only the user shows it again: on Wayland, a program cannot. It fails in a run without a
     /// window.
+    #[serde(rename = "play/minimize")]
     Minimize,
     /// The entities whose name or persistent identity holds `filter`, whatever its case:
     /// [`Reply::Entities`], at most [`MAX_ENTITIES`](crate::MAX_ENTITIES) of them.
+    #[serde(rename = "world/entities")]
     Entities {
         /// What to look for; empty for every entity.
         filter: String,
     },
     /// An entity and its components: [`Reply::Entity`].
+    #[serde(rename = "world/entity")]
     Entity {
         /// Its persistent identity.
         entity: String,
     },
     /// Sets a part of a component, as the world's `Command::SetProperty` does.
+    #[serde(rename = "world/set_property")]
     SetProperty {
         /// The entity, by its persistent identity.
         entity: String,
@@ -85,11 +75,13 @@ pub enum Request {
         value: String,
     },
     /// Puts a key down, as the player would, from the next frame on.
+    #[serde(rename = "play/press")]
     Press {
         /// The key, by its position.
         key: String,
     },
     /// Lets a key go.
+    #[serde(rename = "play/release")]
     Release {
         /// The key, by its position.
         key: String,
@@ -98,6 +90,7 @@ pub enum Request {
     /// [`Reply::Image`], once the next frame is drawn. It fails in a run without a window, where
     /// the window's system does not let its images be copied, and for a view that the frame does
     /// not draw.
+    #[serde(rename = "play/capture")]
     Capture {
         /// The view, by the name that [`GameState::views`] gives; empty for the whole image.
         view: String,
@@ -108,6 +101,7 @@ pub enum Request {
     /// view's size has held still, as its renderer makes its targets. It fails for a view that the
     /// last frame did not draw, or whose settings the game does not give, and for a value that its
     /// type, or the range of its field, refuses.
+    #[serde(rename = "play/set_view_settings")]
     SetViewSettings {
         /// The view, by the name that [`GameState::views`] gives.
         view: String,
@@ -121,6 +115,7 @@ pub enum Request {
     /// a run without a window, for a view that the frame does not draw, for a pixel outside the
     /// image or the view, and in a game that does not pick, or that gives no answer, as one whose
     /// GPU device was lost.
+    #[serde(rename = "play/pick")]
     Pick {
         /// The view, by the name that [`GameState::views`] gives; empty for the whole image, where
         /// the pixel is the last view's that the frame drew there.
@@ -132,18 +127,21 @@ pub enum Request {
     },
     /// One of the game's reports, by the name that [`GameState::reports`] gives: [`Reply::Report`].
     /// It fails for a name that the game gives no report under.
+    #[serde(rename = "play/report")]
     Report {
         /// The report's name, `assets`.
         name: String,
     },
     /// The lines of the game's log after the line numbered `after`: [`Reply::Logs`], at most
     /// [`MAX_LOG_LINES`](crate::MAX_LOG_LINES) of them.
+    #[serde(rename = "play/logs")]
     Logs {
         /// The number of the last line already read; 0 for the oldest that the game keeps.
         after: u64,
     },
     /// Saves the run to a file, as the game saves its own runs. It fails for a game that does not
     /// save its runs.
+    #[serde(rename = "play/save")]
     Save {
         /// The file, a path on the game's machine.
         file: String,
@@ -151,6 +149,7 @@ pub enum Request {
     /// Loads the run of the save in a file in place of the run, as the game resumes its own saves.
     /// It fails for a game that does not save its runs, and for a save that it does not resume,
     /// which leaves the run as it is.
+    #[serde(rename = "play/load")]
     Load {
         /// The file, a path on the game's machine.
         file: String,
@@ -160,12 +159,14 @@ pub enum Request {
     /// order: what an editor sends the game that it plays (`docs/adr/0165-editing-while-playing.md`).
     /// It fails at the first command that the game refuses, saying which and why, those before it
     /// applied and those after it not. An editor makes each command a step of its own.
+    #[serde(rename = "world/apply")]
     Apply {
         /// The commands, as text.
         commands: Vec<String>,
     },
     /// Asks an editor, a program that edits a level rather than plays it
     /// (`docs/adr/0135-the-editors-program.md`). It fails in a game, which is not an editor.
+    #[serde(skip)]
     Edit {
         /// What it asks.
         edit: Edit,
@@ -174,6 +175,7 @@ pub enum Request {
     /// (`docs/adr/0143-what-agents-see-of-the-interface.md`), in the order of its tree:
     /// [`Reply::Elements`], at most [`MAX_ELEMENTS`](crate::MAX_ELEMENTS) of them. It fails in a
     /// game that has no interface, as one that runs without a window.
+    #[serde(rename = "interface/elements")]
     Elements {
         /// The role of those wanted, `Button`, whatever its case; empty for any.
         role: String,
@@ -183,6 +185,7 @@ pub enum Request {
     /// The element of the game's interface that the pointer would reach at a pixel of the game's
     /// image, or the nearest above it that means something: [`Reply::Elements`], one or none. It
     /// fails in a game that has no interface, as one that runs without a window.
+    #[serde(rename = "interface/element_at")]
     ElementAt {
         /// The pixel's column, from the left of the image.
         x: u32,
@@ -194,6 +197,7 @@ pub enum Request {
     /// that has no interface, as one that runs without a window, for a path that names no element,
     /// for an action that the element does not take now, as a disabled button's press, and for an
     /// offset that is not finite.
+    #[serde(rename = "interface/act")]
     Act {
         /// The element, by its path, `main/bar/open`; empty for an action of no element, a
         /// navigation intent or a command.
@@ -204,6 +208,7 @@ pub enum Request {
     /// The part of the game's image where an element of its interface shows: [`Reply::Image`],
     /// once the next frame is drawn. It fails in a run without a window, in a game that has no
     /// interface, and for an element that does not show.
+    #[serde(rename = "interface/capture_element")]
     CaptureElement {
         /// The element, by its path.
         element: String,
@@ -211,8 +216,8 @@ pub enum Request {
 }
 
 /// What a tool does in a game's interface ([`Request::Act`]), as a person's input would.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "ChannelInterfaceAction")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum InterfaceAction {
     /// Presses a button, as a click does.
     Press,
@@ -272,11 +277,12 @@ pub enum InterfaceAction {
 /// What a tool asks an editor ([`Request::Edit`]). Entities are named by their persistent
 /// identities; commands are given as text, each a document of the engine's notation that
 /// `slime_world::Command::write` writes.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "ChannelEdit")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "method", content = "params")]
 pub enum Edit {
     /// Makes a step of `commands`, whole or not at all, named `label`, and selects `selection`
     /// after it, if it is given.
+    #[serde(rename = "editing/step")]
     Step {
         /// The step's name, which the history shows.
         label: String,
@@ -286,29 +292,38 @@ pub enum Edit {
         selection: Option<Vec<String>>,
     },
     /// Undoes the last step done. It fails when no step is done.
+    #[serde(rename = "editing/undo")]
     Undo,
     /// Does again the last step undone. It fails when no step is undone.
+    #[serde(rename = "editing/redo")]
     Redo,
     /// The editor's level, history and selection: [`Reply::History`].
+    #[serde(rename = "editing/history")]
     History,
     /// The text of the editor's journal: [`Reply::Journal`].
+    #[serde(rename = "editing/journal")]
     Journal,
     /// Selects entities, which is not a step.
+    #[serde(rename = "editing/select")]
     Select {
         /// The entities selected.
         selection: Vec<String>,
     },
     /// Writes the level back to its file: [`Reply::Written`].
+    #[serde(rename = "editing/write")]
     Write,
     /// The editor's operations, every action that its menus, its shortcuts, its palette and agents
     /// run by name: [`Reply::Operations`].
+    #[serde(rename = "editing/operations")]
     Operations,
     /// Where the game that the editor plays listens, and its token, which a tool connects to it
     /// with: [`Reply::Played`]. It fails while no game plays, or one starts.
+    #[serde(rename = "editing/played")]
     Played,
     /// Runs the operation `name` with `arguments`, each given as text, in the order of the
     /// operation's parameters: the operation's reply, [`Reply::Done`] or what it gives, as
     /// [`Reply::Written`] for writing the level.
+    #[serde(rename = "editing/run")]
     Run {
         /// The operation's name: `edit.undo`.
         name: String,
@@ -318,24 +333,13 @@ pub enum Edit {
 }
 
 /// What a game answers to a [`Request`].
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "ChannelReply")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "reply", rename_all = "snake_case")]
 pub enum Reply {
-    /// The connection is open: the game's protocol, and the name of its program.
-    Welcome {
-        /// [`PROTOCOL_VERSION`](crate::PROTOCOL_VERSION) of the game.
-        version: u32,
-        /// The game's program.
-        program: String,
-    },
-    /// The connection is refused, and closed: why.
-    Refused {
-        /// Why.
-        reason: String,
-    },
     /// The request is done.
     Done,
-    /// The request failed: why. The connection stays open.
+    /// The request failed: why. The connection stays open. On the wire, an error of the core's,
+    /// [`Fault::REFUSED`] when the game refused it; a tool reads every error of the core's so.
     Failed {
         /// Why.
         message: String,
@@ -427,8 +431,7 @@ pub enum Reply {
 }
 
 /// An operation of an editor, as [`Reply::Operations`] lists it.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "ChannelOperation")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OperationSummary {
     /// The name that runs it: `file.save`.
     pub name: String,
@@ -445,8 +448,7 @@ pub struct OperationSummary {
 }
 
 /// An editor's level, history and selection, as [`Reply::History`] gives them.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "ChannelEditorHistory")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EditorHistory {
     /// The level's file, a path on the editor's machine.
     pub level: String,
@@ -467,8 +469,7 @@ pub struct EditorHistory {
 }
 
 /// A game's state, as a frame's start finds it.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "ChannelGameState")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GameState {
     /// The frames run so far.
     pub frame: u64,
@@ -502,8 +503,7 @@ pub struct GameState {
 }
 
 /// A view that a frame drew, as a game's state lists it.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "ChannelView")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ViewSummary {
     /// Its name, `map`.
     pub name: String,
@@ -514,8 +514,7 @@ pub struct ViewSummary {
 }
 
 /// An entity, as a list of entities names it.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "ChannelEntity")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EntitySummary {
     /// Its persistent identity; empty for an entity that has none.
     pub identity: String,
@@ -524,8 +523,7 @@ pub struct EntitySummary {
 }
 
 /// An element of a game's interface, as a list of elements names it.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "ChannelElement")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ElementSummary {
     /// Its path, which names it from one frame to the next: `main/bar/open`.
     pub path: String,
@@ -552,8 +550,7 @@ pub struct ElementSummary {
 }
 
 /// A component of an entity, as text.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "ChannelComponent")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ComponentText {
     /// Its type's name.
     pub name: String,
@@ -562,8 +559,7 @@ pub struct ComponentText {
 }
 
 /// A line of a game's log.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "ChannelLogLine")]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LogLine {
     /// Its number, from 1 at the game's start, one more for each line.
     pub number: u64,
@@ -571,32 +567,48 @@ pub struct LogLine {
     pub text: String,
 }
 
-/// The registry of the protocol's messages.
-fn registry() -> &'static Registry {
-    static REGISTRY: OnceLock<Registry> = OnceLock::new();
-    REGISTRY.get_or_init(|| {
-        let mut registry = Registry::new();
-        registry.register::<Hello>();
-        registry.register::<Request>();
-        registry.register::<Reply>();
-        registry
-    })
+impl Request {
+    /// The method and the parameters that carry the request.
+    pub(crate) fn call(&self) -> Result<(String, Value), ChannelError> {
+        Ok(match self {
+            Self::Edit { edit } => uwui_agent::call(edit)?,
+            request => uwui_agent::call(request)?,
+        })
+    }
+
+    /// The request that `method` of `family`, `play`, and `params` make, or why none.
+    pub(crate) fn read(family: &str, method: &str, params: Value) -> Result<Self, Fault> {
+        if family == EDITING {
+            uwui_agent::read_call(method, params).map(|edit| Self::Edit { edit })
+        } else {
+            uwui_agent::read_call(method, params)
+        }
+    }
 }
 
-/// `message` in the engine's binary encoding.
-pub(crate) fn encode<T: Reflect>(message: &T) -> Result<Vec<u8>, ChannelError> {
-    let malformed = |error: &dyn std::fmt::Display| ChannelError::Malformed(error.to_string());
-    let text = slime_serialize::write(registry(), &T::type_name(), &message.to_value())
-        .map_err(|error| malformed(&error))?;
-    slime_serialize::encode(&text).map_err(|error| malformed(&error))
-}
+/// The family of an editor's requests, which [`Request::Edit`] carries.
+const EDITING: &str = "editing";
 
-/// The message that `bytes`, in the engine's binary encoding, hold.
-pub(crate) fn decode<T: Reflect>(bytes: &[u8]) -> Result<T, ChannelError> {
-    let malformed = |error: &dyn std::fmt::Display| ChannelError::Malformed(error.to_string());
-    let read = slime_serialize::read_binary(registry(), &T::type_name(), bytes, Mode::Strict)
-        .map_err(|error| malformed(&error))?;
-    T::from_value(&read.value).map_err(|error| malformed(&error))
+impl Reply {
+    /// The outcome that carries the reply: [`Reply::Failed`] as a [`Fault::REFUSED`].
+    pub(crate) fn outcome(&self) -> Result<Result<Value, Fault>, ChannelError> {
+        Ok(match self {
+            Self::Failed { message } => Err(Fault::new(Fault::REFUSED, message.clone())),
+            reply => Ok(uwui_agent::write(reply)?),
+        })
+    }
+
+    /// The reply that an outcome carries: every error as [`Reply::Failed`], with its message.
+    pub(crate) fn read(outcome: Result<Value, Fault>) -> Result<Self, ChannelError> {
+        match outcome {
+            Ok(value) => uwui_agent::read(value).map_err(|fault| {
+                ChannelError::Malformed(format!("a reply that does not read: {}", fault.message))
+            }),
+            Err(fault) => Ok(Self::Failed {
+                message: fault.message,
+            }),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -604,19 +616,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_kind_of_message_comes_back_from_its_encoding() {
-        let hello = Hello {
-            version: 1,
-            token: "0".repeat(32),
-        };
-        assert_eq!(
-            decode::<Hello>(&encode(&hello).expect("encoded")).expect("decoded"),
-            hello
-        );
-        assert_eq!(
-            format!("{hello:?}"),
-            "Hello { version: 1, token: \"hidden\" }"
-        );
+    fn every_kind_of_message_comes_back_from_its_method_and_its_parameters() {
         let text = |text: &str| text.to_owned();
         let requests = [
             Request::State,
@@ -747,21 +747,19 @@ mod tests {
             },
         ];
         for request in requests {
-            let bytes = encode(&request).expect("encoded");
-            assert_eq!(decode::<Request>(&bytes).expect("decoded"), request);
+            let (method, params) = request.call().expect("written");
+            let (family, _) = method.split_once('/').expect("a family's method");
+            assert!(
+                crate::FAMILIES.iter().any(|&(name, _)| name == family),
+                "{method} names a family that the channel serves"
+            );
+            assert_eq!(Request::read(family, &method, params), Ok(request));
         }
         let summary = EntitySummary {
             identity: text("hero"),
             name: String::new(),
         };
         let replies = [
-            Reply::Welcome {
-                version: 1,
-                program: text("hunnawood"),
-            },
-            Reply::Refused {
-                reason: text("the token is not the game's"),
-            },
             Reply::Done,
             Reply::Failed {
                 message: text("game time runs: pause it first"),
@@ -886,23 +884,49 @@ mod tests {
             },
         ];
         for reply in replies {
-            let bytes = encode(&reply).expect("encoded");
-            assert_eq!(decode::<Reply>(&bytes).expect("decoded"), reply);
+            let outcome = reply.outcome().expect("written");
+            assert_eq!(
+                outcome.is_err(),
+                matches!(reply, Reply::Failed { .. }),
+                "a failure crosses as an error of the core's"
+            );
+            assert_eq!(Reply::read(outcome).expect("read"), reply);
         }
     }
 
     #[test]
-    fn bytes_that_are_not_a_message_are_refused() {
-        let reply = encode(&Reply::Done).expect("encoded");
-        for wrong in [&b""[..], b"SLDB", &reply[..reply.len() - 1]] {
-            assert!(matches!(
-                decode::<Request>(wrong),
-                Err(ChannelError::Malformed(_))
-            ));
-        }
+    fn a_method_that_its_family_lacks_or_parameters_that_do_not_read_are_refused() {
+        let refused = |family: &str, method: &str, params: Value| {
+            Request::read(family, method, params).map_err(|fault| fault.code)
+        };
+        assert_eq!(
+            refused("play", "play/rewind", Value::Null),
+            Err(Fault::NO_METHOD)
+        );
+        assert_eq!(
+            refused("editing", "editing/rewind", Value::Null),
+            Err(Fault::NO_METHOD)
+        );
+        let steps = uwui_agent::write(&"three").expect("written");
+        assert_eq!(refused("play", "play/step", steps), Err(Fault::BAD_PARAMS));
+        assert_eq!(
+            refused("play", "play/step", Value::Null),
+            Err(Fault::BAD_PARAMS),
+            "a step without its count"
+        );
         assert!(
-            matches!(decode::<Request>(&reply), Err(ChannelError::Malformed(_))),
-            "a reply is no request"
+            matches!(
+                Reply::read(Ok(Value::Null)),
+                Err(ChannelError::Malformed(_))
+            ),
+            "a result that is no reply"
+        );
+        assert_eq!(
+            Reply::read(Err(Fault::new(Fault::NOT_SERVED, "not served"))).expect("read"),
+            Reply::Failed {
+                message: "not served".to_owned()
+            },
+            "every error of the core's reads as a failure"
         );
     }
 }
