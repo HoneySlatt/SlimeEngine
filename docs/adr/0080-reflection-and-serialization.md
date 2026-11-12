@@ -5,9 +5,11 @@
   registered, and the `check` attribute), [0086](0086-serialization.md) (where serialization lives,
   and the conventions of its documents), [0101](0101-saves-and-identities-that-never-mislead.md)
   (aliases that collide)
-  [0181](0181-uwuis-scope.md) (uwui reads its documents with `serde`) and
+  [0181](0181-uwuis-scope.md) (uwui reads its documents with `serde`),
   [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (layouts, the engine's UI
-  documents among them, are KDL)
+  documents among them, are KDL) and
+  [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) (`slime-reflect` describes
+  `LinearColor` and depends on `slime-color`, which depends on nothing: it is no longer a leaf)
 - Date: 2026-10-16
 
 ## Context

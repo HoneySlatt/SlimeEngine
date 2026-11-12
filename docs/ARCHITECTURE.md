@@ -237,7 +237,8 @@ lists every dependency.
 - `slime-reflect` depends on glam, `slime-color` and its derive only, describing glam's types and
   `LinearColor` itself, so that every crate that owns a value type can depend on it and describe
   the type where it is defined: `slime-assets` and `slime-world` do
-  ([ADR-0080](adr/0080-reflection-and-serialization.md)). Every component is
+  ([ADR-0080](adr/0080-reflection-and-serialization.md),
+  [ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). Every component is
   reflected, so that a crate that defines components depends on it
   ([ADR-0085](adr/0085-reflection.md)).
 - `slime-serialize` depends on `slime-reflect` and on a TOML parser only, and no crate that only

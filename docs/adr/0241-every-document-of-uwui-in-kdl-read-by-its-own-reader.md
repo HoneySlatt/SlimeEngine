@@ -58,7 +58,11 @@
   last time and never writes again, kept as the backup. Found then: the layouts that users saved
   lie in the user's state directory alone, no project keeping one in its own folder, as this ADR's
   context said; and no layout is cooked, the editor's default and a project's being in their
-  programs' code
+  programs' code. Precisions decided by the owner on 2026-11-12, as M6d.3c3 began:
+  `slime-reflect` depends on `slime-color` to describe `LinearColor`, so that it is no longer the leaf
+  that [0080](0080-reflection-and-serialization.md) and [0085](0085-reflection.md) made it, which
+  this ADR amends so; `scripts/check.sh` checks that neither `slime-reflect` nor `slime-serialize`
+  is in uwui's tree until uwui leaves the repository
 - Date: 2026-11-11
 
 ## Context

@@ -1,6 +1,7 @@
 //! What the code that `#[derive(Reflect)]` writes calls, and what an implementation of
 //! [`Reflect`] by hand calls: reading a struct's or an enum's fields from a value, and the errors of
-//! a value that is not one. The engine's `AssetId` and `Entity` are described with them.
+//! a value that is not one. The engine's `AssetId`, `Entity` and `LinearColor` are described with
+//! them.
 
 use crate::error::{Problem, ReflectError};
 use crate::path::Step;

@@ -20,8 +20,9 @@ pub type Upgrade = fn(u32, Value, bool) -> Result<Value, String>;
 /// and back, under a stable name, with a description of its shape ([`TypeInfo`]).
 ///
 /// The engine's types and a game's derive it, `#[derive(Reflect)]`, which requires a stable name
-/// (`docs/adr/0080-reflection-and-serialization.md`); the standard types the engine uses and
-/// glam's vectors and quaternions are described here, by hand, with the helpers of
+/// (`docs/adr/0080-reflection-and-serialization.md`); the standard types the engine uses, glam's
+/// vectors and quaternions and `slime-color`'s `LinearColor` are described here, by hand, with the
+/// helpers of
 /// [`support`](crate::support). A type whose values follow rules beyond the ranges of their fields
 /// declares a check, which refuses the values that break them (`docs/adr/0085-reflection.md`).
 ///

@@ -148,12 +148,12 @@ the ADR linking to it.
 | [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted; amended by 0104 |
 | [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted; amended by 0090 |
 | [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amended by 0087, 0107, 0108, 0109 and 0112 |
-| [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amended by 0085, 0086, 0101, 0181 and 0225 |
+| [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amended by 0085, 0086, 0101, 0181, 0225 and 0241 |
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted; amended by 0109 and 0132 |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted; amended by 0119 |
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087, 0106 and 0108 |
 | [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106, 0111, 0113, 0120, 0126 and 0128 |
-| [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086, 0087, 0101 and 0108 |
+| [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086, 0087, 0101, 0108 and 0241 |
 | [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087, 0091 and 0102 |
 | [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088, 0089, 0092, 0093, 0101, 0108, 0112, 0124 and 0125 |
 | [0088](0088-saving-and-resuming-a-run.md) | Saving and resuming a run | Accepted; amended by 0101, 0108, 0112 and 0125 |
@@ -309,7 +309,7 @@ the ADR linking to it.
 | [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) | Tokens: the themes' values named in code, typed by kind, declared by each crate | Accepted; amends 0223, 0229, 0230, 0231 and 0232; amended by 0241 and 0242 |
 | [0239](0239-content-made-outside-and-maps-in-the-editor.md) | What a game's content needs: importers, characters, large sources, and maps in the editor | Accepted; amends 0209 and 0217 |
 | [0240](0240-the-series-input-its-table-and-its-jobs.md) | The series' input, its table and its jobs | Accepted; amends 0195 |
-| [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) | Every document of uwui in KDL, read by a reader of its own | Accepted; amends 0141, 0142, 0174, 0181, 0220, 0225, 0229 and 0238 |
+| [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) | Every document of uwui in KDL, read by a reader of its own | Accepted; amends 0080, 0085, 0141, 0142, 0174, 0181, 0220, 0225, 0229 and 0238 |
 | [0242](0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md) | The canvas moved in three steps, its prototype on wgpu's GL backend; tokens read when drawn at uwui's first stage | Accepted; amends 0220 and 0238; amended by 0244 |
 | [0243](0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md) | The canvas reads its items by their index, from a storage buffer or a texture, and draws in passes | Accepted; amends 0137 and 0181; amended by 0245 |
 | [0244](0244-the-engine-lends-its-device-through-a-guarded-door.md) | The engine lends its device to uwui through a guarded door, and draws uwui from `slime-app` | Accepted; amends 0016, 0031, 0181 and 0242 |

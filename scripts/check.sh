@@ -126,8 +126,10 @@ if runs lint; then
         exit 1
     fi
     # uwui reads its documents in KDL, without the engine's reflection: neither slime-reflect nor
-    # slime-serialize is in its tree, its tests' included (ADR-0241).
-    uwui_dependencies=$(cargo tree --locked -p uwui -e normal,build,dev --prefix none)
+    # slime-serialize is in its tree, its tests' included, on any platform and with any feature
+    # (ADR-0241).
+    uwui_dependencies=$(cargo tree --locked -p uwui -e normal,build,dev --target all --all-features \
+        --prefix none)
     if grep -E '^slime-(reflect|serialize) ' <<< "$uwui_dependencies"; then
         echo "uwui depends on the engine's reflection through the crates above"
         exit 1

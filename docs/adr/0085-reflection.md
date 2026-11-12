@@ -5,8 +5,10 @@
   (`slime-reflect`'s errors, written without `thiserror`); amended by [0086](0086-serialization.md)
   (defaults described by their values, and upgrades), [0087](0087-the-worlds-documents.md) (a
   transient field has a default), [0101](0101-saves-and-identities-that-never-mislead.md) (ranges
-  compared in a field's own type, and what the derive refuses) and
-  [0108](0108-what-the-world-knows-of-its-changes.md) (components that clone)
+  compared in a field's own type, and what the derive refuses),
+  [0108](0108-what-the-world-knows-of-its-changes.md) (components that clone) and
+  [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) (`slime-color` does not
+  depend on `slime-reflect`, which describes `LinearColor` itself)
 - Date: 2026-10-16
 
 ## Context
