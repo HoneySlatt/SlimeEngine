@@ -2688,6 +2688,39 @@ Every job stays within its limit of 20 minutes; the closest, `windows-release`, 
 spare. `check (lint)` and `check (headless)` took 3 and 2 minutes more than at M6d.4b1a, all their
 jobs starting together: the door's check adds a `cargo tree` and a `git grep`, seconds.
 
+## M6d.3c3, reflection out of uwui
+
+uwui without `slime-reflect` and `slime-serialize`, and `LinearColor` described by `slime-reflect`
+([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)), on 2026-11-12, an
+AMD Ryzen 7 5800X, 16 logical CPUs, Linux, the machine at rest: the load average under 0.8 and no
+other `cargo` or `rustc` at the start of each series.
+
+The time of compiling `uwui` and `slime-cook` again, in debug, after a public function is added to
+the crate's root, `cargo build -p <crate>`, five runs each, before and after in turn. *Before* is
+`38bc80b`, in a worktree with a target directory of its own; *after* is `4c57a59`. A first series
+of the cooker, whose first run built its dependencies again with other features, was set aside:
+
+| Crate | Before, median and range | After, median and range |
+|---|---|---|
+| `uwui` | 0.93 s, 0.81 to 1.05 | 0.85 s, 0.82 to 0.93 |
+| `slime-cook` | 0.57 s, 0.56 to 0.58 | 0.57 s, 0.57 to 0.68 |
+
+- `uwui` compiles again some 9 % faster without its derives of reflection; the cooker, which the
+  milestone did not change, as fast.
+
+The time of reading the editor's default layout and fitting it to the editor's panels, left by
+M6d.3c2: through reflection reading its TOML at `8a1d064`, and through `uwui::dock`'s reader of
+its KDL at `38bc80b`, whose reader `4c57a59` keeps unchanged. A test not kept in the repository
+read it 1 000 times, seven times, after 200 reads to warm up, in release builds, three runs each,
+in turn:
+
+| Measure, median of seven batches | Before, TOML through reflection | After, KDL |
+|---|---|---|
+| the editor's default layout read and fitted | 75.9, 76.2, 77.7 µs | 9.4, 9.9, 9.4 µs |
+
+- Reading the editor's default layout takes some 88 % less time, as its allocations fell from
+  1 872 to 76 ([M6d.3c2](#m6d3c2-docks-layouts-in-kdl)).
+
 ## M6d.3c1, shortcuts in KDL
 
 The editor's tables of shortcuts read in KDL by uwui's own reader, in place of the engine's
