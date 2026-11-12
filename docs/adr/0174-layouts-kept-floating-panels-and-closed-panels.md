@@ -2,7 +2,9 @@
 
 - Status: Accepted; amends [0150](0150-layers.md) (a floating panel that the pointer moved or sized
   tells the program as it lets go) and [0155](0155-the-editors-design.md) (a layout kept against
-  any other default is set aside, not only against an older one)
+  any other default is set aside, not only against an older one); amended by
+  [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) (a layout file is KDL,
+  `<program's name>.layout.kdl`, migrated once from the TOML file, a later version left as it is)
 - Date: 2026-11-05
 
 ## Context

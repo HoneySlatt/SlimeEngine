@@ -242,7 +242,7 @@ the ADR linking to it.
 | [0171](0171-effects-of-the-interface.md) | Effects of the interface, at their lowest cost | Accepted; amends 0170; amended by 0190, 0194, 0227 and 0235 |
 | [0172](0172-regions-of-tabs.md) | Regions of tabs | Accepted; amends 0153 and 0155 |
 | [0173](0173-the-platforms-of-applications.md) | The platforms of applications | Accepted; amends 0015, 0098, 0100 and 0170; amended by 0181, 0190 and 0213 |
-| [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) | Layouts kept, floating panels and closed panels | Accepted; amends 0150 and 0155 |
+| [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) | Layouts kept, floating panels and closed panels | Accepted; amends 0150 and 0155; amended by 0241 |
 | [0175](0175-the-quality-bar.md) | The quality bar | Accepted; amends 0104, 0110, 0114, 0123, 0137, 0138, 0140 and 0155; amended by 0185, 0186, 0189, 0190, 0191, 0192, 0193 and 0215 |
 | [0176](0176-fuzzing-and-crash-reports.md) | Fuzzing and crash reports | Accepted; amends 0096 and 0102; amended by 0215 |
 | [0177](0177-audits-and-releases.md) | Audits and releases | Accepted; amends 0097 and 0155 |
@@ -309,7 +309,7 @@ the ADR linking to it.
 | [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) | Tokens: the themes' values named in code, typed by kind, declared by each crate | Accepted; amends 0223, 0229, 0230, 0231 and 0232; amended by 0241 and 0242 |
 | [0239](0239-content-made-outside-and-maps-in-the-editor.md) | What a game's content needs: importers, characters, large sources, and maps in the editor | Accepted; amends 0209 and 0217 |
 | [0240](0240-the-series-input-its-table-and-its-jobs.md) | The series' input, its table and its jobs | Accepted; amends 0195 |
-| [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) | Every document of uwui in KDL, read by a reader of its own | Accepted; amends 0141, 0142, 0181, 0220, 0225, 0229 and 0238 |
+| [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) | Every document of uwui in KDL, read by a reader of its own | Accepted; amends 0141, 0142, 0174, 0181, 0220, 0225, 0229 and 0238 |
 | [0242](0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md) | The canvas moved in three steps, its prototype on wgpu's GL backend; tokens read when drawn at uwui's first stage | Accepted; amends 0220 and 0238; amended by 0244 |
 | [0243](0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md) | The canvas reads its items by their index, from a storage buffer or a texture, and draws in passes | Accepted; amends 0137 and 0181; amended by 0245 |
 | [0244](0244-the-engine-lends-its-device-through-a-guarded-door.md) | The engine lends its device to uwui through a guarded door, and draws uwui from `slime-app` | Accepted; amends 0016, 0031, 0181 and 0242 |

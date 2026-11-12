@@ -13,7 +13,9 @@
   [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) (a theme writes a value's kind
   by its group, and a text field names a theme's value) and
   [0220](0220-the-roadmap-reshaped-by-the-market.md) (M6d.3 cut in three; the primary modifier is
-  named `Primary`). A precision decided by the owner on 2026-11-11, as M6d.3a began: `bolero`
+  named `Primary`) and [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) (the editor
+  keeps a layout in KDL, `<program's name>.layout.kdl`, migrated once from its TOML file, and leaves
+  a layout of a later version as it is; amended so on 2026-11-12). A precision decided by the owner on 2026-11-11, as M6d.3a began: `bolero`
   cannot join the workspace, its derive pinning `indexmap` at 2.11.2 where `toml_edit` asks for
   2.13; the random inputs come from the repository's own generator, in `cargo test`, their seed
   printed, through a function of bytes that a fuzzer guided by coverage calls later unchanged.
@@ -43,7 +45,18 @@
   any platform refused; a dock's layout is written by hand in `uwui::dock`, over `uwui-kdl`'s
   printers of names, texts and numbers, which the writer of the normal form shares, a number
   written so that it reads back to the same `f32`: one place writes KDL's values, rather than one
-  writer of trees
+  writer of trees. Precisions decided by the owner on 2026-11-12, as M6d.3c2 began: a dock's
+  layout is a list of nodes, `version 1` first, then the default that it was made from,
+  `default "editor 1"`, which a program without one leaves out, then its tree written by its
+  variant at the top, `Split side_by_side=#true { children share=0.25 { Tabs … } }`, without a node
+  `root`, then `floating` and `closed`; the format's version and a default's name are two things,
+  the first compared with what the reader knows, the second for equality, as ADR-0174 does; a
+  layout of a later version than the reader knows is neither read, nor set aside, nor written over
+  during the run, the default shown and the user told, and a version that breaks the format writes
+  a file of another name, migrated once; the editor keeps its layout in `slime-editor/<program's
+  name>.layout.kdl`, migrated once from the TOML file `<program's name>.layout`, which it reads a
+  last time and never writes again, kept as the backup. The layouts that users saved lie in the
+  user's state directory alone: no project keeps one in its own folder, as this ADR's context said
 - Date: 2026-11-11
 
 ## Context

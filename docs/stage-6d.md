@@ -1390,24 +1390,8 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
 
 ### M6d.3c2 — Docks' layouts in KDL
 
-The second third of M6d.3c. It follows the rules of
-[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** A dock's layout in KDL, and the layouts that the editor saved migrated once.
-- **Crates.** `uwui`, `uwui-kdl`, `slime-editor`, the examples.
-- **Delivers.**
-  - A layout written by hand in `uwui::dock`, over `uwui-kdl`'s printers of names, texts and
-    numbers, a number written so that it reads back to the same `f32`; read by hand, its version
-    written, read leniently within its version.
-  - Decided at its start: what a later version does, and where a layout's own values go.
-  - The editor's layouts, in its state and in a project's `state/editor.layout`, read a last time
-    through the engine's reflection, by copies of the layout's types in the editor; migrated once,
-    the old file kept as a backup, the new one written whole or not at all.
-  - The editor's default, and a project's, in KDL; a default written by hand read strictly.
-- **Done when.** The editor's default, a user's layout with floating and closed panels, and one
-  written before them, kept as fixtures, read the same as before; a layout migrated comes back
-  under its default; a damaged file is set aside; CI green.
-- **Measured.** Reading the editor's documents at its start.
+In progress: its card is in [`PLAN.md`](PLAN.md#m6d3c2--docks-layouts-in-kdl), back here with its
+result when it is done.
 
 ### M6d.3c3 — Reflection out of uwui
 
