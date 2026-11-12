@@ -21,15 +21,15 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [`stage-6d.md`](stage-6d.md).
 - Done: M6d.0a to M6d.2b2b3, closing M6d.1, how an application is written, and M6d.2, typed
   styles ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
-- M6d.3, documents in KDL, cut in three at its start, on 2026-11-11: every document of uwui is
-  KDL, read by a reader of its own
-  ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). Done:
+- Done: M6d.3, documents in KDL, cut in three at its start, on 2026-11-11, closed on 2026-11-12:
+  every document of uwui is KDL, read by a reader of its own
+  ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)):
   [M6d.3a](stage-6d.md#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL; M6d.3b cut in two,
   [M6d.3b1](stage-6d.md#m6d3b1--themes-in-kdl), themes, and
   [M6d.3b2](stage-6d.md#m6d3b2--style-sheets-in-kdl), style sheets. M6d.3c cut in
-  three on 2026-11-12: done, [M6d.3c1](stage-6d.md#m6d3c1--shortcuts-in-kdl), shortcuts, and
-  [M6d.3c2](stage-6d.md#m6d3c2--docks-layouts-in-kdl), docks' layouts; in progress,
-  [M6d.3c3](#m6d3c3--reflection-out-of-uwui).
+  three on 2026-11-12, [M6d.3c1](stage-6d.md#m6d3c1--shortcuts-in-kdl), shortcuts,
+  [M6d.3c2](stage-6d.md#m6d3c2--docks-layouts-in-kdl), docks' layouts, and
+  [M6d.3c3](stage-6d.md#m6d3c3--reflection-out-of-uwui), reflection out.
 - In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
   session.
   - Track A, uwui's core, in the main checkout: M6d.3a to M6d.3b2, then M6d.3c1 to M6d.3c3.
@@ -37,7 +37,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
     done; then M6d.4: done, [M6d.4a](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr),
     [M6d.4b1a](stage-6d.md#m6d4b1a--the-canvas-moved-into-uwui-render) and
     [M6d.4b1b](stage-6d.md#m6d4b1b--the-canvas-on-wgpu), on 2026-11-12; next M6d.4b2.
-  - M6d.5 waits for M6d.3 and M6d.4, which both touch `slime-app`; M6d.10 to M6d.12 run alone.
+  - M6d.5 waits for M6d.4, which touches `slime-app` as M6d.3 did; M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: the deletion of the branches `m6d1b-bench` and `m6d4a-prototype`, the
   last kept while measurements link to its code; the mirror of the game's assets, a private repository, which `scripts/fetch-assets.sh`
@@ -50,10 +50,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 | Milestone | Status |
 |---|---|
-| [M6d.0a to M6d.3b2, and C1](stage-6d.md#where-it-stands) | Done |
-| [M6d.3c1 — Shortcuts in KDL](stage-6d.md#m6d3c1--shortcuts-in-kdl) | Done |
-| [M6d.3c2 — Docks' layouts in KDL](stage-6d.md#m6d3c2--docks-layouts-in-kdl) | Done |
-| [M6d.3c3 — Reflection out of uwui](#m6d3c3--reflection-out-of-uwui) | In progress |
+| [M6d.0a to M6d.3c3, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.4a — The canvas's prototype and its ADR](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr) | Done |
 | [M6d.4b1a — The canvas moved into uwui-render](stage-6d.md#m6d4b1a--the-canvas-moved-into-uwui-render) | Done |
 | [M6d.4b1b — The canvas on wgpu](stage-6d.md#m6d4b1b--the-canvas-on-wgpu) | Done |
@@ -67,29 +64,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.3c3 — Reflection out of uwui
-
-Started on 2026-11-12 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)),
-under [the stage's rules](stage-6d.md#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** Neither `slime-reflect` nor `slime-serialize` in uwui, and `slime-color` depending on
-  nothing.
-- **Crates.** `uwui`, `uwui-macros`, `slime-color`, `slime-reflect`, `slime-serialize`; one line
-  of `scripts/check.sh`, with the owner's go.
-- **Delivers.**
-  - `LinearColor` described by hand in `slime-reflect`, which depends on `slime-color` with the
-    owner's go; its name and fields unchanged.
-  - The `Reflect` derives, `S::named`, the registry and the oracles gone from uwui, their verdicts
-    on seeded inputs kept as fixtures first; the tests that walked types by reflection written
-    again; `Fault::Reflected` and `References::value`, which no engine's type implements, gone.
-  - A check in `scripts/check.sh` that `cargo tree -p uwui` names neither crate.
-- **Done when.** A scene as text, a scene cooked and the dev overlay's values read the same,
-  `LinearColor`'s description kept as a fixture in `slime-reflect`; the fixture of the documents,
-  the two of styles, those of shortcuts and layouts, and the `interface` example's image unchanged;
-  CI green.
-- **Measured.** At rest: `uwui`'s and the cooker's compile times; reading the editor's default
-  layout, before and after M6d.3c2.
 
 ## Ideas waiting for their milestone
 

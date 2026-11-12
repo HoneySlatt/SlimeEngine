@@ -2721,6 +2721,30 @@ in turn:
 - Reading the editor's default layout takes some 88 % less time, as its allocations fell from
   1 872 to 76 ([M6d.3c2](#m6d3c2-docks-layouts-in-kdl)).
 
+The fixtures of verdicts compare a colour's numbers within 1e-5: on GitHub's Windows runner, the
+largest difference was 3.84e-7 in the themes' fixture and 3e-8 in the sheets', on `5d45d2d`; on
+Linux, none.
+
+GitHub's hosted runners, on 2026-11-12, each run green, on `5d45d2d`; `Compositors` and Docs did
+not run, their paths untouched:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 9 min 51 s |
+| `check (headless)` | 17 min 10 s |
+| `check (windowed)` | 8 min 58 s |
+| `check (game)` | 10 min 21 s |
+| `windows (tests)` | 15 min 24 s |
+| `windows (render)` | 6 min 32 s |
+| `windows (game)` | 7 min 7 s |
+| `windows-release` | 12 min 7 s |
+
+Every job stays within its limit of 20 minutes; the closest, `check (headless)`, has 2 min 50 s to
+spare. It took 3 min 16 s more than at M6d.4b1b: each of its phases ran some 25 % slower, the
+build 6 min 28 s from 5 min 2 s, the tests 6 min 41 s from 5 min 33 s, a check of a few seconds as
+slow, the runner slower rather than the milestone heavier; on `061fd88`, its first run after
+`Cargo.lock` changed, 17 min 19 s.
+
 ## M6d.3c1, shortcuts in KDL
 
 The editor's tables of shortcuts read in KDL by uwui's own reader, in place of the engine's

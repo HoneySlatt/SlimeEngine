@@ -105,7 +105,7 @@ in git.
   done, [M6d.2b2b3](#m6d2b2b3--tokens), tokens
   ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)), which closed M6d.2
   on 2026-11-11.
-- In progress: [M6d.3](#m6d3--documents-in-kdl), documents in KDL, cut in three at its start, on
+- Done: [M6d.3](#m6d3--documents-in-kdl), documents in KDL, cut in three at its start, on
   2026-11-11 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)): done,
   [M6d.3a](#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL, on the same day; then
   [M6d.3b](#m6d3b--themes-and-style-sheets-in-kdl), cut in two: done,
@@ -113,8 +113,9 @@ in git.
   [M6d.3b2](#m6d3b2--style-sheets-in-kdl), style sheets, on 2026-11-12; then
   [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and reflection out, cut
   in three on 2026-11-12: done, [M6d.3c1](#m6d3c1--shortcuts-in-kdl), shortcuts, and
-  [M6d.3c2](#m6d3c2--docks-layouts-in-kdl), docks' layouts, on the same day; next
-  [M6d.3c3](#m6d3c3--reflection-out-of-uwui), reflection out.
+  [M6d.3c2](#m6d3c2--docks-layouts-in-kdl), docks' layouts, and
+  [M6d.3c3](#m6d3c3--reflection-out-of-uwui), reflection out, on the same day, which closed M6d.3
+  on 2026-11-12.
 - In progress on track B: [M6d.4](#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on wgpu,
   cut in three at its start, on 2026-11-11
   ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)): done,
@@ -1158,7 +1159,8 @@ of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
 
 Cut in three at its start, on 2026-11-11, the reader first: every document of uwui becomes KDL, and
 the reader that ADR-0225 planned for uwui's first stage comes first
-([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). Closed by
+[M6d.3c3](#m6d3c3--reflection-out-of-uwui) on 2026-11-12.
 
 ### M6d.3a — uwui's reader of KDL
 
@@ -1438,8 +1440,57 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
 
 ### M6d.3c3 — Reflection out of uwui
 
-In progress: its card is in [`PLAN.md`](PLAN.md#m6d3c3--reflection-out-of-uwui), back here with its
-result when it is done.
+The last third of M6d.3c, its questions decided at its start, on 2026-11-12
+([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)'s status). It
+follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Neither `slime-reflect` nor `slime-serialize` in uwui, and `slime-color` depending on
+  nothing.
+- **Crates.** `uwui`, `uwui-macros`, `slime-color`, `slime-reflect`, `slime-serialize`; one line
+  of `scripts/check.sh`, with the owner's go.
+- **Delivers.**
+  - `LinearColor` described by hand in `slime-reflect`, which depends on `slime-color` with the
+    owner's go; its name and fields unchanged.
+  - The `Reflect` derives, `S::named`, the registry and the oracles gone from uwui, their verdicts
+    on seeded inputs kept as fixtures first; the tests that walked types by reflection written
+    again; `Fault::Reflected` and `References::value`, which no engine's type implements, gone.
+  - A check in `scripts/check.sh` that `cargo tree -p uwui` names neither crate.
+- **Done when.** A scene as text, a scene cooked and the dev overlay's values read the same,
+  `LinearColor`'s description kept as a fixture in `slime-reflect`; the fixture of the documents,
+  the two of styles, those of shortcuts and layouts, and the `interface` example's image unchanged;
+  CI green.
+- **Measured.** At rest: `uwui`'s and the cooker's compile times; reading the editor's default
+  layout, before and after M6d.3c2.
+- **Result.** Done on 2026-11-12, CI green
+  ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)):
+  - uwui depends on neither `slime-reflect` nor `slime-serialize`, which `scripts/check.sh`
+    checks on every target and feature; its styles, selectors and docks' layouts derive no
+    `Reflect`, and the registry, `S::named` and the oracles are gone. A document's error is
+    `uwui-kdl`'s, `Fault` gone with its one variant left.
+  - The oracles' verdicts on seeded inputs are fixtures, recorded beside them before they went:
+    100 stacks of themes, 120 sheets, 150 tables of shortcuts and 60 layouts, each its documents
+    in KDL and what reflection read from them or that it refused them. The readers of KDL replay
+    them, every number bit for bit but a colour's, within 1e-5; Linux reads them to the bit,
+    Windows within 3.84e-7. Random layouts are written and read back at each run.
+  - The tests that walked a style by reflection walk it by its derive: its colours by the paths
+    that `Colors` gives tests, a kind's variants by the names that `Identifiers` lists. The
+    cascade's random test checks the typed cascade against a model, checked against the reflected
+    cascade on its 3,000 cases before it went; the derive's `apply` and `declared`, which the
+    model shares, are checked apart.
+  - `slime-reflect` describes `LinearColor` by hand, its description, values and refusals those
+    of the fixture recorded from its derive, the type's own prose aside, which stays its
+    rustdoc's; `slime-color` depends on nothing, and ADR-0241's status amends ADR-0080 and
+    ADR-0085. `References::value` is gone. Scenes, cooked or not, and the dev overlay read
+    colours as before; the fixtures of documents, styles, shortcuts and layouts and the
+    `interface` example's image are unchanged.
+  - The closing review found the layouts' random round trip dropped with the oracle, the
+    cascade's model sharing the code it checks, the colours' tolerance written otherwise than
+    applied, the tree's check on the host platform alone, `Fault` of one variant and the ADRs'
+    statuses silent; each fixed.
+  - At rest, `uwui` compiles again in 0.85 s, from 0.93 s, the cooker in 0.57 s as before, and
+    the editor's default layout reads in 9.4 µs, from 76 µs through reflection
+    ([measurements](measurements.md#m6d3c3-reflection-out-of-uwui)).
+  - It closes M6d.3.
 
 ### M6d.4 — The canvas in uwui, on wgpu
 
