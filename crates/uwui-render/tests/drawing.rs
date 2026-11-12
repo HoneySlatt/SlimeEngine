@@ -1,15 +1,22 @@
 //! Display lists drawn through the canvas, read back from a target of floats and compared with the
 //! same glyphs rasterized and laid over black by the CPU: the text of each writing system of
 //! uwui's tests, at scales 1 and 2; an atlas within its budget, its glyphs that no draw asked
-//! for the longest leaving first; images as the program gives them; a lost device, after which a
-//! new renderer draws the text again; and a tree of elements drawn where its layout places it. Runs
-//! on whatever adapter the machine offers.
+//! for the longest leaving first; images as the program gives them; a lost device, on which a list
+//! draws nothing without a panic, after which a new renderer draws the text again; and a tree of
+//! elements drawn where its layout places it. Runs on a bare wgpu device of whatever adapter the
+//! machine offers (`common/mod.rs`), as a host that is not the engine opens one.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+#[expect(
+    dead_code,
+    reason = "this file reads targets of floats alone, and times nothing"
+)]
+mod common;
+
+use common::{Bare, FloatImage, view};
 use slime_color::LinearColor;
-use slime_gfx::{FloatImage, GfxError, Gpu, RenderPassDescriptor, RenderTarget, TextureFormat};
 use uwui::Rect;
 use uwui::display::{
     BoxPrimitive, DisplayList, ImageKey, ImageKind, ImagePrimitive, TextPrimitive,
@@ -17,10 +24,9 @@ use uwui::display::{
 use uwui::style::{Align, Dimension};
 use uwui::text::{Fonts, GlyphPixels, GlyphRasterizer, TextBounds, TextLayout, TextStyle};
 use uwui::tree::{Element, LayoutDirection, RootSettings, Ui};
-use uwui_render::canvas::CanvasImage;
 use uwui_render::{ATLAS_PAGE_SIZE, UiRenderer};
 
-const FORMAT: TextureFormat = TextureFormat::Rgba16Float;
+const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 const WIDTH: u32 = 640;
 const HEIGHT: u32 = 160;
 
@@ -75,48 +81,42 @@ fn sentence(
 }
 
 struct Setup {
-    gpu: Gpu,
+    gpu: Bare,
     ui: UiRenderer,
 }
 
 impl Setup {
     fn new(budget: u64) -> Self {
-        let gpu =
-            Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-        let ui = UiRenderer::with_budget(&gpu, FORMAT, budget).expect("the renderer is created");
+        let gpu = Bare::new();
+        let ui = UiRenderer::with_budget(&gpu.device, &gpu.queue, FORMAT, budget)
+            .expect("the renderer is created");
         Self { gpu, ui }
     }
 
-    fn target(&self) -> RenderTarget {
-        let target = self
-            .gpu
-            .create_render_target("ui", WIDTH, HEIGHT, FORMAT)
-            .expect("the GPU has memory for it");
-        self.gpu.render(
-            &RenderPassDescriptor {
-                target: &target,
-                clear: Some(LinearColor::BLACK),
-                depth: None,
-                timer: None,
-                resolve: None,
-            },
-            |_| {},
-        );
-        target
+    fn target(&self) -> wgpu::Texture {
+        self.gpu.target("ui", WIDTH, HEIGHT, FORMAT)
+    }
+
+    /// `list` drawn over `target`, its images as `images` gives them, its encoder submitted.
+    fn draw_into<'i>(
+        &mut self,
+        fonts: &Fonts,
+        list: &DisplayList,
+        images: impl FnMut(ImageKey) -> Option<&'i wgpu::TextureView>,
+        target: &wgpu::Texture,
+    ) -> Result<uwui_render::UiStats, uwui_render::Error> {
+        let ui = &mut self.ui;
+        self.gpu
+            .record(|context| ui.draw(context, fonts, list, images, target))
     }
 
     /// `list` drawn over black, read back, and what drawing it reported.
     fn draw(&mut self, fonts: &Fonts, list: &DisplayList) -> (FloatImage, uwui_render::UiStats) {
         let target = self.target();
         let stats = self
-            .ui
-            .draw(&self.gpu, fonts, list, |_| None, &target)
+            .draw_into(fonts, list, |_| None, &target)
             .expect("drawn");
-        let image = self
-            .gpu
-            .read_float_render_target(&target)
-            .expect("read back");
-        (image, stats)
+        (self.gpu.read_floats(&target), stats)
     }
 }
 
@@ -295,16 +295,13 @@ fn past_its_budget_the_atlas_lets_go_of_the_glyphs_that_no_draw_asked_for_the_lo
 fn an_image_is_drawn_as_the_program_gives_it_and_one_it_does_not_give_is_left_out() {
     let fonts = fonts();
     let mut setup = Setup::new(uwui_render::GLYPH_ATLAS_BUDGET);
-    let red = setup
-        .gpu
-        .create_texture(
-            "red",
-            1,
-            1,
-            TextureFormat::Rgba8UnormSrgb,
-            &[255, 0, 0, 255],
-        )
-        .expect("the GPU has memory for it");
+    let red = view(&setup.gpu.texture(
+        "red",
+        1,
+        1,
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+        &[255, 0, 0, 255],
+    ));
     let mut list = DisplayList::new();
     list.push(
         BoxPrimitive {
@@ -330,20 +327,15 @@ fn an_image_is_drawn_as_the_program_gives_it_and_one_it_does_not_give_is_left_ou
     }
     let target = setup.target();
     let stats = setup
-        .ui
-        .draw(
-            &setup.gpu,
+        .draw_into(
             &fonts,
             &list,
-            |key| (key == ImageKey(7)).then_some(CanvasImage::Texture(&red)),
+            |key| (key == ImageKey(7)).then_some(&red),
             &target,
         )
         .expect("drawn");
     assert_eq!(stats.missing_images, 1);
-    let image = setup
-        .gpu
-        .read_float_render_target(&target)
-        .expect("read back");
+    let image = setup.gpu.read_floats(&target);
     let pixel = |x: u32, y: u32| {
         let at = ((y * WIDTH + x) * 4) as usize;
         [image.pixels[at], image.pixels[at + 1], image.pixels[at + 2]]
@@ -355,19 +347,34 @@ fn an_image_is_drawn_as_the_program_gives_it_and_one_it_does_not_give_is_left_ou
     assert_eq!(pixel(112, 16), [0.0; 3]);
 }
 
+/// A bare device gives no word of its loss. A renderer that drew before it records on, a new page
+/// of its atlas made and its glyphs written on the lost device; one made after it draws nothing.
+/// Neither panics, nor raises an error of wgpu.
 #[test]
-fn a_lost_device_stops_the_drawing_and_a_new_renderer_draws_the_text_again() {
+fn on_a_lost_device_a_list_draws_nothing_without_a_panic_and_a_new_renderer_draws_it_again() {
     let mut fonts = fonts();
     let mut setup = Setup::new(uwui_render::GLYPH_ATLAS_BUDGET);
     let layout = Arc::new(sentence(&mut fonts, SCRIPTS[1], 1.0));
     let list = text_list(&layout, [0.0, 0.0]);
+    // Emoji, whose glyphs go into a page of colors, which the first list did not make.
+    let emoji = text_list(&Arc::new(sentence(&mut fonts, SCRIPTS[7], 1.0)), [0.0, 0.0]);
     let target = setup.target();
+    setup
+        .draw_into(&fonts, &list, |_| None, &target)
+        .expect("drawn before the loss");
     setup.gpu.lose();
-    let error = setup
-        .ui
-        .draw(&setup.gpu, &fonts, &list, |_| None, &target)
-        .expect_err("the device is lost");
-    assert!(matches!(error, GfxError::DeviceLost { .. }), "{error:?}");
+    let stats = setup
+        .draw_into(&fonts, &emoji, |_| None, &target)
+        .expect("nothing is known of the loss");
+    assert!(stats.rasterized > 0 && stats.canvas.items > 0, "{stats:?}");
+    let mut made_after =
+        UiRenderer::new(&setup.gpu.device, &setup.gpu.queue, FORMAT).expect("made");
+    let stats = setup
+        .gpu
+        .record(|context| made_after.draw(context, &fonts, &list, |_| None, &target))
+        .expect("nothing is known of the loss");
+    assert_eq!(stats.canvas.items, 0, "its buffer refused, nothing drawn");
+    assert_eq!(setup.gpu.errors_after_loss(), 0);
     let mut again = Setup::new(uwui_render::GLYPH_ATLAS_BUDGET);
     let (image, stats) = again.draw(&fonts, &list);
     assert!(stats.rasterized > 0);
@@ -404,16 +411,13 @@ fn a_text_cut_by_its_clip_is_drawn_inside_it_alone() {
 fn each_image_is_asked_for_once_a_draw_and_a_glyph_larger_than_a_page_is_left_out() {
     let mut fonts = fonts();
     let mut setup = Setup::new(uwui_render::GLYPH_ATLAS_BUDGET);
-    let red = setup
-        .gpu
-        .create_texture(
-            "red",
-            1,
-            1,
-            TextureFormat::Rgba8UnormSrgb,
-            &[255, 0, 0, 255],
-        )
-        .expect("the GPU has memory for it");
+    let red = view(&setup.gpu.texture(
+        "red",
+        1,
+        1,
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+        &[255, 0, 0, 255],
+    ));
     let mut list = DisplayList::new();
     for x in [0.0, 40.0, 80.0] {
         list.push(
@@ -446,14 +450,12 @@ fn each_image_is_asked_for_once_a_draw_and_a_glyph_larger_than_a_page_is_left_ou
     for _ in 0..2 {
         let mut asked = 0;
         let stats = setup
-            .ui
-            .draw(
-                &setup.gpu,
+            .draw_into(
                 &fonts,
                 &list,
                 |_| {
                     asked += 1;
-                    Some(CanvasImage::Texture(&red))
+                    Some(&red)
                 },
                 &target,
             )

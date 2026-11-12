@@ -284,8 +284,12 @@ mod linux {
                 if self.scenario == "lost-unrecorded" && index == STOP_FRAME {
                     // As a driver reset comes: wgpu holds the device invalid before it tells the
                     // engine, here at the next frame's extraction, so that the engine presents the
-                    // image to a device it does not know is lost.
-                    gpu.wgpu_device().destroy();
+                    // image to a device it does not know is lost: a clone of the device taken
+                    // out of the door, which the engine's tests alone do, destroyed outside it.
+                    let device = gpu
+                        .with_wgpu("lost behind the engine's back", |loan| loan.device.clone())
+                        .expect("the device is not lost yet");
+                    device.destroy();
                 }
                 if let Some(error) = failed {
                     ctx.exit_with_error(error);

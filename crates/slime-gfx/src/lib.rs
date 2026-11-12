@@ -2,6 +2,8 @@
 
 mod bind_group;
 mod depth_target;
+#[cfg(feature = "wgpu")]
+mod door;
 mod error;
 mod float16;
 mod gpu;
@@ -26,9 +28,11 @@ pub use bind_group::{
     ShaderStages,
 };
 pub use depth_target::DepthTarget;
+#[cfg(feature = "wgpu")]
+pub use door::{EngineObjects, WgpuLoan};
 pub use error::GfxError;
 pub use float16::f32_to_f16;
-pub use gpu::{Gpu, LossKind, MEMORY_BUDGET_ENV_VAR};
+pub use gpu::{Gpu, GpuId, LossKind, MEMORY_BUDGET_ENV_VAR};
 pub use image::{FloatImage, Image};
 pub use index_buffer::IndexBuffer;
 pub use pass::{Commands, DepthPassDescriptor, RenderPass, RenderPassDescriptor};
@@ -60,6 +64,7 @@ mod threads {
     #[test]
     fn the_gpu_and_its_objects_can_be_shared_between_threads() {
         send_and_sync::<Gpu>();
+        send_and_sync::<GpuId>();
         send_and_sync::<Surface>();
         send_and_sync::<SurfaceFrame>();
         send_and_sync::<RenderTarget>();

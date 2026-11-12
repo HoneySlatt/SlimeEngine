@@ -618,6 +618,12 @@ as the value, and its first write stamps the value with the world's *tick*, so t
 that it changed; reaching a value without writing it changes nothing
 ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)).
 
+**Guarded door.** The one method through which `slime-gfx` lends its wgpu device, its queue, an
+encoder and the wgpu objects behind its targets and textures to code that draws with wgpu itself,
+uwui's renderer (`Gpu::with_wgpu`): it runs that code under the engine's policy, a lost device
+and memory that runs out as errors, any other error of wgpu a panic, and submits what it recorded
+([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)).
+
 **Half-precision float.** A 16-bit floating-point number (IEEE 754 binary16): 11 significant bits,
 values up to ±65 504. The channels of `Rgba16Float` render targets, which the engine converts to
 `f32` by hand when it reads them back (`Gpu::read_float_render_target`).
@@ -1250,7 +1256,7 @@ averaged under the reflection lobe of a growing roughness, so that one lookup gi
 surface reflects ([ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md)).
 
 **Premultiplied (color).** A color whose red, green and blue are already multiplied by its alpha, as
-`slime_gfx::Blend::Premultiplied` lays it over a target: a shape that covers a pixel in part
+wgpu's premultiplied blending lays it over a target: a shape that covers a pixel in part
 multiplies its color and its alpha alike, and an image whose texels are so before they are filtered
 mixes without the dark fringes that a transparent texel's color leaves otherwise. The *canvas*'s
 colors are ([ADR-0137](adr/0137-the-canvas.md)).
@@ -1605,9 +1611,9 @@ reads the share of the two that the user gives the first, and lays them out by i
 of a byte's 256 values on dark colors than on bright ones, as the eye distinguishes them: the
 values of displays, image files, color pickers and web colors. A *linear color* of 0.216 is
 encoded as 128 out of 255. The GPU decodes the texels of sRGB textures and encodes what it writes
-into sRGB targets; `LinearColor::from_srgb8` decodes bytes on the CPU. Seen without its encoding
-(`RenderTarget::without_srgb`), an sRGB target stores what is written as it is, so that the
-*canvas* mixes encoded values.
+into sRGB targets; `LinearColor::from_srgb8` decodes bytes on the CPU. Seen through a view of
+its format without the encoding (`TextureFormat::without_srgb`), an sRGB target stores what is
+written as it is, so that the *canvas* mixes encoded values.
 
 **Stable name.** The name a reflected type is known by in a *type registry*, in files and in saves:
 bare for the engine's types (`Transform`), `<crate>::<Type>` for a game's (`hunnawood::Collider`),

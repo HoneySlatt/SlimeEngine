@@ -38,6 +38,10 @@ pub struct Gpu {
     /// The wgpu instance that opened the device, which opens the device that replaces it.
     instance: wgpu::Instance,
     adapter_name: String,
+    /// What the adapter can do below WebGPU's full feature set, which the door lends
+    /// ([`Gpu::with_wgpu`]).
+    #[cfg(feature = "wgpu")]
+    pub(crate) downlevel: wgpu::DownlevelCapabilities,
     /// Whether the adapter renders on the CPU (lavapipe, WARP).
     software: bool,
     /// Why the device was lost, once it has been: set by wgpu's device-lost callback, by the error
@@ -51,9 +55,12 @@ pub struct Gpu {
 }
 
 /// The identity of a GPU device, which no other device that the process opens has, and which each
-/// object that it creates carries, so that an object used with another device is found.
+/// object that it creates carries, so that an object used with another device is found
+/// (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`). [`Gpu::id`] gives it, so that
+/// what keeps objects made through the guarded door, which carry none, checks them as the engine's
+/// are checked: `slime-app`'s bridge to uwui's renderer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct GpuId(u64);
+pub struct GpuId(u64);
 
 impl GpuId {
     /// An identity that no device of the process has had.
@@ -68,7 +75,7 @@ impl GpuId {
     ///
     /// If another device created it: a bug of the program, which would act on another object.
     #[track_caller]
-    pub(crate) fn owns(self, owner: GpuId, what: &str) {
+    pub fn owns(self, owner: GpuId, what: &str) {
         assert!(
             owner == self,
             "{what} of another GPU device used with this one: every object belongs to the `Gpu` \
@@ -328,6 +335,8 @@ impl Gpu {
             queue,
             instance: instance.clone(),
             adapter_name: info.name,
+            #[cfg(feature = "wgpu")]
+            downlevel: adapter.get_downlevel_capabilities(),
             software,
             loss,
             submissions: Arc::default(),
@@ -516,19 +525,17 @@ impl Gpu {
         })
     }
 
+    /// The identity of the device, which its clones share and no other device has: what an object
+    /// made with it keeps, to be checked against the device it is used with ([`GpuId::owns`]).
+    pub fn id(&self) -> GpuId {
+        self.id
+    }
+
     /// The name of the adapter in use, as its driver reports it: for example
     /// `"AMD Radeon RX 6900 XT (RADV NAVI21)"`, or `"llvmpipe (LLVM 21.1.8, 256 bits)"` for
     /// lavapipe.
     pub fn adapter_name(&self) -> &str {
         &self.adapter_name
-    }
-
-    /// The wgpu device behind the engine's, for the engine's own tests only, through the `wgpu`
-    /// feature (ADR-0031): the windowed lifecycle test makes it invalid without telling the
-    /// engine, as wgpu does before it reports a driver reset. Games must not use it.
-    #[cfg(feature = "wgpu")]
-    pub fn wgpu_device(&self) -> &wgpu::Device {
-        &self.device
     }
 
     /// The alignment, in bytes, of the offsets given to

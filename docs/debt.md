@@ -92,7 +92,8 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A real driver reset is checked by hand only (previous item).
   A restore that fails in a windowed run is not tested, nothing making one fail there; so nothing tests that `run` then returns the application's error first (ADR-0103).
 - **Three behaviours of wgpu 30 are worked around, and not reported to its authors** ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)).
-  wgpu holds a device invalid before it reports the loss, without a way to ask, and reports the use of objects created in between as a misuse: the engine asks with a buffer of 4 bytes after each creation.
+  wgpu holds a device invalid before it reports the loss, without a way to ask, and reports the use of objects created in between as a misuse: the engine asks with a buffer of 4 bytes after each creation, and once after each draw of uwui through its door (ADR-0244).
+  `uwui-render`, which cannot ask, fills the buffer of a canvas's items that it grows through its mapping, which a buffer made on a lost device refuses: wgpu would refuse to write it through the queue, a misuse that no loss excuses; a host that opens a device of its own ignores wgpu's errors once it is lost.
   `Device::poll` panics on a lost device: the engine waits for the GPU by submitting empty work, which wakes later than a poll would (`Gpu::wait_idle` says how much).
   On Vulkan, wgpu panics when it destroys a swap chain whose image work in flight still holds: the engine releases a surface's last image before its swap chain.
   Reporting them waits for the owner's agreement, which P3 asked.
@@ -630,6 +631,9 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A canvas holds at most `MAX_CANVAS_ITEMS` items.
   The interface's budget is checked on the RX 6900 XT alone, through ADR-0114's ratios.
   Writing a canvas's items into its buffer costs the CPU in proportion to their number, item by item ([`docs/measurements.md`](measurements.md), M6b.3a): 100,000 items made in 3.1 ms and written in 2.9 ms, one written alone in 1.2 µs ([M6d.4a](measurements.md#m6d4a-the-canvass-prototype)); followed at uwui's first stage, whose drawing keeps the items across frames and writes what changed ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)).
+- **`uwui-render` reads its error scopes at once** ([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)).
+  On Vulkan, Direct3D 12 and Metal, wgpu answers a scope before the call returns; in a browser it answers later, and `uwui-render` then knows no error: memory that runs out, or a shader refused, goes unreported there.
+  Followed at the web's trial, where uwui draws in a browser ([`stage-6d.md`](stage-6d.md#stage-6d--uwui-leaves-the-engine)).
 - **The interface's images are textures that the program gives** for the keys of its display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
   Cooked images that the asset cache holds come with their first user, M6c.7's asset browser.
   A draw that asks for more glyphs than the atlas's budget holds leaves some out; a glyph larger than a page is never drawn.

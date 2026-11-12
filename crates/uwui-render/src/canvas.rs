@@ -5,30 +5,27 @@
 //! ([`ImageId`]) in the list of images given when it is drawn. A [`CanvasRenderer`] draws it over a
 //! target, with one pipeline, its shader [`SHADER`], the items read by their index from a storage
 //! buffer (`docs/adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md`). It
-//! draws through `slime-gfx`'s handles.
+//! draws with wgpu, recording into its host's encoder
+//! (`docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md`).
 //!
-//! [`ImagePart`] and the writers of values as bytes mirror `slime-render`'s: `uwui-render` leaves
-//! the engine's repository with uwui, and cannot depend on its renderer
+//! [`ImagePart`] and the writer of values as bytes, `push_f32s`, mirror `slime-render`'s:
+//! `uwui-render` leaves the engine's repository with uwui, and cannot depend on its renderer
 //! (`docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md`).
 
-use std::sync::{Mutex, PoisonError};
+use std::num::NonZeroU64;
+use std::sync::{Mutex, PoisonError, mpsc};
 use std::time::Duration;
 
 use slime_color::{LinearColor, linear_to_srgb};
-use slime_gfx::{
-    AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
-    BindingType, Blend, CullMode, Filter, FragmentState, GfxError, Gpu, GpuTimer,
-    RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RenderTarget, Sampler,
-    SamplerDescriptor, ShaderModule, ShaderStages, StorageBuffer, Texture, TextureFormat,
-    UniformBuffer,
-};
+
+use crate::gpu::{DrawContext, Error, within_checks, within_memory};
 
 /// The canvas's shader, in WGSL, which [`CanvasRenderer::new`] compiles: `canvas.wgsl`, embedded in
 /// the program when it is compiled.
 pub const SHADER: &str = include_str!("canvas.wgsl");
 
-/// The label of the canvas's shader, which a shader's error names
-/// ([`GfxError::Shader`]'s `label`).
+/// The label of the canvas's shader, which a shader's error names ([`Error::Shader`]'s
+/// `label`).
 const SHADER_LABEL: &str = "canvas.wgsl";
 
 /// The bytes of an item as the shader reads it: nine `vec4`s.
@@ -133,23 +130,6 @@ pub struct CanvasShadow {
     pub spread: f32,
     /// The rectangle outside which it is not drawn; none for the whole target.
     pub clip: Option<PixelRect>,
-}
-
-/// An image that a [`Canvas`] draws, in the list that [`CanvasRenderer::draw`] is given: a texture,
-/// as the glyphs of a text's atlas or a picture, or a render target that a view drew, as an editor's
-/// viewport shows.
-#[derive(Clone, Copy, Debug)]
-pub enum CanvasImage<'a> {
-    /// A texture. One of one channel, `R8Unorm`, is how much of each texel a shape covers, drawn in
-    /// a color ([`ImageKind::Coverage`]); one of colors is drawn as it is ([`ImageKind::Color`]),
-    /// its colors not multiplied by their alpha, decoded first if they are sRGB. Its texels are
-    /// filtered before they are multiplied by their alpha: a transparent texel beside an opaque one
-    /// lends it its color, so that a transparent texel should hold its neighbours' colors, or the
-    /// edge between them darkens.
-    Texture(&'a Texture),
-    /// A render target, of one sample per pixel, that an earlier pass drew into. It cannot be the
-    /// target that the canvas draws into.
-    Target(&'a RenderTarget),
 }
 
 /// The image that an [`ImageQuad`] draws: its index in the list of images that
@@ -550,7 +530,7 @@ pub struct CanvasStats {
     pub draws: usize,
     /// How long a canvas took on the GPU: the latest that the renderer drew whose time came back, a
     /// few canvases ago, which is not this frame's total where it draws several; none where the
-    /// adapter does not time passes.
+    /// device does not time passes (wgpu's `TIMESTAMP_QUERY`).
     pub gpu_time: Option<Duration>,
 }
 
@@ -558,165 +538,233 @@ pub struct CanvasStats {
 /// the source that [`CanvasRenderer::set_shader`] gives, its layouts, its buffers, grown as canvases
 /// grow, its sampler, an image for the items that read none, and its timer.
 ///
-/// It holds GPU objects of the device it was made with: after a lost device, it is dropped before
-/// the device is replaced, and one made with the new device draws again.
+/// It holds wgpu objects of the device it was made with, and none of the device itself: after a
+/// lost device, it is dropped before the device is replaced, and one made with the new device draws
+/// again. On a lost device, it draws nothing and reports nothing: wgpu cannot be asked whether its
+/// device is lost, and its host reports the loss.
 pub struct CanvasRenderer {
-    frame_layout: BindGroupLayout,
-    image_layout: BindGroupLayout,
-    pipeline: RenderPipeline,
-    format: TextureFormat,
-    frame: UniformBuffer,
+    frame_layout: wgpu::BindGroupLayout,
+    image_layout: wgpu::BindGroupLayout,
+    pipeline_layout: wgpu::PipelineLayout,
+    pipeline: wgpu::RenderPipeline,
+    format: wgpu::TextureFormat,
+    frame: wgpu::Buffer,
     /// The items' buffer, and its size in bytes.
-    items: Option<(StorageBuffer, u64)>,
-    transforms: StorageBuffer,
-    sampler: Sampler,
-    blank: Texture,
-    /// Behind a lock, so that the canvas's renderer is shared between threads: a timer reads its
-    /// times through cells.
-    timer: Option<Mutex<GpuTimer>>,
+    items: Option<(wgpu::Buffer, u64)>,
+    transforms: wgpu::Buffer,
+    sampler: wgpu::Sampler,
+    blank: wgpu::TextureView,
+    /// Behind a lock, so that the canvas's renderer is shared between threads: a timer receives its
+    /// times through a channel.
+    timer: Option<Mutex<Timer>>,
     warned_of_items: bool,
 }
 
 impl CanvasRenderer {
-    /// What draws canvases into targets of `format`, with its embedded shader, [`SHADER`], which it
-    /// compiles.
+    /// What draws canvases into targets of `format`, with `device`, its embedded shader,
+    /// [`SHADER`], compiled; `queue` writes its first values. Its passes are timed where the device
+    /// has wgpu's `TIMESTAMP_QUERY`.
     ///
     /// # Errors
     ///
-    /// [`GfxError::OutOfMemory`] if the GPU cannot hold its objects, [`GfxError::Shader`] or
-    /// [`GfxError::Pipeline`] if the driver refuses its shader or its pipeline, as Direct3D 12's
-    /// shader compiler may, and [`GfxError::DeviceLost`] once the device is lost.
-    pub fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, GfxError> {
-        let module = gpu.create_shader_module(SHADER_LABEL, SHADER)?;
-        let frame_layout = gpu.create_bind_group_layout(
-            "canvas",
-            &[
-                BindGroupLayoutEntry {
+    /// [`Error::OutOfMemory`] if the GPU cannot hold its buffers, textures or queries,
+    /// [`Error::Shader`] or [`Error::Pipeline`] if the device refuses its shader or its pipeline,
+    /// as Direct3D 12's shader compiler may.
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        format: wgpu::TextureFormat,
+    ) -> Result<Self, Error> {
+        let frame_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("canvas"),
+            entries: &[
+                buffer_entry(0, wgpu::BufferBindingType::Uniform, 16),
+                buffer_entry(
+                    1,
+                    wgpu::BufferBindingType::Storage { read_only: true },
+                    ITEM_SIZE,
+                ),
+                wgpu::BindGroupLayoutEntry {
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ..buffer_entry(2, wgpu::BufferBindingType::Storage { read_only: true }, 32)
+                },
+            ],
+        });
+        let image_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("canvas image"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visible_to: ShaderStages::VertexAndFragment,
-                    ty: BindingType::UniformBuffer {
-                        dynamic_offset: false,
-                        size: 16,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
                     },
+                    count: None,
                 },
-                BindGroupLayoutEntry {
+                wgpu::BindGroupLayoutEntry {
                     binding: 1,
-                    visible_to: ShaderStages::VertexAndFragment,
-                    ty: BindingType::StorageBuffer { size: ITEM_SIZE },
-                },
-                BindGroupLayoutEntry {
-                    binding: 2,
-                    visible_to: ShaderStages::Vertex,
-                    ty: BindingType::StorageBuffer { size: 32 },
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
                 },
             ],
-        )?;
-        let image_layout = gpu.create_bind_group_layout(
-            "canvas image",
-            &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visible_to: ShaderStages::Fragment,
-                    ty: BindingType::Texture,
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("canvas"),
+            bind_group_layouts: &[Some(&frame_layout), Some(&image_layout)],
+            immediate_size: 0,
+        });
+        let pipeline = pipeline(device, &pipeline_layout, format, SHADER)?;
+        let (frame, transforms, blank, timer) = within_memory(device, "canvas", || {
+            let frame = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("canvas"),
+                size: 16,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            let transforms = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("canvas transforms"),
+                size: 32,
+                usage: wgpu::BufferUsages::STORAGE,
+                mapped_at_creation: true,
+            });
+            let blank = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("canvas blank"),
+                size: wgpu::Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
                 },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visible_to: ShaderStages::Fragment,
-                    ty: BindingType::Sampler,
-                },
-            ],
-        )?;
-        let pipeline = pipeline(gpu, &module, format, &frame_layout, &image_layout)?;
-        let frame = gpu.create_uniform_buffer("canvas", &[0; 16])?;
-        // The identity, the one transform until Stage 6d.
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            let timer = device
+                .features()
+                .contains(wgpu::Features::TIMESTAMP_QUERY)
+                .then(|| Timer::new(device, queue));
+            (frame, transforms, blank, timer)
+        })?;
+        // The identity, the one transform until uwui's first stage, written through the buffer's
+        // mapping: on a lost device, the buffer is invalid, and the queue would refuse to write it,
+        // an error that no loss excuses, where its mapping is refused without a word.
         let mut identity = Vec::new();
         push_f32s(&mut identity, &[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
-        let transforms = gpu.create_storage_buffer("canvas transforms", 32)?;
-        gpu.write_storage_buffer(&transforms, 0, &identity);
-        let sampler = gpu.create_sampler(
-            "canvas",
-            &SamplerDescriptor {
-                mag_filter: Filter::Linear,
-                min_filter: Filter::Linear,
-                address_u: AddressMode::ClampToEdge,
-                address_v: AddressMode::ClampToEdge,
+        if let Ok(mut mapped) = transforms.get_mapped_range_mut(..) {
+            mapped.copy_from_slice(&identity);
+            drop(mapped);
+            transforms.unmap();
+        }
+        queue.write_texture(
+            blank.as_image_copy(),
+            &[255; 4],
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4),
+                rows_per_image: Some(1),
             },
-        )?;
-        let blank =
-            gpu.create_texture("canvas blank", 1, 1, TextureFormat::Rgba8Unorm, &[255; 4])?;
+            wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+        );
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("canvas"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..wgpu::SamplerDescriptor::default()
+        });
         Ok(Self {
             frame_layout,
             image_layout,
+            pipeline_layout,
             pipeline,
             format,
             frame,
             items: None,
             transforms,
             sampler,
-            blank,
-            timer: gpu.create_timer("canvas", 1)?.map(Mutex::new),
+            blank: blank.create_view(&wgpu::TextureViewDescriptor::default()),
+            timer: timer.map(Mutex::new),
             warned_of_items: false,
         })
     }
 
     /// Makes the pipeline again from `source`, the WGSL of a shader that replaces [`SHADER`], as a
-    /// program that reloads its shaders while it runs asks. A source that does not compile, or
-    /// whose pipeline is refused, leaves the pipeline as it was: the canvas draws on with it.
+    /// program that reloads its shaders while it runs asks, with `device`, the renderer's. A source
+    /// that does not compile, or whose pipeline is refused, leaves the pipeline as it was: the
+    /// canvas draws on with it. Its errors are caught in scopes of its own: they never reach the
+    /// device's handler, nor a scope of its host.
     ///
     /// # Errors
     ///
-    /// [`GfxError::Shader`] if the shader does not compile, labelled `canvas.wgsl`, with the line
-    /// and column of the error; [`GfxError::Pipeline`] if its pipeline is refused;
-    /// [`GfxError::DeviceLost`] once the device is lost.
-    pub fn set_shader(&mut self, gpu: &Gpu, source: &str) -> Result<(), GfxError> {
-        let module = gpu.create_shader_module(SHADER_LABEL, source)?;
-        self.pipeline = pipeline(
-            gpu,
-            &module,
-            self.format,
-            &self.frame_layout,
-            &self.image_layout,
-        )?;
+    /// [`Error::Shader`] if the shader does not compile, labelled `canvas.wgsl`, with the line and
+    /// column of the error; [`Error::Pipeline`] if its pipeline is refused.
+    pub fn set_shader(&mut self, device: &wgpu::Device, source: &str) -> Result<(), Error> {
+        self.pipeline = pipeline(device, &self.pipeline_layout, self.format, source)?;
         Ok(())
     }
 
-    /// Draws `canvas` over what `target` holds, in a pass of its own, submitted at once: after a
-    /// frame's views, the interface over them (`docs/adr/0137-the-canvas.md`). `images` are the
-    /// images that its quads name by their index ([`ImageId`]). The target is any of the
-    /// renderer's format: a window's image, or one that a panel shows. Into a target of an sRGB
-    /// format, the canvas's colors mix as their sRGB values do, as design tools mix them: it draws
-    /// through the target's view without the encoding ([`RenderTarget::without_srgb`]), its colors
-    /// encoded first; into one of another format, `Rgba16Float`, they mix linearly. Returns what
-    /// it drew and the GPU time of an earlier canvas, the latest that came back.
+    /// Records `canvas`, drawn over what `target` holds, into `context`'s encoder, in a pass of its
+    /// own: after a frame's views, the interface over them (`docs/adr/0137-the-canvas.md`).
+    /// `images` are the images that its quads name by their index ([`ImageId`]), each a view of a
+    /// texture of the device: of one channel, `R8Unorm`, how much of each texel a shape covers,
+    /// drawn in a color ([`ImageKind::Coverage`]); of colors, drawn as they are
+    /// ([`ImageKind::Color`]), not multiplied by their alpha, decoded first if the view is sRGB.
+    /// Texels are filtered before they are multiplied by their alpha: a transparent texel beside an
+    /// opaque one lends it its color, so that a transparent texel should hold its neighbours'
+    /// colors, or the edge between them darkens. A view drawn by an earlier pass, as an editor's
+    /// viewport, is drawn so too.
+    ///
+    /// The target is any texture of the renderer's format: a window's image, or one that a panel
+    /// shows. Into a target of an sRGB format, the canvas's colors mix as their sRGB values do, as
+    /// design tools mix them: it draws through a view of the target without the encoding, its colors
+    /// encoded first, which the target must allow, its format without sRGB among its view formats
+    /// (`docs/adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md`); into
+    /// one of another format, `Rgba16Float`, they mix linearly. The view is made at each draw, and
+    /// kept by none.
+    ///
+    /// The queue writes the items before the host submits the encoder, which it does before this
+    /// renderer draws again ([`DrawContext`]). Returns what it drew and the GPU time of an earlier
+    /// canvas, the latest that came back once its encoder was submitted and the GPU finished it,
+    /// which wgpu sees at a later submission.
     ///
     /// # Errors
     ///
-    /// [`GfxError::OutOfMemory`] if the GPU cannot hold the canvas's items, and
-    /// [`GfxError::DeviceLost`] once the device is lost: nothing is drawn then.
+    /// [`Error::OutOfMemory`] if the GPU cannot hold the canvas's items: nothing is recorded then.
     ///
     /// # Panics
     ///
     /// If `target` does not have the renderer's format, or holds several samples per pixel. If an
-    /// item drawn reads an [`ImageId`] that is not below `images.len()`. A canvas that draws its
-    /// own target as an image is refused by the GPU's validation.
+    /// item drawn reads an [`ImageId`] that is not below `images.len()`. wgpu refuses, through the
+    /// device's handler or its host's scopes, a target that does not allow its view without sRGB,
+    /// an object of another device, and a canvas that draws its own target as an image.
     pub fn draw(
         &mut self,
-        gpu: &Gpu,
+        context: &mut DrawContext<'_>,
         canvas: &Canvas,
-        images: &[CanvasImage<'_>],
-        target: &RenderTarget,
-    ) -> Result<CanvasStats, GfxError> {
+        images: &[&wgpu::TextureView],
+        target: &wgpu::Texture,
+    ) -> Result<CanvasStats, Error> {
         assert!(
             target.format() == self.format,
-            "the renderer draws canvases into {:?} targets, not into `{}`, which is {:?}",
+            "the renderer draws canvases into {:?} targets, not into one of {:?}",
             self.format,
-            target.label(),
             target.format()
         );
         assert!(
-            !target.is_multisampled(),
-            "a canvas draws into targets of one sample per pixel, not into `{}`",
-            target.label()
+            target.sample_count() == 1,
+            "a canvas draws into targets of one sample per pixel, not of {}",
+            target.sample_count()
         );
         let count = canvas.items.len().min(MAX_CANVAS_ITEMS);
         let left_out = canvas.items.len() - count;
@@ -732,11 +780,6 @@ impl CanvasRenderer {
                 images.len()
             );
         }
-        gpu.check()?;
-        // An sRGB target is drawn into without its encoding, the shader encoding the colors, so
-        // that they mix as sRGB values.
-        let unencoded = target.without_srgb();
-        let target = unencoded.as_ref().unwrap_or(target);
         if left_out > 0 && !self.warned_of_items {
             tracing::warn!(
                 left_out,
@@ -745,11 +788,11 @@ impl CanvasRenderer {
             );
             self.warned_of_items = true;
         }
-        let timer = self
+        let mut timer = self
             .timer
             .as_ref()
             .map(|timer| timer.lock().unwrap_or_else(PoisonError::into_inner));
-        let gpu_time = timer.as_ref().and_then(|timer| timer.latest(0));
+        let gpu_time = timer.as_mut().and_then(|timer| timer.latest());
         if count == 0 {
             return Ok(CanvasStats {
                 left_out,
@@ -757,88 +800,127 @@ impl CanvasRenderer {
                 ..CanvasStats::default()
             });
         }
+        let device = context.device;
+        let encode = self.format.is_srgb();
+        let written = item_bytes(&canvas.items[..count], encode);
         let bytes = (count as u64 * ITEM_SIZE)
             .next_power_of_two()
             .max(ITEM_SIZE * 64);
         if self.items.as_ref().is_none_or(|&(_, size)| size < bytes) {
-            self.items = Some((gpu.create_storage_buffer("canvas items", bytes)?, bytes));
+            let items = within_memory(device, "canvas items", || {
+                device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("canvas items"),
+                    size: bytes,
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: true,
+                })
+            })?;
+            // A buffer made on a lost device is invalid: it cannot be mapped, and the queue would
+            // refuse to write it, an error that no loss excuses. Nothing is drawn then.
+            let Ok(mut mapped) = items.get_mapped_range_mut(..) else {
+                return Ok(CanvasStats {
+                    left_out,
+                    gpu_time,
+                    ..CanvasStats::default()
+                });
+            };
+            mapped.slice(..written.len()).copy_from_slice(&written);
+            drop(mapped);
+            items.unmap();
+            self.items = Some((items, bytes));
+        } else {
+            let (items, _) = self.items.as_ref().expect("checked above");
+            context.queue.write_buffer(items, 0, &written);
         }
-        let (items, _) = self.items.as_ref().expect("made above");
-        gpu.write_storage_buffer(
-            items,
-            0,
-            &item_bytes(&canvas.items[..count], self.format.is_srgb()),
-        );
+        let (items, _) = self.items.as_ref().expect("made or written above");
         let mut size = Vec::new();
         push_f32s(
             &mut size,
             &[
                 target.width() as f32,
                 target.height() as f32,
-                if self.format.is_srgb() { 1.0 } else { 0.0 },
+                if encode { 1.0 } else { 0.0 },
                 0.0,
             ],
         );
-        gpu.write_uniform_buffer(&self.frame, &size);
-        let frame_group = gpu.create_bind_group(
-            "canvas",
-            &self.frame_layout,
-            &[
-                BindGroupEntry {
+        context.queue.write_buffer(&self.frame, 0, &size);
+        let frame_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("canvas"),
+            layout: &self.frame_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: BindingResource::UniformBuffer(&self.frame),
+                    resource: self.frame.as_entire_binding(),
                 },
-                BindGroupEntry {
+                wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: BindingResource::StorageBuffer(items),
+                    resource: items.as_entire_binding(),
                 },
-                BindGroupEntry {
+                wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: BindingResource::StorageBuffer(&self.transforms),
+                    resource: self.transforms.as_entire_binding(),
                 },
             ],
-        )?;
-        let groups = batches
+        });
+        let groups: Vec<wgpu::BindGroup> = batches
             .iter()
             .map(|&(_, image)| {
-                let image = match image.map(|id| images[id.0 as usize]) {
-                    None => BindingResource::Texture(&self.blank),
-                    Some(CanvasImage::Texture(texture)) => BindingResource::Texture(texture),
-                    Some(CanvasImage::Target(source)) => BindingResource::RenderTarget(source),
-                };
-                gpu.create_bind_group(
-                    "canvas image",
-                    &self.image_layout,
-                    &[
-                        BindGroupEntry {
+                let view = image.map_or(&self.blank, |id| images[id.0 as usize]);
+                device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("canvas image"),
+                    layout: &self.image_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
                             binding: 0,
-                            resource: image,
+                            resource: wgpu::BindingResource::TextureView(view),
                         },
-                        BindGroupEntry {
+                        wgpu::BindGroupEntry {
                             binding: 1,
-                            resource: BindingResource::Sampler(&self.sampler),
+                            resource: wgpu::BindingResource::Sampler(&self.sampler),
                         },
                     ],
-                )
+                })
             })
-            .collect::<Result<Vec<BindGroup>, GfxError>>()?;
-        let pass = RenderPassDescriptor {
-            target,
-            clear: None,
-            depth: None,
-            timer: timer.as_deref(),
-            resolve: None,
-        };
-        gpu.render(&pass, |pass| {
+            .collect();
+        // An sRGB target is drawn into without its encoding, the shader encoding the colors, so
+        // that they mix as sRGB values.
+        let view = target.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("canvas target"),
+            format: Some(self.format.remove_srgb_suffix()),
+            ..wgpu::TextureViewDescriptor::default()
+        });
+        let timed = timer.as_mut().and_then(|timer| timer.take_slot());
+        {
+            let mut pass = context
+                .encoder
+                .begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("canvas"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: timed.as_ref().map(TimedSlot::timestamp_writes),
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &frame_group, &[]);
             for ((range, _), group) in batches.iter().zip(&groups) {
                 pass.set_bind_group(1, group, &[]);
                 let first = u32::try_from(range.start * 6).expect("within MAX_CANVAS_ITEMS");
                 let last = u32::try_from(range.end * 6).expect("within MAX_CANVAS_ITEMS");
-                pass.draw(first..last);
+                pass.draw(first..last, 0..1);
             }
-        });
+        }
+        if let Some(timed) = timed {
+            timed.read_back(context.encoder);
+        }
         Ok(CanvasStats {
             items: count,
             left_out,
@@ -848,30 +930,246 @@ impl CanvasRenderer {
     }
 }
 
-/// The canvas's pipeline, from `module`, for targets of `format`, which it draws into without their
-/// sRGB encoding if they have one.
+/// A uniform or storage buffer of `size` bytes at least, at `binding`, which both stages read.
+fn buffer_entry(
+    binding: u32,
+    ty: wgpu::BufferBindingType,
+    size: u64,
+) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+        ty: wgpu::BindingType::Buffer {
+            ty,
+            has_dynamic_offset: false,
+            min_binding_size: NonZeroU64::new(size),
+        },
+        count: None,
+    }
+}
+
+/// The canvas's pipeline, from the WGSL `source`, for targets of `format`, which it draws into
+/// without their sRGB encoding if they have one; the shader and the pipeline checked in scopes of
+/// their own.
 fn pipeline(
-    gpu: &Gpu,
-    module: &ShaderModule,
-    format: TextureFormat,
-    frame: &BindGroupLayout,
-    image: &BindGroupLayout,
-) -> Result<RenderPipeline, GfxError> {
-    gpu.create_render_pipeline(&RenderPipelineDescriptor {
-        label: "canvas",
-        shader: module,
-        vertex_entry_point: "vs_main",
-        vertex_layout: None,
-        fragment: Some(FragmentState {
-            entry_point: "fs_main",
-            target_format: Some(format.without_srgb().unwrap_or(format)),
-            blend: Some(Blend::Premultiplied),
+    device: &wgpu::Device,
+    layout: &wgpu::PipelineLayout,
+    format: wgpu::TextureFormat,
+    source: &str,
+) -> Result<wgpu::RenderPipeline, Error> {
+    let (module, error) = within_checks(device, || {
+        device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(SHADER_LABEL),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
+        })
+    });
+    if let Some(error) = error {
+        return Err(Error::Shader {
+            label: SHADER_LABEL.to_owned(),
+            message: error.to_string().trim_end().to_owned(),
+        });
+    }
+    let (pipeline, error) = within_checks(device, || {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("canvas"),
+            layout: Some(layout),
+            vertex: wgpu::VertexState {
+                module: &module,
+                entry_point: Some("vs_main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: &[],
+            },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &module,
+                entry_point: Some("fs_main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: format.remove_srgb_suffix(),
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        })
+    });
+    match error {
+        None => Ok(pipeline),
+        Some(error) => Err(Error::Pipeline {
+            label: "canvas".to_owned(),
+            message: error.to_string().trim_end().to_owned(),
         }),
-        bind_group_layouts: &[frame, image],
-        depth: None,
-        cull: CullMode::None,
-        multisampled: false,
-    })
+    }
+}
+
+/// How many canvases can wait for their times: while that many do, the next ones go untimed.
+const TIMER_SLOTS: usize = 4;
+
+/// Times the canvas's passes: a timestamp written when a pass starts and ends, read back once the
+/// GPU has finished it, so that nothing waits for the GPU. It never polls the device, on which
+/// wgpu panics when the poll finds a lost Vulkan device: wgpu maps a readback once the encoder that
+/// fills it is submitted ([`wgpu::CommandEncoder::map_buffer_on_submit`]), and gives it at a later
+/// submission that finds the work done. A canvas whose encoder is dropped unsubmitted gives its
+/// slot back untimed.
+struct Timer {
+    queries: wgpu::QuerySet,
+    slots: Vec<Slot>,
+    /// The slots whose readback came back, sent by wgpu's callbacks: mapped, or not.
+    mapped: mpsc::Receiver<(usize, bool)>,
+    sender: mpsc::Sender<(usize, bool)>,
+    /// Nanoseconds per timestamp tick.
+    period: f32,
+    /// The time of the latest canvas whose time came back.
+    latest: Option<Duration>,
+}
+
+/// The buffers of one timed canvas.
+struct Slot {
+    /// Where its two timestamps are resolved.
+    resolve: wgpu::Buffer,
+    /// Where they are copied for the CPU to read.
+    readback: wgpu::Buffer,
+    /// Whether a canvas has taken it and its time has not come back yet.
+    in_flight: bool,
+}
+
+/// A slot taken by the canvas being recorded.
+struct TimedSlot<'t> {
+    timer: &'t Timer,
+    index: usize,
+}
+
+impl Timer {
+    /// A timer of the canvas's passes, created inside its caller's scope of memory.
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        let queries = device.create_query_set(&wgpu::QuerySetDescriptor {
+            label: Some("canvas"),
+            ty: wgpu::QueryType::Timestamp,
+            count: 2 * TIMER_SLOTS as u32,
+        });
+        let size = u64::from(2 * wgpu::QUERY_SIZE);
+        let slots = (0..TIMER_SLOTS)
+            .map(|_| Slot {
+                resolve: device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("canvas timestamps"),
+                    size,
+                    usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
+                    mapped_at_creation: false,
+                }),
+                readback: device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("canvas timestamps readback"),
+                    size,
+                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                    mapped_at_creation: false,
+                }),
+                in_flight: false,
+            })
+            .collect();
+        let (sender, mapped) = mpsc::channel();
+        Self {
+            queries,
+            slots,
+            mapped,
+            sender,
+            period: queue.get_timestamp_period(),
+            latest: None,
+        }
+    }
+
+    /// The time of the latest canvas whose time came back, the slots that came back freed. Reading
+    /// takes no time worth measuring and never waits for the GPU.
+    fn latest(&mut self) -> Option<Duration> {
+        while let Ok((index, mapped)) = self.mapped.try_recv() {
+            let slot = &mut self.slots[index];
+            if !mapped {
+                slot.in_flight = false;
+                continue;
+            }
+            match slot.readback.get_mapped_range(..) {
+                Ok(bytes) => {
+                    let timestamp = |at: usize| {
+                        let bytes: [u8; 8] = bytes[at..at + 8].try_into().unwrap_or([0; 8]);
+                        u64::from_le_bytes(bytes)
+                    };
+                    let ticks = timestamp(8).saturating_sub(timestamp(0));
+                    let nanoseconds = ticks as f64 * f64::from(self.period);
+                    self.latest = Some(Duration::from_nanos(nanoseconds as u64));
+                }
+                // wgpu maps a readback whose device was lost while its work ran, then refuses
+                // it: destroyed, it is neither read, unmapped nor used again.
+                Err(_) => {
+                    tracing::debug!("a canvas's time could not be read back");
+                    continue;
+                }
+            }
+            slot.readback.unmap();
+            slot.in_flight = false;
+        }
+        self.latest
+    }
+
+    /// A slot for the canvas being recorded, `None` while every slot waits for its time.
+    fn take_slot(&mut self) -> Option<TimedSlot<'_>> {
+        let index = self.slots.iter().position(|slot| !slot.in_flight)?;
+        self.slots[index].in_flight = true;
+        Some(TimedSlot { timer: self, index })
+    }
+}
+
+impl TimedSlot<'_> {
+    /// The timestamps that the canvas's pass writes, at its start and its end.
+    fn timestamp_writes(&self) -> wgpu::RenderPassTimestampWrites<'_> {
+        let first = 2 * self.index as u32;
+        wgpu::RenderPassTimestampWrites {
+            query_set: &self.timer.queries,
+            beginning_of_pass_write_index: Some(first),
+            end_of_pass_write_index: Some(first + 1),
+        }
+    }
+
+    /// Records, after the pass, the copy of its timestamps into the slot's readback, mapped once
+    /// `encoder` is submitted and the GPU has finished it.
+    fn read_back(self, encoder: &mut wgpu::CommandEncoder) {
+        let slot = &self.timer.slots[self.index];
+        let first = 2 * self.index as u32;
+        encoder.resolve_query_set(&self.timer.queries, first..first + 2, &slot.resolve, 0);
+        encoder.copy_buffer_to_buffer(&slot.resolve, 0, &slot.readback, 0, None);
+        let mut returned = Returned {
+            sender: self.timer.sender.clone(),
+            index: self.index,
+        };
+        encoder.map_buffer_on_submit(&slot.readback, wgpu::MapMode::Read, .., move |result| {
+            returned.send(result.is_ok());
+        });
+    }
+}
+
+/// What gives a timed slot back to its timer: wgpu's callback once the readback is mapped, or its
+/// drop, when the encoder is dropped without being submitted, which drops the callback uncalled.
+struct Returned {
+    sender: mpsc::Sender<(usize, bool)>,
+    index: usize,
+}
+
+impl Returned {
+    /// Gives the slot back, its readback mapped or not.
+    fn send(&mut self, mapped: bool) {
+        // The renderer may be gone by then: a slot that nobody reads is no loss.
+        let _ = self.sender.send((self.index, mapped));
+        // Sent once: the drop that follows sends nothing.
+        self.index = usize::MAX;
+    }
+}
+
+impl Drop for Returned {
+    fn drop(&mut self) {
+        if self.index != usize::MAX {
+            let _ = self.sender.send((self.index, false));
+        }
+    }
 }
 
 /// `items`, laid out as the shader reads them, little-endian, their colors mixed as the target
@@ -899,7 +1197,10 @@ fn item_bytes(items: &[Item], encode: bool) -> Vec<u8> {
         } else {
             (item.uv, item.widths)
         };
-        for vector in [
+        // The item's bytes laid out in place, then appended at once: as fast however the
+        // compiler inlines a vector's growth.
+        let mut laid_out = [0; ITEM_SIZE as usize];
+        let floats = [
             item.quad,
             item.shape,
             item.radii,
@@ -908,23 +1209,21 @@ fn item_bytes(items: &[Item], encode: bool) -> Vec<u8> {
             uv,
             item.clip,
             widths,
-        ] {
-            push_f32s(&mut bytes, &vector);
+        ];
+        let (words, kind) = laid_out.as_chunks_mut::<4>().0.split_at_mut(32);
+        for (word, value) in words.iter_mut().zip(floats.as_flattened()) {
+            *word = value.to_le_bytes();
         }
-        push_u32s(&mut bytes, &item.kind);
+        for (word, value) in kind.iter_mut().zip(item.kind) {
+            *word = value.to_le_bytes();
+        }
+        bytes.extend_from_slice(&laid_out);
     }
     bytes
 }
 
 /// Appends `values` as little-endian 32-bit floats.
 fn push_f32s(bytes: &mut Vec<u8>, values: &[f32]) {
-    for value in values {
-        bytes.extend_from_slice(&value.to_le_bytes());
-    }
-}
-
-/// Appends `values` as little-endian 32-bit unsigned integers.
-fn push_u32s(bytes: &mut Vec<u8>, values: &[u32]) {
     for value in values {
         bytes.extend_from_slice(&value.to_le_bytes());
     }

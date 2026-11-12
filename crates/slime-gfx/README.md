@@ -15,9 +15,8 @@ them back, and draws into a window:
   bind groups, with a depth test, a depth bias and face culling.
 - It draws into 8-bit sRGB or linear images, into 16-bit floating-point ones (high dynamic range),
   or into a depth target only, replacing what they hold or laying its colors over it by their
-  alpha, straight or already multiplied by it (`Blend`, `docs/adr/0129-drawing-for-the-editor.md`,
-  `docs/adr/0137-the-canvas.md`). It draws into an sRGB image, a window's included, through a
-  view without its encoding too, which stores what shaders write as it is.
+  alpha (`Blend`, `docs/adr/0129-drawing-for-the-editor.md`). Its sRGB images, a window's included, can be viewed without
+  their encoding too, which stores what shaders write as it is, as uwui's canvas draws into them.
 - It draws into images of four samples per pixel, which a pass resolves into ordinary ones, or
   which later shaders read sample by sample, for multisample anti-aliasing.
 - Later passes sample the render and depth targets that earlier ones drew into. Several passes
@@ -42,8 +41,10 @@ Not there yet: array textures.
 
 ## Role
 
-- Owns every use of wgpu. Its public API uses engine-owned types only; no wgpu type leaves this
-  crate (`docs/adr/0016-gpu-layer-with-wgpu.md`).
+- Owns every use of wgpu but one. Its public API uses engine-owned types only
+  (`docs/adr/0016-gpu-layer-with-wgpu.md`); behind its `wgpu` feature, its guarded door lends the
+  device to uwui's renderer, under the engine's policy
+  (`docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md`).
 - Opens the GPU with the graphics API of each platform: Vulkan on Linux, Direct3D 12 on Windows.
 - Works without a window: offscreen rendering and its tests need no windowing system.
 - Draws into a window given as `raw-window-handle` traits, through the window's *surface*: the
@@ -177,13 +178,19 @@ fn main() -> Result<(), GfxError> {
   `BindingType::MultisampledDepthTexture` one, as the outline's pass that resolves the scene's depth
   does ([ADR-0159](../../docs/adr/0159-picking-and-the-selection.md)).
   `RenderTarget::is_multisampled` tells them from targets of one sample.
-- `Gpu::write_texture` writes a part of a texture's first level, as the interface's atlas writes
-  each glyph into its page ([ADR-0139](../../docs/adr/0139-text-drawn-and-the-display-list.md)).
-- `RenderTarget::without_srgb` gives an sRGB target, a window's image included, seen through the
-  format without the encoding (`TextureFormat::without_srgb`): a pass that draws into it stores
-  and blends what its shaders write as it is, already encoded, as the interface's canvas blends in
-  sRGB's encoding (ADR-0137). A window whose images do not allow it is refused
+- An sRGB target, a window's image included, can be viewed through the format without the
+  encoding (`TextureFormat::without_srgb`): a pass that draws into that view stores and blends
+  what its shaders write as it is, already encoded, as the interface's canvas blends in sRGB's
+  encoding (ADR-0137). A window whose images do not allow it is refused
   (`GfxError::SurfaceWithoutEncoding`).
+- `Gpu::with_wgpu(label, |loan| …)`, behind the `wgpu` feature, is the guarded door (ADR-0244):
+  on a device not lost, it runs the closure on the calling thread, inside error scopes of memory,
+  validation and internal errors, and lends it a `WgpuLoan`: the wgpu device, its queue, the
+  adapter's downlevel capabilities, an encoder, and `EngineObjects`, the wgpu objects behind the
+  engine's targets and textures, each checked to be of the device. It then submits the encoder
+  under the engine's lock, marks drawn the targets lent to be drawn into, and asks whether the
+  device is still valid: a loss is `GfxError::DeviceLost`, then memory that ran out
+  `GfxError::OutOfMemory`, and any other error of wgpu a panic with its message.
 - `Surface::acquire` gives the `SurfaceFrame` to draw a window's next image into, and
   `SurfaceFrame::present` shows it, as its `PresentMode` says (ADR-0021). The surface releases the
   last image when it is dropped or restored, so that an image that a panic or a lost device left
@@ -208,14 +215,16 @@ how it behaves on each graphics API.
 
 ## The `wgpu` feature
 
-For the engine's own tests only (`docs/adr/0031-dev-overlay-with-egui.md`): it gives the wgpu
-device behind the engine's (`Gpu::wgpu_device`), which `slime-app`'s windowed lifecycle test makes
-invalid without telling the engine, as wgpu does before it reports a driver reset. Games must not
-enable it.
+The guarded door, `Gpu::with_wgpu` (`docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md`),
+for `slime-app`'s bridge to uwui's renderer and the engine's own tests: `slime-app` turns it on, so
+that it is on in every game, and `scripts/check.sh` checks that nothing else opens the door. Its
+tests, `tests/door.rs`, need it: `cargo test --workspace` turns it on, and so does
+`cargo test -p slime-gfx --features wgpu`. `slime-app`'s windowed lifecycle test takes a clone of
+the device out of the door, to make it invalid without telling the engine, as wgpu does before it
+reports a driver reset.
 
 ## Must not
 
 - Depend on `slime-platform` or any windowing code: windows reach it as `raw-window-handle`
   traits, so that offscreen rendering works without a windowing system.
-- Expose wgpu's types in its public API, except `Gpu::wgpu_device`, through the `wgpu` feature,
-  for the engine's own tests.
+- Expose wgpu's types in its public API, except through the door, behind the `wgpu` feature.

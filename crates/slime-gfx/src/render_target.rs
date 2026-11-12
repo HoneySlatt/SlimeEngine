@@ -23,8 +23,8 @@ pub enum TextureFormat {
     /// The same channels and encoding in another byte order: blue, green, red, then alpha. Most
     /// windows use it.
     Bgra8UnormSrgb,
-    /// The byte order of `Bgra8UnormSrgb`, without its encoding: a window's image seen through
-    /// [`RenderTarget::without_srgb`], which stores what shaders write as it is.
+    /// The byte order of `Bgra8UnormSrgb`, without its encoding: a window's image seen without
+    /// it, which stores what shaders write as it is, as uwui's canvas draws into it.
     Bgra8Unorm,
     /// Red, green, blue and alpha, 8 bits each, linear: for data that is not a color, such as a
     /// normal map, which shaders read as it is.
@@ -197,27 +197,6 @@ impl RenderTarget {
         self.texture.usage().contains(wgpu::TextureUsages::COPY_SRC)
     }
 
-    /// The same pixels, seen through the format without sRGB's encoding
-    /// ([`TextureFormat::without_srgb`]): a pass that draws into it stores the values that its
-    /// shaders give as they are, and blends them so, already encoded, as the interface's canvas
-    /// blends in sRGB's encoding (`docs/adr/0137-the-canvas.md`). Each call makes a view; the
-    /// target returned shares the texture, and whether a pass drew into it. None for a target of
-    /// a format without the encoding.
-    pub fn without_srgb(&self) -> Option<RenderTarget> {
-        let format = self.format.without_srgb()?;
-        Some(RenderTarget {
-            gpu: self.gpu,
-            texture: self.texture.clone(),
-            view: self.texture.create_view(&wgpu::TextureViewDescriptor {
-                format: Some(format.to_wgpu()),
-                ..wgpu::TextureViewDescriptor::default()
-            }),
-            label: self.label.clone(),
-            format,
-            drawn: Arc::clone(&self.drawn),
-        })
-    }
-
     /// The label given at creation. It names the target in error messages and, in GPU capture
     /// tools, the render passes drawn into it and their command buffers, and also the texture of a
     /// target from [`Gpu::create_render_target`], but not a window's image.
@@ -329,7 +308,8 @@ impl Gpu {
             "render target `{label}`: {format:?} holds the coverage of an atlas, which only \
              textures take"
         );
-        // A target of an sRGB format can be seen without its encoding (`RenderTarget::without_srgb`).
+        // A target of an sRGB format can be seen without its encoding, as uwui's canvas draws
+        // into it through the door (`Gpu::with_wgpu`).
         let unencoded = format.without_srgb().map(TextureFormat::to_wgpu);
         let texture = self.create(label, || {
             self.device.create_texture(&wgpu::TextureDescriptor {

@@ -11,8 +11,9 @@ publish.workspace = true
 workspace = true
 
 [features]
-# Gives the engine's own tests the wgpu device behind the engine's, to make it invalid as a driver
-# reset does (ADR-0031). Games must not enable it.
+# The guarded door through which the engine lends its wgpu device, `Gpu::with_wgpu` (ADR-0244):
+# for `slime-app`'s bridge to uwui's renderer and the engine's own tests, which scripts/check.sh
+# keeps to them.
 wgpu = []
 
 [dependencies]
@@ -27,3 +28,9 @@ wgpu.workspace = true
 [dev-dependencies]
 # Encodes and decodes the BC blocks of the tests of compressed textures (`tests/blocks.rs`).
 block_compression.workspace = true
+
+# The door's tests, which need the feature: `cargo test --workspace` turns it on through
+# `slime-app`, and `cargo test -p slime-gfx --features wgpu` alone.
+[[test]]
+name = "door"
+required-features = ["wgpu"]

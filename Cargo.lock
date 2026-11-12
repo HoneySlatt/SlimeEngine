@@ -3753,9 +3753,9 @@ version = "0.6.0"
 dependencies = [
  "etagere",
  "slime-color",
- "slime-gfx",
  "tracing",
  "uwui",
+ "wgpu",
 ]
 
 [[package]]

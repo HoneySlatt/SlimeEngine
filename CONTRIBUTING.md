@@ -118,6 +118,7 @@ cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>  
 cargo run --example text -- --output <file.png>           # the interface's text in several writing systems, rasterized by the CPU (ADR-0136)
 cargo run --example interface -- --output <file.png>      # an interface built as a tree of elements, styled by a theme: text, boxes, images, a view (ADR-0140, ADR-0141)
 cargo run --example widgets -- --output <file.png>        # the widgets of a panel in the editor's look: check boxes, sliders, sections, tabs, two panels, scroll bars (ADR-0148), menus, a list to choose from, tooltips, a floating panel (ADR-0150), rich fields, notifications, the palette of commands (ADR-0151), a color well (ADR-0152)
+cargo test -p slime-gfx --features wgpu --test door        # the tests of slime-gfx's guarded door alone, which need its feature (ADR-0244)
 UWUI_KDL_SEED=<seed> cargo test -p uwui-kdl --test hostile  # replay the random inputs that failed uwui's reader of KDL, from the seed it printed (crates/uwui-kdl/README.md)
 scripts/subset-fonts.sh <noto> <noto-cjk> <noto-emoji>    # make the fonts of uwui's tests again (crates/uwui/tests/fonts/README.md)
 scripts/screen-reader-check.sh <the interface example's program> <cooked data>  # read and use it through AT-SPI, as a screen reader does, on a Wayland display (ADR-0147)
@@ -493,7 +494,10 @@ inside a headless Weston compositor of its own, at 240 Hz (and that test's resiz
 scenarios in a second one, at scale 2), the game built for
 shipping, which must hold neither the development channel nor the dev overlay
 ([ADR-0152](docs/adr/0152-the-dev-overlay-on-the-engines-interface.md)), the game, which must hold
-no adapter for screen readers ([ADR-0146](docs/adr/0146-screen-readers.md)), `lychee` (links
+no adapter for screen readers ([ADR-0146](docs/adr/0146-screen-readers.md)), no code but
+`slime-app`'s bridge and the engine's tests that opens `slime-gfx`'s door to wgpu, and no engine
+crate but `slime-color` among `uwui-render`'s dependencies
+([ADR-0244](docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)), `lychee` (links
 between Markdown files), and the lengths of the two files that every agent reads at each
 session's start: `AGENTS.md`, at most 1,500 words, and `docs/PLAN.md`, at most 2,000; what does
 not fit goes to its home ([`AGENTS.md`](AGENTS.md#one-home-per-fact)).

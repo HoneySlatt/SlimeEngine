@@ -72,7 +72,7 @@ Never report as working what was not verified: say what was not, and why.
 ## Architecture rules
 
 - Crate dependencies flow one way, per `docs/ARCHITECTURE.md`. No cycles, no shortcuts across layers.
-- wgpu types stay in `gfx`, `render` and engine tests (via `slime-gfx`'s `wgpu` feature, ADR-0031); everything else uses engine-owned handles.
+- wgpu types stay in `slime-gfx` and `uwui-render`; `slime-app`'s bridge and engine tests use them through `slime-gfx`'s door (ADR-0244); else, engine-owned handles.
 - The editor is a client of the engine: public API only.
 - The engine runs headless (no window, renderer or audio); core systems never depend on them.
 - Internal Rust APIs may change freely. Nothing is stable before 1.0.

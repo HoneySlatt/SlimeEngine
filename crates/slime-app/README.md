@@ -266,8 +266,11 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   over a target, `draw(gpu, &fonts, &list, images, &target)`, the engine's images given by their
   keys as `InterfaceImage`s, textures or targets that views drew, or a canvas that the program
   fills itself, `draw_canvas(gpu, &canvas, &images, &target)`, through `uwui-render`, whose
-  glyphs' atlas it keeps. A program drops it when the GPU device is lost, and makes it again with
-  the new one.
+  glyphs' atlas it keeps. Each call lends `uwui-render` the device through `slime-gfx`'s guarded
+  door (`Gpu::with_wgpu`), the only code outside the engine's tests that opens it: its own encoder,
+  submitted by the door, the device checked once after; `uwui-render`'s errors come back as
+  `GfxError`s. A program drops it when the GPU device is lost, and makes it again with the new
+  one.
 - `time`: `Time` holds a frame's real time, `FrameTime` (index, delta, elapsed time), and its game
   time, `GameTime`: the fixed steps run, the game time the frame added, and the fraction of a step
   accumulated but not run (`alpha`), at which the world draws what moved during the last step
@@ -353,7 +356,8 @@ the name the graphics API gives it.
 
 - `ctrlc`: handles termination signals.
 - `nu-ansi-term`, on Windows only: turns on the colors of the log in the console.
-- `slime-gfx`: the GPU and the window's surface, for windowed runs.
+- `slime-gfx`: the GPU and the window's surface, for windowed runs; with its `wgpu` feature, the
+  guarded door through which `InterfaceRenderer` lends uwui's renderer the device (ADR-0244).
 - `slime-platform`: the window and its events, for windowed runs, and the input as data.
 - `slime-world`: the game's world, which it owns, and its commands.
 - `slime-reflect`: the settings and the reports of a presentation, described to the tools that

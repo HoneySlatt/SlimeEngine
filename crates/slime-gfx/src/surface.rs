@@ -118,7 +118,7 @@ impl Gpu {
     /// - [`GfxError::CreateSurface`] if the graphics API cannot draw into this window.
     /// - [`GfxError::SurfaceFormat`] if the window offers no sRGB format that the engine supports.
     /// - [`GfxError::SurfaceWithoutEncoding`] if the window's images cannot be seen without their
-    ///   sRGB encoding ([`RenderTarget::without_srgb`](crate::RenderTarget::without_srgb)).
+    ///   sRGB encoding, as uwui's canvas draws into them through the door (`Gpu::with_wgpu`).
     pub fn new_for_window<W>(
         window: W,
         width: u32,

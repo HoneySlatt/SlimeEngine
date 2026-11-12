@@ -107,6 +107,26 @@ if runs lint; then
     cargo deny --locked check
 fi
 
+if runs lint; then
+    step "Only slime-app's bridge and the engine's tests open slime-gfx's door to wgpu (ADR-0244)"
+    # The `wgpu` feature is on wherever slime-app is, in every game: this check, not the feature,
+    # keeps the door to slime-gfx itself, the bridge (crates/slime-app/src/drawing.rs) and the
+    # engine's tests, the `tests` folders of its crates. Any mention counts, a comment's too.
+    if git grep -n -E 'with_wgpu|WgpuLoan|EngineObjects' -- '*.rs' \
+        ':!crates/slime-gfx/' ':!crates/slime-app/src/drawing.rs' ':(glob,exclude)crates/*/tests/**'; then
+        echo "the lines above open slime-gfx's door: only slime-app's bridge and the engine's tests may"
+        exit 1
+    fi
+    # uwui-render names no engine crate but slime-color, which leaves with it; uwui's own links to
+    # the engine leave at M6d.3c3 and M6d.11 (docs/stage-6d.md). The tree is read first, so that a
+    # failure of cargo stops the check rather than passing it.
+    uwui_render_dependencies=$(cargo tree --locked -p uwui-render -e normal --depth 1 --prefix none)
+    if grep -E '^slime-' <<< "$uwui_render_dependencies" | grep -v '^slime-color '; then
+        echo "uwui-render depends on the engine crates above"
+        exit 1
+    fi
+fi
+
 if runs headless; then
     step "Build"
     cargo build --workspace --all-targets --locked

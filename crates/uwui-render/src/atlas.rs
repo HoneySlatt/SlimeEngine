@@ -3,7 +3,8 @@
 use std::collections::{HashMap, HashSet};
 
 use etagere::{AllocId, AtlasAllocator, size2};
-use slime_gfx::{GfxError, Gpu, Texture, TextureFormat};
+
+use crate::gpu::{Error, within_memory};
 use uwui::text::{Fonts, GlyphKey, GlyphPixels, GlyphRasterizer};
 
 /// The side of an atlas page, in texels: a page of coverage takes 1 MiB, one of colors 4 MiB. A
@@ -36,7 +37,9 @@ pub(crate) struct Place {
 
 /// A page: a texture, and the allocator that places images in it.
 struct Page {
-    texture: Texture,
+    texture: wgpu::Texture,
+    /// The view that the canvas samples.
+    view: wgpu::TextureView,
     allocator: AtlasAllocator,
     color: bool,
 }
@@ -127,12 +130,12 @@ impl Atlas {
         self.pages.len()
     }
 
-    /// The texture of each page there is, with its number.
-    pub(crate) fn textures(&self) -> impl Iterator<Item = (usize, &Texture)> {
+    /// The view of each page there is, with its number.
+    pub(crate) fn views(&self) -> impl Iterator<Item = (usize, &wgpu::TextureView)> {
         self.pages
             .iter()
             .enumerate()
-            .filter_map(|(index, page)| Some((index, &page.as_ref()?.texture)))
+            .filter_map(|(index, page)| Some((index, &page.as_ref()?.view)))
     }
 
     /// Where the image of the glyph `key` lies: kept from an earlier draw, or rasterized with
@@ -141,14 +144,15 @@ impl Atlas {
     ///
     /// # Errors
     ///
-    /// [`GfxError::OutOfMemory`] or [`GfxError::DeviceLost`] if a page cannot be made.
+    /// [`Error::OutOfMemory`] if a page cannot be made.
     pub(crate) fn place(
         &mut self,
-        gpu: &Gpu,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
         fonts: &Fonts,
         key: GlyphKey,
         placed: &mut Placed,
-    ) -> Result<Option<Place>, GfxError> {
+    ) -> Result<Option<Place>, Error> {
         let frame = self.frame;
         if let Some(entry) = self.glyphs.get_mut(&key) {
             entry.used = frame;
@@ -188,7 +192,7 @@ impl Atlas {
         let found = if self.full[usize::from(color)] {
             None
         } else {
-            self.allocate(gpu, color, width, height)?
+            self.allocate(device, color, width, height)?
         };
         let Some((page, id, x, y)) = found else {
             self.full[usize::from(color)] = true;
@@ -203,7 +207,25 @@ impl Atlas {
             padded[start..start + glyph_row].copy_from_slice(source);
         }
         let texture = &self.pages[page].as_ref().expect("allocated in it").texture;
-        gpu.write_texture(texture, (x, y), (width, height), &padded);
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x, y, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            &padded,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(width * texel),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
         let place = Place {
             page,
             x: x + 1,
@@ -251,11 +273,11 @@ impl Atlas {
     /// allocation and its top left texel.
     fn allocate(
         &mut self,
-        gpu: &Gpu,
+        device: &wgpu::Device,
         color: bool,
         width: u32,
         height: u32,
-    ) -> Result<Option<(usize, AllocId, u32, u32)>, GfxError> {
+    ) -> Result<Option<(usize, AllocId, u32, u32)>, Error> {
         let size = size2(width as i32, height as i32);
         let found = |page: usize, allocation: etagere::Allocation| {
             let min = allocation.rectangle.min;
@@ -271,7 +293,7 @@ impl Atlas {
         }
         let page_bytes = page_bytes(color);
         if self.bytes + page_bytes <= self.budget {
-            let index = self.make_page(gpu, color)?;
+            let index = self.make_page(device, color)?;
             let allocation = self.pages[index]
                 .as_mut()
                 .expect("made above")
@@ -344,7 +366,7 @@ impl Atlas {
             }
             self.let_go(index);
         }
-        let index = self.make_page(gpu, color)?;
+        let index = self.make_page(device, color)?;
         let allocation = self.pages[index]
             .as_mut()
             .expect("made above")
@@ -355,23 +377,33 @@ impl Atlas {
     }
 
     /// Makes a page of colors or of coverage, at the first number free, and gives its number.
-    fn make_page(&mut self, gpu: &Gpu, color: bool) -> Result<usize, GfxError> {
+    fn make_page(&mut self, device: &wgpu::Device, color: bool) -> Result<usize, Error> {
         let (format, label) = if color {
-            (TextureFormat::Rgba8UnormSrgb, "glyphs' atlas, colors")
+            (wgpu::TextureFormat::Rgba8UnormSrgb, "glyphs' atlas, colors")
         } else {
-            (TextureFormat::R8Unorm, "glyphs' atlas, coverage")
+            (wgpu::TextureFormat::R8Unorm, "glyphs' atlas, coverage")
         };
+        // wgpu clears a texture before its first use: a page reads as zeros where no glyph lies.
+        let texture = within_memory(device, label, || {
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width: ATLAS_PAGE_SIZE,
+                    height: ATLAS_PAGE_SIZE,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            })
+        })?;
         let bytes = page_bytes(color);
-        let empty = vec![0; bytes as usize];
-        let texture = gpu.create_texture_with_levels(
-            label,
-            ATLAS_PAGE_SIZE,
-            ATLAS_PAGE_SIZE,
-            format,
-            &[&empty],
-        )?;
         let side = ATLAS_PAGE_SIZE as i32;
         let page = Page {
+            view: texture.create_view(&wgpu::TextureViewDescriptor::default()),
             texture,
             allocator: AtlasAllocator::new(size2(side, side)),
             color,
