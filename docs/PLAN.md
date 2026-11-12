@@ -25,10 +25,10 @@ documentation was updated and reread. Every milestone is also checked on Windows
   ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
 - M6d.3, documents in KDL, cut in three at its start, on 2026-11-11: every document of uwui is
   KDL, read by a reader of its own
-  ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). Done on the
-  same day: [M6d.3a](stage-6d.md#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL, and, M6d.3b
-  cut in two, [M6d.3b1](stage-6d.md#m6d3b1--themes-in-kdl), themes. In progress on track A:
-  [M6d.3b2](#m6d3b2--style-sheets-in-kdl), style sheets; then
+  ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). Done:
+  [M6d.3a](stage-6d.md#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL, on the same day; M6d.3b
+  cut in two, [M6d.3b1](stage-6d.md#m6d3b1--themes-in-kdl), themes, on the same day, and
+  [M6d.3b2](stage-6d.md#m6d3b2--style-sheets-in-kdl), style sheets, on 2026-11-12. Next on track A:
   [M6d.3c](stage-6d.md#m6d3c--shortcuts-docks-and-reflection-out).
 - In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
   session.
@@ -54,8 +54,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 | Milestone | Status |
 |---|---|
-| [M6d.0a to M6d.3b1, and C1](stage-6d.md#where-it-stands) | Done |
-| [M6d.3b2 — Style sheets in KDL](#m6d3b2--style-sheets-in-kdl) | In progress |
+| [M6d.0a to M6d.3b2, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.3c — Shortcuts, docks and reflection out](stage-6d.md#m6d3c--shortcuts-docks-and-reflection-out) | Planned |
 | [M6d.4a — The canvas's prototype and its ADR](#m6d4a--the-canvass-prototype-and-its-adr) | In progress |
 | [M6d.4b1 — The canvas on wgpu, as it is](stage-6d.md#m6d4b1--the-canvas-on-wgpu-as-it-is) | Planned |
@@ -69,32 +68,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.3b2 — Style sheets in KDL
-
-The second half of M6d.3b. It follows the rules of
-[every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** uwui reads its style sheets in KDL, through code that its derive generates, and
-  reflection reads no theme and no sheet.
-- **Crates.** `uwui`, `uwui-macros`, `uwui-kdl`, `slime-cook`, `slime-assets`, `slime-benches`, the
-  examples; `rust-toolchain.toml` and the development shell, for the web's target and brotli.
-- **Delivers.**
-  - The derive's readers of declarations from KDL's nodes, after ADR-0241's mapping, each number
-    marked a length, a duration or a number; the readers of enums, shadows and selectors.
-  - A dimension in pixels, bare or `(px)`, or a share, `(%)50`; a grid's track `(fr)1`; a share
-    divided by 100 in `f64` and rounded once; a name there a length; `(%)` and `(fr)` refused
-    elsewhere. A selector's numbered key written `key=3`.
-  - A field of text named by a theme, `$$` for a text that starts with `$`; the look's icons
-    moved to its theme.
-  - The rules' errors at their line, gathered; M6d.3b1's adapter gone.
-  - The look's sheet and the example's, `.style.kdl`, cooked as their text, checked;
-    `StyleSheet::from_binary` gone; the sheets written in tests, benches and examples converted.
-- **Done when.** A random test of sheets, and the fixture of the repository's documents, read the
-  same through the reflected reader and the new one; the two fixtures of styles and the look's
-  images unchanged; tests of each refusal; CI green.
-- **Measured.** The allocations and the time of reading the look's documents; `uwui`'s compile
-  time; the reading's weight in a build for the web, by difference, compressed with brotli.
 
 ## M6d.4a — The canvas's prototype and its ADR
 
@@ -199,4 +172,4 @@ made after Stage 6e's first milestone runs on `games/open-world` where it names 
 
 ## Known debt
 
-The known debt still open, 175 items, is in [`debt.md`](debt.md).
+The known debt still open, 176 items, is in [`debt.md`](debt.md).

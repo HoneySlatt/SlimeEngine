@@ -2513,6 +2513,55 @@ Reading the look's documents allocates 3 376 times, from 95 970, in a debug buil
 them; every other counter is unchanged. What reflection allocated for each value of each rule is
 gone: a rule's name is borrowed from the text, its declarations made as they are read.
 
+On 2026-11-12, an AMD Ryzen 7 5800X, 16 logical CPUs, Linux, release builds on lavapipe's settings.
+*Before* is `cb45105`, its sheet read through reflection; *after* is `cbc1390`. The two binaries ran
+in turn, twice each, the load average 0.88 at the start:
+
+| Measure, median of 15 | Before | After |
+|---|---|---|
+| the look's documents read, its sheet and its themes, by `Ui::set_style` | 4.87, 5.05 ms | 0.82, 0.79 ms |
+| a frame after the look's colours changed, every element styled again | 47.91, 48.66 ms | 47.90, 48.39 ms |
+| the frames of the transition that it starts, together | 536.26, 532.16 ms | 555.12, 531.92 ms |
+| a frame after the size of text changed, every text laid out again | 142.26, 155.31 ms | 149.90, 159.77 ms |
+
+- Reading the look's documents takes 84 % less time: 0.8 ms, from 8.2 ms before M6d.3b1.
+- The frames change within the runs' spread.
+
+The time of compiling `uwui-kdl` and `uwui` again, in debug, after a public function is added to
+each crate's root, `cargo build -p <crate>`, five runs each, before and after in turn; the load
+average rose from 1.8 to 4.3 as they ran, the figures indicative:
+
+| Crate | Before, median and range | After, median and range |
+|---|---|---|
+| `uwui-kdl` | 0.18 s, 0.17 to 0.18 | 0.19 s, 0.18 to 0.20 |
+| `uwui` | 0.89 s, 0.85 to 0.93 | 0.95 s, 0.94 to 0.98 |
+
+- `uwui` compiles again 7 % slower, the readers that its derives generate added; both stay under a
+  second.
+
+GitHub's hosted runners, on 2026-11-12, each run green, on `cbc1390`, the first run after the
+toolchain gained the web's target, which the caches' keys hold:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 28 s |
+| `check (headless)` | 13 min 50 s |
+| `check (windowed)` | 11 min 23 s |
+| `check (game)` | 10 min 50 s |
+| `windows (tests)` | 15 min 11 s |
+| `windows (render)` | 7 min 30 s |
+| `windows (game)` | 11 min 27 s |
+| `windows-release` | 15 min 56 s |
+| `compositors (sway)` | 11 min 56 s |
+| `compositors (weston)` | 13 min 37 s |
+| `compositors (x11)` | 14 min 30 s |
+| `compositors (mutter)` | 16 min 18 s |
+| `compositors (kwin)` | 16 min 58 s |
+| Docs' `links` | 20 s |
+
+Every job stays within its limit of 20 minutes; the closest, `compositors (kwin)`, has 3 min 2 s to
+spare, and `check (headless)` 6 min 10 s, 3 min 46 s faster than on `58082b9`.
+
 uwui's weight in a build for the web, by a probe outside the repository that lays out and draws a
 label and a button, its variant *read* reading a sheet and a theme that the host gives as text:
 built with the project's toolchain, 1.99.0, for `wasm32-unknown-unknown` in release, its size
