@@ -74,9 +74,12 @@ editor's other panels come with Stage 6c's next milestones.
   has the tabs' context menu. The layout is kept per user and per program in the user's state
   directory, written once it stands still and as the window closes, and shown at the next start; a
   layout made from another default layout, or that cannot be read, is set aside, the default shown
-  and the user told; *View* > *Reset layout* shows the default. The default is the editor's
-  (`editor.layout`), or the one that a game's editor package gives (`Program::layout`)
-  (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`). Its viewport shows the level,
+  and the user told; one of a later format is left as it is; *View* > *Reset layout* shows the
+  default. A layout is a document of KDL, `<program's name>.layout.kdl`, migrated once from the
+  file of TOML that earlier editors kept, `<program's name>.layout`, which stays as a backup. The
+  default is the editor's (`editor.layout.kdl`), or the one that a game's editor package gives
+  (`Program::layout`) (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`,
+  `docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`). Its viewport shows the level,
   lit as `Program::lighting` says, through its own asset cache and frame builder, drawn again only
   when what it shows changed; the right button held flies through it with W, A, S, D, Q and E, at a
   speed that suits the level's size as it opens, or the one last used in it, kept in the user's

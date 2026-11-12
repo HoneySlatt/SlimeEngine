@@ -97,6 +97,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   which `slime-cook` checks and `CookedAssets::shortcuts` gives, and the cooker refuses a `.keys`
   file of TOML; a table's metadata follows its new name, `x.keys.kdl.meta`, or the table takes a
   new ID.
+- A dock's layout is a document of KDL (ADR-0241), which `uwui::dock::write` writes and
+  `uwui::dock::read` reads, leniently or strictly (`Reading`): `version 1` first, then the default
+  that it was made from, `default "editor 1"`, then its tree, `Split side_by_side=#true {
+  children share=0.25 { Tabs chosen=0 { panels hierarchy } } … }`, then `floating` and `closed`;
+  a layout of a later version is not read (`ReadError::Later`), and one whose splits lie more than
+  31 deep is not written. The editor keeps its layout in `slime-editor/<program's
+  name>.layout.kdl`, migrating once the file of TOML that it kept before, `<program's
+  name>.layout`, which it never writes again; a layout of a later format is left as it is, the
+  default shown. `Program::layout` and the editor's default, `editor.layout.kdl`, are layout files
+  of KDL, read strictly: a project's default of TOML gives the editor's, the user told.
+  `uwui_kdl::write_string`, `write_f32` and `write_integer` write KDL's values, and
+  `Number::to_f32` reads a number back to the bits of the `f32` written.
 - Compiling within its budgets (ADR-0221): dependencies are optimised at the first level in debug
   builds; the Nix shell links with mold on Linux; the examples' editor's Play builds `world` with
   the workspace's features, which share every engine crate with the editor's.

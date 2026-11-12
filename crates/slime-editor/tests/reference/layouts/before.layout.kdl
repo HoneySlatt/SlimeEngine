@@ -1,0 +1,16 @@
+version 1
+default "editor 1"
+Split side_by_side=#true {
+    children share=0.25 {
+        Split side_by_side=#false {
+            children share=0.55 { Tabs chosen=0 { panels hierarchy } }
+            children share=0.45 { Tabs chosen=0 { panels components } }
+        }
+    }
+    children share=0.75 {
+        Split side_by_side=#false {
+            children share=0.75 { Tabs chosen=0 { panels viewport } }
+            children share=0.25 { Tabs chosen=0 { panels history console } }
+        }
+    }
+}

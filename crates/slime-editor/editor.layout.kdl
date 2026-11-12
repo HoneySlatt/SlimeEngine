@@ -1,0 +1,23 @@
+// The editor's own default layout of its window's panels, a layout's document
+// (docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md,
+// docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md): the hierarchy above the
+// components on the left, a quarter of the window's width, and the viewport above a stack of the
+// history and the console, a quarter of its height. Its `default` names it and its version, which
+// changes when the arrangement should replace the layouts that users keep; `version` is the
+// format's.
+version 1
+default "editor 1"
+Split side_by_side=#true {
+    children share=0.25 {
+        Split side_by_side=#false {
+            children share=0.55 { Tabs chosen=0 { panels hierarchy } }
+            children share=0.45 { Tabs chosen=0 { panels components } }
+        }
+    }
+    children share=0.75 {
+        Split side_by_side=#false {
+            children share=0.75 { Tabs chosen=0 { panels viewport } }
+            children share=0.25 { Tabs chosen=0 { panels history console } }
+        }
+    }
+}

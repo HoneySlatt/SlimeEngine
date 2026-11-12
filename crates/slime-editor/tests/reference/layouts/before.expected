@@ -1,0 +1,62 @@
+Layout {
+    root: Split {
+        side_by_side: true,
+        children: [
+            Share {
+                share: 0.25,
+                node: Split {
+                    side_by_side: false,
+                    children: [
+                        Share {
+                            share: 0.55,
+                            node: Tabs {
+                                panels: [
+                                    "hierarchy",
+                                ],
+                                chosen: 0,
+                            },
+                        },
+                        Share {
+                            share: 0.45,
+                            node: Tabs {
+                                panels: [
+                                    "components",
+                                ],
+                                chosen: 0,
+                            },
+                        },
+                    ],
+                },
+            },
+            Share {
+                share: 0.75,
+                node: Split {
+                    side_by_side: false,
+                    children: [
+                        Share {
+                            share: 0.75,
+                            node: Tabs {
+                                panels: [
+                                    "viewport",
+                                ],
+                                chosen: 0,
+                            },
+                        },
+                        Share {
+                            share: 0.25,
+                            node: Tabs {
+                                panels: [
+                                    "history",
+                                    "console",
+                                ],
+                                chosen: 0,
+                            },
+                        },
+                    ],
+                },
+            },
+        ],
+    },
+    floating: [],
+    closed: [],
+}

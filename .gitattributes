@@ -27,4 +27,6 @@ crates/uwui/tests/texts/*.txt text eol=lf
 # a checkout keeps them as written, so that their errors name the lines that their author sees, and
 # their text, which is their cooked form, is the same on every platform. KDL's own tests are kept byte for byte: some test a carriage return or a byte order mark.
 *.kdl text eol=lf
+# The layouts that the editor kept in TOML before they were KDL, kept as fixtures as it wrote them.
+crates/slime-editor/tests/reference/layouts/* text eol=lf
 crates/uwui-kdl/tests/kdl-suite/** -text

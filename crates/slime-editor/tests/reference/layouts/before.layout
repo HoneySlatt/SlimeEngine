@@ -1,14 +1,6 @@
-# The editor's own default layout of its window's panels, a layout file
-# (docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md): the hierarchy above the
-# components on the left, a quarter of the window's width, and the viewport above a stack of the
-# history and the console, a quarter of its height. Its `default` names it and its version, which
-# changes when the arrangement should replace the layouts that users keep.
-
 default = "editor 1"
 
 [layout]
-floating = []
-closed = []
 
 [layout.root.Split]
 side_by_side = true

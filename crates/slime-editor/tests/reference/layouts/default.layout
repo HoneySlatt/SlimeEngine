@@ -1,0 +1,48 @@
+default = "editor 1"
+
+[layout]
+floating = []
+closed = []
+
+[layout.root.Split]
+side_by_side = true
+
+[[layout.root.Split.children]]
+share = 0.25
+
+[layout.root.Split.children.node.Split]
+side_by_side = false
+
+[[layout.root.Split.children.node.Split.children]]
+share = 0.55
+
+[layout.root.Split.children.node.Split.children.node.Tabs]
+panels = ["hierarchy"]
+chosen = 0
+
+[[layout.root.Split.children.node.Split.children]]
+share = 0.45
+
+[layout.root.Split.children.node.Split.children.node.Tabs]
+panels = ["components"]
+chosen = 0
+
+[[layout.root.Split.children]]
+share = 0.75
+
+[layout.root.Split.children.node.Split]
+side_by_side = false
+
+[[layout.root.Split.children.node.Split.children]]
+share = 0.75
+
+[layout.root.Split.children.node.Split.children.node.Tabs]
+panels = ["viewport"]
+chosen = 0
+
+[[layout.root.Split.children.node.Split.children]]
+share = 0.25
+
+[layout.root.Split.children.node.Split.children.node.Tabs]
+panels = ["history", "console"]
+chosen = 0

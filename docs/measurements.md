@@ -2504,6 +2504,27 @@ Every job stays within its limit of 20 minutes. `check (headless)` took as long 
 its margin 3 min 12 s; `windows-release` 1 min 51 s less, its margin 5 min 23 s. The new crate
 and its 338 tests of KDL add some seconds to the jobs that test the workspace.
 
+## M6d.3c2, docks' layouts in KDL
+
+The editor's default layout read in KDL by `uwui::dock`'s own reader, in place of the engine's
+reflection reading TOML ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)),
+on 2026-11-12. `ui.tree.look` reads it strictly beside the look's documents and the tables of
+shortcuts, as the editor does at its start.
+
+Reading the editor's default layout allocates 50 times in a debug build, as CI counts it; every
+other counter is unchanged. Through reflection, a scratch test of a release build counted 1 872
+allocations for the same layout, as the editor read it before, its panels fitted, against 76 now
+with the same fitting.
+
+Their times were not measured: other sessions' builds and the desktop's indexing kept the load
+average between 2 and 9 throughout ([`debt.md`](debt.md)). Nor was the cooker's time of compiling
+again, which M6d.3c1 left; the milestone did not change the cooker.
+
+Every finite `f32`, 4 278 190 080 values, was written by Rust's `Display` and read back by
+`str::parse::<f32>` to the same bits, each text a decimal of KDL; read through an `f64`, two values,
+±7.038531e-26, rounded twice to the next `f32`. A sweep of 156 s on 12 threads, run once; the tests
+of `uwui-kdl` check a sample and these two values (`write_f32`, `Number::to_f32`).
+
 ## M6d.4b1a, the canvas moved into uwui-render
 
 The canvas moved out of `slime-render` into `uwui-render`, still on `slime-gfx`'s handles, and

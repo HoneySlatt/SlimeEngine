@@ -55,8 +55,10 @@
   during the run, the default shown and the user told, and a version that breaks the format writes
   a file of another name, migrated once; the editor keeps its layout in `slime-editor/<program's
   name>.layout.kdl`, migrated once from the TOML file `<program's name>.layout`, which it reads a
-  last time and never writes again, kept as the backup. The layouts that users saved lie in the
-  user's state directory alone: no project keeps one in its own folder, as this ADR's context said
+  last time and never writes again, kept as the backup. Found then: the layouts that users saved
+  lie in the user's state directory alone, no project keeping one in its own folder, as this ADR's
+  context said; and no layout is cooked, the editor's default and a project's being in their
+  programs' code
 - Date: 2026-11-11
 
 ## Context

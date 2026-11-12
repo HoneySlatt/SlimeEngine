@@ -347,7 +347,7 @@ one step apart. The renderer dithers 8-bit outputs by up to one step
 **Docking (editor).** Arranging an editor's panels inside its window, in splits of any number of
 children, each with its share of the space, *stacks of tabs*, and panels that float over the
 window; a panel closed keeps its place, hidden, to come back there. The arrangement, the panels'
-layout, is reflected data kept per user and per project in a *layout file*, outside the repository
+layout, is kept per user and per project in a *layout file*, outside the repository
 ([ADR-0155](adr/0155-the-editors-design.md)). `uwui`'s dock builds it, and the editor's panels
 lie in its regions, which the user resizes and rearranges
 ([ADR-0172](adr/0172-regions-of-tabs.md),
@@ -816,11 +816,13 @@ from its *base*, the only layout of saves read, and 1 for scene files
 [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md),
 [ADR-0125](adr/0125-saves-per-scene.md)).
 
-**Layout file (editor).** A document that holds the layout of an editor's panels (*docking*) and the
-default layout that it was made from, by its name and version, such as `editor 1`: the file of the
-user's state directory that keeps a program's layout, and a default, the editor's own or the one
-that a game's editor package gives. A layout kept against another default is set aside
-([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)).
+**Layout file (editor).** A document of KDL that holds the layout of an editor's panels (*docking*),
+after the version of its format, and the default layout that it was made from, by its name and
+version, such as `editor 1`: the file of the user's state directory that keeps a program's layout,
+`<program's name>.layout.kdl`, and a default, the editor's own or the one that a game's editor
+package gives. A layout kept against another default is set aside; one of a later format is left as
+it is ([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md),
+[ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
 
 **Layout (screen).** In uwui, a screen's structure written as data in a file, in KDL 2.0: a tree
 of *elements* by their kinds, each with an optional name, its classes, literal texts and the

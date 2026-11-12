@@ -49,12 +49,15 @@ pub struct Program {
     /// The project's default layout of the window's panels, which the window shows at its first
     /// start and as *Reset layout* asks, in place of the editor's own
     /// (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`): the text of a layout
-    /// file, as the one that keeps the user's layout in their state directory ([`run`]), its
-    /// `default` key naming the project's default and its version, `hunnawood 1`, in place of the
-    /// editor's, `editor 1`. A project's author arranges the window, copies that file into the
-    /// package, gives it as `include_str!("../editor.layout")`, and names its version anew each
-    /// time the arrangement should replace the layouts that users keep. A text that cannot be read
-    /// gives the editor's own default, the user told, and the layout that the user keeps against
+    /// file, a document of KDL, as the one that keeps the user's layout in their state directory
+    /// ([`run`]), its node `default` naming the project's default and its version,
+    /// `default "hunnawood 1"`, in place of the editor's, `editor 1`. A project's author arranges
+    /// the window, copies that file into the package, gives it as
+    /// `include_str!("../editor.layout.kdl")`, and names its version anew each time the arrangement
+    /// should replace the layouts that users keep. It is read strictly
+    /// (`uwui::dock::Reading::Strict`): a text that cannot be read, one that holds what the editor
+    /// does not know or names no default, and a layout file of TOML, as editors kept before 0.7,
+    /// give the editor's own default, the user told, and the layout that the user keeps against
     /// the project's is neither read nor written until it can be. None for the editor's own
     /// default.
     pub layout: Option<&'static str>,
@@ -187,10 +190,12 @@ pub(crate) struct Options {
 /// name>.recent` in the user's state directory ([`slime_app::state_directory`]); the first run,
 /// which finds none, tells the user one hint. The keys that the user chose, Blender's way or not,
 /// are kept in `slime-editor/keys` there, for every program of the editor; the window's layout in
-/// `slime-editor/<program's name>.layout`, written once it stands still and as the window closes, a
-/// layout made from another default than the program's ([`Program::layout`]) set aside as
+/// `slime-editor/<program's name>.layout.kdl`, written once it stands still and as the window
+/// closes, a layout made from another default than the program's ([`Program::layout`]) set aside as
 /// `<file>.replaced` and one that cannot be read as `<file>.unreadable`, the default shown then and
-/// the user told. When the program's cooked data is missing and it names its sources
+/// the user told, and one of a later format left as it is, not written over. Where it finds none,
+/// the layout that earlier editors kept in TOML, `slime-editor/<program's name>.layout`, is
+/// migrated once, that file never written again. When the program's cooked data is missing and it names its sources
 /// ([`Program::sources`]), it cooks them first.
 ///
 /// Options: `--level <file>`, `--assets <directory>`, `--journal <file>`, `--discard`,
@@ -225,7 +230,7 @@ pub fn run(program: &Program) -> ExitCode {
     shared.borrow_mut().layout = slime_app::state_directory().map(|directory| {
         directory
             .join(DIRECTORY)
-            .join(format!("{}.layout", program.name))
+            .join(format!("{}.layout.kdl", program.name))
     });
     let headless = options.headless;
     let frames = options.frames;

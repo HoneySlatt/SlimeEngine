@@ -4862,7 +4862,7 @@ mod tests {
     fn the_layout_is_kept_and_its_panels_float_close_and_come_back() {
         use uwui::tree::Role;
         let mut yard = Yard::new("layout");
-        let file = yard.directory.join("state").join("editor.layout");
+        let file = yard.directory.join("state").join("editor.layout.kdl");
         yard.shared.borrow_mut().layout = Some(file.clone());
         // A start that finds no layout kept: the default, nothing told.
         yard.model = Model::new(yard.shared.clone());
@@ -4976,21 +4976,21 @@ mod tests {
         yard.model.keep_layout_by(Instant::now() + KEEP_AFTER);
         assert_eq!(kept(&file), default.layout);
         // A file that cannot be read: set aside, the default shown, the user told.
-        std::fs::write(&file, "default = [").expect("written");
+        std::fs::write(&file, "version 1\nTabs {").expect("written");
         yard.model = Model::new(yard.shared.clone());
         yard.frame();
         assert_eq!(yard.model.dock.layout(), &default.layout);
         let unreadable = yard
             .directory
             .join("state")
-            .join("editor.layout.unreadable");
+            .join("editor.layout.kdl.unreadable");
         assert!(unreadable.is_file());
         assert!(
             yard.model
                 .ui
                 .meaning()
                 .iter()
-                .any(|meaning| meaning.name.contains("editor.layout.unreadable")),
+                .any(|meaning| meaning.name.contains("editor.layout.kdl.unreadable")),
             "told in a notification"
         );
         // Refused by the core: a panel that the window does not have.
@@ -5017,7 +5017,7 @@ mod tests {
     #[test]
     fn a_project_s_default_shows_and_a_layout_unkept_is_told_once() {
         let mut yard = Yard::new("project-layout");
-        let file = yard.directory.join("state").join("editor.layout");
+        let file = yard.directory.join("state").join("editor.layout.kdl");
         let mut project = panels::default(None).0;
         assert!(
             project
@@ -5026,7 +5026,7 @@ mod tests {
         );
         project.default = "garden 1".to_owned();
         let text: &'static str = Box::leak(
-            slime_serialize::write_as(&project)
+            uwui::dock::write(&project.layout, Some(&project.default))
                 .expect("written")
                 .into_boxed_str(),
         );
@@ -5040,7 +5040,7 @@ mod tests {
         assert_eq!(yard.model.dock.layout(), &project.layout);
         yard.model.keep_layout_by(Instant::now() + KEEP_AFTER);
         let written = std::fs::read_to_string(&file).expect("written");
-        assert!(written.contains("default = \"garden 1\""), "{written}");
+        assert!(written.contains("default \"garden 1\""), "{written}");
         // The project's default unreadable: the editor's shows, and the layout kept against the
         // project's is neither set aside nor written over.
         yard.shared.borrow_mut().default_layout = Some("default = [");
@@ -5070,7 +5070,7 @@ mod tests {
             fs::set_permissions(&state, fs::Permissions::from_mode(0o755)).expect("open");
             return;
         }
-        yard.shared.borrow_mut().layout = Some(state.join("editor.layout"));
+        yard.shared.borrow_mut().layout = Some(state.join("editor.layout.kdl"));
         yard.model = Model::new(yard.shared.clone());
         yard.frame();
         for panel in ["console", "history"] {

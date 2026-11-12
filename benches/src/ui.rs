@@ -889,7 +889,8 @@ const TRANSITION_FRAMES: usize = 1_000;
 /// own: a frame after its theme of colours changed between dark and light, which styles every
 /// element again under the look's rules and starts their transitions, then the frames of 240 Hz
 /// that the transitions take to end. Counted: the allocations of reading the look's documents
-/// apart, and of the editor's tables of shortcuts, which it reads beside them at its start; the
+/// apart, of the editor's tables of shortcuts and of its default layout, which it reads beside them
+/// at its start; the
 /// elements that the frame of the change styled, its allocations and their bytes, the
 /// frames of the transition, and the elements that its first frame draws again with its
 /// allocations and their bytes; and each frame's allocations for each element, which a target
@@ -1022,6 +1023,18 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
             .expect("the editor's shortcuts are valid");
     };
     let ((), keys_read) = counted(|| read_keys(&mut editor));
+    // The editor's default layout, which it reads at its start, strictly, as the layout that it
+    // keeps is read, beside the look and the shortcuts.
+    let read_layout = || {
+        let read = uwui::dock::read(
+            "editor.layout.kdl",
+            slime_editor::DEFAULT_LAYOUT,
+            uwui::dock::Reading::Strict,
+        )
+        .expect("the editor's default layout is valid");
+        black_box(read);
+    };
+    let ((), layout_read) = counted(read_layout);
     let ((_, stats), allocations) = counted(|| change(&mut editor));
     // The first frame of the transition, which draws again every element that moves.
     editor.ui.advance(FRAME_240);
@@ -1033,11 +1046,14 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     let mut resizes = Vec::new();
     let mut readings = Vec::new();
     let mut keys_readings = Vec::new();
+    let mut layout_readings = Vec::new();
     for _ in 0..runs {
         let ((), read) = timed(|| restyle(&mut editor));
         readings.push(read);
         let ((), read) = timed(|| read_keys(&mut editor));
         keys_readings.push(read);
+        let ((), read) = timed(read_layout);
+        layout_readings.push(read);
         let (_, took) = timed(|| black_box(change(&mut editor)));
         changed.push(took);
         transitions.push(settle(&mut editor)?.1);
@@ -1069,6 +1085,10 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
         Row::count(
             "allocations of reading the editor's tables of shortcuts",
             keys_read.calls,
+        ),
+        Row::count(
+            "allocations of reading the editor's default layout",
+            layout_read.calls,
         ),
         Row::count("elements styled by the frame of the change", stats.styled),
         Row::count("allocations of the frame of the change", allocations.calls),
@@ -1128,6 +1148,10 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     rows.extend(Row::times(
         "the editor's tables of shortcuts read, its own and Blender's way, by `Ui::set_shortcuts`",
         &keys_readings,
+    ));
+    rows.extend(Row::times(
+        "the editor's default layout read, strictly, by `uwui::dock::read`",
+        &layout_readings,
     ));
     rows.extend(Row::times(
         "a frame after the look's colours changed, every element styled again",
