@@ -2,6 +2,8 @@
 
 - Status: Accepted; amends [0141](0141-style-sheets-and-themes.md) (themes and style sheets are
   KDL, a theme's values in groups of their kinds, the cooked form their text),
+  [0142](0142-input-and-focus.md) (a table of shortcuts is KDL, cooked as its text, its chords
+  naming `Primary`; amended so on 2026-11-12),
   [0181](0181-uwuis-scope.md) (uwui's documents are KDL, read by uwui's
   own reader: neither `serde` nor `toml` reads them, and no feature holds the reader),
   [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (every document of uwui
@@ -31,7 +33,17 @@
   escape. uwui's core weighs on the web 2.35 MB compressed, of which 1.93 MB are the dictionaries of
   words that `parley`'s `complex-scripts` brings: it stays debt, followed at uwui's milestone of
   fonts given as bytes, which loads them when a text first needs them, as fonts, the budget of
-  [ADR-0181](0181-uwuis-scope.md) leaving them out as it leaves fonts out, by an amendment then
+  [ADR-0181](0181-uwuis-scope.md) leaving them out as it leaves fonts out, by an amendment then.
+  Precisions decided by the owner on 2026-11-12, as M6d.3c began: M6d.3c is cut in three,
+  shortcuts (M6d.3c1), docks' layouts (M6d.3c2), then reflection out (M6d.3c3), each reader
+  compared with the reflected one before reflection leaves; a table of shortcuts writes each scope
+  as a node `scope global { … }`, each chord a child node and its command its one argument,
+  `Primary+Z edit.undo`, what has no meaning yet refused (a property, a child, a second argument,
+  `#null`, kept for removing a chord later), two chords of a scope that resolve to the same keys on
+  any platform refused; a dock's layout is written by hand in `uwui::dock`, over `uwui-kdl`'s
+  printers of names, texts and numbers, which the writer of the normal form shares, a number
+  written so that it reads back to the same `f32`: one place writes KDL's values, rather than one
+  writer of trees
 - Date: 2026-11-11
 
 ## Context

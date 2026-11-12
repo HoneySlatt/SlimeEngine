@@ -800,7 +800,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The owner kept it as debt on 2026-11-11: followed at uwui's milestone of fonts given as bytes, which loads the dictionaries when a text first needs them, as fonts, the budget leaving them out by an amendment of ADR-0181 then; the web's trial confirms or corrects the budget.
 - **`slime-serialize`'s `References::value` serves uwui's tests alone** ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   It names a theme's value in a document read through reflection; since uwui reads its style sheets in KDL, only the reflected reader kept as the tests' oracle implements it, and `slime-serialize`'s documentation still names uwui's sheets as its user.
-  Followed at [M6d.3c](stage-6d.md#m6d3c--shortcuts-docks-and-reflection-out), where the oracle goes with reflection: the hook goes too, or a user of the engine's is named.
+  Followed at [M6d.3c3](stage-6d.md#m6d3c3--reflection-out-of-uwui), where the oracle goes with reflection: the hook goes too, or a user of the engine's is named.
 - **A build for the web holds the paths of the machine that built it.**
   The probe's module holds some 160 absolute paths, of `cargo`'s registry under the home folder and of the repository, where a panic's place is written: a package for the web built on a person's machine would publish their user name.
   Nothing remaps them (`--remap-path-prefix`); followed at uwui's packaging for the web, before a package is published.

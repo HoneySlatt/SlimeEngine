@@ -111,7 +111,10 @@ in git.
   [M6d.3b](#m6d3b--themes-and-style-sheets-in-kdl), cut in two: done,
   [M6d.3b1](#m6d3b1--themes-in-kdl), themes, on the same day, and
   [M6d.3b2](#m6d3b2--style-sheets-in-kdl), style sheets, on 2026-11-12; then
-  [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and reflection out.
+  [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and reflection out, cut
+  in three on 2026-11-12: in progress, [M6d.3c1](#m6d3c1--shortcuts-in-kdl), shortcuts; then
+  [M6d.3c2](#m6d3c2--docks-layouts-in-kdl), docks' layouts, and
+  [M6d.3c3](#m6d3c3--reflection-out-of-uwui), reflection out.
 - In progress on track B: [M6d.4](#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on wgpu,
   cut in three at its start, on 2026-11-11
   ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)): done,
@@ -1328,6 +1331,58 @@ The last third of M6d.3 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-
   platform's way to write a shortcut; `cargo tree -p uwui` holds neither `slime-reflect` nor
   `slime-serialize`; the `interface` example's image unchanged; CI green.
 - **Measured.** Reading the editor's documents at its start; the cooker's compile time.
+
+Cut in three at its start, on 2026-11-12: shortcuts, then docks' layouts, then reflection out, each
+reader compared with the reflected one before reflection leaves; shortcuts and docks first, since
+M6d.4b1 touches their crates; a dock's layout written by hand over `uwui-kdl`'s printers of values
+([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)'s status).
+
+### M6d.3c1 — Shortcuts in KDL
+
+In progress: its card is in [`PLAN.md`](PLAN.md#m6d3c1--shortcuts-in-kdl), back here with its
+result when it is done.
+
+### M6d.3c2 — Docks' layouts in KDL
+
+The second third of M6d.3c. It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** A dock's layout in KDL, and the layouts that the editor saved migrated once.
+- **Crates.** `uwui`, `uwui-kdl`, `slime-editor`, the examples.
+- **Delivers.**
+  - A layout written by hand in `uwui::dock`, over `uwui-kdl`'s printers of names, texts and
+    numbers, a number written so that it reads back to the same `f32`; read by hand, its version
+    written, read leniently within its version.
+  - Decided at its start: what a later version does, and where a layout's own values go.
+  - The editor's layouts, in its state and in a project's `state/editor.layout`, read a last time
+    through the engine's reflection, by copies of the layout's types in the editor; migrated once,
+    the old file kept as a backup, the new one written whole or not at all.
+  - The editor's default, and a project's, in KDL; a default written by hand read strictly.
+- **Done when.** The editor's default, a user's layout with floating and closed panels, and one
+  written before them, kept as fixtures, read the same as before; a layout migrated comes back
+  under its default; a damaged file is set aside; CI green.
+- **Measured.** Reading the editor's documents at its start.
+
+### M6d.3c3 — Reflection out of uwui
+
+The last third of M6d.3c. It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Neither `slime-reflect` nor `slime-serialize` in uwui, and `slime-color` depending on
+  nothing.
+- **Crates.** `uwui`, `uwui-macros`, `slime-color`, `slime-reflect`, `slime-serialize`,
+  `slime-cook`, `slime-editor`.
+- **Delivers.**
+  - `LinearColor` described by hand in `slime-reflect`, its name and fields unchanged.
+  - The `Reflect` derives, `S::named`, the registry and the oracles gone from uwui, the oracles'
+    verdicts on seeded inputs kept as fixtures first; the tests that walked types by reflection
+    written again; `Fault::Reflected` gone; `References::value` gone, or a user of the engine's
+    named.
+- **Done when.** A scene as text, a scene cooked and the dev overlay's values read the same,
+  `LinearColor`'s description kept as a fixture in `slime-reflect`; `cargo tree -p uwui` holds
+  neither `slime-reflect` nor `slime-serialize`; the fixture of the documents and the two of styles
+  unchanged; CI green.
+- **Measured.** The cooker's compile time; `uwui`'s.
 
 ### M6d.4 — The canvas in uwui, on wgpu
 

@@ -10,8 +10,9 @@
   keys but a field's and an open list's), [0153](0153-tab-and-f6-in-a-games-interface.md) (Tab
   with no focus that takes the keys enters only an interface that allows it; F6 moves between
   roots), [0154](0154-floating-panels-and-held-keys.md) (a held key gives a shortcut's command
-  once) and [0160](0160-two-viewports-and-blenders-way.md) (a chord may name a button of the mouse,
-  which the program reads)
+  once), [0160](0160-two-viewports-and-blenders-way.md) (a chord may name a button of the mouse,
+  which the program reads) and [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)
+  (a table of shortcuts is KDL, cooked as its text, a chord naming the primary modifier `Primary`)
 - Date: 2026-10-25
 
 ## Context

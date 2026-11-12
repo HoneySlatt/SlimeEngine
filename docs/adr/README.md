@@ -210,7 +210,7 @@ the ADR linking to it.
 | [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |
 | [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143, 0146 and 0175 |
 | [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted; amended by 0149, 0181, 0222, 0223, 0225, 0229, 0230, 0231 and 0241 |
-| [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145, 0150, 0152, 0153, 0154 and 0160 |
+| [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145, 0150, 0152, 0153, 0154, 0160 and 0241 |
 | [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted; amended by 0146 and 0156 |
 | [0144](0144-the-cooked-zones-key-in-ci.md) | The cooked zone's key in CI | Accepted |
 | [0145](0145-text-edited.md) | Text edited | Accepted |
@@ -309,6 +309,6 @@ the ADR linking to it.
 | [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) | Tokens: the themes' values named in code, typed by kind, declared by each crate | Accepted; amends 0223, 0229, 0230, 0231 and 0232; amended by 0241 and 0242 |
 | [0239](0239-content-made-outside-and-maps-in-the-editor.md) | What a game's content needs: importers, characters, large sources, and maps in the editor | Accepted; amends 0209 and 0217 |
 | [0240](0240-the-series-input-its-table-and-its-jobs.md) | The series' input, its table and its jobs | Accepted; amends 0195 |
-| [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) | Every document of uwui in KDL, read by a reader of its own | Accepted; amends 0141, 0181, 0220, 0225, 0229 and 0238 |
+| [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) | Every document of uwui in KDL, read by a reader of its own | Accepted; amends 0141, 0142, 0181, 0220, 0225, 0229 and 0238 |
 | [0242](0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md) | The canvas moved in three steps, its prototype on wgpu's GL backend; tokens read when drawn at uwui's first stage | Accepted; amends 0220 and 0238 |
 | [0243](0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md) | The canvas reads its items by their index, from a storage buffer or a texture, and draws in passes | Accepted; amends 0137 and 0181 |
