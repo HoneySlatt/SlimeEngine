@@ -1438,24 +1438,8 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
 
 ### M6d.3c3 — Reflection out of uwui
 
-The last third of M6d.3c. It follows the rules of
-[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** Neither `slime-reflect` nor `slime-serialize` in uwui, and `slime-color` depending on
-  nothing.
-- **Crates.** `uwui`, `uwui-macros`, `slime-color`, `slime-reflect`, `slime-serialize`,
-  `slime-cook`, `slime-editor`.
-- **Delivers.**
-  - `LinearColor` described by hand in `slime-reflect`, its name and fields unchanged.
-  - The `Reflect` derives, `S::named`, the registry and the oracles gone from uwui, the oracles'
-    verdicts on seeded inputs kept as fixtures first; the tests that walked types by reflection
-    written again; `Fault::Reflected` gone; `References::value` gone, or a user of the engine's
-    named.
-- **Done when.** A scene as text, a scene cooked and the dev overlay's values read the same,
-  `LinearColor`'s description kept as a fixture in `slime-reflect`; `cargo tree -p uwui` holds
-  neither `slime-reflect` nor `slime-serialize`; the fixture of the documents and the two of styles
-  unchanged; CI green.
-- **Measured.** The cooker's compile time; `uwui`'s.
+In progress: its card is in [`PLAN.md`](PLAN.md#m6d3c3--reflection-out-of-uwui), back here with its
+result when it is done.
 
 ### M6d.4 — The canvas in uwui, on wgpu
 
