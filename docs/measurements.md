@@ -2629,6 +2629,65 @@ after GitHub refused its artefact five times:
 Every job stays within its limit of 20 minutes. `check (headless)` took 48 s more than on `0e675a0`,
 its margin 2 min 24 s; on `32b3f0b`, before the review's changes, it took 17 min 30 s.
 
+## M6d.4a, the canvas's prototype
+
+The canvas's layouts drawn by the prototype of
+[ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md), at
+[`744dce3`](https://github.com/HoneySlatt/SlimeEngine/tree/744dce3373481e0ee054e665165a0fc5b4fc4faf/crates/canvas-prototype)
+on the branch `m6d4a-prototype`, on 2026-11-12, on the RX 6900 XT, its clocks held at their
+highest by the owner, the machine at a load of 1.5, through radv for Vulkan and radeonsi for OpenGL
+ES 3.0, Mesa 26.2.6. S is today's storage buffer, each fragment reading its whole item; S2 the
+same buffer, fields read one by one; T a texture read by index, fields one by one; I instances,
+one format for each kind. 30 frames of each layout after 10 of warm-up, the layouts in turn frame
+by frame, each frame waited for; medians, in µs. "With copies" adds the copies of the frame's
+items, which the GPU makes before the pass.
+
+The two screens of `render.canvas`, the GPU on Vulkan, the pass and, in brackets, with its copies:
+
+| Screen, size | S | S2 | I | T |
+|---|---|---|---|---|
+| Editor, 1280 × 800 | 46.8 (58.3) | 44.1 (55.5) | 47.5 (57.1) | 50.0 (62.1) |
+| Editor, 1920 × 1080 | 80.0 (91.4) | 75.7 (87.0) | 78.2 (87.8) | 87.5 (99.5) |
+| Editor, 3840 × 2160 | 291.6 (303.1) | 258.6 (270.1) | 267.8 (277.4) | 307.9 (320.0) |
+| Game's menu, 1280 × 800 | 31.9 (37.4) | 30.5 (36.0) | 101.9 (109.4) | 36.0 (42.7) |
+| Game's menu, 1920 × 1080 | 62.6 (68.1) | 59.7 (65.2) | 128.3 (135.7) | 71.1 (77.9) |
+| Game's menu, 3840 × 2160 | 233.6 (239.1) | 221.0 (226.4) | 277.7 (285.0) | 265.9 (272.8) |
+
+The editor takes 17 draws, 20 with I; the game's menu 3, 287 with I, one at each change of kind.
+The CPU records the menu in 19 to 32 µs with S, S2 and T, in 258 to 277 µs with I, and writes the
+items' bytes in 128 to 150 µs for the menu, 529 to 562 µs for the editor, alike in every layout.
+On OpenGL ES, which gives no GPU time, the CPU's submission and the frame's time to the end of the
+wait:
+
+| Screen, size | I, submit | I, frame | T, submit | T, frame |
+|---|---|---|---|---|
+| Editor, 1280 × 800 | 157 | 331 | 228 | 472 |
+| Editor, 3840 × 2160 | 164 | 571 | 236 | 731 |
+| Game's menu, 1280 × 800 | 398 | 548 | 114 | 258 |
+| Game's menu, 3840 × 2160 | 409 | 739 | 120 | 487 |
+
+The effects, the GPU on Vulkan with its copies, at 1280 × 800 and 3840 × 2160:
+
+| Effect | S | I | T |
+|---|---|---|---|
+| The menu, each panel turned, one card scaled | 41.4, 261.3 | 117.1, 297.4 | 48.5, 310.1 |
+| The menu, a panel drawn apart and faded | 47.4, 274.2 | 128.6, 312.5 | 55.8, 322.9 |
+| The same, the panel's texture kept | 36.2, 237.1 | 94.5, 264.8 | 42.5, 281.0 |
+| The menu under four glass panels | 163.8, 545.5 | 237.4, 557.7 | 176.9, 585.7 |
+| Twenty paths of flattened curves | 111.8, 716.8 | 88.4, 513.7 | 122.8, 771.4 |
+| 100,000 items, one box moved and written alone | 72.8, 196.8 | 156.7, 227.3 | 74.7, 210.1 |
+
+A glass panel's blur takes 9 to 13 µs at 1920 × 1080 and 13 to 20 µs at 3840 × 2160; the copy of
+the canvas's texture onto the window some 9.5 and 30 µs. Writing 100,000 items whole is 14.4 MB, and
+one box 144 bytes; on OpenGL ES, T's submission takes 1,031 µs for the first at 1920 × 1080, and
+83 µs for the second.
+
+Every layout's images are within 2/255 of S's on Vulkan, but for the turned panels on radeonsi's
+OpenGL ES: up to 10/255 on 216 to 259 pixels, in the images of colours drawn turned. The same runs
+on lavapipe and on Mesa's GL on the CPU, under the load of other sessions, ranked I first, against
+the GPU: a CPU that draws spends its time on each fragment's reads, and those figures stay in the
+prototype's history.
+
 ## M6d.6, the series of headless compositors
 
 The editor and *Hunna Wood* in five headless compositors

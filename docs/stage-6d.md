@@ -45,8 +45,9 @@ in git.
   [ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md),
   [ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md),
   [ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md),
-  [ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) and
-  [ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md).
+  [ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md),
+  [ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md) and
+  [ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md).
 - Widened on 2026-11-07 by the market's decisions
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md#decision)): M6d.1d, M6d.2, M6d.3,
   M6d.4, M6d.5, M6d.7, M6d.10 and M6d.11 gain what those decisions need of them; M6d.9 is cut in
@@ -166,9 +167,10 @@ at Stage 6c's resumption.
 
 Open risks:
 
-- The canvas's layout: handing items on as instances was measured slower than reading them by
-  their index, and WebGL2 allows 15 values between the shader's stages
-  ([ADR-0194](adr/0194-stage-6d-uwui-leaving-the-engine.md)).
+- The canvas on WebGL2: settled by M6d.4a's prototype, one shader reading its items from a
+  storage buffer or a texture
+  ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)); not
+  measured on a GPU of WebGL2's class nor in a browser until the web's trial.
 - `slime-color` derives the engine's `Reflect`: leaving with uwui, Rust's orphan rule would make the
   engine's lowest crate depend on uwui.
 - Docks' layouts and shortcuts saved by users, read by a new reader.
@@ -1384,12 +1386,15 @@ The last third of M6d.4
 
 - **Goal.** uwui's canvas draws on a path that WebGL2 takes.
 - **Crates.** `uwui-render`, `slime-benches`; `.github/workflows/`.
-- **Delivers.** The canvas on the layout that M6d.4a chose; image tests on wgpu's GL backend at
-  WebGL2's limits, if the owner accepts wgpu's `gles` feature in the workspace, in a job other than
+- **Delivers.** The canvas on the layout that M6d.4a chose, one shader reading its items from a
+  storage buffer or a texture as the device allows
+  ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)), each
+  item's fields read when its kind needs them; image tests on wgpu's GL backend at WebGL2's
+  limits, if the owner accepts wgpu's `gles` feature in the workspace, in a job other than
   `check (headless)`; uwui's counters and discriminating cases of the canvas checked in CI
   ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)).
-- **Done when.** The canvas's images are those of M6d.4b1, on Vulkan and on GL; CI is green, each
-  job within 20 minutes.
+- **Done when.** The canvas's images are those of M6d.4b1, by both ways of reading, on Vulkan and
+  on GL; CI is green, each job within 20 minutes.
 - **How to test.** `cargo test -p uwui-render`; `scripts/check.sh`.
 - **Measured.** `render.canvas` and `ui.draw.menu` at 3840 × 2160 on the RX 6900 XT, against
   M6d.4b1's.
