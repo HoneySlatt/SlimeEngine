@@ -141,7 +141,7 @@ impl Field {
     }
 
     /// The bytes selected, from the first to the last.
-    fn selected(&self) -> Range<usize> {
+    pub(super) fn selected(&self) -> Range<usize> {
         if self.pending.is_some() {
             let (anchor, focus) = self.pending.unwrap_or_default();
             return anchor.min(focus)..anchor.max(focus);
@@ -168,7 +168,7 @@ impl Field {
     }
 
     /// The selection's anchor and focus, by bytes.
-    fn ends(&self) -> (usize, usize) {
+    pub(super) fn ends(&self) -> (usize, usize) {
         self.pending.unwrap_or((
             self.selection.anchor().index(),
             self.selection.focus().index(),
@@ -194,7 +194,7 @@ impl Field {
 
     /// Replaces the selection, or the text being composed, with `with`, as typing or a paste does;
     /// gives whether that changed the text, the text composed left aside.
-    fn insert(&mut self, with: &str, typing: bool) -> bool {
+    pub(super) fn insert(&mut self, with: &str, typing: bool) -> bool {
         // The text being composed goes first, so that an undo gives back the text before it.
         let range = match self.uncompose() {
             Some(start) => start..start,
@@ -209,7 +209,7 @@ impl Field {
     }
 
     /// Deletes the selection, or, collapsed, the bytes `otherwise`; gives whether it deleted any.
-    fn delete(&mut self, otherwise: Range<usize>) -> bool {
+    pub(super) fn delete(&mut self, otherwise: Range<usize>) -> bool {
         let range = match self.selected() {
             range if !range.is_empty() => range,
             _ => otherwise,
@@ -726,6 +726,7 @@ impl Ui {
                     });
                     return true;
                 }
+                "c" | "x" if self.host_clipboard_key(id, &letter) => return true,
                 "c" => {
                     clipboard(self, false);
                     return true;
@@ -734,6 +735,7 @@ impl Ui {
                     clipboard(self, true);
                     return true;
                 }
+                "v" if self.host_clipboard_key(id, &letter) => return true,
                 "v" => {
                     let pasted = self
                         .clipboard
@@ -1005,7 +1007,11 @@ impl Ui {
 
     /// Runs `edit` on the field `id` as [`Ui::edit_field`] does, and queues what the field holds
     /// then when `edit` gives that it changed it.
-    fn edit_text(&mut self, id: ElementId, edit: impl FnOnce(&mut Field, &Layout<()>) -> bool) {
+    pub(super) fn edit_text(
+        &mut self,
+        id: ElementId,
+        edit: impl FnOnce(&mut Field, &Layout<()>) -> bool,
+    ) {
         if self.edit_field(id, edit) == Some(true) {
             self.changed(id);
         }

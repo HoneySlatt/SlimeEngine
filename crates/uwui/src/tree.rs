@@ -30,6 +30,7 @@ mod color;
 mod control;
 pub(crate) mod expression;
 mod field;
+pub mod host_prototype;
 mod interact;
 mod layer;
 mod meaning;
@@ -1318,6 +1319,8 @@ pub struct Ui {
     shown: motion::ShownStyles,
     /// Whether Tab enters the interface while no focus takes the keys ([`Ui::set_tab_enters`]).
     tab_enters: bool,
+    /// What the prototype of the host's API keeps (`host_prototype`).
+    host: host_prototype::HostState,
 }
 
 impl Ui {
@@ -1362,6 +1365,7 @@ impl Ui {
             moving: Vec::new(),
             shown: motion::ShownStyles::default(),
             tab_enters: true,
+            host: host_prototype::HostState::default(),
         };
         ui.make_bases();
         ui

@@ -33,7 +33,7 @@ pub(super) struct Interaction {
     /// Where the pointer is, in pixels of the screen; none once it left.
     pub(super) pointer: Option<[f32; 2]>,
     /// The button or the field under the pointer.
-    hovered: Option<ElementId>,
+    pub(super) hovered: Option<ElementId>,
     /// The button or the field that the pointer pressed, which holds it until it is let go.
     pub(super) captured: Option<ElementId>,
     /// The mouse's buttons whose press the interface took, whose release it takes too.
@@ -968,6 +968,9 @@ impl Ui {
         {
             return;
         }
+        if self.interaction.focus != id {
+            self.host_focus_moves();
+        }
         if let Some(before) = self.interaction.focus.take() {
             // A field that the focus leaves commits what the user typed; its caret goes.
             if Some(before) != id && self.node(before).is_some_and(|node| node.field.is_some()) {
@@ -1115,8 +1118,8 @@ impl Ui {
     /// tooltip letting it through; none below a modal root.
     pub fn element_at(&self, x: f32, y: f32) -> Option<ElementId> {
         for &root in self.roots.iter().rev() {
-            // The pointer passes through a tooltip.
-            if self.interaction.tooltip == Some(root) {
+            // The pointer passes through a tooltip, and reaches the roots of its target alone.
+            if self.interaction.tooltip == Some(root) || !self.pointer_reaches(root) {
                 continue;
             }
             if let Some(hit) = self.hit(root, x, y) {
