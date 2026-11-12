@@ -2631,18 +2631,20 @@ its margin 2 min 24 s; on `32b3f0b`, before the review's changes, it took 17 min
 
 ## M6d.4a, the canvas's prototype
 
-The canvas's layouts drawn by the prototype of
+The canvas's *layouts*, the ways it hands its items to its shaders, drawn by the prototype of
 [ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md), at
 [`744dce3`](https://github.com/HoneySlatt/SlimeEngine/tree/744dce3373481e0ee054e665165a0fc5b4fc4faf/crates/canvas-prototype)
-on the branch `m6d4a-prototype`, on 2026-11-12, on the RX 6900 XT, its clocks held at their
-highest by the owner, the machine at a load of 1.5, through radv for Vulkan and radeonsi for OpenGL
-ES 3.0, Mesa 26.2.6. S is today's storage buffer, each fragment reading its whole item; S2 the
-same buffer, fields read one by one; T a texture read by index, fields one by one; I instances,
-one format for each kind. 30 frames of each layout after 10 of warm-up, the layouts in turn frame
-by frame, each frame waited for; medians, in µs. "With copies" adds the copies of the frame's
-items, which the GPU makes before the pass.
+on the branch `m6d4a-prototype`, on 2026-11-12. S is today's storage buffer, each fragment reading
+its whole item; S2 the same buffer, fields read one by one; T a texture read by index, fields one
+by one; I instances, one format for each kind. 30 frames of each layout after 10 of warm-up, the
+layouts in turn frame by frame, each frame waited for; medians, in µs. The *passes* are the GPU
+time of the frame's render passes, summed, as `render.canvas` times the canvas; the *span*, in
+brackets, runs from the frame's first copy of its items to the end of its last pass, the gaps
+between passes included. The bytes are those written each frame.
 
-The two screens of `render.canvas`, the GPU on Vulkan, the pass and, in brackets, with its copies:
+On the RX 6900 XT, its clocks held at their highest by the owner, the machine at a load of 1.5,
+through radv for Vulkan and radeonsi for OpenGL ES 3.0, Mesa 26.2.6; the two screens of
+`render.canvas`, on Vulkan:
 
 | Screen, size | S | S2 | I | T |
 |---|---|---|---|---|
@@ -2653,10 +2655,11 @@ The two screens of `render.canvas`, the GPU on Vulkan, the pass and, in brackets
 | Game's menu, 1920 × 1080 | 62.6 (68.1) | 59.7 (65.2) | 128.3 (135.7) | 71.1 (77.9) |
 | Game's menu, 3840 × 2160 | 233.6 (239.1) | 221.0 (226.4) | 277.7 (285.0) | 265.9 (272.8) |
 
-The editor takes 17 draws, 20 with I; the game's menu 3, 287 with I, one at each change of kind.
-The CPU records the menu in 19 to 32 µs with S, S2 and T, in 258 to 277 µs with I, and writes the
-items' bytes in 128 to 150 µs for the menu, 529 to 562 µs for the editor, alike in every layout.
-On OpenGL ES, which gives no GPU time, the CPU's submission and the frame's time to the end of the
+The editor takes 17 draws and 2,790,304 bytes, I 20 draws and 977,736 bytes; the game's menu 3
+draws and 598,336 bytes, I 287 draws, one at each change of kind, and 207,416 bytes. The CPU
+records the menu in 19 to 32 µs with S, S2 and T, in 258 to 277 µs with I, and writes the items'
+bytes in 128 to 150 µs for the menu, 529 to 562 µs for the editor, alike in every layout. On
+OpenGL ES, which gives no GPU time, the CPU's submission and the frame's time to the end of the
 wait:
 
 | Screen, size | I, submit | I, frame | T, submit | T, frame |
@@ -2666,27 +2669,54 @@ wait:
 | Game's menu, 1280 × 800 | 398 | 548 | 114 | 258 |
 | Game's menu, 3840 × 2160 | 409 | 739 | 120 | 487 |
 
-The effects, the GPU on Vulkan with its copies, at 1280 × 800 and 3840 × 2160:
+The effects on the game's menu, on Vulkan; S2 did not run them:
 
-| Effect | S | I | T |
-|---|---|---|---|
-| The menu, each panel turned, one card scaled | 41.4, 261.3 | 117.1, 297.4 | 48.5, 310.1 |
-| The menu, a panel drawn apart and faded | 47.4, 274.2 | 128.6, 312.5 | 55.8, 322.9 |
-| The same, the panel's texture kept | 36.2, 237.1 | 94.5, 264.8 | 42.5, 281.0 |
-| The menu under four glass panels | 163.8, 545.5 | 237.4, 557.7 | 176.9, 585.7 |
-| Twenty paths of flattened curves | 111.8, 716.8 | 88.4, 513.7 | 122.8, 771.4 |
-| 100,000 items, one box moved and written alone | 72.8, 196.8 | 156.7, 227.3 | 74.7, 210.1 |
+| Effect | Size | S | I | T | Bytes, S and T; I |
+|---|---|---|---|---|---|
+| Each panel turned, one card scaled | 1280 × 800 | 35.9 (41.4) | 109.5 (117.1) | 41.9 (48.5) | 614,672; 329,844 |
+| Each panel turned, one card scaled | 1920 × 1080 | 69.9 (75.4) | 136.4 (144.0) | 82.3 (89.0) | 614,672; 329,844 |
+| Each panel turned, one card scaled | 3840 × 2160 | 255.8 (261.3) | 289.7 (297.4) | 303.5 (310.1) | 614,672; 329,844 |
+| A panel drawn apart and faded | 1280 × 800 | 38.4 (47.4) | 110.8 (128.6) | 44.0 (55.8) | 598,624; 321,440 |
+| A panel drawn apart and faded | 1920 × 1080 | 72.6 (81.7) | 138.6 (156.5) | 84.4 (104.0) | 598,624; 321,440 |
+| A panel drawn apart and faded | 3840 × 2160 | 260.8 (274.2) | 294.6 (312.5) | 306.8 (322.9) | 598,624; 321,440 |
+| The same, the panel's texture kept | 1280 × 800 | 31.4 (36.2) | 86.1 (94.5) | 36.4 (42.5) | 375,216; 202,972 |
+| The same, the panel's texture kept | 1920 × 1080 | 61.6 (66.4) | 111.2 (119.6) | 72.3 (78.4) | 375,216; 202,972 |
+| The same, the panel's texture kept | 3840 × 2160 | 232.3 (237.1) | 256.4 (264.8) | 275.0 (281.0) | 375,216; 202,972 |
+| Four glass panels, one break of the pass | 1280 × 800 | 93.6 (163.8) | 164.8 (237.4) | 99.0 (176.9) | 1,152,560; 614,068 |
+| Four glass panels, one break of the pass | 1920 × 1080 | 148.5 (220.5) | 211.7 (282.6) | 158.9 (235.8) | 1,155,440; 615,588 |
+| Four glass panels, one break of the pass | 3840 × 2160 | 454.1 (545.5) | 473.7 (557.7) | 489.6 (585.7) | 1,155,440; 615,588 |
+| Twenty paths of flattened curves | 1280 × 800 | 107.6 (111.8) | 83.5 (88.4) | 118.0 (122.8) | 22,336; 20,732 |
+| Twenty paths of flattened curves | 1920 × 1080 | 190.2 (194.2) | 140.4 (145.2) | 205.5 (210.3) | 22,336; 20,732 |
+| Twenty paths of flattened curves | 3840 × 2160 | 712.6 (716.8) | 508.8 (513.7) | 766.5 (771.4) | 22,336; 20,732 |
 
-A glass panel's blur takes 9 to 13 µs at 1920 × 1080 and 13 to 20 µs at 3840 × 2160; the copy of
-the canvas's texture onto the window some 9.5 and 30 µs. Writing 100,000 items whole is 14.4 MB, and
-one box 144 bytes; on OpenGL ES, T's submission takes 1,031 µs for the first at 1920 × 1080, and
-83 µs for the second.
+A glass panel's blur takes 9 to 13 µs at 1920 × 1080 and 13 to 20 µs at 3840 × 2160; drawing the
+canvas's texture onto the window some 9.5 and 30 µs. With 100,000 items, the CPU makes them in
+3.1 ms and writes their 14.4 MB in 2.9 ms; one box moved and written alone, 144 bytes, takes
+1.2 µs; the passes then take, at 1280 × 800 and 3840 × 2160, 69.3 and 193.3 µs with S, 153.2 and
+223.9 with I, 70.7 and 206.1 with T. On OpenGL ES at 1920 × 1080, T submits the 100,000 items
+written whole in 1,031 µs, the box alone in 83 µs.
 
-Every layout's images are within 2/255 of S's on Vulkan, but for the turned panels on radeonsi's
-OpenGL ES: up to 10/255 on 216 to 259 pixels, in the images of colours drawn turned. The same runs
-on lavapipe and on Mesa's GL on the CPU, under the load of other sessions, ranked I first, against
-the GPU: a CPU that draws spends its time on each fragment's reads, and those figures stay in the
-prototype's history.
+Every layout's images are within 2/255 of S's on Vulkan, except the turned panels on radeonsi's
+OpenGL ES: up to 10/255; T's 16 pixels above 3/255 all lie in the images of colours drawn turned,
+and some 200 more within 2/255.
+
+On lavapipe, Mesa 26.2.4, on the AMD Ryzen 7 5800X, from a load of 2.0, which lavapipe's own
+threads raise; the passes, in ms:
+
+| Screen, size | S | S2 | I | T |
+|---|---|---|---|---|
+| Editor, 1280 × 800 | 21.5 | 17.2 | 11.8 | 17.3 |
+| Editor, 1920 × 1080 | 34.8 | 27.6 | 15.9 | 28.5 |
+| Editor, 3840 × 2160 | 107.3 | 84.4 | 36.4 | 87.0 |
+| Game's menu, 1280 × 800 | 9.8 | 8.1 | 7.7 | 9.6 |
+| Game's menu, 1920 × 1080 | 19.6 | 16.1 | 10.0 | 16.4 |
+| Game's menu, 3840 × 2160 | 75.6 | 61.0 | 24.8 | 64.9 |
+
+The effects at 1920 × 1080, in the same order, S, I and T: the turned panels 29.8, 14.4 and 20.0;
+the panel drawn apart 28.6, 13.7 and 21.8; the glass 47.9, 25.3 and 34.1; the paths 26.3, 19.2 and
+22.4. A CPU that draws spends its time in each fragment's reads, of which I has the fewest: it ranks
+I first, against the GPU. The runs' whole output is not kept; the prototype's README says how
+to run them again.
 
 ## M6d.6, the series of headless compositors
 

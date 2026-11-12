@@ -1121,8 +1121,10 @@ of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
     ([measurements](measurements.md#m6d2b2b3-tokens)).
   - A theme's number that a rule names and that is not finite now refuses the themes too, the
     debt of the look's foundations paid where the milestone opened its code.
-  - The look's own tokens, a text named by a theme and the tokens read by the canvas wait for
-    uwui's first stage, M6d.3 and M6d.4 ([`debt.md`](debt.md)).
+  - The look's own tokens and a text named by a theme wait for uwui's first stage and M6d.3; the
+    tokens read by the canvas, planned for M6d.4, moved to uwui's first stage
+    ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md),
+    [`debt.md`](debt.md)).
 
 <a id="m6d3--documents-with-serde"></a>
 

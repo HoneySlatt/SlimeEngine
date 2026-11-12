@@ -6,7 +6,7 @@
   [0152](0152-the-dev-overlay-on-the-engines-interface.md) (a box filled with a gradient between its
   corners' colors)
   and [0175](0175-the-quality-bar.md) (the interface's budget kept in the roadmap), then by
-  [0234](0234-uwuis-colour-model-before-its-api-is-stable.md) (the interface blends in sRGB's encoding on every target, floats included), then by [0243](0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md) (the items read by index from a storage buffer or a texture, fields one by one; the canvas's passes)
+  [0234](0234-uwuis-colour-model-before-its-api-is-stable.md) (the interface blends in sRGB's encoding on every target, floats included), then by [0243](0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md) (the items read by index from a storage buffer or a texture, fields one by one; a target drawn without a second view where the backend has none; the canvas's passes)
 - Date: 2026-10-23
 
 ## Context

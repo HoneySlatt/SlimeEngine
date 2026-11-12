@@ -619,13 +619,14 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **A comment within a value written on several lines is lost** when the editor writes the level again, but for the end of the value's first line (`slime_serialize::keep_comments`).
 - **The canvas draws nothing turned or scaled** ([ADR-0137](adr/0137-the-canvas.md)).
   The items' transforms, whose place they keep, come with uwui's first stage ([ADR-0194](adr/0194-stage-6d-uwui-leaving-the-engine.md)).
+  Drawn turned on radeonsi's OpenGL ES, an image of colours differs from Vulkan's by up to 10/255 on a few pixels, in M6d.4a's prototype; Mesa's GL on the CPU does not show it; its cause is not known; followed at uwui's first stage, which turns items ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)).
   An image is read at its first level: one drawn much smaller than it is shows steps.
   An image's edges are neither rounded nor smoothed between two pixels.
   An image of colors darkens where an opaque texel meets a transparent one of another color, its texels filtered before they are multiplied by their alpha.
   A shadow is an approximation, a few hundredths of its alpha from the box blurred exactly.
   A canvas holds at most `MAX_CANVAS_ITEMS` items.
   The interface's budget is checked on the RX 6900 XT alone, through ADR-0114's ratios.
-  Writing a canvas's items into its buffer costs the CPU in proportion to their number, item by item ([`docs/measurements.md`](measurements.md), M6b.3a).
+  Writing a canvas's items into its buffer costs the CPU in proportion to their number, item by item ([`docs/measurements.md`](measurements.md), M6b.3a): 100,000 items made in 3.1 ms and written in 2.9 ms, one written alone in 1.2 µs ([M6d.4a](measurements.md#m6d4a-the-canvass-prototype)); followed at uwui's first stage, whose drawing keeps the items across frames and writes what changed ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)).
 - **The interface's images are textures that the program gives** for the keys of its display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
   Cooked images that the asset cache holds come with their first user, M6c.7's asset browser.
   A draw that asks for more glyphs than the atlas's budget holds leaves some out; a glyph larger than a page is never drawn.
