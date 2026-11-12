@@ -118,11 +118,18 @@ if runs lint; then
         exit 1
     fi
     # uwui-render names no engine crate but slime-color, which leaves with it; uwui's own links to
-    # the engine leave at M6d.3c3 and M6d.11 (docs/stage-6d.md). The tree is read first, so that a
-    # failure of cargo stops the check rather than passing it.
+    # the engine leave at M6d.11 (docs/stage-6d.md). The tree is read first, so that a failure of
+    # cargo stops the check rather than passing it.
     uwui_render_dependencies=$(cargo tree --locked -p uwui-render -e normal --depth 1 --prefix none)
     if grep -E '^slime-' <<< "$uwui_render_dependencies" | grep -v '^slime-color '; then
         echo "uwui-render depends on the engine crates above"
+        exit 1
+    fi
+    # uwui reads its documents in KDL, without the engine's reflection: neither slime-reflect nor
+    # slime-serialize is in its tree, its tests' included (ADR-0241).
+    uwui_dependencies=$(cargo tree --locked -p uwui -e normal,build,dev --prefix none)
+    if grep -E '^slime-(reflect|serialize) ' <<< "$uwui_dependencies"; then
+        echo "uwui depends on the engine's reflection through the crates above"
         exit 1
     fi
 fi

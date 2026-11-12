@@ -14,4 +14,7 @@ workspace = true
 # glam's vectors and quaternions are described here, where the trait is: the orphan rule allows
 # it nowhere else (ADR-0080).
 glam.workspace = true
+# The engine's color is described here, as glam's types are, so that slime-color depends on
+# nothing and leaves with uwui (ADR-0241).
+slime-color.workspace = true
 slime-reflect-derive.workspace = true

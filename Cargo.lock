@@ -3073,9 +3073,6 @@ dependencies = [
 [[package]]
 name = "slime-color"
 version = "0.6.0"
-dependencies = [
- "slime-reflect",
-]
 
 [[package]]
 name = "slime-cook"
@@ -3210,6 +3207,7 @@ name = "slime-reflect"
 version = "0.6.0"
 dependencies = [
  "glam",
+ "slime-color",
  "slime-reflect-derive",
 ]
 

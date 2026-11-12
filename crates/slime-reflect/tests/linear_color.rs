@@ -5,10 +5,10 @@
 //! cooked and the dev overlay read a color through these alone, so that a description that gives
 //! the same lines reads and writes them the same.
 //!
-//! The fixture, `crates/slime-reflect/tests/reference/linear_color.txt`, was recorded while
-//! `slime-color` derived the description, before `slime-reflect` described it by hand.
-//! `SLIME_UPDATE_REFERENCE_IMAGES` writes it again: a change of the description changes it on
-//! purpose, and changes what scenes hold.
+//! The fixture, `tests/reference/linear_color.txt`, was recorded while `slime-color` derived the
+//! description, before `slime-reflect` described it by hand (`src/impls.rs`), which must give
+//! the same lines. `SLIME_UPDATE_REFERENCE_IMAGES` writes it again: a change of the description
+//! changes it on purpose, and changes what scenes hold.
 
 use std::fmt::Write as _;
 use std::path::Path;
@@ -98,11 +98,9 @@ fn lines() -> String {
 
 #[test]
 fn linear_color_is_described_as_the_fixture_records() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../slime-reflect/tests/reference/linear_color.txt");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/reference/linear_color.txt");
     let lines = lines();
     if std::env::var_os("SLIME_UPDATE_REFERENCE_IMAGES").is_some() {
-        std::fs::create_dir_all(path.parent().expect("a folder")).expect("its folder is made");
         std::fs::write(&path, &lines).expect("the fixture is written");
         return;
     }

@@ -19,9 +19,12 @@ them.
   finite numbers, units, and a check of the rules between fields, which refuses the values that
   break them. The standard types the engine
   uses (booleans, integers, floats, `String`, `Option`, `Vec`, arrays, pairs, `Duration`, in
-  seconds) and glam's `Vec3`,
-  `DVec3` and `Quat` are described here, by hand, with the helpers of `support`: the orphan rule
-  allows it nowhere else.
+  seconds), glam's `Vec3`, `DVec3` and `Quat`, and `slime-color`'s `LinearColor` are described
+  here, by hand, with the helpers of `support`: the orphan rule allows it nowhere else, and
+  `slime-color` depends on nothing, so that it leaves with uwui
+  ([ADR-0241](../../docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+  `tests/reference/linear_color.txt` keeps `LinearColor`'s description and values as its derive
+  gave them, which scenes and the dev overlay read.
 - `Value`, plain data, which passes between reflection, files, saves and the editors: references to
   assets and to entities are kinds of their own, and floats keep their width.
 - `TypeInfo`, the description of a type: its kind, its fields or variants, with their names, types
@@ -36,7 +39,7 @@ them.
 - `diff` and `apply`: what differs between two values, path by path, and those differences set.
 
 A crate that owns a value type implements reflection where the type is defined: `slime-assets`
-for `AssetId` and the custom values of nodes, `slime-color` for `LinearColor`, `slime-world` for
+for `AssetId` and the custom values of nodes, `slime-world` for
 its entities and components, `slime-render` for its materials' values, its views' settings and
 statistics and its asset cache's report, `slime-channel` for the development channel's messages,
 `slime-cook` for its metadata files.
@@ -75,13 +78,13 @@ and the errors, which name the path of the part at fault.
 
 ## Dependencies
 
-`glam`, whose types it describes, and `slime-reflect-derive`, its derive macro, which it
-re-exports. No other crate of the engine: those that own a value type depend on it.
+`glam` and `slime-color`, whose types it describes, and `slime-reflect-derive`, its derive macro,
+which it re-exports. No other crate of the engine: those that own a value type depend on it.
 
 ## Must not
 
-- Depend on another crate of the engine than its derive macro, `slime-reflect-derive`, or on a GPU,
-  a window or a file format.
+- Depend on another crate of the engine than its derive macro, `slime-reflect-derive`, and
+  `slime-color`, or on a GPU, a window or a file format.
 - Name a type by its module path: names are stable, and files and saves hold them.
 - Register a type before `main` runs, by code that runs on its own: a program registers what it
   uses.

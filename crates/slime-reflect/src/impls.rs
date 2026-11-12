@@ -1,9 +1,10 @@
-//! Reflection for the standard types the engine uses, and for glam's: by hand, here, where the
-//! trait is.
+//! Reflection for the standard types the engine uses, for glam's and for `slime-color`'s
+//! `LinearColor`: by hand, here, where the trait is.
 
 use std::time::Duration;
 
 use glam::{DVec3, Quat, Vec3};
+use slime_color::LinearColor;
 
 use crate::error::{Problem, ReflectError};
 use crate::info::{FieldInfo, Kind, Number, Range, TypeInfo};
@@ -418,6 +419,62 @@ coordinates!(
     z,
     w
 );
+
+/// The engine's color, a struct of its four channels, described here so that `slime-color`
+/// depends on nothing
+/// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`). Its name, its
+/// fields and their documentation are those that its derive gave it, so that scenes, cooked or
+/// not, and the dev overlay read colors as before: `tests/linear_color.rs` keeps them.
+impl Reflect for LinearColor {
+    fn type_name() -> String {
+        "LinearColor".to_owned()
+    }
+
+    fn type_info() -> TypeInfo {
+        let channel = |name: &str, doc: &str| FieldInfo {
+            doc: doc.to_owned(),
+            ..FieldInfo::new(name, f32::type_name())
+        };
+        described(
+            Self::type_name(),
+            "A color with linear components: values proportional to the light they stand for, \
+             which light adds and multiplies as they are, red, green and blue without an upper \
+             bound, alpha straight (`slime_color::LinearColor`).",
+            Kind::Struct(vec![
+                channel("r", "Red."),
+                channel("g", "Green."),
+                channel("b", "Blue."),
+                channel("a", "Alpha (opacity), from 0, transparent, to 1, opaque."),
+            ]),
+        )
+    }
+
+    fn register_dependencies(registry: &mut Registry) {
+        registry.register::<f32>();
+    }
+
+    fn to_value(&self) -> Value {
+        Value::Struct(vec![
+            ("r".to_owned(), self.r.to_value()),
+            ("g".to_owned(), self.g.to_value()),
+            ("b".to_owned(), self.b.to_value()),
+            ("a".to_owned(), self.a.to_value()),
+        ])
+    }
+
+    fn from_value(value: &Value) -> Result<Self, ReflectError> {
+        let fields = fields(value, "LinearColor")?;
+        known(fields, &[&["r"], &["g"], &["b"], &["a"]])?;
+        let channel =
+            |name: &str| field::<f32>(fields, name, &[])?.map_or_else(|| missing(name), Ok);
+        Ok(Self::rgba(
+            channel("r")?,
+            channel("g")?,
+            channel("b")?,
+            channel("a")?,
+        ))
+    }
+}
 
 #[cfg(test)]
 mod tests {
