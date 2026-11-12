@@ -102,11 +102,11 @@ fn known(name: &str) -> &'static str {
 }
 
 #[test]
-fn random_stacks_of_themes_read_as_the_reflected_reader_read_them() {
+fn random_stacks_of_themes_read_as_the_fixture_records() {
     let path = verdicts_tests::path(THEMES);
     let cases = verdicts_tests::read(&path);
     assert!(cases.len() >= 100, "{} cases", cases.len());
-    let mut refused = 0;
+    let (mut refused, mut largest) = (0, 0.0_f64);
     for (number, case) in cases.iter().enumerate() {
         let (mut sheets, mut themes, mut declared) = (Vec::new(), Vec::new(), Vec::new());
         for (label, text) in &case.inputs {
@@ -122,7 +122,12 @@ fn random_stacks_of_themes_read_as_the_reflected_reader_read_them() {
         let read = super::read(&sheets, &themes, &declared, &mut tokens);
         let verdict = verdict(read, &declared, &tokens);
         refused += usize::from(verdict == "refused\n");
-        verdicts_tests::check(&path, number, &verdict, &case.verdict);
+        largest = largest.max(verdicts_tests::check(
+            &path,
+            number,
+            &verdict,
+            &case.verdict,
+        ));
     }
     // Both outcomes are recorded.
     assert!(
@@ -132,12 +137,12 @@ fn random_stacks_of_themes_read_as_the_reflected_reader_read_them() {
 }
 
 #[test]
-fn random_style_sheets_read_as_the_reflected_reader_read_them() {
+fn random_style_sheets_read_as_the_fixture_records() {
     let path = verdicts_tests::path(SHEETS);
     let cases = verdicts_tests::read(&path);
     assert!(cases.len() >= 120, "{} cases", cases.len());
     let theme = [Theme::from_text("sheets.theme.kdl", SHEETS_THEME)];
-    let (mut refused, mut declarations) = (0, 0);
+    let (mut refused, mut declarations, mut largest) = (0, 0, 0.0_f64);
     for (number, case) in cases.iter().enumerate() {
         let [(_, text)] = case.inputs.as_slice() else {
             panic!("case {number}: one sheet");
@@ -158,8 +163,14 @@ fn random_style_sheets_read_as_the_reflected_reader_read_them() {
         }
         let verdict = verdict(read, &[], &tokens);
         refused += usize::from(verdict == "refused\n");
-        verdicts_tests::check(&path, number, &verdict, &case.verdict);
+        largest = largest.max(verdicts_tests::check(
+            &path,
+            number,
+            &verdict,
+            &case.verdict,
+        ));
     }
+    println!("the largest difference of a color's number: {largest:e}");
     // Both outcomes are recorded, and declarations of many leaves.
     assert!(
         refused > 10 && refused < cases.len() / 2 && declarations > 500,

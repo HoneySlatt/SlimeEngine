@@ -7,7 +7,11 @@
 //!
 //! The model was checked to compose as the reflected cascade that the typed one replaced, on that
 //! cascade's 3,000 seeded cases, before reflection left uwui (M6d.3c3); the fixtures of the
-//! `widgets` example's styles (`examples/tests/widgets.rs`) outlive both.
+//! `widgets` example's styles (`examples/tests/widgets.rs`) outlive both. The model shares the
+//! derive's `apply` and `declared` with the cascade: it checks the order in which the cascade
+//! applies declarations, not the declarations themselves, which
+//! `a_style_s_declarations_applied_to_another_make_it` checks apart. Each leaf takes the values of
+//! three styles, not every variant of an enum: the order does not depend on the values.
 
 use std::panic::Location;
 
@@ -303,6 +307,26 @@ fn every_leaf_odd() -> Style {
     style.transition.easing = Easing::EaseOut;
     style.icons.font = "tnum".to_owned();
     style
+}
+
+/// The derive's `declared` and `apply`, which the model of the cascade shares with it, checked
+/// apart from both: the declarations of a style against another, applied to the other, make the
+/// style, compared by `Debug`, so that a leaf that `declared` leaves out or `apply` does not set is
+/// found.
+#[test]
+fn a_style_s_declarations_applied_to_another_make_it() {
+    let styles = [Style::default(), every_leaf_changed(), every_leaf_odd()];
+    for (to_number, to) in styles.iter().enumerate() {
+        for (from_number, from) in styles.iter().enumerate() {
+            let mut made = from.clone();
+            to.declared(from, &mut |declaration| declaration.apply(&mut made));
+            assert_eq!(
+                format!("{made:?}"),
+                format!("{to:?}"),
+                "style {to_number} declared against style {from_number}"
+            );
+        }
+    }
 }
 
 /// A rule that sets `declaration`, for elements in the state `state`, or in any for none.

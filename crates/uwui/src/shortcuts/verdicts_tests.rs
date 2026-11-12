@@ -47,7 +47,7 @@ fn held(held: Held) -> String {
 }
 
 #[test]
-fn random_tables_read_as_the_reflected_reader_read_them() {
+fn random_tables_read_as_the_fixture_records() {
     let path = verdicts_tests::path(FIXTURE);
     let cases = verdicts_tests::read(&path);
     assert!(cases.len() >= 150, "{} cases", cases.len());

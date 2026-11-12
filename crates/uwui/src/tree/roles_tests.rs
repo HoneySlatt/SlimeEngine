@@ -77,8 +77,10 @@ fn styled_by_sentinels(fonts: Fonts) -> Ui {
 }
 
 /// Every color of `style`, by its path, as the derive of its declarations lists them, so that a
-/// color added to a style is found too: a shadow's, transparent where it casts none, by the
-/// shadow's path.
+/// color added to a style is found too, in a field that the derive requires marked
+/// `#[declare(color)]`, its type naming `LinearColor`: a shadow's, transparent where it casts none,
+/// by the shadow's path. A color held inside a struct of another type, as a shadow holds one, is
+/// found only where that type is marked.
 fn style_colors(style: &Style) -> Vec<(String, LinearColor)> {
     let mut paths = Vec::new();
     Style::paths("", &mut |path| paths.push(path));

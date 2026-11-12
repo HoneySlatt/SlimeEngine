@@ -1,10 +1,11 @@
 //! Random layouts, written in KDL, read to the layouts that the reflected reader of layouts in TOML
 //! read, bit for bit: its verdicts on a fixed seed, recorded before reflection left uwui
 //! (`crate::verdicts_tests`, `tests/reference/verdicts/layouts.txt`). The layouts were held as a
-//! program may hold them before it normalizes them, and written by [`write`]: the fixture keeps
-//! the writer's text too.
+//! program may hold them before it normalizes them, and written by [`write`], which must write
+//! each read back to its text; `tests/dock.rs` writes and reads back random layouts at each run,
+//! deeper ones too.
 
-use super::{Layout, Reading, read};
+use super::{Layout, Reading, read, write};
 use crate::verdicts_tests;
 
 /// The fixture's name.
@@ -18,7 +19,7 @@ pub(super) fn verdict(layout: &Layout) -> String {
 }
 
 #[test]
-fn random_layouts_read_as_the_reflected_reader_read_them() {
+fn random_layouts_read_as_the_fixture_records() {
     let path = verdicts_tests::path(FIXTURE);
     let cases = verdicts_tests::read(&path);
     assert!(cases.len() >= 60, "{} cases", cases.len());
@@ -30,5 +31,10 @@ fn random_layouts_read_as_the_reflected_reader_read_them() {
             .unwrap_or_else(|error| panic!("case {number}: {error}"));
         assert!(read.warnings.is_none(), "case {number}");
         verdicts_tests::check(&path, number, &verdict(&read.layout), &case.verdict);
+        assert_eq!(
+            write(&read.layout, None).expect("written"),
+            *text,
+            "case {number}: written back"
+        );
     }
 }

@@ -194,8 +194,10 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
 
   uwui's fixtures of verdicts, `crates/uwui/tests/reference/verdicts/`, are what the reflected
   readers that its readers of KDL replaced read from random documents; nothing writes them again.
-  A test that fails on one is a reader that reads otherwise: change the reader, never the fixture,
-  unless the owner decides that the reader's behaviour changes
+  A test that fails on one is a reader that reads otherwise: change the reader, not the fixture,
+  unless the owner decides that the reader's behaviour changes. A change of the printed form alone,
+  a type or a field of uwui renamed, edits the fixture in the same commit, line for line, nothing
+  else changing
   ([ADR-0241](docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
 
 #### Looking at a window without a display
