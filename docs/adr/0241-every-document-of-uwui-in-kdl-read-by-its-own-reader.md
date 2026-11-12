@@ -24,7 +24,14 @@
   unit written on a name is refused; a share that a colour function names is a `number`; a
   dimension's share is written `(%)50`, a grid's fraction `(fr)1`, a name there being a length;
   a selector's numbered key is a number, `key=3`; the reader's weight on the web is measured with
-  the target `wasm32-unknown-unknown` in `rust-toolchain.toml` and brotli in the development shell
+  the target `wasm32-unknown-unknown` in `rust-toolchain.toml` and brotli in the development shell.
+  Precisions decided by the owner on 2026-11-11, as M6d.3b2 ran: a theme's value is named where a
+  value goes, never in a name, a class, a key, a kind, a state, a slot, a command or the name of an
+  element or a part, in every document of uwui; a name that starts with `$` is refused, without an
+  escape. uwui's core weighs on the web 2.35 MB compressed, of which 1.93 MB are the dictionaries of
+  words that `parley`'s `complex-scripts` brings: it stays debt, followed at uwui's milestone of
+  fonts given as bytes, which loads them when a text first needs them, as fonts, the budget of
+  [ADR-0181](0181-uwuis-scope.md) leaving them out as it leaves fonts out, by an amendment then
 - Date: 2026-11-11
 
 ## Context

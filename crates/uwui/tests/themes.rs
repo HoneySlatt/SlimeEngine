@@ -145,7 +145,7 @@ fn each_wrong_value_is_refused_at_its_line() {
         ("length {\n    gap #inf\n}\n", "a number that is not finite"),
         (
             "length {\n    gap \"wide\"\n}\n",
-            "the value is not a length",
+            "a length goes here, not \"wide\"",
         ),
         (
             "length {\n    gap 1 2\n}\n",

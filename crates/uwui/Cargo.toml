@@ -27,8 +27,8 @@ icu_properties.workspace = true
 slime-color.workspace = true
 # The keys, buttons and wheel that a person's input arrives as (ADR-0142).
 slime-input.workspace = true
-# The styles described, so that style sheets and themes, documents read by slime-serialize, set
-# them (ADR-0132).
+# The styles described, for the tests' oracle of the reader of style sheets, and the tables of
+# shortcuts read by slime-serialize, until M6d.3c (ADR-0132, ADR-0241).
 slime-reflect.workspace = true
 slime-serialize.workspace = true
 # Glyphs rasterized into coverage or color (ADR-0136).

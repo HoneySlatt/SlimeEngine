@@ -5,8 +5,9 @@
 //! rules' selectors and declarations, bit for bit. The random documents leave out what the reader
 //! of KDL refuses on purpose where the reflected one took it, a number past an `f32`, a share that
 //! makes a color no finite number, a value given wrongly then given again, a theme's value of
-//! another kind than its field's, and what it takes that the reflected one refused, a text named by
-//! a theme: `tests/themes.rs` and `tests/sheets.rs` test each refusal.
+//! another kind than its field's, a negative duration, a name that starts with `$`, a key written
+//! `"#3"`, and what it takes that the reflected one refused, a text named by a theme:
+//! `tests/themes.rs` and `tests/sheets.rs` test each refusal.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -844,7 +845,8 @@ fn random_scalar(registry: &Registry, ty: &str, path: &str, numbers: &mut Number
                         ("1", "100"),
                         ("0", "0"),
                         ("0.075", "7.5"),
-                    ][numbers.below(6)];
+                        ("0.007", "0.7"),
+                    ][numbers.below(7)];
                     Both::new(format!("{{ Share = {share} }}"), format!("(%){percent}"))
                 }
             };

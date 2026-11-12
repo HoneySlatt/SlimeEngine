@@ -2504,6 +2504,39 @@ Every job stays within its limit of 20 minutes. `check (headless)` took as long 
 its margin 3 min 12 s; `windows-release` 1 min 51 s less, its margin 5 min 23 s. The new crate
 and its 338 tests of KDL add some seconds to the jobs that test the workspace.
 
+## M6d.3b2, style sheets in KDL
+
+The look's style sheet read in KDL by the code that `uwui-macros` derives, as its themes are
+([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)), on 2026-11-11.
+
+Reading the look's documents allocates 3 376 times, from 95 970, in a debug build, as CI counts
+them; every other counter is unchanged. What reflection allocated for each value of each rule is
+gone: a rule's name is borrowed from the text, its declarations made as they are read.
+
+uwui's weight in a build for the web, by a probe outside the repository that lays out and draws a
+label and a button, its variant *read* reading a sheet and a theme that the host gives as text:
+built with the project's toolchain, 1.99.0, for `wasm32-unknown-unknown` in release, its size
+optimised (`opt-level = "z"`, fat LTO, one codegen unit, `panic = "abort"`, stripped), not passed
+through `wasm-opt`, and compressed by brotli 1.2.0 at its quality 11. *Before* is `cb45105`, the
+sheet read through reflection; *after* is `8f045a2`:
+
+| Module | Raw | Brotli |
+|---|---|---|
+| before, nothing read | 4 540 078 B | 2 371 459 B |
+| before, the documents read | 4 826 665 B | 2 455 315 B |
+| after, nothing read | 4 428 749 B | 2 349 389 B |
+| after, the documents read | 4 560 599 B | 2 382 996 B |
+| after, `parley` without `complex-scripts`, nothing read | 1 374 559 B | 417 564 B |
+| after, `parley` without `complex-scripts`, the documents read | 1 509 043 B | 454 679 B |
+
+- Reading the documents weighs 33 607 B compressed, from 83 856 B: 37 115 B in a module without
+  `parley`'s dictionaries, which compress less well beside it. uwui's core is 22 kB lighter, its
+  interface keeping no registry of reflection.
+- uwui's core weighs 2.35 MB compressed, against the provisional budget of 1 MB
+  ([ADR-0181](adr/0181-uwuis-scope.md)); 1.93 MB of it are ICU4X's dictionaries of the words of
+  Chinese and Japanese, Burmese, Khmer, Lao and Thai, which `parley`'s feature `complex-scripts`
+  brings; without them, 0.42 MB. The owner kept it as debt ([`debt.md`](debt.md)).
+
 ## M6d.3b1, themes in KDL
 
 The look's themes read in KDL by uwui's own reader, the look's style sheet still through

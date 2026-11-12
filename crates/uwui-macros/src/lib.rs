@@ -100,7 +100,7 @@ fn identifiers(input: &DeriveInput) -> syn::Result<Tokens> {
                 entry: &::uwui_kdl::Entry<'_, '_>,
                 _: crate::theme::sheet::Measure,
                 _: &crate::theme::sheet::Reading<'_>,
-            ) -> ::std::result::Result<Self, crate::theme::sheet::Fault> {
+            ) -> ::std::result::Result<Self, crate::theme::sheet::Refusal> {
                 crate::theme::sheet::identifier(entry, &[#(#variants),*])
             }
         }
@@ -567,6 +567,8 @@ fn shape(field: &syn::Field) -> syn::Result<(Shape, bool, bool, Tokens)> {
             "only a field that holds an `f32` is marked what it measures",
         ));
     }
+    // A field that holds no `f32` reads its numbers by its own type, a size or a shadow, or holds
+    // none: the measure given is not read.
     let measure = measure.map_or_else(
         || quote! { crate::theme::sheet::Measure::Length },
         |(_, measure)| measure,

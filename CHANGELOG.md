@@ -58,7 +58,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   its unit, `(ms)120` or `(s)0.12`, or a number, and a rule that names a theme's value of another
   kind, as a length for a duration, is refused. A size is `Auto`, a length or a share, `(%)50`, in
   place of `{ Share = 0.5 }`; a grid's track `(fr)1` in place of `{ Fraction = 1 }`. A selector's
-  numbered key is `key=3` in place of `"#3"`, and a selector names no theme's value. A colour is
+  numbered key is `key=3` in place of `"#3"`, and a name in a selector, a class or a key, never names
+  a theme's value: one that starts with `$` is refused. A colour is
   sRGB's hex, a theme's name or a function: the form by linear channels, `{ r, g, b, a }`, is gone.
   A field of text, as an icon, names a theme's `text`, `$$` writing a text that starts with `$`;
   the editor's look gives its icons in its base theme. `StyleSheet::from_binary` is gone: a cooked

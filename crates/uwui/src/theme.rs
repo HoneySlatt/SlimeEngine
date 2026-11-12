@@ -21,7 +21,9 @@
 //! - a color is sRGB's `"#rrggbb"` or `"#rrggbbaa"`, or a color function, below;
 //! - `$name` names a theme's value of the field's kind wherever a value goes, a length where a size
 //!   or a track goes, a text in a field of text, which writes `$$` for a text that starts with `$`;
-//!   a selector names none, and its numbered key is a whole number, `key=3`.
+//! - a theme's value is never named in a name, a class, a key, a kind or a state: a name that
+//!   starts with `$` is refused; a numbered key is a whole number, `key=3`, and a key's name never
+//!   starts with `#`.
 //!
 //! A rule, a group or a field given twice is refused.
 //!

@@ -97,7 +97,8 @@ impl std::error::Error for Fault {
 /// the interface keeps the style it had. The themes are read first, every value of each in turn,
 /// then the names that the values give one another, then the tokens; the style sheets are read
 /// only once the themes are taken, in their order, each rule in the order of its file, and in a
-/// rule what it sets, then whether its kind reads it.
+/// rule its `select` first, wherever it is written, then what it sets, then whether its kind reads
+/// it.
 #[derive(Debug)]
 pub struct DocumentErrors {
     errors: Vec<DocumentError>,

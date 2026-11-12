@@ -11,13 +11,11 @@ use std::collections::HashMap;
 use slime_color::LinearColor;
 use uwui_kdl::{Entry, Node, Value as Kdl};
 
-use super::values::{self, Group, ThemeValue, Values};
+pub(crate) use super::values::Refusal;
+use super::values::{self, Group, ThemeValue, Values, number, shown, theme_name};
 use super::{Ancestor, KindName, Rule, Selector, StateName, reads};
-use crate::document::{DocumentError, DocumentErrors, Fault as DocumentFault};
+use crate::document::{DocumentError, DocumentErrors, Fault};
 use crate::style::{Dimension, Shadow, Style, Track};
-
-/// What is wrong at a byte of a document.
-pub(crate) type Fault = (usize, String);
 
 /// What a number of a style measures, as the derive marks its field: what a value written there,
 /// or named, must be.
@@ -42,7 +40,7 @@ pub(crate) struct Reading<'a> {
 
 impl Reading<'_> {
     /// Keeps the error `fault`, placed at its line, up to the errors' cap.
-    pub(crate) fn fail(&mut self, (offset, message): Fault) {
+    pub(crate) fn fail(&mut self, (offset, message): Refusal) {
         self.fail_with(offset, |_| message);
     }
 
@@ -81,12 +79,13 @@ pub(crate) trait Field: Sized {
     const NODE: bool = false;
 
     /// The value that `entry` writes, a property or an argument, of `measure` where it is a
-    /// number.
+    /// number; a type that is no number, or reads its own numbers, a size, does not read
+    /// `measure`.
     fn from_entry(
         entry: &Entry<'_, '_>,
         measure: Measure,
         reading: &Reading<'_>,
-    ) -> Result<Self, Fault> {
+    ) -> Result<Self, Refusal> {
         let _ = (measure, reading);
         Err((
             entry.span().start,
@@ -119,7 +118,7 @@ pub(crate) fn read(
         Err(error) => {
             errors.push(DocumentError {
                 document: name.to_owned(),
-                error: DocumentFault::Kdl(error),
+                error: Fault::Kdl(error),
             });
             return Vec::new();
         }
@@ -235,10 +234,17 @@ pub(crate) fn fields<'d, 't>(
             },
             Item::Node(child) => child.name().text(),
         };
+        let offset = item.offset();
         if also.contains(&field.as_ref()) {
+            // The caller reads these children; written as a property, it would read nothing.
+            if let Item::Property(_) = item {
+                reading.fail((
+                    offset,
+                    format!("`{field}` is written as a child node, `{field} …`, not a property"),
+                ));
+            }
             continue;
         }
-        let offset = item.offset();
         let Some(index) = fields.iter().position(|(known, _)| *known == field) else {
             let known: Vec<String> = also
                 .iter()
@@ -361,42 +367,13 @@ fn arguments<T: Field>(
     whole.then_some(values)
 }
 
-/// The name of the theme's value that `entry` names, `$name`; none where it writes a value.
-///
-/// # Errors
-///
-/// `$` alone, which names nothing, and a unit written on a name, which takes its group's.
-fn theme_name(entry: &Entry<'_, '_>) -> Result<Option<String>, Fault> {
-    let Kdl::String(string) = entry.value() else {
-        return Ok(None);
-    };
-    let text = string.text();
-    let Some(name) = text.strip_prefix('$') else {
-        return Ok(None);
-    };
-    if name.starts_with('$') {
-        return Ok(None);
-    }
-    let at = entry.span().start;
-    if name.is_empty() {
-        return Err((at, "`$` names no value: `$name`".to_owned()));
-    }
-    if entry.annotation().is_some() {
-        return Err((
-            at,
-            "a name takes the unit of its value's group: it writes none".to_owned(),
-        ));
-    }
-    Ok(Some(name.to_owned()))
-}
-
 /// The theme's value named `name`, of `group`, for the entry at `at`.
 fn named<'v>(
     reading: &'v Reading<'_>,
     name: &str,
     group: Group,
     at: usize,
-) -> Result<&'v ThemeValue, Fault> {
+) -> Result<&'v ThemeValue, Refusal> {
     match reading.values.get(name) {
         Some(value) if value.group() == group => Ok(value),
         Some(value) => Err((
@@ -411,28 +388,13 @@ fn named<'v>(
     }
 }
 
-/// The number that `entry` writes, and its unit; an error naming `what` where it writes no
-/// number, or one that is not finite or past what an `f32` holds.
-fn number(entry: &Entry<'_, '_>, what: &str) -> Result<(f64, Option<String>), Fault> {
-    let at = entry.span().start;
-    let Kdl::Number(number) = entry.value() else {
-        return Err((at, format!("{what} goes here, not `{}`", entry.value())));
-    };
-    let value = number.to_f64();
-    if !value.is_finite() || !(value as f32).is_finite() {
-        return Err((
-            at,
-            "a number that is not finite, or past what an `f32` holds".to_owned(),
-        ));
-    }
-    Ok((
-        value,
-        entry.annotation().map(|unit| unit.text().into_owned()),
-    ))
-}
-
 /// The value of a theme's `name` of a number's `group`, in an `f32`.
-fn named_number(reading: &Reading<'_>, name: &str, group: Group, at: usize) -> Result<f32, Fault> {
+fn named_number(
+    reading: &Reading<'_>,
+    name: &str,
+    group: Group,
+    at: usize,
+) -> Result<f32, Refusal> {
     match named(reading, name, group, at)? {
         ThemeValue::Length(number) | ThemeValue::Duration(number) | ThemeValue::Number(number) => {
             Ok(*number)
@@ -446,51 +408,25 @@ impl Field for f32 {
         entry: &Entry<'_, '_>,
         measure: Measure,
         reading: &Reading<'_>,
-    ) -> Result<Self, Fault> {
-        let at = entry.span().start;
+    ) -> Result<Self, Refusal> {
         let group = match measure {
             Measure::Length => Group::Length,
             Measure::Duration => Group::Duration,
             Measure::Number => Group::Number,
         };
-        if let Some(name) = theme_name(entry)? {
-            return named_number(reading, &name, group, at);
-        }
-        let (value, unit) = number(entry, group.a())?;
-        match (measure, unit.as_deref()) {
-            (Measure::Length, None | Some("px")) | (Measure::Number, None) => Ok(value as f32),
-            (Measure::Length, Some(unit)) => Err((
-                at,
-                format!("a length is in logical pixels, bare or `(px)`, not `({unit})`"),
-            )),
-            (Measure::Number, Some(unit)) => {
-                Err((at, format!("a number takes no unit `({unit})`")))
-            }
-            (Measure::Duration, None) => Err((
-                at,
-                "a duration writes its unit, `(ms)120` or `(s)0.12`".to_owned(),
-            )),
-            (Measure::Duration, Some(unit @ ("ms" | "s"))) => {
-                let seconds = if unit == "ms" { value / 1000.0 } else { value };
-                if seconds < 0.0 {
-                    return Err((at, "a duration is never negative".to_owned()));
-                }
-                let seconds = seconds as f32;
-                if std::time::Duration::try_from_secs_f32(seconds).is_err() {
-                    return Err((at, "a duration too long to hold".to_owned()));
-                }
-                Ok(seconds)
-            }
-            (Measure::Duration, Some(unit)) => Err((
-                at,
-                format!("a duration is in `(ms)` or `(s)`, not `({unit})`"),
-            )),
+        match theme_name(entry)? {
+            Some(name) => named_number(reading, &name, group, entry.span().start),
+            None => number(entry, group),
         }
     }
 }
 
 impl Field for u16 {
-    fn from_entry(entry: &Entry<'_, '_>, _: Measure, reading: &Reading<'_>) -> Result<Self, Fault> {
+    fn from_entry(
+        entry: &Entry<'_, '_>,
+        _: Measure,
+        reading: &Reading<'_>,
+    ) -> Result<Self, Refusal> {
         let at = entry.span().start;
         let whole = |number: f64| {
             (number.fract() == 0.0 && (0.0..=f64::from(u16::MAX)).contains(&number))
@@ -508,28 +444,33 @@ impl Field for u16 {
                 )
             });
         }
-        let (value, unit) = number(entry, "a whole number")?;
-        if let Some(unit) = unit {
-            return Err((at, format!("a whole number takes no unit `({unit})`")));
-        }
-        whole(value).ok_or_else(|| (at, "a whole number from 0 to 65535 goes here".to_owned()))
+        let written = match entry.value() {
+            Kdl::Number(written) if entry.annotation().is_none() => whole(written.to_f64()),
+            // What a number refuses, a unit or another value, is told as it tells it.
+            _ => number(entry, Group::Number).map(|_| None)?,
+        };
+        written.ok_or_else(|| (at, "a whole number from 0 to 65535 goes here".to_owned()))
     }
 }
 
 impl Field for bool {
-    fn from_entry(entry: &Entry<'_, '_>, _: Measure, _: &Reading<'_>) -> Result<Self, Fault> {
+    fn from_entry(entry: &Entry<'_, '_>, _: Measure, _: &Reading<'_>) -> Result<Self, Refusal> {
         match entry.value() {
             Kdl::Bool(value) if entry.annotation().is_none() => Ok(value),
-            value => Err((
+            _ => Err((
                 entry.span().start,
-                format!("`#true` or `#false` goes here, not `{value}`"),
+                format!("`#true` or `#false` goes here, not {}", shown(entry)),
             )),
         }
     }
 }
 
 impl Field for String {
-    fn from_entry(entry: &Entry<'_, '_>, _: Measure, reading: &Reading<'_>) -> Result<Self, Fault> {
+    fn from_entry(
+        entry: &Entry<'_, '_>,
+        _: Measure,
+        reading: &Reading<'_>,
+    ) -> Result<Self, Refusal> {
         let at = entry.span().start;
         if let Some(name) = theme_name(entry)? {
             return match named(reading, &name, Group::Text, at)? {
@@ -538,7 +479,7 @@ impl Field for String {
             };
         }
         let Kdl::String(string) = entry.value() else {
-            return Err((at, format!("a text goes here, not `{}`", entry.value())));
+            return Err((at, format!("a text goes here, not {}", shown(entry))));
         };
         if let Some(unit) = entry.annotation() {
             return Err((at, format!("a text takes no type `({})`", unit.text())));
@@ -550,7 +491,11 @@ impl Field for String {
 }
 
 impl Field for LinearColor {
-    fn from_entry(entry: &Entry<'_, '_>, _: Measure, reading: &Reading<'_>) -> Result<Self, Fault> {
+    fn from_entry(
+        entry: &Entry<'_, '_>,
+        _: Measure,
+        reading: &Reading<'_>,
+    ) -> Result<Self, Refusal> {
         let at = entry.span().start;
         if let Some(name) = theme_name(entry)? {
             return match named(reading, &name, Group::Color, at)? {
@@ -559,7 +504,7 @@ impl Field for LinearColor {
             };
         }
         let Kdl::String(string) = entry.value() else {
-            return Err((at, format!("a color goes here, not `{}`", entry.value())));
+            return Err((at, format!("a color goes here, not {}", shown(entry))));
         };
         if let Some(unit) = entry.annotation() {
             return Err((at, format!("a color takes no type `({})`", unit.text())));
@@ -569,22 +514,39 @@ impl Field for LinearColor {
 }
 
 /// The length that `entry` names or writes where a size or a track goes, `$name` or a number bare
-/// or `(px)`; none where it writes another unit, `unit`, which the caller reads.
-fn length_or_unit(
+/// or `(px)`; else the number that it writes in `unit`, `%` or `fr`, which the caller reads.
+///
+/// # Errors
+///
+/// What `what`, the size or the track, is not: another unit, or what is not a number.
+fn length_or(
     entry: &Entry<'_, '_>,
     reading: &Reading<'_>,
+    unit: &str,
     what: &str,
-) -> Result<Result<f32, (f64, String)>, Fault> {
+) -> Result<Result<f32, f64>, Refusal> {
     let at = entry.span().start;
     if let Some(name) = theme_name(entry)? {
         return named_number(reading, &name, Group::Length, at).map(Ok);
     }
-    let (value, unit) = number(entry, what)?;
-    Ok(match unit {
-        None => Ok(value as f32),
-        Some(unit) if unit == "px" => Ok(value as f32),
-        Some(unit) => Err((value, unit)),
-    })
+    let Kdl::Number(written) = entry.value() else {
+        return Err((at, format!("{what}, not {}", shown(entry))));
+    };
+    match entry.annotation().map(|annotation| annotation.text()) {
+        None => number(entry, Group::Length).map(Ok),
+        Some(written_unit) if written_unit == "px" => number(entry, Group::Length).map(Ok),
+        Some(written_unit) if written_unit == unit => {
+            let value = written.to_f64();
+            if !value.is_finite() || !(value as f32).is_finite() {
+                return Err((
+                    at,
+                    "a number that is not finite, or past what an `f32` holds".to_owned(),
+                ));
+            }
+            Ok(Err(value))
+        }
+        Some(other) => Err((at, format!("{what}, not `({other})`"))),
+    }
 }
 
 /// Whether `entry` writes `Auto`, as a size or a track does.
@@ -594,37 +556,38 @@ fn auto(entry: &Entry<'_, '_>) -> bool {
 }
 
 impl Field for Dimension {
-    fn from_entry(entry: &Entry<'_, '_>, _: Measure, reading: &Reading<'_>) -> Result<Self, Fault> {
+    fn from_entry(
+        entry: &Entry<'_, '_>,
+        _: Measure,
+        reading: &Reading<'_>,
+    ) -> Result<Self, Refusal> {
         if auto(entry) {
             return Ok(Self::Auto);
         }
-        let what = "a size, a length, `(%)50` or `Auto`,";
-        match length_or_unit(entry, reading, what)? {
-            Ok(pixels) => Ok(Self::Pixels(pixels)),
-            // A share divided in `f64` and rounded once, so that `(%)30` is the `f32` nearest 0.3.
-            Err((percent, unit)) if unit == "%" => Ok(Self::Share((percent / 100.0) as f32)),
-            Err((_, unit)) => Err((
-                entry.span().start,
-                format!("{what} not `({unit})`, which a size takes not"),
-            )),
-        }
+        let what = "a size is `Auto`, a length, or a share of its parent's, `(%)50`";
+        Ok(match length_or(entry, reading, "%", what)? {
+            Ok(pixels) => Self::Pixels(pixels),
+            // A share divided in `f64` and rounded once: `(%)0.7` is the `f32` nearest 0.007, as
+            // a share written `0.007` is.
+            Err(percent) => Self::Share((percent / 100.0) as f32),
+        })
     }
 }
 
 impl Field for Track {
-    fn from_entry(entry: &Entry<'_, '_>, _: Measure, reading: &Reading<'_>) -> Result<Self, Fault> {
+    fn from_entry(
+        entry: &Entry<'_, '_>,
+        _: Measure,
+        reading: &Reading<'_>,
+    ) -> Result<Self, Refusal> {
         if auto(entry) {
             return Ok(Self::Auto);
         }
-        let what = "a track, a length, `(fr)1` or `Auto`,";
-        match length_or_unit(entry, reading, what)? {
-            Ok(pixels) => Ok(Self::Pixels(pixels)),
-            Err((fraction, unit)) if unit == "fr" => Ok(Self::Fraction(fraction as f32)),
-            Err((_, unit)) => Err((
-                entry.span().start,
-                format!("{what} not `({unit})`, which a track takes not"),
-            )),
-        }
+        let what = "a track is `Auto`, a length, or a share of the space left, `(fr)1`";
+        Ok(match length_or(entry, reading, "fr", what)? {
+            Ok(pixels) => Self::Pixels(pixels),
+            Err(fraction) => Self::Fraction(fraction as f32),
+        })
     }
 }
 
@@ -636,7 +599,7 @@ impl<T: Field> Field for Option<T> {
         entry: &Entry<'_, '_>,
         measure: Measure,
         reading: &Reading<'_>,
-    ) -> Result<Self, Fault> {
+    ) -> Result<Self, Refusal> {
         if matches!(entry.value(), Kdl::Null) && entry.annotation().is_none() {
             return Ok(None);
         }
@@ -721,7 +684,7 @@ impl Field for Shadow {
 pub(crate) fn identifier<T: Copy>(
     entry: &Entry<'_, '_>,
     variants: &[(&str, T)],
-) -> Result<T, Fault> {
+) -> Result<T, Refusal> {
     let at = entry.span().start;
     let names = || {
         variants
@@ -733,7 +696,7 @@ pub(crate) fn identifier<T: Copy>(
     let Kdl::String(string) = entry.value() else {
         return Err((
             at,
-            format!("one of {} goes here, not `{}`", names(), entry.value()),
+            format!("one of {} goes here, not {}", names(), shown(entry)),
         ));
     };
     if entry.annotation().is_some() {
@@ -750,25 +713,28 @@ pub(crate) fn identifier<T: Copy>(
         .ok_or_else(|| (at, format!("`{text}` is not one of {}", names())))
 }
 
-/// The text of a class or a key that `entry` writes in a selector: a selector names no theme's
-/// value, and writes `$$` for a text that starts with `$`, as a style's texts do.
-fn selector_text(entry: &Entry<'_, '_>) -> Result<String, Fault> {
+/// The name of a class or a key that `entry` writes in a selector. A theme's value is named where a
+/// value goes, never in a name: a name that starts with `$` is refused, without an escape, so that
+/// a name written as a value is written, `classes $panel`, is not taken as a class that selects
+/// nothing.
+fn selector_text(entry: &Entry<'_, '_>) -> Result<String, Refusal> {
     let at = entry.span().start;
     let Kdl::String(string) = entry.value() else {
-        return Err((at, format!("a name goes here, not `{}`", entry.value())));
+        return Err((at, format!("a name goes here, not {}", shown(entry))));
     };
     if entry.annotation().is_some() {
         return Err((at, "a name takes no type".to_owned()));
     }
     let text = string.text();
-    match text.strip_prefix('$') {
-        Some(rest) if rest.starts_with('$') => Ok(rest.to_owned()),
-        Some(_) => Err((
+    if text.starts_with('$') {
+        return Err((
             at,
-            "a selector names no theme's value: `$$` writes a name that starts with `$`".to_owned(),
-        )),
-        None => Ok(text.into_owned()),
+            "a name never starts with `$`: a theme's value is named where a value goes, never in a \
+             name"
+                .to_owned(),
+        ));
     }
+    Ok(text.into_owned())
 }
 
 /// The selector that `node`, a rule's `select`, writes: `kind=Button key=tabs`, `classes a b`,
@@ -851,7 +817,7 @@ fn selector_arguments<'d, 't>(
 
 /// A selector's key as the cascade names it: a name as it is, a number after `#`; a numbered key
 /// is written as a whole number, `key=3`, and a name never starts with `#`.
-fn key(entry: &Entry<'_, '_>) -> Result<String, Fault> {
+fn key(entry: &Entry<'_, '_>) -> Result<String, Refusal> {
     let at = entry.span().start;
     if let Kdl::Number(number) = entry.value() {
         return match (number.to_i64(), entry.annotation()) {

@@ -211,7 +211,8 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   into AccessKit's tree.
 - `style::Style` is an element's style, typed, in logical pixels: its layout, CSS's flexbox and
   grid properties with start and end sides, its paint, a box's fill, border, corners and shadow,
-  and its text, reflected, so that style sheets set its parts.
+  and its text; a style sheet's rules set its parts through the declarations that
+  `uwui-macros` derives, and the code that reads them.
 - `text::Fonts` holds the fonts that text is laid out with: those registered from their bytes,
   named by their families in a style's stack, and the system's where a program asks for them, as
   the editor will, the font found for a writing system named for it from then on. A game draws

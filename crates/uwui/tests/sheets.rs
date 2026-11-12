@@ -118,6 +118,10 @@ box {
     // `30.0_f32 * 0.01` misses.
     assert_eq!(layout.basis, Dimension::Share(0.3));
     assert_ne!(30.0_f32 * 0.01, 0.3_f32);
+    // And not in `f32`: `(%)0.7` is the `f32` nearest 0.007, which `0.7_f32 / 100.0` misses.
+    let thin = box_style("box {\n    layout basis=(%)0.7\n}\n");
+    assert_eq!(thin.layout.basis, Dimension::Share(0.007));
+    assert_ne!(0.7_f32 / 100.0, 0.007_f32);
     assert_eq!(layout.gap, [6.0, 3.0]);
     assert_eq!(
         [
@@ -228,11 +232,11 @@ fn each_wrong_value_is_refused_at_its_line() {
         ("layout { padding top=(%)50; }", "not `(%)`"),
         (
             "layout { size (fr)1 Auto; }",
-            "not `(fr)`, which a size takes not",
+            "a share of its parent's, `(%)50`, not `(fr)`",
         ),
         (
             "layout { columns (%)50; }",
-            "not `(%)`, which a track takes not",
+            "a share of the space left, `(fr)1`, not `(%)`",
         ),
         (
             "layout { size (px)$space Auto; }",
@@ -264,14 +268,19 @@ fn each_wrong_value_is_refused_at_its_line() {
         ("paint opacity=(px)1", "a number takes no unit `(px)`"),
         ("paint border_width=1e39", "past what an `f32` holds"),
         ("paint border_width=#nan", "not finite"),
-        ("paint border_width=\"4\"", "a length goes here, not `4`"),
+        ("paint border_width=\"4\"", "a length goes here, not \"4\""),
+        (
+            "layout wrap=\"#true\"",
+            "`#true` or `#false` goes here, not \"#true\"",
+        ),
+        ("layout basis=(px)Auto", "not `(px)`\"Auto\""),
         (
             "layout { column span=2.5; }",
             "a whole number from 0 to 65535 goes here",
         ),
         (
             "layout { column span=(px)2; }",
-            "a whole number takes no unit",
+            "a number takes no unit `(px)`",
         ),
         // Names.
         (
@@ -312,6 +321,10 @@ fn each_wrong_value_is_refused_at_its_line() {
         ),
         ("layout { gap (t)1 2; }", "not `(t)`"),
         ("text { style { fonts Geist size=2; }; }", "not properties"),
+        ("layout { (t)gap 1 2; }", "`gap` takes no type"),
+        ("icons tick=1", "a text goes here, not `1`"),
+        ("layout direction=1", "goes here, not `1`"),
+        ("select kind=#true", "goes here, not `#true`"),
         // Fields in the wrong form, unknown or given twice.
         (
             "layout padding=4",
@@ -344,9 +357,16 @@ fn each_wrong_value_is_refused_at_its_line() {
         ("select key=\"#3\"", "written as a number, `key=3`"),
         ("select key=-1", "a numbered key is a whole number from 0"),
         ("select key=1.5", "a numbered key is a whole number from 0"),
+        ("select { classes $panel; }", "a name never starts with `$`"),
+        // Without an escape: `$$` in a name is refused too.
         (
-            "select { classes $panel; }",
-            "a selector names no theme's value",
+            "select { classes \"$$panel\"; }",
+            "a name never starts with `$`",
+        ),
+        ("select key=$tabs", "a name never starts with `$`"),
+        (
+            "select { inside class=\"$$bar\"; }",
+            "a name never starts with `$`",
         ),
         (
             "select { classes x=1; }",
@@ -359,6 +379,20 @@ fn each_wrong_value_is_refused_at_its_line() {
             "`place` is none of what `inside` holds",
         ),
         ("select\n    select", "`select` is given twice in a rule"),
+        ("select { classes 1; }", "a name goes here, not `1`"),
+        ("select { classes (t)a; }", "a name takes no type"),
+        (
+            "select { inside class=#true; }",
+            "a name goes here, not `#true`",
+        ),
+        (
+            "select { (t)classes a; }",
+            "`classes` holds its names as arguments alone",
+        ),
+        (
+            "select { classes a { b; }; }",
+            "`classes` holds its names as arguments alone",
+        ),
         // A rule for a kind sets what that kind reads alone.
         (
             "select kind=Label\n    control fill=\"#ffffff\"",
@@ -386,6 +420,11 @@ fn each_wrong_value_is_refused_at_its_line() {
             "a 1 {\n}\n",
             "line 1,",
             "`a` holds its fields as properties",
+        ),
+        (
+            "a select=Button {\n}\n",
+            "line 1,",
+            "`select` is written as a child node, `select …`, not a property",
         ),
         ("a {\n    paint (\n}\n", "line 2,", ""),
     ] {

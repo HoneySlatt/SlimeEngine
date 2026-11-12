@@ -793,10 +793,16 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   `Document::normal_form` converts a number in binary, octal or hexadecimal in time quadratic in its length, and its output grows with the square of a node's depth (its rustdoc has the figures): a program that writes a document from outside in its normal form may hang for hours on one number; the documents that uwui writes, from typed values, hold neither.
   In a multi-line string, an unknown escape is named before a line indented wrongly above it: its indentation is known only at its end.
   Its tests include the engine's helper of damaged files by its path; at the move, M6d.11, the helper is copied into uwui under uwui's licence, with the owner's go.
-- **uwui's package for the web passes its budget before it reads a document** ([ADR-0181](adr/0181-uwuis-scope.md)).
-  A probe that lays out and draws a label and a button, nothing read, built for `wasm32-unknown-unknown` in release, its size optimised, weighs 4.6 MB, some 2.3 MB compressed by xz, against the provisional budget of 1 MB compressed by brotli; three quarters of it is data, its crate not found, `parley`'s scripts the first suspect.
-  Measured on 2026-11-11 by a probe outside the repository, built by another toolchain than the project's, xz standing in for brotli, which the development shell lacks.
-  Followed at [M6d.3b2](stage-6d.md#m6d3b2--style-sheets-in-kdl), which builds for the web with the project's toolchain and measures with brotli, and at the web's trial, which confirms or corrects the budget.
+- **uwui's package for the web exceeds its budget before it reads a document** ([ADR-0181](adr/0181-uwuis-scope.md), [ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+  A probe that lays out and draws a label and a button, built for `wasm32-unknown-unknown` in release, its size optimised, weighs 2.35 MB compressed by brotli, against the provisional budget of 1 MB ([measurements](measurements.md#m6d3b2-style-sheets-in-kdl)).
+  1.93 MB of it are the dictionaries of words of Chinese and Japanese, Burmese, Khmer, Lao and Thai that `parley`'s feature `complex-scripts` brings; without them, the core weighs 0.42 MB.
+  The owner kept it as debt on 2026-11-11: followed at uwui's milestone of fonts given as bytes, which loads the dictionaries when a text first needs them, as fonts, the budget leaving them out by an amendment of ADR-0181 then; the web's trial confirms or corrects the budget.
+- **`slime-serialize`'s `References::value` serves uwui's tests alone** ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+  It names a theme's value in a document read through reflection; since uwui reads its style sheets in KDL, only the reflected reader kept as the tests' oracle implements it, and `slime-serialize`'s documentation still names uwui's sheets as its user.
+  Followed at [M6d.3c](stage-6d.md#m6d3c--shortcuts-docks-and-reflection-out), where the oracle goes with reflection: the hook goes too, or a user of the engine's is named.
+- **A build for the web holds the paths of the machine that built it.**
+  The probe's module holds some 160 absolute paths, of `cargo`'s registry under the home folder and of the repository, where a panic's place is written: a package for the web built on a person's machine would publish their user name.
+  Nothing remaps them (`--remap-path-prefix`); followed at uwui's packaging for the web, before a package is published.
 - **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md), [ADR-0229](adr/0229-styles-typed-as-declarations.md), [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
   A token has no kind of text, though a theme gives texts in a group of their own and a sheet's field of text names them: code gets no token of text until something reads one ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   A token names a colour, a length, a duration or a number alone: no shadow, easing nor font, and a shadow written in code stays under high contrast; followed at uwui's first stage.

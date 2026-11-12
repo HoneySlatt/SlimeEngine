@@ -901,7 +901,9 @@ impl Element {
         self
     }
 
-    /// The element, holding the class `class` too.
+    /// The element, holding the class `class` too. A style sheet's rule never selects a class that
+    /// starts with `$`: a name there never starts so
+    /// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
     #[must_use]
     pub fn class(mut self, class: impl Into<String>) -> Self {
         self.classes.push(class.into());

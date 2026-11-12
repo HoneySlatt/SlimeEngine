@@ -52,10 +52,10 @@ one of its files changes, for games that load their data again while they run
   not a scene, a parent missing, entities that would be each other's ancestors and scene files that
   place each other; warns of a path that a table gives where the source is not; writes their
   binary encoding, which needs the assets of their table.
-- Cooks the interface's style sheets and tables of shortcuts into their binary encoding,
-  refusing by file and line a document that is not TOML, and its themes as their text, refusing by
-  file and line one that is not KDL or passes the reader's limits; `uwui` checks their types when
-  it reads them.
+- Cooks the interface's tables of shortcuts into their binary encoding, refusing by file and line
+  a document that is not TOML, and its style sheets and themes as their text, refusing by file and
+  line one that is not KDL or exceeds the reader's limits, and one of TOML by its name; `uwui`
+  checks their types when it reads them.
 - Names each cooked file by the hash of all that made it, so that what is already cooked, and
   reads back whole, is not cooked again, and the same sources cook into the same bytes on one
   platform. Writes its files, and the metadata files it gives, under temporary names of the

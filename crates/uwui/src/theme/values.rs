@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 use slime_color::LinearColor;
-use uwui_kdl::{Node, Value as Kdl};
+use uwui_kdl::{Entry, Node, Value as Kdl};
 
 use super::{call, lighten, mix, srgb};
 use crate::document::{DocumentError, DocumentErrors};
@@ -302,7 +302,7 @@ fn line(text: &str, offset: usize) -> (u32, u32) {
 
 /// What the value node `node` of the group `group` writes; else the byte where it is wrong, and
 /// what is wrong.
-fn written(group: Group, node: &Node<'_, '_>) -> Result<Written, (usize, String)> {
+fn written(group: Group, node: &Node<'_, '_>) -> Result<Written, Refusal> {
     let at = node.span().start;
     if node.annotation().is_some() {
         return Err((at, "a value's name takes no type".to_owned()));
@@ -321,27 +321,12 @@ fn written(group: Group, node: &Node<'_, '_>) -> Result<Written, (usize, String)
             format!("a value is one argument, {}, not a property", group.a()),
         ));
     }
-    let unit = entry.annotation().map(|unit| unit.text());
-    let value = entry.value();
-    if let Kdl::String(string) = &value {
-        let string = string.text();
-        if let Some(name) = string.strip_prefix('$')
-            && !(group == Group::Text && name.starts_with('$'))
-        {
-            if name.is_empty() {
-                return Err((at, "`$` names no value: `$name`".to_owned()));
-            }
-            if unit.is_some() {
-                return Err((
-                    at,
-                    "a name takes the unit of its value's group: it writes none".to_owned(),
-                ));
-            }
-            return Ok(Written::Name(name.to_owned()));
-        }
+    if let Some(name) = theme_name(&entry)? {
+        return Ok(Written::Name(name));
     }
+    let unit = entry.annotation().map(|unit| unit.text());
     let unit_refused = |unit: &str| Err((at, format!("{} takes no unit `({unit})`", group.a())));
-    match (group, value) {
+    match (group, entry.value()) {
         (_, Kdl::Null) => Err((
             at,
             "`#null` removes no value: a theme gives a value, or leaves it to the themes below"
@@ -367,54 +352,121 @@ fn written(group: Group, node: &Node<'_, '_>) -> Result<Written, (usize, String)
             let text = text.strip_prefix('$').unwrap_or(&text);
             Ok(Written::Value(ThemeValue::Text(text.to_owned())))
         }
-        (Group::Length | Group::Duration | Group::Number, Kdl::Number(number)) => {
-            let number = number.to_f64();
-            // A length or a number is held in an `f32`: one past its range is refused, not taken
-            // as infinite.
-            let held = number as f32;
-            if !number.is_finite() || (group != Group::Duration && !held.is_finite()) {
-                return Err((
-                    at,
-                    "a number that is not finite, or past what an `f32` holds".to_owned(),
-                ));
-            }
-            match (group, unit.as_deref()) {
-                (Group::Length, None | Some("px")) => Ok(Written::Value(ThemeValue::Length(held))),
-                (Group::Number, None) => Ok(Written::Value(ThemeValue::Number(held))),
-                (Group::Duration, Some(unit @ ("ms" | "s"))) => {
-                    let seconds = if unit == "ms" {
-                        number / 1000.0
-                    } else {
-                        number
-                    };
-                    if seconds < 0.0 {
-                        return Err((at, "a duration is never negative".to_owned()));
-                    }
-                    let seconds = seconds as f32;
-                    if std::time::Duration::try_from_secs_f32(seconds).is_err() {
-                        return Err((at, "a duration too long to hold".to_owned()));
-                    }
-                    Ok(Written::Value(ThemeValue::Duration(seconds)))
-                }
-                (Group::Duration, None) => Err((
-                    at,
-                    "a duration writes its unit, `(ms)120` or `(s)0.12`".to_owned(),
-                )),
-                (Group::Duration, Some(unit)) => Err((
-                    at,
-                    format!("a duration is in `(ms)` or `(s)`, not `({unit})`"),
-                )),
-                (Group::Length, Some(unit)) => Err((
-                    at,
-                    format!("a length is in logical pixels, bare or `(px)`, not `({unit})`"),
-                )),
-                (_, Some(unit)) => unit_refused(unit),
-                (Group::Color | Group::Text, None) => {
-                    unreachable!("a number of a group of numbers")
-                }
-            }
+        (Group::Length, _) => number(&entry, group).map(|n| Written::Value(ThemeValue::Length(n))),
+        (Group::Duration, _) => {
+            number(&entry, group).map(|n| Written::Value(ThemeValue::Duration(n)))
         }
-        (group, _) => Err((at, format!("the value is not {}", group.a()))),
+        (Group::Number, _) => number(&entry, group).map(|n| Written::Value(ThemeValue::Number(n))),
+        (group, _) => Err((
+            at,
+            format!("{} goes here, not {}", group.a(), shown(&entry)),
+        )),
+    }
+}
+
+/// What is wrong at a byte of a document: the byte, and what is wrong.
+pub(crate) type Refusal = (usize, String);
+
+/// The value of `entry` as its document writes it, its type and a string's quotes kept, as an error
+/// shows it: `"4"`, `(px)Auto`.
+pub(crate) fn shown(entry: &Entry<'_, '_>) -> String {
+    let value = match entry.value() {
+        Kdl::String(string) => format!("{:?}", string.text()),
+        value => format!("`{value}`"),
+    };
+    match entry.annotation() {
+        Some(annotation) => format!("`({})`{value}", annotation.text()),
+        None => value,
+    }
+}
+
+/// The name of the theme's value that `entry` names, `$name`, in a theme or a sheet; none where it
+/// writes a value, `$$` writing a text that starts with `$`.
+///
+/// # Errors
+///
+/// `$` alone, which names nothing, and a unit written on a name, which takes its group's.
+pub(crate) fn theme_name(entry: &Entry<'_, '_>) -> Result<Option<String>, Refusal> {
+    let Kdl::String(string) = entry.value() else {
+        return Ok(None);
+    };
+    let text = string.text();
+    let Some(name) = text.strip_prefix('$') else {
+        return Ok(None);
+    };
+    if name.starts_with('$') {
+        return Ok(None);
+    }
+    let at = entry.span().start;
+    if name.is_empty() {
+        return Err((at, "`$` names no value: `$name`".to_owned()));
+    }
+    if entry.annotation().is_some() {
+        return Err((
+            at,
+            "a name takes the unit of its value's group: it writes none".to_owned(),
+        ));
+    }
+    Ok(Some(name.to_owned()))
+}
+
+/// The number that `entry` writes as a value of `group`, a length, a duration or a number, in a
+/// theme or a sheet: a length in logical pixels, bare or `(px)`; a duration in seconds, written
+/// `(ms)` or `(s)`, never negative; a number without a unit.
+///
+/// # Errors
+///
+/// What is not a number, a number that is not finite or, but for a duration, past what an `f32`
+/// holds, a unit that its group does not take, a duration negative or too long to hold.
+pub(crate) fn number(entry: &Entry<'_, '_>, group: Group) -> Result<f32, Refusal> {
+    let at = entry.span().start;
+    let Kdl::Number(number) = entry.value() else {
+        return Err((at, format!("{} goes here, not {}", group.a(), shown(entry))));
+    };
+    let number = number.to_f64();
+    // A length or a number is held in an `f32`: one past its range is refused, not taken as
+    // infinite; a duration is checked in seconds, below.
+    let held = number as f32;
+    if !number.is_finite() || (group != Group::Duration && !held.is_finite()) {
+        return Err((
+            at,
+            "a number that is not finite, or past what an `f32` holds".to_owned(),
+        ));
+    }
+    let unit = entry.annotation().map(|unit| unit.text());
+    match (group, unit.as_deref()) {
+        (Group::Length, None | Some("px")) | (Group::Number, None) => Ok(held),
+        (Group::Duration, Some(unit @ ("ms" | "s"))) => {
+            let seconds = if unit == "ms" {
+                number / 1000.0
+            } else {
+                number
+            };
+            if seconds < 0.0 {
+                return Err((at, "a duration is never negative".to_owned()));
+            }
+            let seconds = seconds as f32;
+            if std::time::Duration::try_from_secs_f32(seconds).is_err() {
+                return Err((at, "a duration too long to hold".to_owned()));
+            }
+            Ok(seconds)
+        }
+        (Group::Duration, None) => Err((
+            at,
+            "a duration writes its unit, `(ms)120` or `(s)0.12`".to_owned(),
+        )),
+        (Group::Duration, Some(unit)) => Err((
+            at,
+            format!("a duration is in `(ms)` or `(s)`, not `({unit})`"),
+        )),
+        (Group::Length, Some(unit)) => Err((
+            at,
+            format!("a length is in logical pixels, bare or `(px)`, not `({unit})`"),
+        )),
+        (_, Some(unit)) => Err((at, format!("{} takes no unit `({unit})`", group.a()))),
+        (Group::Color | Group::Text, None) => {
+            Err((at, format!("{} goes here, not {}", group.a(), shown(entry))))
+        }
     }
 }
 
