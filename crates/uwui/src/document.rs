@@ -9,17 +9,10 @@ use std::fmt;
 pub struct DocumentError {
     /// The name of the document at fault.
     pub document: String,
-    /// What is wrong, and where in it.
-    pub error: Fault,
-}
-
-/// What is wrong in a document, and where.
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum Fault {
-    /// In a document of KDL, a theme, a style sheet, a table of shortcuts or a dock's layout: its
-    /// line, its column and what is wrong.
-    Kdl(uwui_kdl::Error),
+    /// What is wrong, and where in it: its line, its column and what is wrong, every document of
+    /// the interface being KDL
+    /// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
+    pub error: uwui_kdl::Error,
 }
 
 impl DocumentError {
@@ -32,7 +25,7 @@ impl DocumentError {
     ) -> Self {
         Self {
             document: document.to_owned(),
-            error: Fault::Kdl(uwui_kdl::Error::at(text, offset, message)),
+            error: uwui_kdl::Error::at(text, offset, message),
         }
     }
 }
@@ -46,22 +39,6 @@ impl fmt::Display for DocumentError {
 impl std::error::Error for DocumentError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(&self.error)
-    }
-}
-
-impl fmt::Display for Fault {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Kdl(error) => error.fmt(formatter),
-        }
-    }
-}
-
-impl std::error::Error for Fault {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Kdl(error) => Some(error),
-        }
     }
 }
 

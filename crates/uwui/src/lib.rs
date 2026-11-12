@@ -18,5 +18,5 @@ pub mod tree;
 #[cfg(test)]
 mod verdicts_tests;
 
-pub use document::{DocumentError, DocumentErrors, Fault};
+pub use document::{DocumentError, DocumentErrors};
 pub use rect::Rect;

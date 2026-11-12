@@ -1092,10 +1092,7 @@ fn error_lines(text: &str, reading: Reading) -> Vec<u32> {
         Err(ReadError::Unreadable(errors)) => errors
             .errors()
             .iter()
-            .map(|error| match &error.error {
-                uwui::Fault::Kdl(error) => error.line,
-                other => panic!("{other}"),
-            })
+            .map(|error| error.error.line)
             .collect(),
         Err(error) => panic!("{text}\n{error}"),
     }
@@ -1134,10 +1131,7 @@ fn what_a_layout_does_not_know_is_left_out_leniently_and_refused_strictly() {
     let lines: Vec<u32> = warnings
         .errors()
         .iter()
-        .map(|warning| match &warning.error {
-            uwui::Fault::Kdl(error) => error.line,
-            other => panic!("{other}"),
-        })
+        .map(|warning| warning.error.line)
         .collect();
     assert_eq!(lines, [2, 3, 4, 4, 5, 6, 8, 8, 9], "{warnings}");
     let known = "version 1\n\

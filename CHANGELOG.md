@@ -78,8 +78,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   name a theme's value in a field of a boolean, an enum or a struct, such as `layout.wrap`. A
   cooked theme's metadata follows its new name, `x.theme.kdl.meta`, or the theme takes a new ID.
   `Ui::set_style` gives every error found, each at its line, as `DocumentErrors`;
-  `DocumentError::error` is a `Fault`, its line, its column and what is wrong in a document of
-  KDL.
+  `DocumentError::error` is a `uwui_kdl::Error`, its line, its column and what is wrong.
 - uwui's style sheets are KDL (ADR-0241): a rule is a node, `panel { select { classes panel; };
   paint background=$surface { radii 8 8 8 8; }; }`, its children `select` and the style's groups;
   a field that holds a value is a property, a struct, an array or a list a child node; an enum's

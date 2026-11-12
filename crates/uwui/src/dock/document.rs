@@ -6,7 +6,7 @@ use std::fmt;
 use uwui_kdl::{Limits, Node as KdlNode, Value};
 
 use super::{Floating, Layout, Node, Share};
-use crate::document::{DocumentError, DocumentErrors, Fault};
+use crate::document::{DocumentError, DocumentErrors};
 
 /// The version of the format of a layout's document that this crate writes and reads; a document
 /// of a later one is not read ([`ReadError::Later`]).
@@ -248,7 +248,7 @@ pub fn read(name: &str, text: &str, reading: Reading) -> Result<Read, ReadError>
         ReadError::Unreadable(
             DocumentError {
                 document: name.to_owned(),
-                error: Fault::Kdl(error),
+                error,
             }
             .into(),
         )

@@ -178,7 +178,7 @@ pub(crate) fn read(themes: &[(&str, &str)]) -> Result<Values, DocumentErrors> {
                 unreadable = true;
                 errors.push(DocumentError {
                     document: name.to_owned(),
-                    error: crate::document::Fault::Kdl(error),
+                    error,
                 });
                 continue;
             }

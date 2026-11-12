@@ -14,7 +14,7 @@ use uwui_kdl::{Entry, Node, Value as Kdl};
 pub(crate) use super::values::Refusal;
 use super::values::{self, Group, ThemeValue, Values, number, shown, theme_name};
 use super::{Ancestor, KindName, Rule, Selector, StateName, reads};
-use crate::document::{DocumentError, DocumentErrors, Fault};
+use crate::document::{DocumentError, DocumentErrors};
 use crate::style::{Dimension, Shadow, Style, Track};
 
 /// What a number of a style measures, as the derive marks its field: what a value written there,
@@ -118,7 +118,7 @@ pub(crate) fn read(
         Err(error) => {
             errors.push(DocumentError {
                 document: name.to_owned(),
-                error: Fault::Kdl(error),
+                error,
             });
             return Vec::new();
         }

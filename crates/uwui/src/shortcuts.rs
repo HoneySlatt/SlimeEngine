@@ -64,7 +64,7 @@ use std::collections::HashMap;
 use slime_input::{Key, KeyEvent, Modifiers, MouseButton, NamedKey};
 use uwui_kdl::{Node, Value};
 
-use crate::document::{DocumentError, DocumentErrors, Fault};
+use crate::document::{DocumentError, DocumentErrors};
 use crate::theme::values::shown as entry_text;
 
 #[cfg(test)]
@@ -485,7 +485,7 @@ pub(crate) fn bindings(tables: &[Shortcuts]) -> Result<Vec<Binding>, DocumentErr
             Err(error) => {
                 errors.push(DocumentError {
                     document: table.name.clone(),
-                    error: Fault::Kdl(error),
+                    error,
                 });
                 continue;
             }
