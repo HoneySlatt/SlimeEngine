@@ -6,7 +6,8 @@
 use std::fmt::Write as _;
 
 use crate::number::{self, Written};
-use crate::{Document, Entry, Node, Nodes, Value, chars};
+use crate::write::{INFINITY, NAN, NEGATIVE_INFINITY, write_string};
+use crate::{Document, Entry, Node, Nodes, Value};
 
 /// The spaces of one level of indentation.
 const INDENTATION: &str = "    ";
@@ -104,33 +105,6 @@ fn write_annotation(text: &mut String, name: &str) {
     text.push(')');
 }
 
-/// `string` as an identifier where it may be one; quoted otherwise, a character that a quoted
-/// string may not hold as itself written as an escape.
-fn write_string(text: &mut String, string: &str) {
-    if chars::is_identifier(string) {
-        text.push_str(string);
-        return;
-    }
-    text.push('"');
-    for c in string.chars() {
-        match c {
-            '"' => text.push_str("\\\""),
-            '\\' => text.push_str("\\\\"),
-            '\u{8}' => text.push_str("\\b"),
-            '\u{C}' => text.push_str("\\f"),
-            '\n' => text.push_str("\\n"),
-            '\r' => text.push_str("\\r"),
-            '\t' => text.push_str("\\t"),
-            c if chars::is_newline(c) || chars::is_disallowed(c) => {
-                // Writing to a `String` cannot fail.
-                let _ = write!(text, "\\u{{{:x}}}", u32::from(c));
-            }
-            c => text.push(c),
-        }
-    }
-    text.push('"');
-}
-
 /// The number written `written`, which the reader checked, in its simplest form: in decimal,
 /// without its underscores, its `+` or its leading zeros; a float keeps its digits, its exponent
 /// written after `E` with its sign.
@@ -138,16 +112,16 @@ fn write_number(text: &mut String, written: &str) {
     let number = match number::written(written) {
         Some(Written::Digits(number)) => number,
         Some(Written::Infinity) => {
-            text.push_str("#inf");
+            text.push_str(INFINITY);
             return;
         }
         Some(Written::NegativeInfinity) => {
-            text.push_str("#-inf");
+            text.push_str(NEGATIVE_INFINITY);
             return;
         }
         // The reader keeps only numbers that `number::written` reads: none is `None`.
         Some(Written::NotANumber) | None => {
-            text.push_str("#nan");
+            text.push_str(NAN);
             return;
         }
     };

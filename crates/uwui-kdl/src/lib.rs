@@ -22,6 +22,10 @@
 //! assert_eq!(button.children().count(), 1);
 //! ```
 //!
+//! [`write_string`], [`write_f32`] and [`write_integer`] write KDL's values, so that a program
+//! writes a document of its own that reads back to what it wrote; [`Number::to_f32`] reads a
+//! number back to the bits of the `f32` written.
+//!
 //! [`Document::normal_form`] writes a document in the normal form of KDL's official tests, which
 //! the tests compare: comments and spaces gone, properties in alphabetical order, the last of a
 //! name kept, strings quoted only where they must be, numbers in decimal.
@@ -35,6 +39,9 @@ mod normal;
 mod number;
 mod read;
 mod string;
+mod write;
+
+pub use write::{write_f32, write_integer, write_string};
 
 /// What a document may hold before it is refused, so that content from outside takes bounded
 /// time and memory (`docs/adr/0190-uwuis-requirements.md`).
@@ -486,6 +493,15 @@ impl<'t> Number<'t> {
     #[must_use]
     pub fn to_f64(&self) -> f64 {
         number::float(self.text)
+    }
+
+    /// Its value as an `f32`, rounded once to the nearest from its text, ties to even: infinite
+    /// beyond the largest `f32`, and for `#inf` and `#-inf`, not a number for `#nan`. Rounding
+    /// through an `f64` would round twice, which gives another `f32` for some decimals, as
+    /// `7.038531e-26`; this reads every number that [`write_f32`] writes back to the bits written.
+    #[must_use]
+    pub fn to_f32(&self) -> f32 {
+        number::float32(self.text)
     }
 
     /// Where it lies in the text, in bytes.

@@ -126,11 +126,12 @@ pub(crate) fn float(text: &str) -> f64 {
         Some(Written::NotANumber) | None => f64::NAN,
         Some(Written::Digits(number)) if number.radix == 10 => {
             // The standard library rounds a decimal text to the nearest float, at any length.
-            let without_underscores: String = text.chars().filter(|&c| c != '_').collect();
-            without_underscores.parse().unwrap_or(f64::NAN)
+            without_underscores(text).parse().unwrap_or(f64::NAN)
         }
         Some(Written::Digits(number)) => {
-            let magnitude = whole_in_power_of_two_radix(number.whole, number.radix);
+            let (leading, bits_beyond) = leading_bits(number.whole, number.radix);
+            // A `u64` converts to the nearest float, ties to even; the power of two is exact.
+            let magnitude = leading as f64 * power_of_two(bits_beyond);
             if number.negative {
                 -magnitude
             } else {
@@ -140,36 +141,67 @@ pub(crate) fn float(text: &str) -> f64 {
     }
 }
 
-/// The whole number written `digits` in `radix`, 2, 8 or 16, as the nearest `f64`, at any length.
+/// The value of the number written `text`, which the reader checked, as the nearest `f32`, rounded
+/// once from the text.
+pub(crate) fn float32(text: &str) -> f32 {
+    match written(text) {
+        Some(Written::Infinity) => f32::INFINITY,
+        Some(Written::NegativeInfinity) => f32::NEG_INFINITY,
+        // The reader keeps only numbers that `written` reads: none is `None`.
+        Some(Written::NotANumber) | None => f32::NAN,
+        Some(Written::Digits(number)) if number.radix == 10 => {
+            // The standard library rounds a decimal text to the nearest float, at any length.
+            without_underscores(text).parse().unwrap_or(f32::NAN)
+        }
+        Some(Written::Digits(number)) => {
+            let (leading, bits_beyond) = leading_bits(number.whole, number.radix);
+            // As for an `f64`: the conversion of a `u64` rounds once, and scaling it by a power of
+            // two, in an `f64`, is exact; the `f32` that it then gives is the same float, or
+            // infinite beyond the largest `f32`.
+            let magnitude = (leading as f32) as f64 * power_of_two(bits_beyond);
+            let magnitude = magnitude as f32;
+            if number.negative {
+                -magnitude
+            } else {
+                magnitude
+            }
+        }
+    }
+}
+
+/// `text` without its underscores, which Rust's reader of floats does not take.
+fn without_underscores(text: &str) -> String {
+    text.chars().filter(|&c| c != '_').collect()
+}
+
+/// The whole number written `digits` in `radix`, 2, 8 or 16, as its leading 64 bits and the count
+/// of the bits beyond them, at any length.
 ///
-/// Its leading 64 bits are rounded by the conversion of a `u64`, the bits beyond them kept as one
-/// bit, set if any of them is, below the bits the conversion keeps: a tie between two floats is
-/// only one if every bit beyond them is clear. The float is then scaled by a power of two, which
-/// is exact.
-fn whole_in_power_of_two_radix(digits: &str, radix: u32) -> f64 {
+/// The bits beyond the leading 64 are kept as one bit, set if any of them is, below the bits that
+/// a conversion to a float keeps: a tie between two floats is only one if every bit beyond them is
+/// clear. The number is then the leading bits, so rounded, times 2 to the power of the count.
+fn leading_bits(digits: &str, radix: u32) -> (u64, u64) {
     let bits_per_digit = radix.trailing_zeros();
     let mut leading: u64 = 0;
-    let mut leading_bits: u32 = 0;
+    let mut leading_count: u32 = 0;
     let mut bits_beyond: u64 = 0;
     let mut any_beyond_set = false;
     for digit in digits.chars().filter_map(|c| c.to_digit(radix)) {
         for shift in (0..bits_per_digit).rev() {
             let bit = (digit >> shift) & 1;
-            if leading_bits == 64 {
+            if leading_count == 64 {
                 bits_beyond += 1;
                 any_beyond_set |= bit == 1;
-            } else if leading_bits > 0 || bit == 1 {
+            } else if leading_count > 0 || bit == 1 {
                 leading = leading << 1 | u64::from(bit);
-                leading_bits += 1;
+                leading_count += 1;
             }
         }
     }
     if any_beyond_set {
         leading |= 1;
     }
-    // A `u64` converts to the nearest float, ties to even.
-    let rounded = leading as f64;
-    rounded * power_of_two(bits_beyond)
+    (leading, bits_beyond)
 }
 
 /// 2 to the power `exponent`, exactly, or infinite beyond the largest float.
@@ -229,5 +261,26 @@ mod tests {
         assert_eq!(float(&above), (2f64.powi(53) + 2.0) * 2f64.powi(64));
         assert_eq!(float(&format!("-0x{}", "f".repeat(300))), f64::NEG_INFINITY);
         assert_eq!(float("0b0"), 0.0);
+    }
+
+    #[test]
+    fn a_number_reads_as_an_f32_rounded_once() {
+        // Through an `f64`, rounded twice, this gives the `f32` after it.
+        assert_eq!(
+            float32("7.038531e-26").to_bits(),
+            0x15ae_43fd,
+            "a decimal rounded once"
+        );
+        assert_eq!(float32("1_000.5"), 1000.5);
+        assert_eq!(float32("+1.5E-1"), 0.15);
+        assert_eq!(float32("-0").to_bits(), (-0.0_f32).to_bits());
+        assert_eq!(float32("1e39"), f32::INFINITY);
+        assert_eq!(float32("#-inf"), f32::NEG_INFINITY);
+        assert!(float32("#nan").is_nan());
+        // (2^24 + 1) * 2^40 + 1: above the tie between two `f32`, by its last bit, which a read
+        // through the nearest `f64` loses.
+        assert_eq!(float32("0x10000010000000001").to_bits(), 0x5f80_0001);
+        assert_eq!(float32("-0b1"), -1.0);
+        assert_eq!(float32(&format!("0x1{}", "0".repeat(40))), f32::INFINITY);
     }
 }
