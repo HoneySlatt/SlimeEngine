@@ -114,8 +114,9 @@ in git.
   [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and reflection out.
 - In progress on track B: [M6d.4](#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on wgpu,
   cut in three at its start, on 2026-11-11
-  ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)):
-  [M6d.4a](#m6d4a--the-canvass-prototype-and-its-adr), the canvas's prototype and its ADR; then
+  ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)): done,
+  [M6d.4a](#m6d4a--the-canvass-prototype-and-its-adr), the canvas's prototype and its ADR, on
+  2026-11-12 ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)); then
   [M6d.4b1](#m6d4b1--the-canvas-on-wgpu-as-it-is), the canvas on wgpu as it is, and
   [M6d.4b2](#m6d4b2--the-canvass-layout-chosen), its layout chosen.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
@@ -1357,8 +1358,47 @@ first stage, with live values
 
 ### M6d.4a — The canvas's prototype and its ADR
 
-In progress: its card is in [`PLAN.md`](PLAN.md#m6d4a--the-canvass-prototype-and-its-adr), back
-here with its result when it is done.
+The first third of M6d.4, its questions decided at its start, on 2026-11-11
+([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)). It follows
+the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The canvas's layout chosen by measure, on a path that WebGL2 takes, and its passes
+  recorded.
+- **Crates.** None of the workspace's: a crate thrown away, on wgpu alone, on the branch
+  `m6d4a-prototype`, with wgpu's `gles` feature there alone.
+- **Delivers.**
+  - Three layouts drawing the screens of `render.canvas`: the storage buffers of today, the
+    control; small instances, one format for each kind of item; items in a texture read by
+    their index.
+  - On each: a blur of what lies behind, a group drawn apart, a transform per item, a path, and
+    sRGB's blending without a second view of the target; one element animated over a still screen
+    that grows, its work counted.
+  - Each run on Vulkan, on a device with WebGL2's limits, and on wgpu's GL backend; each counted
+    against WebGL2's limits for the drawing that uwui's first stage plans.
+  - The canvas's ADR: the layout, its passes, and what a target must allow.
+- **Done when.** The four effects are measured on each layout that WebGL2 takes, their images
+  compared with the control's; the ADR is written; CI is green.
+- **How to test.** The prototype's runs, on lavapipe and on Mesa's GL.
+- **Measured.** GPU and CPU time of each layout and effect at 1280 × 800, 1920 × 1080 and
+  3840 × 2160, on lavapipe and on the RX 6900 XT; the bytes written each frame.
+- **Result.** Done on 2026-11-12, CI green
+  ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)):
+  - The prototype, kept on the branch `m6d4a-prototype`, drew `render.canvas`'s two screens and
+    the four effects, and one box moving over screens of up to 100,000 items, with four layouts:
+    today's storage buffer, the same read field by field, a texture read by index, and instances
+    of one format for each kind; on Vulkan, at WebGL2's limits and on OpenGL ES 3.0, on lavapipe,
+    Mesa's GL and the RX 6900 XT. wgpu's `gles` feature stayed on that branch.
+  - Instances draw once for each change of kind: 287 draws on the game's menu, 2.8 times the GPU
+    and 9 times the CPU. The texture works everywhere, 13 to 20 % slower on the RX 6900 XT than
+    the buffer read field by field. The canvas keeps one shader that reads either, as the device
+    allows; its ADR records its passes and what a target must allow.
+  - Every layout keeps the interface's 0.5 ms at 3840 × 2160 on its passes; the prototype's glass,
+    four panels, keeps it there and misses the handheld tier's 50 µs
+    ([measurements](measurements.md#m6d4a-the-canvass-prototype)); on lavapipe, the effects are
+    recorded at 1920 × 1080 alone.
+  - Debt, followed at uwui's first stage: turned images on radeonsi's OpenGL ES differ by up to
+    10/255; every item is still written each frame ([`debt.md`](debt.md)). M6d.4a touched no
+    phase of uwui, so it adds no counter to its benchmarks.
 
 ### M6d.4b1 — The canvas on wgpu, as it is
 

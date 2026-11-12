@@ -2718,6 +2718,12 @@ the panel drawn apart 28.6, 13.7 and 21.8; the glass 47.9, 25.3 and 34.1; the pa
 I first, against the GPU. The runs' whole output is not kept; the prototype's README says how
 to run them again.
 
+CI, at `37ac9b1`: the milestone changed documents alone, which run the `Docs` workflow alone:
+
+| Job | Time |
+|---|---|
+| Docs' `links` | 21 s |
+
 ## M6d.6, the series of headless compositors
 
 The editor and *Hunna Wood* in five headless compositors
