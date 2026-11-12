@@ -2708,6 +2708,17 @@ of the cooker, whose first run built its dependencies again with other features,
 - `uwui` compiles again some 9 % faster without its derives of reflection; the cooker, which the
   milestone did not change, as fast.
 
+At `10b86bb`, the machine at rest, the times that M6d.3a and M6d.3b2 left unmeasured at rest: in
+debug, `uwui-kdl` again after the same change, five runs, and `uwui-kdl` and `uwui` from nothing,
+`cargo build -p <crate>` into an empty target directory, the dependencies downloaded, three runs;
+the load average rose to 7.9 with the builds of `uwui`'s own dependencies:
+
+| Build | Median | Range |
+|---|---|---|
+| `uwui-kdl` again | 0.16 s | 0.15 to 0.18 |
+| `uwui-kdl` from nothing | 0.34 s | 0.34 to 0.34 |
+| `uwui` from nothing, its dependencies with it | 19.89 s | 19.51 to 21.03 |
+
 The time of reading the editor's default layout and fitting it to the editor's panels, left by
 M6d.3c2: through reflection reading its TOML at `8a1d064`, and through `uwui::dock`'s reader of
 its KDL at `38bc80b`, whose reader `4c57a59` keeps unchanged. A test not kept in the repository
