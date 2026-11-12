@@ -145,7 +145,7 @@ pub(crate) fn before(file: &Path) -> PathBuf {
 /// The layout that `file`, a layout file of KDL, keeps, made from `default`; or `default`'s, where
 /// it keeps none, keeps one made from another default, set aside as `<file>.replaced`, or one that
 /// cannot be read, its bytes or its text, set aside as `<file>.unreadable`, the default then written
-/// in its place; with what to tell the user then. A file of a later format is left as it is, and
+/// in its place where an older file of TOML lies beside it; with what to tell the user then. A file of a later format is left as it is, and
 /// not written over; a file that cannot be set aside is not written over either.
 ///
 /// Where `file` is missing, the layout file of TOML beside it, [`before`], is migrated once: read a
@@ -197,17 +197,25 @@ pub(crate) fn kept(file: &Path, default: &LayoutFile) -> Kept {
     };
     let (text, writable) = match slime_app::set_aside(file, why) {
         Ok(aside) => {
-            // Written at once, so that the next start does not migrate the older file again.
-            if let Err(error) = keep(file, &default.default, &default.layout) {
-                tracing::warn!(%error, "the default layout is not written in place of the one set aside");
-            }
-            (
-                format!(
-                    "{said}: the layout kept is set aside as {}.",
-                    aside.display()
+            let set_aside = format!(
+                "{said}: the layout kept is set aside as {}",
+                aside.display()
+            );
+            // Where an older file of TOML lies beside it, the default is written at once, so that
+            // the next start does not migrate that file again.
+            let written = if before(file).exists() {
+                keep(file, &default.default, &default.layout)
+            } else {
+                Ok(())
+            };
+            let text = match written {
+                Ok(()) => format!("{set_aside}."),
+                Err(error) => format!(
+                    "{set_aside}; the default cannot be written in its place ({error}), and the \
+                     next start reads the older file of TOML again."
                 ),
-                true,
-            )
+            };
+            (text, true)
         }
         Err(error) => (
             format!(
@@ -465,6 +473,10 @@ mod tests {
             notice.text
         );
         assert!(directory.join("state/editor.layout.kdl.replaced").is_file());
+        assert!(
+            !file.exists(),
+            "nothing written in its place, no older file lying beside it"
+        );
         assert_eq!(kept(&file, &default), shown(&default.layout));
         // Unreadable, as text or as bytes, a text of another encoding: set aside beside it, the
         // user told where.

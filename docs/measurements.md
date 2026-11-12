@@ -2512,9 +2512,10 @@ on 2026-11-12. `ui.tree.look` reads it strictly beside the look's documents and 
 shortcuts, as the editor does at its start.
 
 Reading the editor's default layout allocates 50 times in a debug build, as CI counts it; every
-other counter is unchanged. Through reflection, a scratch test of a release build counted 1 872
-allocations for the same layout, as the editor read it before, its panels fitted, against 76 now
-with the same fitting.
+other counter is unchanged. Before, the editor read its default in TOML through reflection: a test
+not kept in the repository, which read that file through `slime_serialize::read_as` and fitted its
+panels under an allocator that counts, counted 1 872 allocations in a release build, 1 873 in a
+debug one; the same test counted 76 for reading the KDL and fitting it.
 
 Their times were not measured: other sessions' builds and the desktop's indexing kept the load
 average between 2 and 9 throughout ([`debt.md`](debt.md)). Nor was the cooker's time of compiling

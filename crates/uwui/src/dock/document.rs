@@ -366,12 +366,13 @@ impl<T> Once<T> {
     }
 }
 
-/// The entries of a node, sorted by what the reader knows of them.
+/// The entries of a node, sorted by what the reader knows of them, each value with the byte where
+/// its entry starts, which an error about it names.
 struct Entries<'d, 't> {
     /// Its arguments, in their order.
-    arguments: Vec<Value<'d, 't>>,
+    arguments: Vec<(usize, Value<'d, 't>)>,
     /// Its properties that the reader knows, by their places in the names asked for.
-    properties: Vec<Option<Value<'d, 't>>>,
+    properties: Vec<Option<(usize, Value<'d, 't>)>>,
 }
 
 impl<'a> Reader<'a> {
@@ -413,7 +414,7 @@ impl<'a> Reader<'a> {
                 self.fail(at, "an annotation has no meaning in a layout");
             }
             let Some(name) = entry.name() else {
-                entries.arguments.push(entry.value());
+                entries.arguments.push((at, entry.value()));
                 continue;
             };
             let name = name.text();
@@ -421,7 +422,7 @@ impl<'a> Reader<'a> {
                 Some(place) if entries.properties[place].is_some() => {
                     self.fail(at, format!("`{name}` is given twice"));
                 }
-                Some(place) => entries.properties[place] = Some(entry.value()),
+                Some(place) => entries.properties[place] = Some((at, entry.value())),
                 None => self.unknown(
                     at,
                     format!("`{name}` is not a property of `{}`", node.name().text()),
@@ -465,13 +466,16 @@ impl<'a> Reader<'a> {
         let entries = self.entries(node, &[]);
         self.extra_arguments(node, 1);
         self.no_children(node);
-        let version = match entries.arguments.first() {
-            Some(Value::Number(number)) => number.to_i64().filter(|version| *version >= 1),
-            _ => None,
+        let (at, version) = match entries.arguments.first() {
+            Some((at, Value::Number(number))) => {
+                (*at, number.to_i64().filter(|version| *version >= 1))
+            }
+            Some((at, _)) => (*at, None),
+            None => (node.span().start, None),
         };
         if version.is_none() {
             self.fail(
-                node.span().start,
+                at,
                 "a layout's version is a whole number from 1, `version 1`",
             );
         }
@@ -483,14 +487,14 @@ impl<'a> Reader<'a> {
         let entries = self.entries(node, &[]);
         self.extra_arguments(node, 1);
         self.no_children(node);
-        let Some(value) = entries.arguments.first() else {
+        let Some((at, value)) = entries.arguments.first() else {
             self.fail(
                 node.span().start,
                 "`default` names the default that the layout was made from, `default \"editor 1\"`",
             );
             return None;
         };
-        self.name(node.span().start, value)
+        self.name(*at, value)
     }
 
     /// `value`, a panel's key or a default's name, at the byte `at`: a string that does not start
@@ -516,11 +520,10 @@ impl<'a> Reader<'a> {
     fn names(&mut self, node: KdlNode<'_, '_>) -> Option<Vec<String>> {
         let entries = self.entries(node, &[]);
         self.no_children(node);
-        let at = node.span().start;
         let names: Vec<Option<String>> = entries
             .arguments
             .iter()
-            .map(|value| self.name(at, value))
+            .map(|(at, value)| self.name(*at, value))
             .collect();
         names.into_iter().collect()
     }
@@ -545,7 +548,7 @@ impl<'a> Reader<'a> {
         self.extra_arguments(node, 0);
         let at = node.span().start;
         let chosen = match &entries.properties[0] {
-            Some(Value::Number(number)) => {
+            Some((_, Value::Number(number))) => {
                 let chosen = number
                     .to_i64()
                     .and_then(|chosen| u32::try_from(chosen).ok());
@@ -557,9 +560,9 @@ impl<'a> Reader<'a> {
                 }
                 chosen
             }
-            Some(other) => {
+            Some((given, other)) => {
                 self.fail(
-                    at,
+                    *given,
                     format!("`chosen` is the place of the panel shown, not `{other}`"),
                 );
                 None
@@ -600,10 +603,10 @@ impl<'a> Reader<'a> {
         self.extra_arguments(node, 0);
         let at = node.span().start;
         let side_by_side = match &entries.properties[0] {
-            Some(Value::Bool(side_by_side)) => Some(*side_by_side),
-            Some(other) => {
+            Some((_, Value::Bool(side_by_side))) => Some(*side_by_side),
+            Some((given, other)) => {
                 self.fail(
-                    at,
+                    *given,
                     format!("`side_by_side` is `#true` or `#false`, not `{other}`"),
                 );
                 None
@@ -645,9 +648,9 @@ impl<'a> Reader<'a> {
         self.extra_arguments(node, 0);
         let at = node.span().start;
         let share = match &entries.properties[0] {
-            Some(Value::Number(number)) => Some(number.to_f32()),
-            Some(other) => {
-                self.fail(at, format!("`share` is a number, not `{other}`"));
+            Some((_, Value::Number(number))) => Some(number.to_f32()),
+            Some((given, other)) => {
+                self.fail(*given, format!("`share` is a number, not `{other}`"));
                 None
             }
             None => {
@@ -688,7 +691,7 @@ impl<'a> Reader<'a> {
         self.extra_arguments(node, 0);
         let at = node.span().start;
         let panel = match &entries.properties[0] {
-            Some(value) => self.name(at, value),
+            Some((given, value)) => self.name(*given, value),
             None => {
                 self.fail(at, "`floating` lacks `panel`, its panel's key");
                 None
@@ -729,14 +732,20 @@ impl<'a> Reader<'a> {
         let entries = self.entries(node, &[]);
         self.extra_arguments(node, 2);
         self.no_children(node);
-        let number = |value: Option<&Value<'_, '_>>| match value {
-            Some(Value::Number(number)) => Some(number.to_f32()),
+        let number = |value: Option<&(usize, Value<'_, '_>)>| match value {
+            Some((_, Value::Number(number))) => Some(number.to_f32()),
             _ => None,
         };
         let pair = number(entries.arguments.first()).zip(number(entries.arguments.get(1)));
         if pair.is_none() {
+            // At the first argument that is no number, or at the node that lacks one.
+            let at = entries
+                .arguments
+                .iter()
+                .find(|(_, value)| !matches!(value, Value::Number(_)))
+                .map_or(node.span().start, |(at, _)| *at);
             self.fail(
-                node.span().start,
+                at,
                 format!(
                     "`{}` is two numbers, `{} 300 200`",
                     node.name().text(),

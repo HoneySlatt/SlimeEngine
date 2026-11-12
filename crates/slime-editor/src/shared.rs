@@ -56,8 +56,8 @@ pub(crate) struct State {
     /// The file of the user's state directory that keeps the window's layout
     /// (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`); none in tests, the
     /// image tests among them, and without a state directory; and none from the window's start, so
-    /// that nothing writes over it, when the project's default cannot be read or the file can be
-    /// neither read nor set aside.
+    /// that nothing writes over it, when the project's default cannot be read, the file can be
+    /// neither read nor set aside, or it holds a layout of a later format.
     pub(crate) layout: Option<PathBuf>,
     /// The project's default layout, which the program gives ([`Program::layout`]); none for the
     /// editor's own.

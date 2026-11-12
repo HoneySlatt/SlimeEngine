@@ -314,7 +314,7 @@ impl Model {
             .is_some_and(|chosen| chosen.trim() == BLENDER);
         // The layout kept for the user, or the program's default, and what the user is told. A
         // project's default that cannot be read leaves the layout kept against it alone, and a file
-        // that could be neither read nor set aside is not written over.
+        // that could be neither read nor set aside, or of a later format, is not written over.
         let (default_layout, layout) = {
             let mut shared = shared.borrow_mut();
             let (default, told) = panels::default(shared.default_layout);
@@ -5053,6 +5053,38 @@ mod tests {
             Model::new(Shared::default()),
         ));
         assert_eq!(std::fs::read_to_string(&file).expect("kept"), written);
+    }
+
+    /// A layout of a later format is never written over: neither as the layout settles, nor by
+    /// *Reset layout*, nor as the window closes
+    /// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
+    #[test]
+    fn a_layout_of_a_later_format_is_never_written_over() {
+        let mut yard = Yard::new("layout-later");
+        let state = yard.directory.join("state");
+        fs::create_dir_all(&state).expect("a directory");
+        let file = state.join("editor.layout.kdl");
+        let later = "version 2\nwhat a later editor writes\n";
+        fs::write(&file, later).expect("written");
+        yard.shared.borrow_mut().layout = Some(file.clone());
+        yard.model = Model::new(yard.shared.clone());
+        yard.frame();
+        assert_eq!(yard.model.dock.layout(), &panels::default(None).0.layout);
+        run_with(&mut yard, "view.close_panel", &["history"]);
+        yard.model.keep_layout_by(Instant::now() + KEEP_AFTER);
+        run(&mut yard, "view.reset_layout");
+        yard.model.keep_layout_by(Instant::now() + KEEP_AFTER);
+        run_with(&mut yard, "view.close_panel", &["console"]);
+        drop(std::mem::replace(
+            &mut yard.model,
+            Model::new(Shared::default()),
+        ));
+        assert_eq!(fs::read_to_string(&file).expect("kept"), later);
+        assert_eq!(
+            fs::read_dir(&state).expect("read").count(),
+            1,
+            "nothing set aside nor written beside it"
+        );
     }
 
     /// A layout that cannot be written, its directory taking no new file, is told once, however

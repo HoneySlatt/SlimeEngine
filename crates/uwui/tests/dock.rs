@@ -1239,6 +1239,34 @@ fn a_layout_s_document_refuses_what_it_cannot_mean() {
     ] {
         assert_eq!(error_lines(text, Reading::Lenient), lines, "{text}");
     }
+    // A value of the wrong kind, at its own line, after a node continued on the next.
+    for (text, line) in [
+        ("version \\\n    \"1\"\nTabs chosen=0 { panels a }\n", 2),
+        (
+            "version 1\ndefault \\\n    1\nTabs chosen=0 { panels a }\n",
+            3,
+        ),
+        ("version 1\nTabs \\\n    chosen=\"x\" { panels a }\n", 3),
+        (
+            "version 1\nTabs chosen=0 {\n    panels a \\\n        #true\n}\n",
+            4,
+        ),
+        ("version 1\nSplit \\\n    side_by_side=1\n", 3),
+        (
+            "version 1\nSplit side_by_side=#true {\n    children \\\n        share=a { Tabs chosen=0 { panels a } }\n}\n",
+            4,
+        ),
+        (
+            "version 1\nTabs chosen=0 { panels a }\nfloating \\\n    panel=1 { origin 1 2; size 3 4 }\n",
+            4,
+        ),
+        (
+            "version 1\nTabs chosen=0 { panels a }\nfloating panel=a {\n    origin 1 \\\n        b\n    size 3 4\n}\n",
+            5,
+        ),
+    ] {
+        assert_eq!(error_lines(text, Reading::Strict), [line], "{text}");
+    }
     // A text that is not KDL, at its line.
     assert_eq!(
         error_lines("version 1\nTabs chosen=0 {\n", Reading::Lenient),

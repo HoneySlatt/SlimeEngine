@@ -101,8 +101,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `uwui::dock::read` reads, leniently or strictly (`Reading`): `version 1` first, then the default
   that it was made from, `default "editor 1"`, then its tree, `Split side_by_side=#true {
   children share=0.25 { Tabs chosen=0 { panels hierarchy } } … }`, then `floating` and `closed`;
-  a layout of a later version is not read (`ReadError::Later`), and one whose splits lie more than
-  31 deep is not written. The editor keeps its layout in `slime-editor/<program's
+  a layout of a later version is not read (`ReadError::Later`), and one whose splits lie deeper
+  than a document is read is not written. The editor keeps its layout in `slime-editor/<program's
   name>.layout.kdl`, migrating once the file of TOML that it kept before, `<program's
   name>.layout`, which it never writes again; a layout of a later format is left as it is, the
   default shown. `Program::layout` and the editor's default, `editor.layout.kdl`, are layout files

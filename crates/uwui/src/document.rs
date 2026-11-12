@@ -1,12 +1,12 @@
-//! Why a document that the interface reads, a style sheet, a theme or a table of shortcuts, cannot
-//! be taken.
+//! Why a document that the interface reads, a style sheet, a theme, a table of shortcuts or a dock's
+//! layout, cannot be taken.
 
 use std::fmt;
 
 use slime_serialize::ReadError;
 
-/// Why a style sheet, a theme or a table of shortcuts cannot be taken: the document at fault, and
-/// what is wrong, and where in it.
+/// Why a style sheet, a theme, a table of shortcuts or a dock's layout cannot be taken: the
+/// document at fault, and what is wrong, and where in it.
 #[derive(Debug)]
 pub struct DocumentError {
     /// The name of the document at fault.
@@ -19,8 +19,8 @@ pub struct DocumentError {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Fault {
-    /// In a document of KDL, a theme, a style sheet or a table of shortcuts: its line, its column
-    /// and what is wrong.
+    /// In a document of KDL, a theme, a style sheet, a table of shortcuts or a dock's layout: its
+    /// line, its column and what is wrong.
     Kdl(uwui_kdl::Error),
     /// In a document read through reflection: only the oracles of uwui's tests read one, until
     /// reflection leaves uwui (M6d.3c3,
@@ -73,8 +73,9 @@ impl std::error::Error for Fault {
     }
 }
 
-/// Why style sheets and themes, or tables of shortcuts, cannot be taken: each error found, up to
-/// [`DocumentErrors::MOST`]; the interface keeps the style or the shortcuts it had. The themes are read first, every value of each in turn,
+/// Why style sheets and themes, tables of shortcuts, or a dock's layout cannot be taken, or what a
+/// layout read leniently left out: each error found, up to [`DocumentErrors::MOST`]; the interface
+/// keeps the style or the shortcuts it had. The themes are read first, every value of each in turn,
 /// then the names that the values give one another, then the tokens; the style sheets are read
 /// only once the themes are taken, in their order, each rule in the order of its file, and in a
 /// rule its `select` first, wherever it is written, then what it sets, then whether its kind reads
