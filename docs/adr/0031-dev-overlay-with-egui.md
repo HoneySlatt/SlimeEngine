@@ -7,7 +7,9 @@
   engine's UI framework, and egui removed, at Stage 6b); superseded by
   [0152](0152-the-dev-overlay-on-the-engines-interface.md) for the overlay, which egui left at
   M6b.8b: the `wgpu` feature serves the engine's own tests alone
-  and [0181](0181-uwuis-scope.md) (uwui's drawing uses wgpu)
+  and [0181](0181-uwuis-scope.md) (uwui's drawing uses wgpu); amended by
+  [0244](0244-the-engine-lends-its-device-through-a-guarded-door.md) (the `wgpu` feature also opens `Gpu::with_wgpu`, which `slime-app`'s bridge to uwui alone
+  uses)
 - Date: 2026-10-13
 
 ## Context

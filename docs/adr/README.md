@@ -84,7 +84,7 @@ the ADR linking to it.
 | [0013](0013-windowed-smoke-test-in-weston.md) | Windowed smoke test in a headless Weston compositor | Accepted; amended by 0020, 0024 |
 | [0014](0014-amend-roadmap-for-stage-2-and-windows.md) | Amend the roadmap for Stage 2 and for Windows | Accepted |
 | [0015](0015-platforms-and-ci.md) | Platforms and CI on Linux and Windows | Accepted; amended by 0173 |
-| [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted; amended by 0022, 0031, 0025, 0036, 0044, 0098 and 0114 |
+| [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted; amended by 0022, 0031, 0025, 0036, 0044, 0098, 0114 and 0244 |
 | [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted; amended by 0026, 0033 and 0044 |
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028, 0030 |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
@@ -99,7 +99,7 @@ the ADR linking to it.
 | [0028](0028-image-tests-tolerate-a-few-pixels.md) | Image tests tolerate a few differing pixels | Accepted; amended by 0030 |
 | [0029](0029-temporary-gltf-loading.md) | Temporary glTF loading, in the examples | Superseded by 0069 |
 | [0030](0030-image-tests-strict-on-the-reference-driver.md) | Image tests: strict on the reference driver, loose on the others | Accepted; amended by 0054 |
-| [0031](0031-dev-overlay-with-egui.md) | The dev overlay with egui, and wgpu for the engine's tooling | Accepted; widened on 2026-10-13; amended by 0052, 0105, 0132; superseded by 0152 for the overlay and 0181 |
+| [0031](0031-dev-overlay-with-egui.md) | The dev overlay with egui, and wgpu for the engine's tooling | Accepted; widened on 2026-10-13; amended by 0052, 0105, 0132; superseded by 0152 for the overlay and 0181; amended by 0244 |
 | [0032](0032-mipmaps-computed-at-texture-creation.md) | Mipmaps computed by the engine when a texture is created | Accepted; amended by 0039 and 0071 |
 | [0033](0033-gpu-layer-for-multi-pass-rendering.md) | The GPU layer for multi-pass rendering | Accepted; amended by 0038, 0039, 0041, 0047, 0059 and 0122 |
 | [0034](0034-hdr-rendering-and-tone-mapping.md) | HDR rendering and tone mapping | Accepted; amended by 0035, 0037, 0039, 0040, 0041, 0051, 0127 and 0216 |
@@ -249,7 +249,7 @@ the ADR linking to it.
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180, 0181, 0194 and 0203 |
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
 | [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
-| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225, 0226, 0227, 0233, 0236, 0241 and 0243 |
+| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225, 0226, 0227, 0233, 0236, 0241, 0243 and 0244 |
 | [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Superseded by 0214 for the engine; amends 0006 and 0181 |
 | [0183](0183-uwuis-logo.md) | uwui's logo | Accepted |
 | [0184](0184-the-engines-logo.md) | The engine's logo | Accepted |
@@ -310,5 +310,6 @@ the ADR linking to it.
 | [0239](0239-content-made-outside-and-maps-in-the-editor.md) | What a game's content needs: importers, characters, large sources, and maps in the editor | Accepted; amends 0209 and 0217 |
 | [0240](0240-the-series-input-its-table-and-its-jobs.md) | The series' input, its table and its jobs | Accepted; amends 0195 |
 | [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) | Every document of uwui in KDL, read by a reader of its own | Accepted; amends 0141, 0142, 0181, 0220, 0225, 0229 and 0238 |
-| [0242](0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md) | The canvas moved in three steps, its prototype on wgpu's GL backend; tokens read when drawn at uwui's first stage | Accepted; amends 0220 and 0238 |
+| [0242](0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md) | The canvas moved in three steps, its prototype on wgpu's GL backend; tokens read when drawn at uwui's first stage | Accepted; amends 0220 and 0238; amended by 0244 |
 | [0243](0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md) | The canvas reads its items by their index, from a storage buffer or a texture, and draws in passes | Accepted; amends 0137 and 0181 |
+| [0244](0244-the-engine-lends-its-device-through-a-guarded-door.md) | The engine lends its device to uwui through a guarded door, and draws uwui from `slime-app` | Accepted; amends 0016, 0031, 0181 and 0242 |

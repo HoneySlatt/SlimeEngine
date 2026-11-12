@@ -42,7 +42,10 @@ documentation was updated and reread. Every milestone is also checked on Windows
     ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)): done,
     [M6d.4a](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr), the canvas's prototype, on
     2026-11-12 ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md));
-    next [M6d.4b1](stage-6d.md#m6d4b1--the-canvas-on-wgpu-as-it-is), then
+    M6d.4b1 cut in two on 2026-11-12
+    ([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)): in progress,
+    [M6d.4b1a](#m6d4b1a--the-canvas-moved-into-uwui-render), the canvas moved; then
+    [M6d.4b1b](stage-6d.md#m6d4b1b--the-canvas-on-wgpu), on wgpu, and
     [M6d.4b2](stage-6d.md#m6d4b2--the-canvass-layout-chosen).
   - M6d.5 waits for M6d.3 and M6d.4, which both touch `slime-app`; M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
@@ -63,7 +66,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.3c2 — Docks' layouts in KDL](stage-6d.md#m6d3c2--docks-layouts-in-kdl) | Planned |
 | [M6d.3c3 — Reflection out of uwui](stage-6d.md#m6d3c3--reflection-out-of-uwui) | Planned |
 | [M6d.4a — The canvas's prototype and its ADR](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr) | Done |
-| [M6d.4b1 — The canvas on wgpu, as it is](stage-6d.md#m6d4b1--the-canvas-on-wgpu-as-it-is) | Planned |
+| [M6d.4b1a — The canvas moved into uwui-render](#m6d4b1a--the-canvas-moved-into-uwui-render) | In progress |
+| [M6d.4b1b — The canvas on wgpu](stage-6d.md#m6d4b1b--the-canvas-on-wgpu) | Planned |
 | [M6d.4b2 — The canvas's layout chosen](stage-6d.md#m6d4b2--the-canvass-layout-chosen) | Planned |
 | [M6d.5 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
@@ -98,6 +102,30 @@ follows the rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-l
   through both readers; a table that wrote Ctrl reads as `Primary`; a test shows each platform's
   way; tests of each refusal; the `interface` example's image unchanged; CI green.
 - **Measured.** Reading the editor's documents at its start; the cooker's compile time.
+
+## M6d.4b1a — The canvas moved into uwui-render
+
+The first half of M6d.4b1, cut at its start, on 2026-11-12
+([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)). It follows the rules
+of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The canvas and the glyphs' atlas live in `uwui-render`, still on `slime-gfx`'s
+  handles, and the engine draws them through `slime-app`; images and figures unchanged.
+- **Crates.** `uwui-render`, `slime-render`, `slime-app`, `slime-devui`, `slime-editor`,
+  `slime-benches`, the examples; `scripts/`.
+- **Delivers.**
+  - The canvas's types, shader and renderer, and its tests, moved into `uwui-render`; a canvas's
+    images given when it is drawn, so that a canvas is data alone; `uwui-render` without
+    `slime-render`.
+  - `Renderer::draw_canvas`, the canvas's types and its shader gone from `slime-render`.
+  - `slime-app`'s bridge, which draws a display list or a canvas over the engine's target with its
+    images; every caller through it, in the form that M6d.4b1b keeps.
+  - The probe of the canvas's cost moved to the benchmarks; `CHANGELOG.md`'s breaks.
+- **Done when.** The canvas's tests pass in `uwui-render`; the editor, the dev overlay, *Hunna
+  Wood*'s menus and the `interface` and `widgets` examples draw their images unchanged;
+  `slime-render` holds no canvas; CI is green.
+- **Measured.** `render.canvas` and `ui.draw.menu` before and after, at 3840 × 2160 on the
+  RX 6900 XT, within the interface's 0.5 ms; CI's jobs.
 
 ## Ideas waiting for their milestone
 

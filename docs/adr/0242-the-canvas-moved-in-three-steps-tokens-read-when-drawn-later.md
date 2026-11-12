@@ -2,7 +2,8 @@
 
 - Status: Accepted; amends [0220](0220-the-roadmap-reshaped-by-the-market.md) (M6d.4 cut in
   three) and [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) (a token and less
-  motion read when a component is drawn come at uwui's first stage, with live values, not at M6d.4)
+  motion read when a component is drawn come at uwui's first stage, with live values, not at M6d.4);
+  amended by [0244](0244-the-engine-lends-its-device-through-a-guarded-door.md) (M6d.4b1 cut in two, the move then the GPU layer)
 - Date: 2026-11-11
 
 ## Context

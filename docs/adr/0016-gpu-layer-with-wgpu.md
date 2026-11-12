@@ -5,9 +5,10 @@
   [0025](0025-giving-up-a-lost-surface.md) (a surface that cannot be configured counts as lost),
   [0036](0036-direct3d-12-shader-compiler.md) (FXC on Direct3D 12),
   [0044](0044-running-out-of-gpu-memory.md) (running out of memory is not a bug),
-  [0098](0098-the-games-the-engine-aims-at.md) (native backends after wgpu, at Stage 9c) and
+  [0098](0098-the-games-the-engine-aims-at.md) (native backends after wgpu, at Stage 9c),
   [0114](0114-hardware-tiers-and-the-gpus-limits.md) (the adapter's limits, above a floor checked at
-  startup)
+  startup) and [0244](0244-the-engine-lends-its-device-through-a-guarded-door.md) (wgpu reaches
+  `uwui-render`, and `slime-app` through a guarded door of `slime-gfx`)
 - Date: 2026-10-12
 
 ## Context
