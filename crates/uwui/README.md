@@ -131,8 +131,11 @@ Its logo is not under the code's licenses: its author keeps its rights, and
 - `dock`, docking ([ADR-0172](../../docs/adr/0172-regions-of-tabs.md),
   [ADR-0174](../../docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md)): a program's
   panels laid out in a `dock::Layout`, splits of any number of children, each with its share,
-  stacks of tabs, and panels that float, any of them closed and keeping its place; reflected data
-  normalized after each edit, and fitted to the program's panels (`Layout::fit`). A `dock::Dock`
+  stacks of tabs, and panels that float, any of them closed and keeping its place; normalized after
+  each edit, and fitted to the program's panels (`Layout::fit`). A program keeps a layout as a
+  document of KDL, its version first, which `dock::write` writes and `dock::read` reads, leniently
+  or strictly, a later version left unread
+  ([ADR-0241](../../docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). A `dock::Dock`
   builds it into the program's tree, each stack a pane of tabs over the chosen panel's slot, which
   the program fills (`Dock::slot`), a splitter between each two children of a split that show, and
   each floating panel in a floating layer; it takes its splitters' actions and its floating
@@ -241,10 +244,10 @@ Its logo is not under the code's licenses: its author keeps its rights, and
 parley, fontique and swash, the text; taffy, the tree's flexbox and grid, run through its traits on
 the tree's arena; their types stay inside the crate (`docs/adr/0132-the-engines-ui-framework.md`).
 icu_properties, for the writing system of a character; `slime-color`, the colors of the styles and
-the display list; `uwui-kdl`, the reader of its documents in KDL, its themes, style sheets and
-tables of shortcuts today, docks' layouts at M6d.3c2; `slime-reflect` and `slime-serialize`, the
-styles and docks' layouts described, and the reflected readers that its tests keep as oracles,
-until M6d.3c3; `uwui-macros`, the derives of the styles' declarations and of their readers
+the display list; `uwui-kdl`, the reader of its documents in KDL, its themes, style sheets,
+tables of shortcuts and docks' layouts, and the writer of their values; `slime-reflect` and
+`slime-serialize`, the styles and docks' layouts described, and the reflected readers that its
+tests keep as oracles, until M6d.3c3; `uwui-macros`, the derives of the styles' declarations and of their readers
 (`docs/adr/0229-styles-typed-as-declarations.md`); `slime-input`, the input it takes; thiserror and
 tracing. No other engine
 crate: text is laid out and rasterized on the CPU, `uwui-render` draws the display list, a

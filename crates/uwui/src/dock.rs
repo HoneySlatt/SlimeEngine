@@ -6,8 +6,10 @@
 //! or lets go of a floating panel, and as the program moves, closes or opens a panel.
 //!
 //! A panel is named by a key that the program gives, `hierarchy`, and holds what the program builds
-//! into its slot ([`Dock::slot`]). The layout is reflected data, which `slime-serialize` writes and
-//! reads.
+//! into its slot ([`Dock::slot`]). A program keeps a layout as a document of KDL, which [`write()`]
+//! writes and [`read`] reads, its version first
+//! (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`). The layout is
+//! reflected data too, until reflection leaves uwui (M6d.3c3).
 
 use std::collections::{HashMap, HashSet};
 
@@ -16,6 +18,12 @@ use slime_reflect::Reflect;
 use crate::action::{Action, ActionKind, FieldValue};
 use crate::style::{Dimension, FlexDirection, StyleBuilder};
 use crate::tree::{Children, Element, ElementId, Layer, Place, Role, Ui};
+
+mod document;
+#[cfg(test)]
+mod reflected_tests;
+
+pub use document::{Read, ReadError, Reading, VERSION, WriteError, read, write};
 
 /// The least length of a child of a split along it, in logical pixels, which a border dragged
 /// keeps; and the least width and height of a floating panel that a layout read gives.

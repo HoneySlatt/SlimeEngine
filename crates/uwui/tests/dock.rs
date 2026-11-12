@@ -10,9 +10,12 @@
 //! placed where their stacks stood or in the middle of the window, kept where the pointer lets them
 //! go, closed and opened again.
 
+#[path = "../../slime-assets/tests/common/damage.rs"]
+mod damage;
+
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind};
-use uwui::dock::{Dock, Edge, LEAST, Layout, Node, Target};
+use uwui::dock::{self, Dock, Edge, LEAST, Layout, Node, Read, ReadError, Reading, Target};
 use uwui::text::Fonts;
 use uwui::tree::{ElementId, LayoutDirection, Role, RootSettings, Ui};
 
@@ -168,14 +171,45 @@ fn a_border_moved_changes_the_two_shares_beside_it_and_no_other() {
     assert!(!layout.resize(&[0], 0, 0.5), "no split there");
 }
 
+/// `layout` written as a document and read back strictly, without warnings.
+fn written_and_read(layout: &Layout, default: Option<&str>) -> (String, Read) {
+    let text = dock::write(layout, default).expect("written");
+    let read = dock::read("written.layout.kdl", &text, Reading::Strict)
+        .unwrap_or_else(|error| panic!("{text}\n{error}"));
+    assert!(read.warnings.is_none(), "{text}");
+    (text, read)
+}
+
 #[test]
 fn a_layout_is_written_and_read_back_as_text() {
     let layout = editor();
-    let text = slime_serialize::write_as(&layout).expect("written");
-    let (read, warnings) =
-        slime_serialize::read_as::<Layout>(&text, slime_serialize::Mode::Strict).expect("read");
-    assert!(warnings.is_empty(), "{warnings:?}");
-    assert_eq!(read, layout, "{text}");
+    let (text, read) = written_and_read(&layout, Some("editor 1"));
+    assert_eq!(read.layout, layout, "{text}");
+    assert_eq!(read.default.as_deref(), Some("editor 1"));
+    assert_eq!(
+        text,
+        "version 1
+default \"editor 1\"
+Split side_by_side=#true {
+    children share=0.25 {
+        Split side_by_side=#false {
+            children share=0.5 { Tabs chosen=0 { panels hierarchy } }
+            children share=0.5 { Tabs chosen=0 { panels components } }
+        }
+    }
+    children share=0.75 {
+        Split side_by_side=#false {
+            children share=0.75 { Tabs chosen=0 { panels viewport } }
+            children share=0.25 { Tabs chosen=0 { panels history console } }
+        }
+    }
+}
+"
+    );
+    // Without a default, none is written nor read.
+    let (text, read) = written_and_read(&layout, None);
+    assert!(!text.contains("default"));
+    assert_eq!(read.default, None);
 }
 
 /// A dock of `layout` in a root of 800 by 600 logical pixels, built and laid out: the interface,
@@ -649,22 +683,22 @@ fn a_layout_with_floating_and_closed_panels_is_written_and_read_back() {
     layout.floating[0].origin = [100.0, 80.0];
     layout.floating[0].size = [300.0, 200.0];
     layout.close("components");
-    let text = slime_serialize::write_as(&layout).expect("written");
-    let (read, warnings) =
-        slime_serialize::read_as::<Layout>(&text, slime_serialize::Mode::Strict).expect("read");
-    assert!(warnings.is_empty(), "{warnings:?}");
-    assert_eq!(read, layout, "{text}");
-    // A layout written before floating and closed panels were kept reads, with none.
+    let (text, read) = written_and_read(&layout, None);
+    assert_eq!(read.layout, layout, "{text}");
+    assert!(
+        text.ends_with(
+            "floating panel=history { origin 100 80; size 300 200 }\nclosed components\n"
+        ),
+        "{text}"
+    );
+    // A layout without floating nor closed panels writes neither, and reads with none.
     let docked = editor();
-    let text = slime_serialize::write_as(&docked).expect("written");
-    let text: String = text
-        .lines()
-        .filter(|line| !line.starts_with("floating") && !line.starts_with("closed"))
-        .map(|line| format!("{line}\n"))
-        .collect();
-    let (read, _) =
-        slime_serialize::read_as::<Layout>(&text, slime_serialize::Mode::Strict).expect("read");
-    assert_eq!(read, docked, "{text}");
+    let (text, read) = written_and_read(&docked, None);
+    assert!(
+        !text.contains("floating") && !text.contains("closed"),
+        "{text}"
+    );
+    assert_eq!(read.layout, docked, "{text}");
 }
 
 /// A generator of numbers that repeats from its seed: xorshift.
@@ -763,11 +797,10 @@ fn a_layout_stays_whole_after_random_edits() {
                 }
                 _ => {
                     // Read back as a program reads what it kept.
-                    let text = slime_serialize::write_as(&layout).expect("written");
-                    let (read, _) =
-                        slime_serialize::read_as::<Layout>(&text, slime_serialize::Mode::Lenient)
-                            .expect("read");
-                    assert_eq!(read, layout);
+                    let text = dock::write(&layout, Some("random 1")).expect("written");
+                    let read =
+                        dock::read("random.layout.kdl", &text, Reading::Lenient).expect("read");
+                    assert_eq!(read.layout, layout, "{text}");
                 }
             }
             let mut panels = Vec::new();
@@ -1050,4 +1083,232 @@ fn a_floating_panel_opens_no_larger_than_the_window_and_an_agent_places_it() {
     assert!(dock.take_changed());
     assert_eq!(dock.layout().floating[0].origin, [20.0, 30.0]);
     assert_eq!(dock.layout().floating[0].size, [300.0, 200.0]);
+}
+
+/// The lines of the errors that `text` gives, read as `reading` says; none for a text read.
+fn error_lines(text: &str, reading: Reading) -> Vec<u32> {
+    match dock::read("test.layout.kdl", text, reading) {
+        Ok(_) => Vec::new(),
+        Err(ReadError::Unreadable(errors)) => errors
+            .errors()
+            .iter()
+            .map(|error| match &error.error {
+                uwui::Fault::Kdl(error) => error.line,
+                other => panic!("{other}"),
+            })
+            .collect(),
+        Err(error) => panic!("{text}\n{error}"),
+    }
+}
+
+/// A stack of one panel, as a layout's document writes it.
+const STACK: &str = "Tabs chosen=0 { panels viewport }";
+
+#[test]
+fn a_layout_of_a_later_version_is_not_read() {
+    // What follows its version is not read, whatever it is.
+    let later = "version 2\nfuture { of the format }\n";
+    assert!(matches!(
+        dock::read("later.layout.kdl", later, Reading::Strict),
+        Err(ReadError::Later { version: 2 })
+    ));
+    let text = format!("version 1\n{STACK}\n");
+    assert!(dock::read("now.layout.kdl", &text, Reading::Strict).is_ok());
+}
+
+#[test]
+fn what_a_layout_does_not_know_is_left_out_leniently_and_refused_strictly() {
+    let text = format!(
+        "version 1\n\
+         default \"editor 1\" later=1\n\
+         Split side_by_side=#true weight=2 {{\n\
+         \x20   children share=0.5 3 {{ {STACK}; notes }}\n\
+         \x20   children share=0.5 {{ Tabs chosen=0 {{ panels history; pinned history }} }}\n\
+         \x20   gap 4\n\
+         }}\n\
+         floating panel=console {{ origin 1 2; size 300 200 7; folded #true }}\n\
+         theme dark\n"
+    );
+    let read = dock::read("later.layout.kdl", &text, Reading::Lenient).expect("read");
+    let warnings = read.warnings.expect("warnings");
+    let lines: Vec<u32> = warnings
+        .errors()
+        .iter()
+        .map(|warning| match &warning.error {
+            uwui::Fault::Kdl(error) => error.line,
+            other => panic!("{other}"),
+        })
+        .collect();
+    assert_eq!(lines, [2, 3, 4, 4, 5, 6, 8, 8, 9], "{warnings}");
+    let known = "version 1\n\
+                 default \"editor 1\"\n\
+                 Split side_by_side=#true {\n\
+                 \x20   children share=0.5 { Tabs chosen=0 { panels viewport } }\n\
+                 \x20   children share=0.5 { Tabs chosen=0 { panels history } }\n\
+                 }\n\
+                 floating panel=console { origin 1 2; size 300 200 }\n";
+    let want = dock::read("known.layout.kdl", known, Reading::Strict).expect("read");
+    assert_eq!(read.layout, want.layout);
+    assert_eq!(read.default, want.default);
+    assert_eq!(
+        error_lines(&text, Reading::Strict),
+        [2, 3, 4, 4, 5, 6, 8, 8, 9]
+    );
+}
+
+#[test]
+fn a_layout_s_document_refuses_what_it_cannot_mean() {
+    for (text, lines) in [
+        ("", vec![1]),
+        (&*format!("{STACK}\nversion 1\n"), vec![1, 2]),
+        (&*format!("version 1\nversion 1\n{STACK}\n"), vec![2]),
+        (&*format!("version 0\n{STACK}\n"), vec![1]),
+        (&*format!("version \"1\"\n{STACK}\n"), vec![1]),
+        (&*format!("version 1.5\n{STACK}\n"), vec![1]),
+        ("version 1\n", vec![2]),
+        (&*format!("version 1\n{STACK}\n{STACK}\n"), vec![3]),
+        (
+            &*format!("version 1\ndefault a\ndefault b\n{STACK}\n"),
+            vec![3],
+        ),
+        (&*format!("version 1\ndefault\n{STACK}\n"), vec![2]),
+        (&*format!("version 1\ndefault 1\n{STACK}\n"), vec![2]),
+        (
+            &*format!("version 1\ndefault \"$editor\"\n{STACK}\n"),
+            vec![2],
+        ),
+        ("version 1\n(stack)Tabs chosen=0 { panels a }\n", vec![2]),
+        ("version 1\nTabs chosen=(n)0 { panels a }\n", vec![2]),
+        ("version 1\nTabs chosen=0 chosen=1 { panels a }\n", vec![2]),
+        ("version 1\nTabs chosen=-1 { panels a }\n", vec![2]),
+        ("version 1\nTabs chosen=1.5 { panels a }\n", vec![2]),
+        ("version 1\nTabs chosen=\"0\" { panels a }\n", vec![2]),
+        ("version 1\nTabs { panels a }\n", vec![2]),
+        ("version 1\nTabs chosen=0\n", vec![2]),
+        ("version 1\nTabs chosen=0 { panels a; panels b }\n", vec![2]),
+        ("version 1\nTabs chosen=0 { panels \"$a\" }\n", vec![2]),
+        ("version 1\nTabs chosen=0 { panels 1 }\n", vec![2]),
+        (
+            "version 1\nSplit { children share=1 { Tabs chosen=0 { panels a } } }\n",
+            vec![2],
+        ),
+        ("version 1\nSplit side_by_side=1\n", vec![2]),
+        (
+            "version 1\nSplit side_by_side=#true {\n    children { Tabs chosen=0 { panels a } }\n}\n",
+            vec![3],
+        ),
+        (
+            "version 1\nSplit side_by_side=#true {\n    children share=a { Tabs chosen=0 { panels a } }\n}\n",
+            vec![3],
+        ),
+        (
+            "version 1\nSplit side_by_side=#true {\n    children share=1\n}\n",
+            vec![3],
+        ),
+        (
+            "version 1\nSplit side_by_side=#true {\n    children share=1 { Tabs chosen=0 { panels a }; Tabs chosen=0 { panels b } }\n}\n",
+            vec![3],
+        ),
+        (
+            &*format!("version 1\n{STACK}\nfloating {{ origin 1 2; size 3 4 }}\n"),
+            vec![3],
+        ),
+        (
+            &*format!("version 1\n{STACK}\nfloating panel=a {{ size 3 4 }}\n"),
+            vec![3],
+        ),
+        (
+            &*format!("version 1\n{STACK}\nfloating panel=a {{ origin 1; size 3 4 }}\n"),
+            vec![3],
+        ),
+        (
+            &*format!("version 1\n{STACK}\nfloating panel=a {{ origin 1 b; size 3 4 }}\n"),
+            vec![3],
+        ),
+        (
+            &*format!(
+                "version 1\n{STACK}\nfloating panel=a {{ origin 1 2; origin 1 2; size 3 4 }}\n"
+            ),
+            vec![3],
+        ),
+        (
+            &*format!("version 1\n{STACK}\nclosed a\nclosed b\n"),
+            vec![4],
+        ),
+        (&*format!("version 1\n{STACK}\nclosed #true\n"), vec![3]),
+    ] {
+        assert_eq!(error_lines(text, Reading::Lenient), lines, "{text}");
+    }
+    // A text that is not KDL, at its line.
+    assert_eq!(
+        error_lines("version 1\nTabs chosen=0 {\n", Reading::Lenient),
+        [3]
+    );
+}
+
+#[test]
+fn a_layout_whose_splits_lie_deeper_than_a_document_is_read_is_not_written() {
+    // Splits within each other, of alternate directions, `count` deep.
+    let nested = |count: usize| {
+        let mut node = Node::tabs(&["inner"]);
+        for level in 0..count {
+            node = Node::Split {
+                side_by_side: level % 2 == 0,
+                children: vec![
+                    uwui::dock::Share { share: 0.5, node },
+                    uwui::dock::Share {
+                        share: 0.5,
+                        node: Node::tabs(&[&format!("panel {level}")]),
+                    },
+                ],
+            };
+        }
+        Layout {
+            root: node,
+            floating: Vec::new(),
+            closed: Vec::new(),
+        }
+    };
+    let deepest = nested(31);
+    let (_, read) = written_and_read(&deepest, None);
+    assert_eq!(read.layout, deepest);
+    assert_eq!(
+        dock::write(&nested(32), None),
+        Err(dock::WriteError::TooDeep)
+    );
+}
+
+#[test]
+fn a_panel_or_a_default_named_with_a_dollar_is_not_written() {
+    let mut layout = editor();
+    assert_eq!(
+        dock::write(&layout, Some("$editor")),
+        Err(dock::WriteError::Dollar("$editor".to_owned()))
+    );
+    layout.closed = vec!["$notes".to_owned()];
+    assert_eq!(
+        dock::write(&layout, None),
+        Err(dock::WriteError::Dollar("$notes".to_owned()))
+    );
+}
+
+#[test]
+fn a_damaged_layout_is_refused_or_read_never_panicking() {
+    let mut layout = editor();
+    layout.move_panel("history", &Target::Float);
+    layout.floating[0].origin = [100.5, 80.25];
+    layout.floating[0].size = [300.0, 200.0];
+    layout.close("components");
+    let text = dock::write(&layout, Some("editor 1")).expect("written");
+    damage::damage(text.as_bytes(), |bytes| {
+        let Ok(text) = std::str::from_utf8(bytes) else {
+            return;
+        };
+        for reading in [Reading::Lenient, Reading::Strict] {
+            if let Ok(read) = dock::read("damaged.layout.kdl", text, reading) {
+                let mut layout = read.layout;
+                layout.normalize();
+            }
+        }
+    });
 }
