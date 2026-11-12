@@ -126,6 +126,14 @@ in git.
   [M6d.4b1a](#m6d4b1a--the-canvas-moved-into-uwui-render), the canvas moved, and
   [M6d.4b1b](#m6d4b1b--the-canvas-on-wgpu), the canvas on wgpu, on the same day; then
   [M6d.4b2](#m6d4b2--the-canvass-layout-chosen), its layout chosen.
+- In progress on track A: [M6d.9a](#m6d9a--one-core-for-agents-and-its-mcp-server), one core for
+  agents and its MCP server, cut in five at its start, on 2026-11-12
+  ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)): in
+  progress, [M6d.9a1a](#m6d9a1a--the-new-wire-under-todays-meaning), the new wire; then
+  [M6d.9a1b](#m6d9a1b--requests-in-flight-and-events),
+  [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families),
+  [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
+  [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -1826,6 +1834,59 @@ One core for agents, in uwui, under MIT OR Apache-2.0, which the engine builds i
 - **How to test.** The servers' session tests, uwui's and the engine's.
 - **Measured.** An answer of the channel, and an event from the program to the agent; the engine's
   answer against its figure before.
+- **Cut in five** at its start, on 2026-11-12
+  ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)): the
+  core a session without input or output, in JSON-RPC, a version for each family; each part its
+  questions put to the owner at its start, those that the attack on the design raised listed in the
+  ADR's consequences. Until M6d.7's desktop host, its parts are checked on the engine's examples,
+  programs on uwui through the engine's host.
+
+### M6d.9a1a — The new wire, under today's meaning
+
+The first fifth of M6d.9a; in progress, its card in [`PLAN.md`](PLAN.md#m6d9a1a--the-new-wire-under-todays-meaning).
+
+### M6d.9a1b — Requests in flight and events
+
+- **Goal.** Several requests at once, and events that the program sends.
+- **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `slime-editor`.
+- **Delivers.** Requests in flight, bounded, answered in an order the protocol states, and
+  cancellable; events to a connection that asked for them, the editor's Play their first reader in
+  place of its question every 200 ms; the interface's family moved into `uwui` behind its feature
+  `agents`, with the place of the code that wrote an element's own style
+  ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)); the build for shipping checked
+  free of the feature.
+- **Done when.** Play reads the played game's time by events; the interface's session tests pass
+  through uwui's family; CI is green.
+- **Measured.** An event from the program to the tool.
+
+### M6d.9a2 — uwui's MCP library and families
+
+- **Goal.** uwui's MCP server, and the engine's on it.
+- **Crates.** uwui's MCP library, new, named at its start; `slime-mcp`.
+- **Delivers.** The MCP library on `rmcp`, its tools by families, the interface's among them;
+  `slime-mcp` on it with the engine's families and its own tools, a program started, assets cooked,
+  tests run.
+- **Done when.** The engine's MCP session tests pass through the library; a session test of uwui's
+  server drives an example; CI is green.
+- **Measured.** The engine's answer through MCP against its figure before.
+
+### M6d.9a3a — Attaching, and the person's consent
+
+- **Goal.** An agent attaches to a program already running, as the person consents.
+- **Crates.** `uwui-agent`, uwui's MCP library, `slime-channel`, `slime-app`, `slime-mcp`.
+- **Delivers.** A program that listens as the person allows, found by the tools; the person's
+  consent agent by agent; the agent named in what it changes.
+- **Done when.** A named agent attaches to the example already running in a headless Weston and
+  drives it, and one without consent is refused; CI is green.
+
+### M6d.9a3b — Rights, and previews before applying
+
+- **Goal.** Each agent's rights, and a change seen before it is applied.
+- **Crates.** `uwui-agent`, uwui's MCP library, `slime-channel`, `slime-editor`, `slime-mcp`.
+- **Delivers.** Rights for each agent, by family, checked by the program; a preview before
+  applying, the editor's steps first.
+- **Done when.** A request outside an agent's rights is refused, and one asked with a preview
+  changes nothing until applied; CI is green, closing M6d.9a.
 
 ### M6d.9b — Actions declared once
 

@@ -5,7 +5,7 @@
   uwui's core), [0190](0190-uwuis-requirements.md) (the engine no longer keeps a channel of its own
   apart), [0209](0209-platforms-the-editor-and-agents.md) (the protections of agents built once) and
   [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (the actions declared once serve the
-  engine too)
+  engine too); amended by [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) (M6d.9a cut in five)
 - Date: 2026-11-07
 
 ## Context

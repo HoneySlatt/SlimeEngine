@@ -32,7 +32,10 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [M6d.3c3](stage-6d.md#m6d3c3--reflection-out-of-uwui), reflection out.
 - In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
   session.
-  - Track A, uwui's core, in the main checkout: M6d.3a to M6d.3b2, then M6d.3c1 to M6d.3c3.
+  - Track A, uwui's core, in the main checkout: M6d.3a to M6d.3c3, done; then M6d.9a, cut in
+    five on 2026-11-12
+    ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
+    in progress, [M6d.9a1a](#m6d9a1a--the-new-wire-under-todays-meaning).
   - Track B, in a worktree: [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors),
     done; then M6d.4: done, [M6d.4a](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr),
     [M6d.4b1a](stage-6d.md#m6d4b1a--the-canvas-moved-into-uwui-render) and
@@ -60,7 +63,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
-| [M6d.9a — One core for agents, and its MCP server](stage-6d.md#m6d9a--one-core-for-agents-and-its-mcp-server) | Planned |
+| [M6d.9a1a — The new wire, under today's meaning](#m6d9a1a--the-new-wire-under-todays-meaning) | In progress |
+| [M6d.9a1b to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a1b--requests-in-flight-and-events) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
@@ -90,6 +94,28 @@ Started on 2026-11-12, the last third of M6d.4
   M6d.4b1's; then, added to them, what the interface adds to a frame over a view, its own span
   and the passes a frame takes, counted in CI
   ([ADR-0245](adr/0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md)).
+
+## M6d.9a1a — The new wire, under today's meaning
+
+Started on 2026-11-12, the first fifth of M6d.9a
+([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)), under
+[the stage's rules](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The engine's channel speaks the core's session, each request doing what it does now.
+- **Crates.** `uwui-agent`, new; `slime-channel`, `slime-app`, `slime-editor`, `slime-mcp`, with
+  the owner's go for `slime-app` and `slime-editor`.
+- **Delivers.**
+  - `uwui-agent`: the session without input or output, both ends, JSON-RPC a message a line,
+    bytes announced in an envelope; a first message naming the agent, its client, the carrier's
+    secret and the families with their versions, served or refused one by one.
+  - `slime-channel`: its requests in versioned families, through `serde`; its listener and client
+    the desktop's carrier, with the token; neither `slime-reflect` nor `slime-serialize`.
+  - `slime-mcp` naming its agent as its MCP client names itself; Play naming the editor.
+  - Tests of the session over bytes and over the loopback, which Windows runs.
+- **Done when.** Every MCP session test passes unchanged; a tool of another family's version is
+  served the rest; a program logs the agent that connected; CI is green.
+- **Measured.** At rest, with the owner's go: an answer of the channel, the median of 21 on the
+  loopback, against 0.14 ms before.
 
 ## Ideas waiting for their milestone
 
