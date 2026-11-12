@@ -29,8 +29,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [M6d.3a](stage-6d.md#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL, on the same day; M6d.3b
   cut in two, [M6d.3b1](stage-6d.md#m6d3b1--themes-in-kdl), themes, on the same day, and
   [M6d.3b2](stage-6d.md#m6d3b2--style-sheets-in-kdl), style sheets, on 2026-11-12. M6d.3c cut in
-  three on 2026-11-12: in progress, [M6d.3c1](#m6d3c1--shortcuts-in-kdl), shortcuts; then
-  [M6d.3c2](stage-6d.md#m6d3c2--docks-layouts-in-kdl), docks' layouts, and
+  three on 2026-11-12: done, [M6d.3c1](stage-6d.md#m6d3c1--shortcuts-in-kdl), shortcuts, on the
+  same day; next [M6d.3c2](stage-6d.md#m6d3c2--docks-layouts-in-kdl), docks' layouts, and
   [M6d.3c3](stage-6d.md#m6d3c3--reflection-out-of-uwui), reflection out.
 - In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
   session.
@@ -61,7 +61,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | Milestone | Status |
 |---|---|
 | [M6d.0a to M6d.3b2, and C1](stage-6d.md#where-it-stands) | Done |
-| [M6d.3c1 — Shortcuts in KDL](#m6d3c1--shortcuts-in-kdl) | In progress |
+| [M6d.3c1 — Shortcuts in KDL](stage-6d.md#m6d3c1--shortcuts-in-kdl) | Done |
 | [M6d.3c2 — Docks' layouts in KDL](stage-6d.md#m6d3c2--docks-layouts-in-kdl) | Planned |
 | [M6d.3c3 — Reflection out of uwui](stage-6d.md#m6d3c3--reflection-out-of-uwui) | Planned |
 | [M6d.4a — The canvas's prototype and its ADR](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr) | Done |
@@ -77,30 +77,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.3c1 — Shortcuts in KDL
-
-The first third of M6d.3c, cut at its start, on 2026-11-12
-([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)'s status). It
-follows the rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** uwui reads its tables of shortcuts in KDL, a chord names the primary modifier, and a
-  shortcut shows as its platform writes it.
-- **Crates.** `uwui`, `slime-cook`, `slime-assets`, `slime-editor`, the examples; `slime-devui`'s
-  table alone, with the owner's go.
-- **Delivers.**
-  - Tables in KDL, `.keys.kdl`, read by hand, errors at their line, gathered; the repository's
-    tables and those of tests converted, `Ctrl` written `Primary`.
-  - `Primary`, Ctrl on Linux and Windows, ⌘ on macOS; the platform a value, from the target, that
-    tests set; chords compared as they resolve on it; a text field's keys through it.
-  - A menu's shortcut and the sheet of shortcuts as the platform writes them: `⇧⌘Z`,
-    `Ctrl+Shift+Z`.
-  - A table cooked as its text, checked; `.keys` refused; `Shortcuts::from_binary` gone; the
-    reflected reader the tests' oracle until M6d.3c3.
-- **Done when.** Random tables, and the editor's tables recorded before them, read the same
-  through both readers; a table that wrote Ctrl reads as `Primary`; a test shows each platform's
-  way; tests of each refusal; the `interface` example's image unchanged; CI green.
-- **Measured.** Reading the editor's documents at its start; the cooker's compile time.
 
 ## M6d.4b1a — The canvas moved into uwui-render
 

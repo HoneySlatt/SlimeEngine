@@ -112,8 +112,8 @@ in git.
   [M6d.3b1](#m6d3b1--themes-in-kdl), themes, on the same day, and
   [M6d.3b2](#m6d3b2--style-sheets-in-kdl), style sheets, on 2026-11-12; then
   [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and reflection out, cut
-  in three on 2026-11-12: in progress, [M6d.3c1](#m6d3c1--shortcuts-in-kdl), shortcuts; then
-  [M6d.3c2](#m6d3c2--docks-layouts-in-kdl), docks' layouts, and
+  in three on 2026-11-12: done, [M6d.3c1](#m6d3c1--shortcuts-in-kdl), shortcuts, on the same day;
+  next [M6d.3c2](#m6d3c2--docks-layouts-in-kdl), docks' layouts, and
   [M6d.3c3](#m6d3c3--reflection-out-of-uwui), reflection out.
 - In progress on track B: [M6d.4](#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on wgpu,
   cut in three at its start, on 2026-11-11
@@ -1342,8 +1342,51 @@ M6d.4b1 touches their crates; a dock's layout written by hand over `uwui-kdl`'s 
 
 ### M6d.3c1 — Shortcuts in KDL
 
-In progress: its card is in [`PLAN.md`](PLAN.md#m6d3c1--shortcuts-in-kdl), back here with its
-result when it is done.
+The first third of M6d.3c, cut at its start, on 2026-11-12
+([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)'s status). It
+follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** uwui reads its tables of shortcuts in KDL, a chord names the primary modifier, and a
+  shortcut shows as its platform writes it.
+- **Crates.** `uwui`, `slime-cook`, `slime-assets`, `slime-editor`, the examples; `slime-devui`'s
+  table alone, with the owner's go.
+- **Delivers.**
+  - Tables in KDL, `.keys.kdl`, read by hand, errors at their line, gathered; the repository's
+    tables and those of tests converted, `Ctrl` written `Primary`.
+  - `Primary`, Ctrl on Linux and Windows, ⌘ on macOS; the platform a value, from the target, that
+    tests set; chords compared as they resolve on it; a text field's keys through it.
+  - A menu's shortcut and the sheet of shortcuts as the platform writes them: `⇧⌘Z`,
+    `Ctrl+Shift+Z`.
+  - A table cooked as its text, checked; `.keys` refused; `Shortcuts::from_binary` gone; the
+    reflected reader the tests' oracle until M6d.3c3.
+- **Done when.** Random tables, and the editor's tables recorded before them, read the same
+  through both readers; a table that wrote Ctrl reads as `Primary`; a test shows each platform's
+  way; tests of each refusal; the `interface` example's image unchanged; CI green.
+- **Measured.** Reading the editor's documents at its start; the cooker's compile time.
+- **Result.** Done on 2026-11-12, CI green
+  ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)):
+  - uwui reads its tables of shortcuts in KDL, `scope global { Primary+Z edit.undo }`, by hand,
+    each error at its line and gathered; what has no meaning yet, a chord that ends with a
+    modifier or joins none, an empty name and a name that starts with `$` are refused, and so are
+    two chords of a scope that are the same keys on any platform, found in time linear in the
+    table, the error naming the line of the first.
+  - `Primary` is Ctrl on Linux and Windows and ⌘ on macOS; the platform is a value of the
+    interface, `Ui::set_platform`. A text field copies, pastes, undoes and redoes through it, and
+    on macOS moves by words with Option and to a line's or the text's ends with ⌘ and the arrows,
+    as Apple lists them. A menu, the sheet of shortcuts and the editor's first hint show a chord
+    as the platform writes it: `⇧⌘Z` in Apple's order and symbols, `Ctrl+Shift+Z` in Microsoft's
+    order, the Windows key first on Windows, Super last on Linux.
+  - The repository's tables are `.keys.kdl`, `Ctrl` written `Primary`; a cooked table is its text,
+    checked, and a `.keys` of TOML is refused by name; `Shortcuts::from_binary` is gone. The
+    reflected reader stays the tests' oracle until M6d.3c3: random tables, half of them writing
+    `Primary` for `Ctrl`, read the same both ways, and the editor's tables read to the fixture
+    recorded before them, byte for byte. The `interface` example's image is unchanged.
+  - The closing review found ⌘Y in a field falling through to the editor's redo on macOS, and the
+    sheet of shortcuts failing on two chords that show alike, both fixed and tested.
+  - Reading the editor's two tables allocates 324 times, from 1 117, and took half the time,
+    some 45 µs ([measurements](measurements.md#m6d3c1-shortcuts-in-kdl)); the cooker's time of
+    compiling again was not measured, the machine busy ([`debt.md`](debt.md)). What macOS shows and
+    types waits for the owner's check on a Mac.
 
 ### M6d.3c2 — Docks' layouts in KDL
 

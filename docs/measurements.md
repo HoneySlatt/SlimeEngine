@@ -2538,6 +2538,24 @@ The cooker's time of compiling again was not measured: other sessions' benchmark
 busy ([`debt.md`](debt.md)). Its dependencies did not change; it no longer encodes a table of
 shortcuts into the binary form.
 
+GitHub's hosted runners, on 2026-11-12, each run green, on `44bf0f8`; `Compositors` did not run, its
+paths untouched:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 9 min 51 s |
+| `check (headless)` | 11 min 42 s |
+| `check (windowed)` | 11 min 47 s |
+| `check (game)` | 15 min 2 s |
+| `windows (tests)` | 14 min 39 s |
+| `windows (render)` | 7 min 42 s |
+| `windows (game)` | 10 min 50 s |
+| `windows-release` | 15 min 48 s |
+| Docs' `links` | 17 s |
+
+Every job stays within its limit of 20 minutes; the closest, `windows-release`, has 4 min 12 s to
+spare.
+
 ## M6d.3b2, style sheets in KDL
 
 The look's style sheet read in KDL by the code that `uwui-macros` derives, as its themes are
