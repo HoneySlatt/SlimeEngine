@@ -3588,3 +3588,29 @@ which waits for the GPU. The editor gave 141 images after 200 inputs apart, clic
 and moves, a median of 10.4 ms and a 99th percentile of 13.9 ms; and 441 after 1,000 moves in a
 row, 11.6 ms and 17.2 ms. *Hunna Wood* drew a frame every few seconds on lavapipe, too few to give
 any; both ended well.
+
+How long CI's jobs took on `b3cc0cd`, the commit that gave uwui its input as the host's events, on
+2026-11-13:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 49 s |
+| `check (headless)` | 17 min 1 s |
+| `check (windowed)` | 9 min 34 s |
+| `check (game)` | 13 min 27 s |
+| `check (gles)` | 3 min 17 s |
+| `windows (tests)` | 15 min 14 s |
+| `windows (render)` | 5 min 54 s |
+| `windows (game)` | 5 min 56 s |
+| `windows-release` | 16 min 5 s |
+| `compositors (weston)` | 11 min 29 s |
+| `compositors (sway)` | 15 min 48 s |
+| `compositors (kwin)` | 10 min 27 s |
+| `compositors (mutter)` | 13 min 12 s |
+| `compositors (x11)` | 12 min 14 s |
+| Docs' `links` | 19 s |
+
+Every job stays within its limit of 20 minutes. `check (headless)` is the longest, with 2 min 59 s
+of margin; `windows (tests)` took 15 min 14 s, on another runner. The part adds one test file of
+uwui and two tests of `slime-app`.
+

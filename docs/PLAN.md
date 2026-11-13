@@ -47,8 +47,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
     [M6d.5b](stage-6d.md#m6d5b--the-times), the times
     ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)); then
     [M6d.5c](stage-6d.md#m6d5c--input-and-output-in-uwui), cut in three on 2026-11-13
-    ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)): in progress,
-    [M6d.5c1](#m6d5c1--events-and-outputs-on-one-target).
+    ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)): done,
+    [M6d.5c1](stage-6d.md#m6d5c1--events-and-outputs-on-one-target), the events and the
+    outputs on one target; M6d.5c2 may start.
   - M6d.5's parts run beside track A in ADR-0248's order; ADR-0249 fixed the three seams on
     2026-11-13: one waker, meaning followed by each reader, an element's capture; M6d.9a1b3
     follows M6d.5c.
@@ -72,7 +73,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.4b2 — The canvas's layout chosen](stage-6d.md#m6d4b2--the-canvass-layout-chosen) | Done |
 | [M6d.5a — The API's ADR and its table](stage-6d.md#m6d5a--the-apis-adr-and-its-table) | Done |
 | [M6d.5b — The times](stage-6d.md#m6d5b--the-times) | Done |
-| [M6d.5c1 — Events and outputs on one target](#m6d5c1--events-and-outputs-on-one-target) | In progress |
+| [M6d.5c1 — Events and outputs on one target](stage-6d.md#m6d5c1--events-and-outputs-on-one-target) | Done |
 | [M6d.5c2 to M6d.5e — The rest of M6d.5](stage-6d.md#m6d5c2--the-clipboard-and-the-hosts-questions) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
@@ -85,28 +86,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.5c1 — Events and outputs on one target
-
-Started on 2026-11-13, the first third of M6d.5c ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)), under
-[the stage's rules](stage-6d.md#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** A host gives uwui its input as events and reads what uwui asks of it as outputs.
-- **Crates.** `uwui`, `slime-app` (`interface.rs`; small steps in `app.rs`, `game.rs`,
-  `windowed.rs`), `slime-editor` and `slime-devui` (their tests), *Hunna Wood*'s overlay, the
-  examples' tests, the benchmarks.
-- **Delivers.**
-  - `uwui::host`: `Ui::event`, each event with its target, its time and its source, answered at
-    once; the pointer, the wheel, the modifiers, the keys, input methods' composition and commit;
-    `Ui::set_event_time` and the seven methods of input gone.
-  - `Ui::outputs` for each target, only what changed: the cursor, the input method on as a
-    field's input starts, its caret's box; `Ui::cursor` and `Ui::text_input` gone.
-  - `host::Person`, a person's input in tests, behind uwui's feature `test-input`.
-  - `slime-app` giving the moves of a frame as one, and showing the outputs after each frame.
-  - A move walking the tree once, for the hover and the rest.
-- **Done when.** The engine's input reaches uwui through the events; uwui's, the editor's and the
-  dev overlay's tests of input pass; CI is green.
-- **Measured.** A pointer's move over the editor's hierarchy, timed and counted.
 
 ## M6d.9a1b2 — Events
 
@@ -205,6 +184,11 @@ made after Stage 6e's first milestone runs on `games/open-world` where it names 
 - **The interface after a lost device, on Direct3D 12** (M6d.4b1a, M6d.4b1b): in the Windows
   virtual machine, *Hunna Wood*'s button that loses the GPU device, with the dev overlay open, the
   loss reported through `slime-gfx`'s door, then the overlay drawn again on the new device.
+- **Input methods as the host's outputs** (M6d.5c1): on the owner's Linux desktop with an input
+  method of Japanese or Chinese, and in the Windows virtual machine with Microsoft's: a
+  composition in a field of the editor, its window beside the caret as it moves; the focus moved
+  to another field, then back to the first, mid-composition, the composition ended each time and
+  the next one starting clean.
 - **A suspend counted** (M6d.5b): the editor on Linux and in the Windows virtual machine, a
   notification shown, the machine suspended for a minute, the pointer moved as it wakes: the
   notification gone at that frame, and the log telling the time suspended.

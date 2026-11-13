@@ -155,8 +155,8 @@ in git.
   [M6d.5b](#m6d5b--the-times), the times, on 2026-11-13
   ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)); then
   [M6d.5c](#m6d5c--input-and-output-in-uwui), cut in three on 2026-11-13
-  ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)): in progress,
-  [M6d.5c1](#m6d5c1--events-and-outputs-on-one-target), then
+  ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)): done,
+  [M6d.5c1](#m6d5c1--events-and-outputs-on-one-target), on 2026-11-13; then
   [M6d.5c2](#m6d5c2--the-clipboard-and-the-hosts-questions) and
   [M6d.5c3](#m6d5c3--the-targets); then
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui) and
@@ -1898,7 +1898,56 @@ of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
 
 ### M6d.5c1 — Events and outputs on one target
 
-The first third of M6d.5c; in progress, its card in [`PLAN.md`](PLAN.md#m6d5c1--events-and-outputs-on-one-target).
+The first third of M6d.5c
+([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)). It
+follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** A host gives uwui its input as events and reads what uwui asks of it as outputs.
+- **Crates.** `uwui`, `slime-app` (`interface.rs`; small steps in `app.rs`, `game.rs`,
+  `windowed.rs`), `slime-editor` and `slime-devui` (their tests), *Hunna Wood*'s overlay, the
+  examples' tests, the benchmarks.
+- **Delivers.**
+  - `uwui::host`: `Ui::event`, each event with its target, its time and its source, answered at
+    once; the pointer, the wheel, the modifiers, the keys, input methods' composition and commit;
+    `Ui::set_event_time` and the seven methods of input gone.
+  - `Ui::outputs` for each target, only what changed: the cursor, the input method on as a
+    field's input starts, its caret's box; `Ui::cursor` and `Ui::text_input` gone.
+  - `host::Person`, a person's input in tests, behind uwui's feature `test-input`.
+  - `slime-app` giving the moves of a frame as one, and showing the outputs after each frame.
+  - A move walking the tree once, for the hover and the rest.
+- **Done when.** The engine's input reaches uwui through the events; uwui's, the editor's and the
+  dev overlay's tests of input pass; CI is green.
+- **Measured.** A pointer's move over the editor's hierarchy, timed and counted.
+
+## M6d.9a1b2 — Events
+
+Started on 2026-11-13 ([ADR-0254](adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).
+
+- **Goal.** A program sends a connection the changes it subscribed to.
+- **Crates.** `uwui-agent`, `slime-channel`, `slime-app`, `slime-editor`.
+- **Delivers.** `subscribe` and `unsubscribe`, the events listed in the welcome; a cell for each
+  subscription; `play/time`, published at the frame's end; Play on one queue, without polling.
+- **Done when.** Play reads the played game's time by events; a tool that stops reading keeps the
+  game's memory flat; CI is green.
+- **Measured.** An event to the tool, median and slowest of 21, alone and behind a capture; the
+  channel's answer; no wake at rest with a subscription.
+- **Result.** Done on 2026-11-13, CI green
+  ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md), its four questions decided by the owner):
+  - `uwui::host`: one entry, `Ui::event`, each event with its target, its time and its source,
+    answered at once, `Taken` or `NotTaken`; an event for a target that no root draws on not
+    taken; the seven methods of input and `Ui::set_event_time` gone.
+  - `Ui::outputs`, only what changed: the cursor; the input method `On` as each field's input
+    starts, a field focused again included, `Off` once; the caret's box. `Ui::cursor` and
+    `Ui::text_input` gone; a presentation gives the same interface at every call once given,
+    until M6d.5e ([`debt.md`](debt.md)).
+  - `host::Person` behind uwui's feature `test-input`, which tests and benchmarks turn on.
+  - The engine holds the pointer's last move until the interface's next event or the frame; a
+    move walks the tree once, 1.6 µs against 3.2 µs over the hierarchy, without allocating
+    ([`measurements.md`](measurements.md#m6d5c1-input-as-the-hosts-events)).
+  - The moves between two frames, the wheel's phase, a field's purpose, the pointer's entering
+    and whether the cursor shows wait for their readers, the owner's choice.
+  - The window's input checked end to end in a headless sway on lavapipe; input methods wait for
+    a [check by hand](PLAN.md#checks-by-hand-waiting-for-the-owner).
 
 ### M6d.5c2 — The clipboard and the host's questions
 
