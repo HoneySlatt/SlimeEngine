@@ -14,6 +14,9 @@ use crate::text::{TextBounds, TextLayout, TextStyle};
 /// How many steps Page Up and Page Down move a slider by.
 const PAGE_STEPS: f64 = 10.0;
 
+/// How long a bar of progress without a share takes to cross its track once, in nanoseconds of the host's clock.
+const SPIN_PERIOD: u64 = 1_500_000_000;
+
 /// What a check box or a slider keeps between two builds, and what an item of a menu shows of the
 /// program's state.
 #[derive(Clone, Copy, Debug)]
@@ -1367,13 +1370,15 @@ impl Ui {
                 );
                 primitives.push(filled(track, control.radius, control.track));
                 // Its share from a line's start; without one, a third of the track that crosses it
-                // every second and a half of the clock, drawn again each frame while it shows, or
-                // still in its middle for less motion.
+                // every second and a half of the host's clock, drawn again each frame while it
+                // shows, or still in its middle for less motion. Its phase is taken from the
+                // clock's whole nanoseconds, so that it keeps its precision however long the
+                // machine has run.
                 let (from, length) = match share {
                     Some(share) => (0.0, share.clamp(0.0, 1.0)),
                     None if self.preferences.reduced_motion || !self.shown(id) => (0.35, 0.3),
                     None => {
-                        let turn = (self.now.as_secs_f32() / 1.5).fract();
+                        let turn = (self.now.as_nanos() % SPIN_PERIOD) as f32 / SPIN_PERIOD as f32;
                         self.spinning.push(id);
                         (turn * 1.3 - 0.3, 0.3)
                     }

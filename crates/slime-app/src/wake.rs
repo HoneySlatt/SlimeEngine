@@ -2,11 +2,13 @@
 //! its frames: a [`Waker`], which any thread holds, and the run's own, which a termination signal
 //! and the end of the tool that started the program wake
 //! (`docs/adr/0156-the-editors-window-and-its-operations.md`,
-//! `docs/adr/0187-a-hidden-window-at-rest.md`).
+//! `docs/adr/0187-a-hidden-window-at-rest.md`). The windowed loop gives uwui the same, as the
+//! host's [`std::task::Waker`] (`docs/adr/0249-the-hosts-api-its-items-and-their-table.md`).
 //!
 //! [`AppConfig::on_demand`]: crate::AppConfig::on_demand
 
 use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
+use std::task::Wake;
 
 /// Asks a run for a frame from any thread: a load or a cook that ended, a request that came. A run
 /// whose frames run on demand ([`AppConfig::on_demand`](crate::AppConfig::on_demand)) runs one
@@ -32,15 +34,13 @@ struct Inner {
 impl Waker {
     /// Asks the run for a frame.
     pub fn wake(&self) {
-        *self
-            .inner
-            .asked
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = true;
-        self.inner.woken.notify_all();
-        if let Some(window) = self.inner.window.get() {
-            window.wake();
-        }
+        self.inner.wake_by_ref();
+    }
+
+    /// The same waker as the standard library's, which uwui's interface takes from its host
+    /// (`Ui::set_waker`): each of its wakes asks the run for a frame, as [`Waker::wake`] does.
+    pub(crate) fn task_waker(&self) -> std::task::Waker {
+        std::task::Waker::from(Arc::clone(&self.inner))
     }
 
     /// Whether a frame was asked for since the last call, which forgets it.
@@ -72,6 +72,20 @@ impl Waker {
     /// Wakes the event loop of a windowed run too, from now on.
     pub(crate) fn set_window(&self, window: slime_platform::Waker) {
         let _ = self.inner.window.set(window);
+    }
+}
+
+impl Wake for Inner {
+    fn wake(self: Arc<Self>) {
+        self.wake_by_ref();
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        *self.asked.lock().unwrap_or_else(PoisonError::into_inner) = true;
+        self.woken.notify_all();
+        if let Some(window) = self.window.get() {
+            window.wake();
+        }
     }
 }
 
@@ -113,6 +127,18 @@ mod tests {
         // A wake before the wait ends it at once.
         waker.wake();
         waker.wait();
+        assert!(waker.take());
+    }
+
+    #[test]
+    fn the_interfaces_waker_asks_the_same_run() {
+        let waker = Waker::default();
+        let task = waker.task_waker();
+        std::thread::spawn(move || task.wake())
+            .join()
+            .expect("the thread woke the run");
+        assert!(waker.take());
+        waker.task_waker().wake_by_ref();
         assert!(waker.take());
     }
 }

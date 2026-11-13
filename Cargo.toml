@@ -43,6 +43,13 @@ gltf = { version = "1.4.1", default-features = false, features = ["names", "util
 # Windows only: asks the console to interpret the escape sequences that color the log. Already
 # built as a dependency of tracing-subscriber.
 nu-ansi-term = "0.50.3"
+# The engine's host clock, which counts the time that the machine spends suspended (ADR-0251):
+# Linux's `CLOCK_BOOTTIME` and `CLOCK_MONOTONIC` through rustix's safe `clock_gettime`; Windows'
+# performance counter and its unbiased interrupt time through windows-sys. Both already built, for
+# Wayland's crates and for arboard, ctrlc and tokio. rustix at 1.1.6 at least, for RUSTSEC-2026-0486,
+# an unsound function of `rustix::fs` that the engine does not call.
+rustix = { version = "1.1.6", default-features = false, features = ["std", "time"] }
+windows-sys = { version = "0.61.2", features = ["Win32_System_Performance", "Win32_System_WindowsProgramming"] }
 # Reads PNG files: the source images of the asset pipeline's cooker; the examples and tests write
 # and read them too (reference images, the offscreen example).
 png = "0.18.1"

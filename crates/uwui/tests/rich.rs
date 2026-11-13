@@ -11,6 +11,7 @@ use uwui::display::Primitive;
 use uwui::preferences::Preferences;
 use uwui::style::{Dimension, StyleBuilder};
 use uwui::text::Fonts;
+use uwui::time::{FrameShown, Instant};
 use uwui::tree::{Element, ElementId, LayoutDirection, Role, RootSettings, Ui, Units};
 
 /// An interface whose font is the tests' Noto Sans.
@@ -202,6 +203,7 @@ fn a_tabs_count_follows_its_title_and_is_part_of_its_name() {
 
 #[test]
 fn a_bar_of_progress_gives_its_share_and_one_without_moves_with_the_clock() {
+    let mut at = Instant::ZERO;
     let (mut ui, root) = interface();
     let mut bars = Vec::new();
     ui.build(root, 0, |children| {
@@ -243,9 +245,11 @@ fn a_bar_of_progress_gives_its_share_and_one_without_moves_with_the_clock() {
             })
             .next()
     };
-    ui.advance(Duration::from_millis(500));
+    at += Duration::from_millis(500);
+    ui.set_frame_shown(FrameShown::simulated(at));
     let before = moving(&mut ui).expect("a part that moves");
-    ui.advance(Duration::from_millis(300));
+    at += Duration::from_millis(300);
+    ui.set_frame_shown(FrameShown::simulated(at));
     let after = moving(&mut ui).expect("a part that moves");
     assert!(after > before, "{before} then {after}");
 }
@@ -627,6 +631,7 @@ fn a_sections_header_holds_its_box_at_its_end_whose_presses_do_not_fold_it() {
 
 #[test]
 fn a_tooltip_of_a_title_and_a_text_is_read_as_both() {
+    let mut at = Instant::ZERO;
     let (mut ui, root) = interface();
     let mut id = None;
     ui.build(root, 0, |children| {
@@ -643,7 +648,8 @@ fn a_tooltip_of_a_title_and_a_text_is_read_as_both() {
     );
     let rect = ui.rect(field).expect("laid out");
     ui.pointer_moved(rect.x + 5.0, rect.y + 5.0);
-    ui.advance(Duration::from_millis(600));
+    at += Duration::from_millis(600);
+    ui.set_frame_shown(FrameShown::simulated(at));
     ui.frame();
     let title = ui
         .element_by_path("tooltip/tooltip/title")

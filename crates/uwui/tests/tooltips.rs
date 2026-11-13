@@ -1,6 +1,6 @@
 //! Tooltips, and what the pointer resting does, without a GPU (`docs/adr/0150-layers.md`): a
 //! tooltip that shows below its element once the pointer has rested on it for half a second of the
-//! interface's clock, and goes as the pointer leaves, presses or a key goes down; that the keys show
+//! host's clock, and goes as the pointer leaves, presses or a key goes down; that the keys show
 //! as they give its element the focus; that the pointer passes through; that screen readers read
 //! as a description; an item of a menu that opens its submenu as the pointer rests on it.
 
@@ -10,6 +10,7 @@ use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
 use uwui::style::{Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
+use uwui::time::{EventTime, FrameShown, Instant};
 use uwui::tree::{
     Along, Element, ElementId, ItemMark, Layer, LayoutDirection, Place, RootSettings, Side, Ui,
 };
@@ -61,9 +62,10 @@ fn interface() -> (Ui, ElementId, [ElementId; 2]) {
     (ui, root, [buttons[0], buttons[1]])
 }
 
-/// The clock moved on by `millis`, and a frame.
-fn wait(ui: &mut Ui, millis: u64) {
-    ui.advance(Duration::from_millis(millis));
+/// The host's clock, `at`, moved on by `millis`, and a frame at that time.
+fn wait(ui: &mut Ui, at: &mut Instant, millis: u64) {
+    *at += Duration::from_millis(millis);
+    ui.set_frame_shown(FrameShown::simulated(*at));
     ui.frame();
 }
 
@@ -87,32 +89,43 @@ fn key(ui: &mut Ui, named: NamedKey) -> bool {
 #[test]
 fn the_interface_says_when_a_rest_will_show_a_tooltip_without_needing_frames_meanwhile() {
     let (mut ui, _, _) = interface();
-    assert_eq!(ui.next_change(), None, "nothing waits");
+    let mut at = Instant::from_nanos(1_000_000_000);
+    ui.set_frame_shown(FrameShown::simulated(at));
+    assert_eq!(ui.next_frame_due(), None, "nothing waits");
     assert!(!ui.needs_frame());
+    // The rest starts when the pointer's move came, not at the last frame's time.
+    ui.set_event_time(EventTime::received(at + Duration::from_millis(40)));
     ui.pointer_moved(50.0, 15.0);
     ui.frame();
-    assert_eq!(ui.next_change(), Some(Duration::from_millis(500)));
+    let shows = at + Duration::from_millis(540);
+    assert_eq!(ui.next_frame_due(), Some(shows));
     assert!(!ui.needs_frame(), "a rest needs no frame before its end");
-    ui.advance(Duration::from_millis(300));
-    assert_eq!(ui.next_change(), Some(Duration::from_millis(200)));
-    wait(&mut ui, 200);
+    wait(&mut ui, &mut at, 300);
+    assert_eq!(
+        ui.next_frame_due(),
+        Some(shows),
+        "the time due stays where it was"
+    );
+    assert!(tooltip(&ui).is_none());
+    wait(&mut ui, &mut at, 240);
     assert!(tooltip(&ui).is_some());
-    assert_eq!(ui.next_change(), None, "shown: nothing more waits");
+    assert_eq!(ui.next_frame_due(), None, "shown: nothing more waits");
     // Resting on what has no tooltip waits for nothing.
     ui.pointer_moved(50.0, 250.0);
     ui.frame();
-    assert_eq!(ui.next_change(), None);
+    assert_eq!(ui.next_frame_due(), None);
 }
 
 #[test]
 fn a_tooltip_shows_below_its_element_once_the_pointer_has_rested_on_it() {
     let (mut ui, _, [save, _]) = interface();
+    let mut at = Instant::ZERO;
     ui.pointer_moved(50.0, 15.0);
     let (_, stats) = ui.frame();
     assert!(stats.animating, "the clock must move on");
-    wait(&mut ui, 400);
+    wait(&mut ui, &mut at, 400);
     assert!(tooltip(&ui).is_none());
-    wait(&mut ui, 200);
+    wait(&mut ui, &mut at, 200);
     let tip = tooltip(&ui).expect("it shows");
     let (rect, below) = (
         ui.rect(save).expect("laid out"),
@@ -135,24 +148,25 @@ fn a_tooltip_shows_below_its_element_once_the_pointer_has_rested_on_it() {
 #[test]
 fn it_goes_as_the_pointer_leaves_presses_or_a_key_goes_down() {
     let (mut ui, _, _) = interface();
+    let mut at = Instant::ZERO;
     ui.pointer_moved(50.0, 15.0);
-    wait(&mut ui, 600);
+    wait(&mut ui, &mut at, 600);
     assert!(tooltip(&ui).is_some());
     ui.pointer_moved(50.0, 45.0);
     ui.frame();
     assert!(tooltip(&ui).is_none(), "it left");
     // Back, then a press: it goes, and does not show again while the pointer rests.
     ui.pointer_moved(50.0, 15.0);
-    wait(&mut ui, 600);
+    wait(&mut ui, &mut at, 600);
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
-    wait(&mut ui, 600);
+    wait(&mut ui, &mut at, 600);
     assert!(tooltip(&ui).is_none(), "a press");
     ui.take_actions();
     // A key hides it; Escape does nothing more.
     ui.pointer_moved(50.0, 45.0);
     ui.pointer_moved(50.0, 15.0);
-    wait(&mut ui, 600);
+    wait(&mut ui, &mut at, 600);
     assert!(tooltip(&ui).is_some());
     assert!(key(&mut ui, NamedKey::Escape));
     assert!(tooltip(&ui).is_none(), "a key");
@@ -173,11 +187,12 @@ fn the_keys_show_the_tooltip_of_the_element_that_they_give_the_focus() {
 #[test]
 fn screen_readers_read_it_as_its_elements_description_and_not_twice() {
     let (mut ui, _, [save, load]) = interface();
+    let mut at = Instant::ZERO;
     let meaning = ui.meaning_of(save).expect("drawn");
     assert_eq!(meaning.description.as_deref(), Some("Save the level"));
     assert_eq!(ui.meaning_of(load).expect("drawn").description, None);
     ui.pointer_moved(50.0, 15.0);
-    wait(&mut ui, 600);
+    wait(&mut ui, &mut at, 600);
     assert!(tooltip(&ui).is_some());
     assert!(
         !ui.meaning()
@@ -189,6 +204,7 @@ fn screen_readers_read_it_as_its_elements_description_and_not_twice() {
 #[test]
 fn an_item_of_a_menu_opens_its_submenu_as_the_pointer_rests_on_it() {
     let (mut ui, root, _) = interface();
+    let mut at = Instant::ZERO;
     let layer = ui.open_layer(
         "layer",
         Layer {
@@ -218,9 +234,9 @@ fn an_item_of_a_menu_opens_its_submenu_as_the_pointer_rests_on_it() {
     };
     let (x, y) = middle(&ui, items[1]);
     ui.pointer_moved(x, y);
-    wait(&mut ui, 100);
+    wait(&mut ui, &mut at, 100);
     assert!(ui.take_actions().is_empty());
-    wait(&mut ui, 200);
+    wait(&mut ui, &mut at, 200);
     let actions = ui.take_actions();
     assert_eq!(
         (actions.len(), actions[0].element, &actions[0].kind),
@@ -252,7 +268,7 @@ fn an_item_of_a_menu_opens_its_submenu_as_the_pointer_rests_on_it() {
     ui.frame();
     let (x, y) = middle(&ui, items[0]);
     ui.pointer_moved(x, y);
-    wait(&mut ui, 300);
+    wait(&mut ui, &mut at, 300);
     assert!(ui.rect(submenu).is_none());
     let kinds: Vec<ActionKind> = ui.take_actions().into_iter().map(|a| a.kind).collect();
     assert_eq!(kinds, [ActionKind::Dismissed]);

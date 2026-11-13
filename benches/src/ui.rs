@@ -950,6 +950,12 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
         |s| s.text_color(theme::CANVAS_TEXT).padding_start(TREE_SPACE),
     );
     named.ui.frame();
+    // The host's clock, a frame of 240 Hz further at each tick.
+    let clock = std::cell::Cell::new(uwui::time::Instant::ZERO);
+    let tick = |ui: &mut uwui::tree::Ui| {
+        clock.set(clock.get() + FRAME_240);
+        ui.set_frame_shown(uwui::time::FrameShown::simulated(clock.get()));
+    };
     let mut light_themes = themes(Colors::Light);
     light_themes.push(Theme::from_text(
         "tree.theme.kdl",
@@ -959,7 +965,7 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
         .ui
         .set_style(&sheets, &light_themes)
         .expect("the look's documents are valid");
-    named.ui.advance(FRAME_240);
+    tick(&mut named.ui);
     let ((_, named_stats), named_change) = counted(|| named.ui.frame());
     drop(named);
     let mut editor = Editor::styled(
@@ -982,7 +988,7 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     };
     // The frame of the change, which styles every element again.
     let change = |editor: &mut Editor| {
-        editor.ui.advance(FRAME_240);
+        tick(&mut editor.ui);
         editor.ui.frame()
     };
     // The frames of 240 Hz until no transition goes on, and their time together.
@@ -992,7 +998,7 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
             if !editor.ui.animating() {
                 return Ok((frames, spent));
             }
-            editor.ui.advance(FRAME_240);
+            tick(&mut editor.ui);
             let (_, took) = timed(|| black_box(editor.ui.frame()));
             spent += took;
         }
@@ -1044,7 +1050,7 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     let ((), layout_read) = counted(read_layout);
     let ((_, stats), allocations) = counted(|| change(&mut editor));
     // The first frame of the transition, which draws again every element that moves.
-    editor.ui.advance(FRAME_240);
+    tick(&mut editor.ui);
     let ((_, moved), moving) = counted(|| editor.ui.frame());
     let (frames, _) = settle(&mut editor)?;
     let frames = frames + 1;

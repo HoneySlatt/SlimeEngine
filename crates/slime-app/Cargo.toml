@@ -48,8 +48,12 @@ development = ["dep:slime-channel", "dep:slime-serialize", "slime-world/developm
 # games until Stage 7.
 accessibility = ["dep:accesskit", "slime-platform/accessibility"]
 
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix.workspace = true
+
 [target.'cfg(windows)'.dependencies]
 nu-ansi-term.workspace = true
+windows-sys.workspace = true
 
 # The README's example and the windowed lifecycle test clear their targets to a color.
 [dev-dependencies]

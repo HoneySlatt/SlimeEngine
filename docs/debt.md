@@ -692,7 +692,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The editor's interface passes its budget on the owner's machine once other programs fill the memory that its GPU, without resizable BAR, lets the CPU map: the canvas's draw then meets [ADR-0041](adr/0041-render-graph.md)'s stall, whose fix is out of Stage 6c ([`measurements.md`](measurements.md#m6cq2b-ryzen-7-5800x-and-rx-6900-xt)).
   A frame of the interface standing still allocates, which `benches/counters.txt` counts without a budget, with its bytes.
   The editor's window does too, and its bytes follow the length of the repository's path: a text that holds a path is made again at each frame, not found yet; `editor.window` counts its allocations alone.
-  The benchmarks' allocator, the repository's only `unsafe` code, does not run under Miri ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)).
+  The benchmarks' allocator does not run under Miri ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)); nor do `slime-app`'s three calls that read Windows' clocks, of which Miri gives the performance counter and its frequency, not the unbiased interrupt time ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)): no job of CI runs Miri.
   The benchmarks that load in the background report their longest frame, judged against no figure.
   The hierarchy's search passes the editor's interface's budget; M6c.Q3.
   The readers of files are not fuzzed, and a crash leaves no report; M6c.Q4 ([ADR-0176](adr/0176-fuzzing-and-crash-reports.md)).
@@ -747,7 +747,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **The look's foundations** ([ADR-0149](adr/0149-the-looks-foundations.md)).
   The color functions are four, and work on whole colors, not on their lightness, chroma or hue alone.
   Transitions move colors, opacity and a section's height, not sizes, places nor what a layout gives.
-  They go on only while the program gives the interface its time; a section that opens is laid out twice in the frame that starts it.
+  They go on only while the host gives the interface its frames' times (`Ui::set_frame_shown`); a section that opens is laid out twice in the frame that starts it.
   An opacity multiplies each primitive's alpha, rather than drawing the element apart and blending it whole: overlapping parts of a translucent element show through each other, until groups are drawn apart ([ADR-0171](adr/0171-effects-of-the-interface.md)).
   A shadow is not placed on whole pixels.
   On Linux, the system's dark or light preference is not read: winit reads no desktop's settings, and the portal of the desktop's settings would need a new dependency; Windows reports it.
@@ -758,13 +758,20 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The look's high contrast is dark alone: a user who asks for light and more contrast gets dark.
   Light or dark and more contrast choose the look's themes by hand (`look::themes`), not from `Preferences`.
   Followed at uwui's first stage, where the look becomes a value whose sets the interface chooses from `Preferences`, and the themes' test kit renders every look at 200 %; the editor, at Stage 6c's resumption.
-- **The interface reads the frame's start, one clock for every root, and events carry no time** ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
-  `slime-app`'s windowed loop gives uwui the time since its last call, read from `Instant::now()` at each event and each frame's start (`Ui::advance`), not when the frame shows; winit gives no presentation time and no event's time.
-  Motion therefore steps with the loop's wakes, and a fling's speed would be read from them.
-  Every root shares one clock; no root has a clock and a speed of its own; a motion asks for every frame while it moves; `Ui::next_change` is one deadline, not the next frame and the next wake.
-  A bar of progress without a share turns by that clock read as `f32` seconds from zero, which loses its precision as the program runs for days.
-  `std::time::Instant` does not count a suspend on Linux and macOS: a transition or a tooltip waits through a suspend by awake time alone.
-  Followed at [M6d.5](stage-6d.md#m6d5--the-hosts-api), the host's API, and [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames), which reads the platforms' times; uwui's first stage builds the rest.
+- **The engine gives uwui the frame's start and each event's reception, and nothing tells it of a resume** ([ADR-0227](adr/0227-the-time-that-motion-reads.md), [ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)).
+  `slime-app`'s windowed loop gives uwui each frame's start (`FrameSource::Started`), not when the frame shows, and stamps each event as winit hands it over (`EventSource::Received`): winit gives neither time.
+  Motion therefore steps with the loop's wakes and lags by the frames in flight, and a fling's speed would be read from stamps that cluster behind a busy frame.
+  The loop's own waits end late by the length of a suspend, though what they wait for was due on the host's clock: on Linux, winit's `WaitUntil` waits on `std::time::Instant`, which stops during one; on Windows, winit waits by a relative time, which since Windows 8 does not count one. The loop measures the time suspended and logs it, but only once something wakes it.
+  On macOS, the host's clock is `std::time::Instant` itself, which stops during a suspend.
+  One frame's time serves every root of a `Ui`, where [ADR-0227](adr/0227-the-time-that-motion-reads.md) asks one for each window: an interface of two windows on displays of two rates steps by one of them.
+  The host gives the times through `Ui::set_frame_shown` and `Ui::set_event_time`, not carried by the events themselves; uwui keeps an event's time, not its source.
+  The engine gives no root a clock of its own: no game's root runs on uwui yet, and the dev overlay and the editor follow the host's clock.
+  A motion asks for every frame while it moves.
+  Followed at [M6d.5c](stage-6d.md#m6d5c--input-and-output-in-uwui), whose events carry their times and their targets, and whose outputs are each target's; [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames), which reads the platforms' times, finds the system's notice that it resumed, gives the time suspended with it, and reads macOS's clock; the layer of games' interfaces, which feeds a game's clock to its roots ([`uwui-needs.md`](uwui-needs.md#slimeengines-own)); uwui's first stage builds the caps of motion.
+- **A wake that runs uwui's tasks without drawing waits for its executor** ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)).
+  uwui asks only for its next frame due (`Ui::next_frame_due`), no wake: it has no tasks yet, and its timers, tooltips, submenus and notifications, all change the drawing, which waits for a frame.
+  Each wake of the host's waker asks the engine for a frame; a hidden window holds it as [ADR-0187](adr/0187-a-hidden-window-at-rest.md) says.
+  Followed at uwui's first stage, which builds the executor of [ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md), the next wake and a wake that draws nothing.
 - **Layers** ([ADR-0150](adr/0150-layers.md)).
   A menu's separators are boxes of the class `separator` that the look styles, not a kind of their own.
   A menu has no letters that jump to an item.

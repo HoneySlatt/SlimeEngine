@@ -295,7 +295,7 @@ the ADR linking to it.
 | [0224](0224-a-files-change-reaches-the-application-through-the-development-tool.md) | A file's change reaches the application through the development tool | Accepted; amends 0212 |
 | [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) | Layouts written in KDL, reached from code by their names | Accepted; amends 0080, 0132, 0141, 0181, 0190, 0210, 0220 and 0222; amended by 0226 and 0241 |
 | [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) | An application started in one call, each root given its look | Accepted; amends 0149, 0181, 0190, 0213, 0215, 0220, 0222, 0223 and 0225; amended by 0231, 0237 and 0248 |
-| [0227](0227-the-time-that-motion-reads.md) | The time that motion reads | Accepted; amends 0009, 0107, 0149, 0171, 0181, 0187, 0190, 0205 and 0211; amended by 0248 |
+| [0227](0227-the-time-that-motion-reads.md) | The time that motion reads | Accepted; amends 0009, 0107, 0149, 0171, 0181, 0187, 0190, 0205 and 0211; amended by 0248 and 0251 |
 | [0228](0228-ci-split-again-each-job-within-20-minutes.md) | CI split again, each job within 20 minutes | Accepted; amends 0104, 0123 and 0155 |
 | [0229](0229-styles-typed-as-declarations.md) | Styles typed as declarations, a rule's kind checked | Accepted; amends 0141, 0220 and 0222; amended by 0230, 0231, 0232, 0238 and 0241 |
 | [0230](0230-the-cores-roles-and-each-kinds-defaults.md) | The core's roles, and each kind's defaults from its look | Accepted; amends 0141, 0223 and 0229; amended by 0238 |
@@ -317,5 +317,6 @@ the ADR linking to it.
 | [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) | One core for agents cut in five: a session without input or output, in JSON-RPC, versioned by family | Accepted; amends 0110, 0122 and 0218; amended by 0248 |
 | [0247](0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md) | The canvas tested on OpenGL ES through a feature of `uwui-render` alone | Accepted; amends 0016 and 0243 |
 | [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) | The host's API cut in five: built where it is read, three channels and a waker, AccessKit's translation in a crate of its own | Accepted; amends 0181, 0226, 0227 and 0246; amended by 0249 |
-| [0249](0249-the-hosts-api-its-items-and-their-table.md) | The host's API: its items in three channels, and how each maps on five platforms | Accepted; amends 0248 |
+| [0249](0249-the-hosts-api-its-items-and-their-table.md) | The host's API: its items in three channels, and how each maps on five platforms | Accepted; amends 0248; amended by 0251 |
 | [0250](0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md) | Requests in flight answered in any order, cancelled with an answer, bounded in the core; events by subscription; M6d.9a1b cut in three | Accepted |
+| [0251](0251-the-engines-host-clock-and-its-times.md) | The engine's host clock and its times: rustix and windows-sys, the times given before each frame and event, the wake waiting for the executor | Accepted; amends 0227 and 0249 |

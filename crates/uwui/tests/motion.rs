@@ -1,5 +1,5 @@
 //! The look's foundations, without a GPU (`docs/adr/0149-the-looks-foundations.md`): transitions
-//! of colors over the time that the program gives, which less motion drops; a section that grows
+//! of colors over the time that the host gives, which less motion drops; a section that grows
 //! and shrinks to its height; an opacity that multiplies what an element and its children draw;
 //! the focus shown to the keyboard and not to the pointer; boxes placed on whole pixels.
 
@@ -12,6 +12,7 @@ use uwui::preferences::Preferences;
 use uwui::style::{Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::theme::{StyleSheet, Theme};
+use uwui::time::{FrameShown, Instant};
 use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
 
 /// An interface whose font is the tests' Noto Sans, styled by `sheet`, and its root of 400 by 300
@@ -73,6 +74,7 @@ button-hovered {
 
 #[test]
 fn a_color_moves_over_the_time_given_and_less_motion_drops_it() {
+    let mut at = Instant::ZERO;
     let (mut ui, root) = ui(BUTTONS, 1.0);
     ui.build(root, 0, |children| {
         children.add(
@@ -88,14 +90,16 @@ fn a_color_moves_over_the_time_given_and_less_motion_drops_it() {
     assert_eq!(fill(&list, 100.0), LinearColor::rgba(0.0, 0.0, 0.0, 1.0));
     assert!(stats.animating);
     // Halfway, then at the end, linear in the colors' light.
-    ui.advance(Duration::from_millis(100));
+    at += Duration::from_millis(100);
+    ui.set_frame_shown(FrameShown::simulated(at));
     let (list, _) = ui.frame();
     assert!(
         (fill(&list, 100.0).r - 0.5).abs() < 1e-3,
         "{:?}",
         fill(&list, 100.0)
     );
-    ui.advance(Duration::from_millis(150));
+    at += Duration::from_millis(150);
+    ui.set_frame_shown(FrameShown::simulated(at));
     let (list, stats) = ui.frame();
     assert_eq!(fill(&list, 100.0), LinearColor::rgba(1.0, 1.0, 1.0, 1.0));
     assert!(!stats.animating);
@@ -158,6 +162,7 @@ section {
 
 #[test]
 fn a_section_grows_and_shrinks_to_its_height_over_its_transition() {
+    let mut at = Instant::ZERO;
     let (mut ui, root) = ui(SECTIONS, 1.0);
     let mut section = None;
     let mut row = None;
@@ -181,12 +186,14 @@ fn a_section_grows_and_shrinks_to_its_height_over_its_transition() {
     ui.frame();
     // Folding: what it holds still shows, cut to its height, which shrinks over the time.
     assert!(ui.rect(row).is_some_and(|rect| rect.height == 100.0));
-    ui.advance(Duration::from_millis(100));
+    at += Duration::from_millis(100);
+    ui.set_frame_shown(FrameShown::simulated(at));
     let (_, stats) = ui.frame();
     let half = ui.rect(section).expect("laid out").height;
     assert!(stats.animating);
     assert!(half < open && half > open - 100.0, "{half} of {open}");
-    ui.advance(Duration::from_millis(150));
+    at += Duration::from_millis(150);
+    ui.set_frame_shown(FrameShown::simulated(at));
     ui.frame();
     let (_, stats) = ui.frame();
     let folded = ui.rect(section).expect("laid out").height;
@@ -198,7 +205,8 @@ fn a_section_grows_and_shrinks_to_its_height_over_its_transition() {
     let (_, stats) = ui.frame();
     assert!(stats.animating);
     assert!((ui.rect(section).expect("laid out").height - folded).abs() < 1.0);
-    ui.advance(Duration::from_millis(250));
+    at += Duration::from_millis(250);
+    ui.set_frame_shown(FrameShown::simulated(at));
     ui.frame();
     ui.frame();
     assert!((ui.rect(section).expect("laid out").height - open).abs() < 1.0);
@@ -308,6 +316,7 @@ all-hovered {
 
 #[test]
 fn a_transition_moves_every_color_that_a_style_holds() {
+    let mut at = Instant::ZERO;
     let (mut ui, root) = ui(EVERY_COLOR, 1.0);
     ui.build(root, 0, |children| {
         children.add(
@@ -324,7 +333,8 @@ fn a_transition_moves_every_color_that_a_style_holds() {
         .expect("the button");
     ui.pointer_moved(50.0, 15.0);
     ui.frame();
-    ui.advance(Duration::from_millis(100));
+    at += Duration::from_millis(100);
+    ui.set_frame_shown(FrameShown::simulated(at));
     ui.frame();
     let style = ui.style(button).expect("styled");
     let shadow = style.paint.shadow.expect("a shadow").color;
@@ -378,8 +388,10 @@ fn two_buttons(after: &str) -> (Ui, ElementId, ElementId) {
 
 #[test]
 fn elements_that_move_alike_share_the_style_that_they_show() {
+    let mut at = Instant::ZERO;
     let (mut ui, a, b) = two_buttons("#ffffff");
-    ui.advance(Duration::from_millis(100));
+    at += Duration::from_millis(100);
+    ui.set_frame_shown(FrameShown::simulated(at));
     ui.frame();
     let (shown_a, shown_b) = (ui.style(a).expect("a"), ui.style(b).expect("b"));
     assert!((shown_a.paint.background.r - 0.5).abs() < 1e-3);
@@ -391,15 +403,18 @@ fn elements_that_move_alike_share_the_style_that_they_show() {
 
 #[test]
 fn an_element_styled_again_during_its_transition_leaves_the_others() {
+    let mut at = Instant::ZERO;
     let (mut ui, a, b) = two_buttons("#808080");
-    ui.advance(Duration::from_millis(100));
+    at += Duration::from_millis(100);
+    ui.set_frame_shown(FrameShown::simulated(at));
     ui.frame();
     // The pointer over `a`, halfway: `a` goes on towards its hover, white, `b` towards grey.
     ui.pointer_moved(50.0, 15.0);
     ui.frame();
     let (shown_a, shown_b) = (ui.style(a).expect("a"), ui.style(b).expect("b"));
     assert!(!std::ptr::eq(shown_a, shown_b));
-    ui.advance(Duration::from_millis(300));
+    at += Duration::from_millis(300);
+    ui.set_frame_shown(FrameShown::simulated(at));
     let (_, stats) = ui.frame();
     assert!(!stats.animating);
     assert_eq!(
@@ -451,6 +466,7 @@ b {
 
 #[test]
 fn elements_from_the_same_colors_at_the_same_time_towards_two_styles_share_nothing() {
+    let mut at = Instant::ZERO;
     let (mut ui, root) = ui(TWO_CLASSES, 1.0);
     column_of_two(&mut ui, root, 0, ["a", "b"]);
     ui.frame();
@@ -463,7 +479,8 @@ fn elements_from_the_same_colors_at_the_same_time_towards_two_styles_share_nothi
     )
     .expect("the style sheet");
     ui.frame();
-    ui.advance(Duration::from_millis(100));
+    at += Duration::from_millis(100);
+    ui.set_frame_shown(FrameShown::simulated(at));
     ui.frame();
     let a = ui.find(root, &[uwui::tree::Key::from("a")]).expect("a");
     let b = ui.find(root, &[uwui::tree::Key::from("b")]).expect("b");
@@ -478,6 +495,7 @@ fn elements_from_the_same_colors_at_the_same_time_towards_two_styles_share_nothi
 
 #[test]
 fn elements_towards_one_style_at_the_same_time_from_two_colors_share_nothing() {
+    let mut at = Instant::ZERO;
     let (mut ui, root) = ui(BUTTONS, 1.0);
     column_of_two(&mut ui, root, 0, ["", ""]);
     ui.frame();
@@ -486,7 +504,8 @@ fn elements_towards_one_style_at_the_same_time_from_two_colors_share_nothing() {
     // `b` hovered, halfway to white.
     ui.pointer_moved(50.0, 45.0);
     ui.frame();
-    ui.advance(Duration::from_millis(100));
+    at += Duration::from_millis(100);
+    ui.set_frame_shown(FrameShown::simulated(at));
     ui.frame();
     assert!((red(&ui, b) - 0.5).abs() < 1e-3, "b is {}", red(&ui, b));
     // The base turns grey as the pointer leaves: both go to one style, from two colors.
@@ -498,7 +517,8 @@ fn elements_towards_one_style_at_the_same_time_from_two_colors_share_nothing() {
     .expect("the style sheet");
     ui.pointer_moved(300.0, 250.0);
     ui.frame();
-    ui.advance(Duration::from_millis(100));
+    at += Duration::from_millis(100);
+    ui.set_frame_shown(FrameShown::simulated(at));
     ui.frame();
     let grey = LinearColor::from_srgb8(128, 128, 128).r;
     assert!(
@@ -529,6 +549,7 @@ lit {
 
 #[test]
 fn elements_towards_one_style_from_one_color_started_apart_share_nothing() {
+    let mut at = Instant::ZERO;
     let (mut ui, root) = ui(LIT, 1.0);
     column_of_two(&mut ui, root, 0, ["", ""]);
     ui.frame();
@@ -536,10 +557,12 @@ fn elements_towards_one_style_from_one_color_started_apart_share_nothing() {
     let b = ui.find(root, &[uwui::tree::Key::from("b")]).expect("b");
     column_of_two(&mut ui, root, 1, ["lit", ""]);
     ui.frame();
-    ui.advance(Duration::from_millis(50));
+    at += Duration::from_millis(50);
+    ui.set_frame_shown(FrameShown::simulated(at));
     column_of_two(&mut ui, root, 2, ["lit", "lit"]);
     ui.frame();
-    ui.advance(Duration::from_millis(50));
+    at += Duration::from_millis(50);
+    ui.set_frame_shown(FrameShown::simulated(at));
     ui.frame();
     assert!((red(&ui, a) - 0.5).abs() < 1e-3, "a is {}", red(&ui, a));
     assert!((red(&ui, b) - 0.25).abs() < 1e-3, "b is {}", red(&ui, b));

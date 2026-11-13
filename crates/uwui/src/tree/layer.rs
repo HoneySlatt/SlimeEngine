@@ -107,7 +107,7 @@ pub(crate) struct Held {
 
 impl Place {
     /// The element that it stands beside or over.
-    fn anchor(&self) -> ElementId {
+    pub(crate) fn anchor(&self) -> ElementId {
         match *self {
             Self::Beside { element, .. } => element,
             Self::At { over, .. } | Self::Floating { over, .. } => over,

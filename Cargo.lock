@@ -3064,6 +3064,7 @@ dependencies = [
  "accesskit_consumer",
  "ctrlc",
  "nu-ansi-term",
+ "rustix 1.1.6",
  "slime-channel",
  "slime-color",
  "slime-gfx",
@@ -3076,6 +3077,7 @@ dependencies = [
  "tracing-subscriber",
  "uwui",
  "uwui-render",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

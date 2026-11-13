@@ -1,7 +1,10 @@
 //! Transitions (`docs/adr/0149-the-looks-foundations.md`): an element's colors and opacity going
 //! from what they showed to what its new style gives, and a section growing or shrinking to its
-//! height as it opens or folds, over the time that the program gives the interface each frame
-//! ([`Ui::advance`]), along the style's [`Easing`](crate::style::Easing).
+//! height as it opens or folds, over the time that the host gives the interface each frame
+//! ([`Ui::set_frame_shown`]), along the style's [`Easing`](crate::style::Easing). A transition of
+//! the states that answer a person, `Hovered`, `Pressed` and `FocusVisible`, follows the host's
+//! clock; any other, and a section's, follows its root's ([`Ui::set_root_clock`]), which a paused
+//! game holds (`docs/adr/0227-the-time-that-motion-reads.md`).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -9,8 +12,10 @@ use std::time::Duration;
 
 use slime_color::LinearColor;
 
+use super::clock::{Clock, Moment};
 use super::{ElementId, Kind, Ui};
 use crate::style::{Colors, Style};
+use crate::time::RootTime;
 
 /// The number of colors that a transition moves: every color of a style, as the derive lists them.
 const COLORS: usize = <Style as Colors>::COUNT;
@@ -91,7 +96,7 @@ pub(crate) struct ShownStyles {
 struct Alike {
     target: usize,
     from: [u32; COLORS * 4 + 1],
-    started: Duration,
+    started: Moment,
 }
 
 impl ShownStyles {
@@ -141,8 +146,8 @@ pub(crate) struct Motion {
     pub(crate) target: Arc<Style>,
     /// What showed when it started.
     from: Shown,
-    /// When it started, on the interface's clock.
-    started: Duration,
+    /// When it started, on the clock that it follows: the frame's that restyled it.
+    started: Moment,
 }
 
 /// A section growing or shrinking to its height.
@@ -155,28 +160,31 @@ pub(crate) struct Reveal {
     pub(crate) to: Option<f32>,
     /// Whether it opens.
     pub(crate) opening: bool,
-    /// When it started, on the interface's clock.
-    started: Duration,
+    /// The clock that it follows, its root's.
+    clock: Clock,
+    /// When it started, on its clock: at the first frame after what opened or folded it, so that
+    /// its first step shows; none until that frame.
+    started: Option<Moment>,
 }
 
 impl Reveal {
-    /// Its height now, in pixels of the screen; none until its open height is measured.
-    pub(crate) fn height(&self, style: &Style, now: Duration) -> Option<f32> {
+    /// Its height `elapsed` after it started, in pixels of the screen; none until its open height
+    /// is measured.
+    fn height(&self, style: &Style, elapsed: Duration) -> Option<f32> {
         let to = self.to?;
-        let share = progress(style, self.started, now);
+        let share = progress(style, elapsed);
         Some(self.from + (to - self.from) * share)
     }
 }
 
-/// How far a transition of `style` that started at `started` has gone at `now`, eased: 1 once its
-/// duration has passed.
-fn progress(style: &Style, started: Duration, now: Duration) -> f32 {
+/// How far a transition of `style` has gone `elapsed` after it started, eased: 1 once its duration
+/// has passed.
+fn progress(style: &Style, elapsed: Duration) -> f32 {
     let duration = style.transition.duration;
     if duration <= 0.0 {
         return 1.0;
     }
-    let time = now.saturating_sub(started).as_secs_f32() / duration;
-    style.transition.easing.at(time)
+    style.transition.easing.at(elapsed.as_secs_f32() / duration)
 }
 
 /// Whether `style` changes over time.
@@ -185,28 +193,33 @@ fn moves(style: &Style) -> bool {
 }
 
 impl Ui {
-    /// Gives the interface the time that passed since its last frame, by which its transitions go
-    /// on, tooltips wait, submenus open as the pointer rests, and bars of progress without a share
-    /// move: a program calls it once a frame, before [`Ui::frame`], with the frame's real time, as
-    /// `slime-app` does for a presentation's interface. An interface that is never given time
-    /// shows each transition's start until it is, and no tooltip.
-    pub fn advance(&mut self, elapsed: Duration) {
-        self.now += elapsed;
-    }
-
     /// Shows `style`, the new style of `id`: at once, or from what `id` shows now, over its
-    /// transition. An element styled for the first time shows its style at once.
-    pub(crate) fn show_style(&mut self, id: ElementId, style: Arc<Style>, first: bool) {
-        let (now, reduced) = (self.now, self.preferences.reduced_motion);
-        let Some(node) = self.node_mut(id) else {
+    /// transition, on the host's clock when a state that answers a person changed (`by_person`),
+    /// else on its root's. An element styled for the first time shows its style at once.
+    pub(crate) fn show_style(
+        &mut self,
+        id: ElementId,
+        style: Arc<Style>,
+        first: bool,
+        by_person: bool,
+    ) {
+        let reduced = self.preferences.reduced_motion;
+        let Some(node) = self.node(id) else {
             return;
         };
         let from = Shown::of(&node.style);
         if first || reduced || !moves(&style) || from == Shown::of(&style) {
+            let node = self.node_mut(id).expect("styled above");
             node.style = style;
             node.motion = None;
             return;
         }
+        let clock = if by_person {
+            Clock::Host
+        } else {
+            self.root_clock_of(id)
+        };
+        let now = self.moment(clock);
         let motion = Motion {
             target: style,
             from,
@@ -225,7 +238,8 @@ impl Ui {
     /// transition, from the height that it was laid out at; nothing where its style does not move
     /// or it was never laid out.
     pub(crate) fn reveal(&mut self, id: ElementId, opening: bool) {
-        let (now, reduced) = (self.now, self.preferences.reduced_motion);
+        let reduced = self.preferences.reduced_motion;
+        let clock = self.root_clock_of(id);
         let Some(node) = self.node_mut(id) else {
             return;
         };
@@ -250,7 +264,8 @@ impl Ui {
             from,
             to: (!opening).then_some(folded),
             opening,
-            started: now,
+            clock,
+            started: None,
         });
         self.mark_layout(id);
         if !self.moving.contains(&id) {
@@ -258,19 +273,38 @@ impl Ui {
         }
     }
 
-    /// Moves the transitions under way on to the interface's clock: their elements drawn again, a
-    /// section laid out again at its height, each ended once its duration has passed. Gives whether
-    /// any goes on.
+    /// Moves the transitions under way on to the frame's time, each on its clock: their elements
+    /// drawn again, a section laid out again at its height, each ended once its duration has
+    /// passed. A section's growing or shrinking that waited for its first frame starts at it.
+    /// Gives whether any goes on.
     pub(crate) fn step_motions(&mut self) -> bool {
-        let now = self.now;
         self.shown.clear();
         for id in std::mem::take(&mut self.moving) {
-            let Some(node) = self.node_mut(id) else {
+            let Some(node) = self.node(id) else {
                 continue;
             };
+            let elapsed = node
+                .motion
+                .as_ref()
+                .map(|motion| self.elapsed(motion.started));
+            let reveal_clock = node
+                .reveal
+                .and_then(|reveal| reveal.started.is_none().then_some(reveal.clock));
+            let reveal_start = reveal_clock.map(|clock| self.moment(clock));
+            // A motion whose clock is paused keeps what it shows, drawn and laid out as it was.
+            let paused = node
+                .motion
+                .as_ref()
+                .is_some_and(|motion| !self.runs(motion.started.clock()));
+            let node = self.node_mut(id).expect("moving above");
+            if let (Some(reveal), Some(start)) = (node.reveal.as_mut(), reveal_start) {
+                reveal.started = Some(start);
+            }
             let mut going = false;
-            if let Some(motion) = node.motion.take() {
-                let share = progress(&motion.target, motion.started, now);
+            if paused {
+                going = true;
+            } else if let Some(motion) = node.motion.take() {
+                let share = progress(&motion.target, elapsed.unwrap_or_default());
                 let node = if share >= 1.0 {
                     node.style = Arc::clone(&motion.target);
                     node
@@ -284,11 +318,16 @@ impl Ui {
                 };
                 node.changed.paint = true;
             }
+            let reveal = self.node(id).and_then(|node| node.reveal);
+            let reveal_elapsed = reveal
+                .and_then(|reveal| reveal.started)
+                .map_or(Duration::ZERO, |started| self.elapsed(started));
             let node = self.node_mut(id).expect("moving above");
-            if let Some(reveal) = node.reveal {
-                let ended =
-                    reveal.to.is_some() && progress(&node.style, reveal.started, now) >= 1.0;
-                if ended {
+            if let Some(reveal) = reveal {
+                let ended = reveal.to.is_some() && progress(&node.style, reveal_elapsed) >= 1.0;
+                if reveal.started.is_some() && !self.runs(reveal.clock) {
+                    going = true;
+                } else if ended {
                     self.end_reveal(id);
                 } else {
                     self.mark_layout(id);
@@ -335,7 +374,55 @@ impl Ui {
     /// screen; none for another element, or a section whose open height is not measured yet.
     pub(crate) fn reveal_height(&self, id: ElementId) -> Option<f32> {
         let node = self.node(id)?;
-        node.reveal?.height(node.target(), self.now)
+        let reveal = node.reveal?;
+        let elapsed = reveal
+            .started
+            .map_or(Duration::ZERO, |started| self.elapsed(started));
+        reveal.height(node.target(), elapsed)
+    }
+
+    /// Whether a transition under way goes on at the next frame: one whose clock runs, a paused
+    /// root's holding where it is.
+    pub(crate) fn motions_go_on(&self) -> bool {
+        self.moving.iter().any(|&id| {
+            self.node(id).is_some_and(|node| {
+                node.motion
+                    .as_ref()
+                    .is_some_and(|motion| self.runs(motion.started.clock()))
+                    || node.reveal.is_some_and(|reveal| self.runs(reveal.clock))
+            })
+        })
+    }
+
+    /// Starts again at `now` the transitions that follow `root`'s clock, which jumped from
+    /// `before`, each carrying the time that it had gone, so that each keeps how far it had gone.
+    pub(crate) fn re_anchor(&mut self, root: ElementId, before: RootTime, now: RootTime) {
+        let back = |moment: &mut Moment| {
+            if let Moment::Root {
+                root: each,
+                at,
+                carried,
+            } = moment
+                && *each == root
+            {
+                *carried += before - *at;
+                *at = now;
+            }
+        };
+        for id in self.moving.clone() {
+            if let Some(node) = self.node_mut(id) {
+                if let Some(motion) = node.motion.as_mut() {
+                    back(&mut motion.started);
+                }
+                if let Some(started) = node
+                    .reveal
+                    .as_mut()
+                    .and_then(|reveal| reveal.started.as_mut())
+                {
+                    back(started);
+                }
+            }
+        }
     }
 
     /// Measures the open height of the sections of `root` that started to open, as the layout that

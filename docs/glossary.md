@@ -563,7 +563,7 @@ M6d.7 ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
 
 **Frames on demand.** A program's loop that runs a frame only when something asks for one, an event
 of the window, a request of the *development channel*, the interface while it moves or once its
-next change is due, the program or another thread through a waker, rather than at the scheduled
+next frame is due, the program or another thread through a waker, rather than at the scheduled
 rate: an idle editor runs none (`AppConfig::on_demand`,
 [ADR-0156](adr/0156-the-editors-window-and-its-operations.md)). A program with a window turns
 them on or off while it runs (`Context::set_on_demand`), as a game does while it is paused
@@ -695,6 +695,13 @@ answers from its live state, and *outputs* that it reads after each event and fr
 uwui one *waker*. Each time it wakes it runs a *step*: the events that came, then a frame or a wake
 ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md),
 [ADR-0249](adr/0249-the-hosts-api-its-items-and-their-table.md)).
+
+**Host's clock (interface).** The one clock in which a *host* gives uwui every time, of frames,
+of input and of what waits, in whole nanoseconds (`uwui::time::Instant`): one that counts the time
+the machine spends suspended, so that what waits ten minutes ends ten minutes later, sleep or not.
+`slime-app` reads `CLOCK_BOOTTIME` on Linux and the performance counter on Windows
+([ADR-0227](adr/0227-the-time-that-motion-reads.md),
+[ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)).
 
 **Hot reload.** Replacing, in a running game, the *cooked data* or the shaders that changed on
 disk, without restarting the game. `slime-cook watch` cooks again the sources that change, and a
@@ -1942,7 +1949,9 @@ which a rendering technique enters the engine ([ADR-0098](adr/0098-the-games-the
 
 **Wake (interface's host).** The host leaving its wait, for a task's timer or a task woken, without
 a frame: it runs the interface's tasks and the bindings that they change, and styles, lays out and draws nothing, so
-that a hidden window's timers end ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
+that a hidden window's timers end ([ADR-0227](adr/0227-the-time-that-motion-reads.md)). It
+comes with uwui's executor: until then, each wake of the host's waker asks for a frame
+([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)).
 
 **WARP.** Microsoft's software driver for Direct3D 12, part of Windows. wgpu uses it on Windows
 machines without a GPU, such as the CI runners.

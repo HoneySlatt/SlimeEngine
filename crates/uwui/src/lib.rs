@@ -14,6 +14,7 @@ pub mod shortcuts;
 pub mod style;
 pub mod text;
 pub mod theme;
+pub mod time;
 pub mod tree;
 #[cfg(test)]
 mod verdicts_tests;

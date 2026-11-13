@@ -11,9 +11,23 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `uwui-agent`, uwui's core for agents, under MIT OR Apache-2.0 (ADR-0246): a session without input
   or output, JSON-RPC 2.0 a message a line, a hello that names the agent, and families of requests
   each at its version.
+- uwui's times (ADR-0227, ADR-0251): `uwui::time` holds `Instant`, a time of the host's clock, and
+  `RootTime`, a time of a root's clock, in whole nanoseconds, which cannot be mixed. A host gives
+  each frame's time and source (`Ui::set_frame_shown`, told back by `FrameStats::shown`), each
+  event's (`Ui::set_event_time`), each root's clock and speed (`Ui::set_root_clock`), which a
+  paused game holds, with the layers that open over its roots, while hover, press and focus go
+  on, and its waker (`Ui::set_waker`).
+- The engine's windowed runs give their interface times of a clock that counts a suspend, Linux's
+  `CLOCK_BOOTTIME` and Windows' performance counter: after a suspend, the first frame that runs
+  ends what was due meanwhile, a tooltip's rest or a notification. The run logs the time that the
+  machine spent suspended once something wakes it; its own waits still end late by the sleep's
+  length.
 
 ### Changed
 
+- `Ui::advance` and `Ui::next_change` are gone: a host gives each frame its time on the host's
+  clock, `Ui::set_frame_shown(FrameShown)`, and asks for a frame at `Ui::next_frame_due()`, an
+  `Instant`. A bar of progress without a share keeps its place however long the machine has run.
 - The development channel carries the session of uwui's core for agents, `uwui-agent` (ADR-0246):
   its messages are JSON-RPC 2.0, a message a line, no longer the engine's binary encoding, and a
   tool or game of before cannot speak to one of after. `PROTOCOL_VERSION` gives way to the core's

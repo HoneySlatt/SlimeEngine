@@ -76,15 +76,23 @@ Its logo is not under the code's licenses: its author keeps its rights, and
 - A style's `transition` moves a change of it over time: every color that the style holds, as
   `uwui-macros`'s derive lists them, and its opacity, elements that move alike sharing the style
   that they show (`docs/adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md`);
-  and a section's height as it opens or folds, over the time that the program gives each frame
-  (`Ui::advance`), which less motion drops (`Ui::set_preferences`); a frame says whether one goes on
-  (`FrameStats::animating`), and a program that draws only when something changes reads whether the
-  interface moves (`Ui::animating`) or needs the next frame for the rows of a list
-  (`Ui::needs_frame`), and when it next changes on its own, a tooltip's rest or a
-  notification's end (`Ui::next_change`). A style's paint holds an opacity, which its descendants share; the
+  and a section's height as it opens or folds, which less motion drops (`Ui::set_preferences`); a
+  frame says whether one goes on (`FrameStats::animating`), and a program that draws only when
+  something changes reads whether the interface moves (`Ui::animating`) or needs the next frame for
+  the rows of a list (`Ui::needs_frame`), and when its next frame is due on its own, a tooltip's
+  rest or a notification's end (`Ui::next_frame_due`). A style's paint holds an opacity, which its descendants share; the
   display list places boxes, images and clips on whole pixels of the screen; a text's style names
   OpenType features (`TextStyle::features`); an element focused by the keyboard, an agent or the
   program is in the state `FocusVisible`, one that the pointer focused is not.
+- The host gives `Ui` its times (`time`, `docs/adr/0227-the-time-that-motion-reads.md`), in whole
+  nanoseconds: `Instant`, a time of the host's clock, which counts a suspend, and `RootTime`, a
+  time of a root's clock, which cannot be mixed. Before each frame, when it shows and where that
+  time comes from (`Ui::set_frame_shown`); before each input event, when it came
+  (`Ui::set_event_time`); each root's clock, its time and its speed, by default the host's at
+  speed 1 (`Ui::set_root_clock`). What follows which clock is `RootClock`'s: in short, what
+  answers a person follows the host's, the rest its root's, which a paused game holds, and a layer
+  follows the root that it opens over. The host gives the waker by which any thread asks it for a
+  step (`Ui::set_waker`, `Ui::waker`).
 - `Ui` takes a person's input, the pointer, the wheel, the modifiers and the keys in the types of
   `slime-input`, and turns it into `action::Action`s: a button pressed, an intent of navigation, the
   command of a shortcut. The program reads them from a queue (`Ui::take_actions`); an agent sends
@@ -153,7 +161,7 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   button and Shift+F10 ask for (`action::ActionKind::ContextMenu`); lists to choose from
   (`Element::choice`), which open their own list and give their choice as a value
   (`action::FieldValue::Chosen`, `Ui::chosen`); tooltips (`Element::tooltip`), shown once the
-  pointer rests on the interface's clock; floating panels (`Element::floating_panel`), which move
+  pointer rests on the host's clock; floating panels (`Element::floating_panel`), which move
   and size their layer (`Ui::layer_place`, `Ui::set_layer_place`), and tell the program where the
   pointer let them go (`action::ActionKind::Placed`). A style's `icons`
   (`style::Icons`) name the glyphs of a font that controls draw in place of their shapes.

@@ -11,6 +11,7 @@ use uwui::action::ActionKind;
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::text::Fonts;
 use uwui::theme::StyleSheet;
+use uwui::time::{FrameShown, Instant};
 use uwui::tree::{
     ElementId, LayoutDirection, Notification, NotificationKind, PaletteCommand, Role, RootSettings,
     Ui,
@@ -303,6 +304,7 @@ fn the_sheet_lists_the_shortcuts_by_scope_and_escape_closes_it() {
 
 #[test]
 fn notifications_stack_at_the_bottom_end_and_go_after_their_kinds_time() {
+    let mut at = Instant::ZERO;
     let (mut ui, _) = interface();
     let saved = ui.notify(Notification {
         kind: NotificationKind::Success,
@@ -317,10 +319,14 @@ fn notifications_stack_at_the_bottom_end_and_go_after_their_kinds_time() {
     let (_, stats) = ui.frame();
     assert!(stats.animating, "a notification waits for its time");
     // The success's five seconds, the error staying until it is closed; no frame needed meanwhile.
-    assert_eq!(ui.next_change(), Some(Duration::from_secs(5)));
+    assert_eq!(
+        ui.next_frame_due(),
+        Some(Instant::ZERO + Duration::from_secs(5))
+    );
     assert!(!ui.needs_frame());
-    ui.advance(Duration::from_secs(2));
-    assert_eq!(ui.next_change(), Some(Duration::from_secs(3)));
+    at += Duration::from_secs(2);
+    ui.set_frame_shown(FrameShown::simulated(at));
+    assert_eq!(ui.next_frame_due(), Some(at + Duration::from_secs(3)));
     let stack = ui
         .element_by_path("notifications/notifications")
         .expect("the stack");
@@ -336,7 +342,8 @@ fn notifications_stack_at_the_bottom_end_and_go_after_their_kinds_time() {
         (Role::Status, "Level saved")
     );
     // Five seconds on: the success goes, the error stays.
-    ui.advance(Duration::from_secs(6));
+    at += Duration::from_secs(6);
+    ui.set_frame_shown(FrameShown::simulated(at));
     ui.frame();
     assert_eq!(ui.notifications(), [failed]);
     assert!(!ui.close_notification(saved));
@@ -347,6 +354,7 @@ fn notifications_stack_at_the_bottom_end_and_go_after_their_kinds_time() {
 
 #[test]
 fn the_pointer_resting_keeps_a_notification_and_its_buttons_give_commands() {
+    let mut at = Instant::ZERO;
     let (mut ui, _) = interface();
     let cooking = ui.notify(Notification {
         kind: NotificationKind::Information,
@@ -361,9 +369,10 @@ fn the_pointer_resting_keeps_a_notification_and_its_buttons_give_commands() {
     let rect = ui.rect(card).expect("laid out");
     ui.pointer_moved(rect.x + 5.0, rect.y + 5.0);
     // The one under the pointer waits for nothing, which a frame would end.
-    assert_eq!(ui.next_change(), None);
+    assert_eq!(ui.next_frame_due(), None);
     for _ in 0..4 {
-        ui.advance(Duration::from_secs(2));
+        at += Duration::from_secs(2);
+        ui.set_frame_shown(FrameShown::simulated(at));
         ui.frame();
     }
     assert_eq!(
@@ -387,7 +396,8 @@ fn the_pointer_resting_keeps_a_notification_and_its_buttons_give_commands() {
         progress: Some(Some(0.3)),
         ..Notification::default()
     });
-    ui.advance(Duration::from_secs(30));
+    at += Duration::from_secs(30);
+    ui.set_frame_shown(FrameShown::simulated(at));
     ui.frame();
     assert_eq!(ui.notifications(), [bar]);
     for number in 0..5 {
@@ -403,6 +413,7 @@ fn the_pointer_resting_keeps_a_notification_and_its_buttons_give_commands() {
 
 #[test]
 fn a_notification_takes_the_focus_from_no_one_and_an_update_shows_at_once() {
+    let mut at = Instant::ZERO;
     let (mut ui, root) = interface();
     let mut field = None;
     ui.build(root, 0, |children| {
@@ -419,7 +430,8 @@ fn a_notification_takes_the_focus_from_no_one_and_an_update_shows_at_once() {
     });
     ui.frame();
     assert_eq!(ui.focus(), Some(field), "the field keeps the focus");
-    ui.advance(Duration::from_secs(30));
+    at += Duration::from_secs(30);
+    ui.set_frame_shown(FrameShown::simulated(at));
     ui.update_notification(
         cooking,
         Notification {

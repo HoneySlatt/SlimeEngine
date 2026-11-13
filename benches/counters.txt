@@ -119,7 +119,7 @@ ui.tree.look	allocations of the frame of the change	109456
 ui.tree.look	allocations of the frame of the change, own styles naming tokens	109804
 ui.tree.look	bytes allocated by a frame of the transition	22270483
 ui.tree.look	bytes allocated by the frame after the size of text changed	91045534
-ui.tree.look	bytes allocated by the frame of the change	24488489
+ui.tree.look	bytes allocated by the frame of the change	24688729
 ui.tree.look	elements drawn by a frame of the transition	12487
 ui.tree.look	elements styled by the first frame at twice the size of text	12487
 ui.tree.look	elements styled by the frame after the size of text changed	12487

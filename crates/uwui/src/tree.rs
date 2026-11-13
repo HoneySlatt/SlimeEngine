@@ -7,7 +7,7 @@ use std::fmt;
 use std::ops::Range;
 use std::panic::Location;
 use std::sync::Arc;
-use std::time::Duration;
+use std::task::Waker;
 
 use slime_color::LinearColor;
 
@@ -22,10 +22,12 @@ use crate::text::{Fonts, TEXT_CACHE_BUDGET, TextCache};
 use crate::theme::{
     self, Erased, KindName, Rule, StateName, StyleSheet, Theme, TokenError, TokenValues, Tokens,
 };
+use crate::time::{FrameShown, Instant, RootClock};
 
 #[cfg(test)]
 mod cascade_tests;
 mod choice;
+mod clock;
 mod color;
 mod control;
 pub(crate) mod expression;
@@ -374,7 +376,7 @@ pub enum Kind {
         title: String,
     },
     /// A bar of progress (`docs/adr/0151-rich-widgets.md`): a track, its part up to its share
-    /// filled; without a share, a part of it that moves across it with the interface's clock, while
+    /// filled; without a share, a part of it that moves across it with the host's clock, while
     /// what it shows does not know how far it went. It takes neither the pointer nor the focus.
     Progress {
         /// How far it went, from 0 to 1; none while it is not known.
@@ -1127,6 +1129,8 @@ pub struct FrameStats {
     /// or a submenu open, a bar of progress without a share moves, or a notification waits for its
     /// time to end: a program that draws only when something changes draws the next frame too.
     pub animating: bool,
+    /// The time that the host gave the frame, with its source ([`Ui::set_frame_shown`]).
+    pub shown: FrameShown,
 }
 
 /// An element in the arena.
@@ -1175,6 +1179,10 @@ pub(crate) struct Node {
     pub(crate) control: Option<control::Control>,
     /// Whether it was styled once: a new element shows its style at once, without a transition.
     pub(crate) styled: bool,
+    /// The states that answer a person, `Hovered`, `Pressed` and `FocusVisible`, that held when it
+    /// was last styled, by their bits, whether its style changed or not: a transition that they
+    /// start follows the host's clock.
+    pub(crate) person_states: u8,
     /// What the user's size of text multiplied its text by, which a list's rows grow by.
     pub(crate) text_ratio: f32,
     /// The transition of its colors and opacity under way, its style its interpolation.
@@ -1307,8 +1315,16 @@ pub struct Ui {
     /// The picker of colors that a color well opened, while one is open.
     picker: Option<color::Picker>,
     notices: notify::Notices,
-    /// The interface's clock: the time that its program gave it ([`Ui::advance`]).
-    now: Duration,
+    /// The host's clock: the latest time that the host gave, of a frame or of an event, which never
+    /// goes back ([`Ui::set_frame_shown`], [`Ui::set_event_time`]).
+    now: Instant,
+    /// The last frame's time, as the host gave it.
+    frame_shown: FrameShown,
+    /// The clocks that the host gave roots ([`Ui::set_root_clock`]); a root that it gave none
+    /// follows the host's.
+    clocks: Vec<(ElementId, RootClock)>,
+    /// The host's waker ([`Ui::set_waker`]).
+    waker: Waker,
     /// What the user chose over every look ([`Ui::set_preferences`]).
     preferences: Preferences,
     /// The elements whose transition is under way.
@@ -1357,7 +1373,10 @@ impl Ui {
             sheet: None,
             picker: None,
             notices: notify::Notices::default(),
-            now: Duration::ZERO,
+            now: Instant::ZERO,
+            frame_shown: FrameShown::default(),
+            clocks: Vec::new(),
+            waker: Waker::noop().clone(),
             preferences: Preferences::default(),
             moving: Vec::new(),
             shown: motion::ShownStyles::default(),
@@ -1497,6 +1516,7 @@ impl Ui {
             }
         }
         self.roots.retain(|&root| root != id);
+        self.forget_clock(id);
         self.free_subtree(id);
         self.forget(id);
     }
@@ -1866,6 +1886,7 @@ impl Ui {
         let mut stats = FrameStats {
             built: std::mem::take(&mut self.built),
             elements: self.len(),
+            shown: self.frame_shown,
             ..FrameStats::default()
         };
         // The builders asked that are gone, or that a build ran, are asked no more.
@@ -1936,40 +1957,29 @@ impl Ui {
         for root in &self.roots {
             stats.visited += paint::gather(self, *root, &mut list);
         }
-        stats.animating = self.animating() || self.next_change().is_some();
+        stats.animating = self.animating() || self.next_frame_due().is_some();
         (list, stats)
     }
 
     /// Whether the interface moves on its own and needs every frame though nothing else changes: a
-    /// transition goes on, or a bar of progress without a share moves. A program that draws only
-    /// when something changes asks for the next frame while it holds, and for one after
-    /// [`Ui::next_change`].
+    /// transition goes on, or a bar of progress without a share moves. A transition of a paused
+    /// root's clock holds where it is, and does not count. A program that draws only when something changes asks for the next
+    /// frame while it holds, and for one at [`Ui::next_frame_due`].
     pub fn animating(&self) -> bool {
-        !self.moving.is_empty() || !self.spinning.is_empty()
+        self.motions_go_on() || !self.spinning.is_empty()
     }
 
     /// Whether the interface needs the next frame, though nothing else changes: it moves
     /// ([`Ui::animating`]), or a builder must run again, a list showing rows that its builder has
     /// not built since it scrolled or was laid out, which the program's next [`Ui::build`] runs. A
     /// program that draws only when something changes asks for the next frame while it holds, and
-    /// for one after [`Ui::next_change`].
+    /// for one at [`Ui::next_frame_due`].
     pub fn needs_frame(&self) -> bool {
         self.animating()
             || self
                 .asked
                 .iter()
                 .any(|&id| self.node(id).is_some_and(|node| node.rebuild))
-    }
-
-    /// How long, on the interface's clock ([`Ui::advance`]), until it changes on its own, though
-    /// it does not move meanwhile: the pointer rests where a tooltip will show or a submenu open,
-    /// or a notification waits for its time to end. A program that draws only when something
-    /// changes asks for a frame then; none when nothing waits.
-    pub fn next_change(&self) -> Option<Duration> {
-        self.rest_remaining()
-            .into_iter()
-            .chain(self.notice_remaining())
-            .min()
     }
 
     pub(crate) fn node(&self, id: ElementId) -> Option<&Node> {
@@ -2165,6 +2175,11 @@ impl Ui {
             }
         }
         let node = self.node_mut(id).expect("styled above");
+        // The states that answer a person, kept at every styling, so that a later change of
+        // another state is not taken for theirs.
+        let person = person_states(&node.state);
+        let by_person = person != node.person_states;
+        node.person_states = person;
         let target = Arc::clone(node.target());
         if *target != *style {
             // The border's width cuts what scrolls inside, and a control's size lays out its
@@ -2177,7 +2192,7 @@ impl Ui {
             let first = !node.styled;
             node.styled = true;
             node.changed.paint = true;
-            self.show_style(id, style, first);
+            self.show_style(id, style, first, by_person);
             if layout {
                 self.mark_layout(id);
             }
@@ -2553,6 +2568,7 @@ impl Node {
             field,
             control,
             styled: false,
+            person_states: 0,
             text_ratio: 1.0,
             motion: None,
             reveal: None,
@@ -2921,6 +2937,20 @@ struct Made {
     style: Arc<Style>,
     /// What the user's size of text multiplied its text by.
     text_ratio: f32,
+}
+
+/// The states of `states` that answer a person, `Hovered`, `Pressed` and `FocusVisible`, by their
+/// bits: a transition that one of them starts follows the host's clock
+/// (`docs/adr/0227-the-time-that-motion-reads.md`).
+fn person_states(states: &ElementState) -> u8 {
+    [
+        StateName::Hovered,
+        StateName::Pressed,
+        StateName::FocusVisible,
+    ]
+    .into_iter()
+    .filter(|&state| holds(states, state))
+    .fold(0, |bits, state| bits | state_bit(state))
 }
 
 /// Whether `state` holds in `states`.

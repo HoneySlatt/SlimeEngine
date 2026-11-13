@@ -7,6 +7,7 @@ use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
 use uwui::style::{FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
+use uwui::time::{FrameShown, Instant};
 use uwui::tree::{
     Along, Element, ElementId, ItemMark, Layer, LayoutDirection, Place, RootSettings, Side, Ui,
 };
@@ -208,6 +209,7 @@ fn the_arrows_move_between_the_bars_menus_and_a_command_gives_the_focus_back() {
 
 #[test]
 fn the_pointer_opens_a_menu_closes_it_and_opens_anothers_as_it_comes_over_its_item() {
+    let mut at = Instant::ZERO;
     let mut window = Window::new();
     let [file, edit, _] = window.items;
     window.ui.set_focus(Some(window.button));
@@ -234,7 +236,8 @@ fn the_pointer_opens_a_menu_closes_it_and_opens_anothers_as_it_comes_over_its_it
     // Without a menu open, the pointer over an item opens nothing, even resting.
     let (x, y) = window.middle(file);
     window.ui.pointer_moved(x, y);
-    window.ui.advance(std::time::Duration::from_secs(1));
+    at += std::time::Duration::from_secs(1);
+    window.ui.set_frame_shown(FrameShown::simulated(at));
     window.ui.frame();
     assert!(window.actions().is_empty());
 }

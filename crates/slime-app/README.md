@@ -151,9 +151,10 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`); the run connects it to the window:
   each event goes to the interface first, and to `on_event` and the game's input only when the
   interface did not take it, but a key or a button let go, which always reaches the input; the
-  interface gets the system's clipboard, before each event and each frame the time since the
-  last, uncapped, by which its transitions go on (`docs/adr/0149-the-looks-foundations.md`,
-  `docs/adr/0227-the-time-that-motion-reads.md`), and after each frame the window
+  interface gets the system's clipboard, the run's waker, and the times of the host's clock,
+  which counts a suspend: each event's reception and each frame's start, uncapped
+  (`docs/adr/0227-the-time-that-motion-reads.md`,
+  `docs/adr/0251-the-engines-host-clock-and-its-times.md`); and after each frame the window
   shows the pointer's shape that it asks and allows the input method while one of its fields takes
   text (`docs/adr/0145-text-edited.md`), and, with the `accessibility` feature, screen readers get
   what changed in what it means; `gpu_lost` and `gpu_restored` when the run replaces a lost GPU
@@ -209,8 +210,8 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   - On demand, with a window or without: `AppConfig::on_demand` runs a frame only when something
     asks for one, the loop waiting meanwhile, as the editor's program does
     (`docs/adr/0156-the-editors-window-and-its-operations.md`): an event of the window, a request of
-    the development channel, the presentation's interface while it moves or once its next change is
-    due (`Ui::needs_frame`, `Ui::next_change`), the program through `Context::request_frame` or
+    the development channel, the presentation's interface while it moves or once its next frame is
+    due (`Ui::needs_frame`, `Ui::next_frame_due`), the program through `Context::request_frame` or
     `SimulationContext::request_frame`, or at
     a time that it gives through `Context::request_frame_at`, a view's new size that has held still
     ([ADR-0158](../../docs/adr/0158-the-viewport.md)), or another thread through a `Waker`
@@ -271,13 +272,13 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   submitted by the door, the device checked once after; `uwui-render`'s errors come back as
   `GfxError`s. A program drops it when the GPU device is lost, and makes it again with the new
   one.
-- `time`: `Time` holds a frame's real time, `FrameTime` (index, delta, elapsed time), and its game
+- `time`: `Time` holds a frame's real time, `FrameShown` (index, delta, elapsed time), and its game
   time, `GameTime`: the fixed steps run, the game time the frame added, and the fraction of a step
   accumulated but not run (`alpha`), at which the world draws what moved during the last step
   between its last two transforms (`World::interpolated_transform`). Game time advances at a
   speed, 1 by default, not at all while paused, and its fixed steps keep their duration at every
   speed, so that a simulation gives the same results at every speed. `FrameClock` turns the time
-  between frames into a `FrameTime` and limits how much time one frame can represent; `FixedStep`
+  between frames into a `FrameShown` and limits how much time one frame can represent; `FixedStep`
   splits time into steps of a fixed duration. Both take durations rather than reading a clock
   (`docs/adr/0009-frame-timing.md`).
 - `init_diagnostics()`: installs the log subscriber (output on standard error, filtered by the
@@ -356,6 +357,10 @@ the name the graphics API gives it.
 
 - `ctrlc`: handles termination signals.
 - `nu-ansi-term`, on Windows only: turns on the colors of the log in the console.
+- `rustix`, on Linux only, and `windows-sys`, on Windows only: the host's clock, which counts a
+  suspend, and the clock beside it that stops during one, by which the run measures the time
+  spent suspended (`CLOCK_BOOTTIME` and `CLOCK_MONOTONIC`; the performance counter and the
+  unbiased interrupt time, three calls in `unsafe`, ADR-0251).
 - `slime-gfx`: the GPU and the window's surface, for windowed runs; with its `wgpu` feature, the
   guarded door through which `InterfaceRenderer` lends uwui's renderer the device (ADR-0244).
 - `slime-platform`: the window and its events, for windowed runs, and the input as data.

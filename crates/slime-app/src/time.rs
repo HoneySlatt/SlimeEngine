@@ -27,8 +27,8 @@ use std::time::Duration;
 /// frames, which the camera and the dev overlay run on, and *game time*, the simulation's,
 /// which pauses, slows down and steps. Each phase of a frame is given both, and reads the one it
 /// lives on. Before the first frame, both are zero. uwui's interface reads neither: the windowed
-/// loop gives it the time since its last call, uncapped
-/// (`docs/adr/0227-the-time-that-motion-reads.md`).
+/// loop gives it the times of the host's clock, uncapped, each frame's start and each event's
+/// reception (`docs/adr/0227-the-time-that-motion-reads.md`).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Time {
     pub(crate) real: FrameTime,
@@ -360,6 +360,166 @@ impl GameClock {
     }
 }
 
+/// The engine's host clock, from which the windowed loop gives uwui every time: each frame's start
+/// and each event's reception (`docs/adr/0227-the-time-that-motion-reads.md`,
+/// `docs/adr/0251-the-engines-host-clock-and-its-times.md`). It counts the time that the machine
+/// spends suspended, so that a tooltip, a notification or a timer due in ten minutes is due ten
+/// minutes later, sleep or not: `CLOCK_BOOTTIME` on Linux, the performance counter on Windows. On
+/// other systems, which the engine does not support yet, it is [`std::time::Instant`], which stops
+/// during a suspend on macOS.
+///
+/// It also measures the time that the machine spent suspended between two readings, from a second
+/// clock that stops during a suspend: `CLOCK_MONOTONIC` on Linux, the unbiased interrupt time on
+/// Windows.
+#[derive(Debug)]
+pub(crate) struct HostClock {
+    /// Both clocks at the last measure of the time suspended, in nanoseconds.
+    last: Readings,
+}
+
+/// The two clocks read together, in nanoseconds from their own zeros.
+#[derive(Clone, Copy, Debug)]
+struct Readings {
+    /// The host's clock, which counts a suspend.
+    host: u64,
+    /// The clock that stops during a suspend.
+    running: u64,
+}
+
+impl Readings {
+    fn now() -> Self {
+        Self {
+            host: platform::host_nanos(),
+            running: platform::running_nanos(),
+        }
+    }
+}
+
+impl HostClock {
+    pub(crate) fn new() -> Self {
+        Self {
+            last: Readings::now(),
+        }
+    }
+
+    /// The host's clock now.
+    pub(crate) fn now(&self) -> uwui::time::Instant {
+        uwui::time::Instant::from_nanos(platform::host_nanos())
+    }
+
+    /// The time that the machine spent suspended since the last call, or since the clock was made:
+    /// how much more the host's clock went than the one that stops. Read each time the loop leaves
+    /// a wait. The two clocks are read one after the other, so that it may be off by the
+    /// nanoseconds between the two readings.
+    pub(crate) fn take_suspended(&mut self) -> Duration {
+        let now = Readings::now();
+        let host = now.host.saturating_sub(self.last.host);
+        let running = now.running.saturating_sub(self.last.running);
+        self.last = now;
+        Duration::from_nanos(host.saturating_sub(running))
+    }
+}
+
+/// Whole nanoseconds from a count of `ticks` at `frequency` ticks a second, without overflow.
+#[cfg(any(windows, test))]
+fn ticks_to_nanos(ticks: u64, frequency: u64) -> u64 {
+    let nanos = u128::from(ticks) * 1_000_000_000 / u128::from(frequency.max(1));
+    u64::try_from(nanos).unwrap_or(u64::MAX)
+}
+
+#[cfg(target_os = "linux")]
+mod platform {
+    use rustix::time::{ClockId, Timespec, clock_gettime};
+
+    fn nanos(time: Timespec) -> u64 {
+        // Both clocks count from the machine's start: never below zero.
+        let seconds = u64::try_from(time.tv_sec).unwrap_or(0);
+        let nanos = u64::try_from(time.tv_nsec).unwrap_or(0);
+        seconds.saturating_mul(1_000_000_000).saturating_add(nanos)
+    }
+
+    /// `CLOCK_BOOTTIME`, which counts a suspend, served by the vDSO without a system call since
+    /// Linux 5.3.
+    pub(super) fn host_nanos() -> u64 {
+        nanos(clock_gettime(ClockId::Boottime))
+    }
+
+    /// `CLOCK_MONOTONIC`, which stops during a suspend.
+    pub(super) fn running_nanos() -> u64 {
+        nanos(clock_gettime(ClockId::Monotonic))
+    }
+}
+
+#[cfg(windows)]
+mod platform {
+    use std::sync::OnceLock;
+
+    use windows_sys::Win32::System::Performance::{
+        QueryPerformanceCounter, QueryPerformanceFrequency,
+    };
+    use windows_sys::Win32::System::WindowsProgramming::QueryUnbiasedInterruptTimePrecise;
+
+    /// The performance counter's ticks a second, fixed at the system's start.
+    fn frequency() -> u64 {
+        static FREQUENCY: OnceLock<u64> = OnceLock::new();
+        *FREQUENCY.get_or_init(|| {
+            let mut frequency = 0_i64;
+            #[expect(unsafe_code, reason = "a call to Windows' API")]
+            // SAFETY: the pointer is to a live, aligned `i64` that the call writes; the call never
+            // fails on Windows XP and later.
+            unsafe {
+                QueryPerformanceFrequency(&raw mut frequency);
+            }
+            u64::try_from(frequency).unwrap_or(1)
+        })
+    }
+
+    /// The performance counter, which counts sleep and hibernation.
+    pub(super) fn host_nanos() -> u64 {
+        let mut ticks = 0_i64;
+        #[expect(unsafe_code, reason = "a call to Windows' API")]
+        // SAFETY: the pointer is to a live, aligned `i64` that the call writes; the call never
+        // fails on Windows XP and later.
+        unsafe {
+            QueryPerformanceCounter(&raw mut ticks);
+        }
+        super::ticks_to_nanos(u64::try_from(ticks).unwrap_or(0), frequency())
+    }
+
+    /// The unbiased interrupt time, in units of 100 ns, which stops during sleep and hibernation.
+    pub(super) fn running_nanos() -> u64 {
+        let mut hundreds = 0_u64;
+        #[expect(unsafe_code, reason = "a call to Windows' API")]
+        // SAFETY: the pointer is to a live, aligned `u64` that the call writes; the call exists
+        // from Windows 10, which Direct3D 12, the engine's renderer there, needs too.
+        unsafe {
+            QueryUnbiasedInterruptTimePrecise(&raw mut hundreds);
+        }
+        hundreds.saturating_mul(100)
+    }
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
+mod platform {
+    use std::sync::OnceLock;
+    use std::time::Instant;
+
+    /// The nanoseconds since the first reading.
+    fn since_start() -> u64 {
+        static START: OnceLock<Instant> = OnceLock::new();
+        let elapsed = START.get_or_init(Instant::now).elapsed();
+        u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX)
+    }
+
+    pub(super) fn host_nanos() -> u64 {
+        since_start()
+    }
+
+    pub(super) fn running_nanos() -> u64 {
+        since_start()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -582,5 +742,29 @@ mod tests {
     #[should_panic(expected = "speed of game time")]
     fn a_speed_of_zero_is_refused() {
         clock().set_speed(0.0);
+    }
+
+    #[test]
+    fn the_host_clock_moves_on_and_counts_no_suspend_while_awake() {
+        let mut clock = HostClock::new();
+        let first = clock.now();
+        std::thread::sleep(Duration::from_millis(20));
+        let second = clock.now();
+        assert!(
+            second - first >= Duration::from_millis(20),
+            "{first:?} {second:?}"
+        );
+        // Awake, the two clocks go alike: what parts them is the time between two readings.
+        assert!(clock.take_suspended() < Duration::from_millis(1));
+    }
+
+    #[test]
+    fn ticks_convert_to_nanoseconds_without_overflow() {
+        assert_eq!(ticks_to_nanos(10_000_000, 10_000_000), 1_000_000_000);
+        assert_eq!(ticks_to_nanos(3, 3_000_000_000), 1);
+        // A counter of 10 MHz after 50 years.
+        let ticks = 10_000_000 * 3600 * 24 * 365 * 50;
+        assert_eq!(ticks_to_nanos(ticks, 10_000_000), ticks * 100);
+        assert_eq!(ticks_to_nanos(u64::MAX, 1), u64::MAX);
     }
 }

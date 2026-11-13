@@ -7,6 +7,7 @@ use std::time::Duration;
 use super::{Element, ElementId, Layer, Place, Role, Ui};
 use crate::action::{Action, ActionKind};
 use crate::style::{Align, FlexDirection};
+use crate::time::Instant;
 
 /// How far the stack of notifications stands from the window's bottom and end, in logical pixels.
 const MARGIN: f32 = 16.0;
@@ -76,8 +77,8 @@ pub(super) struct Notices {
     /// The layer that stacks them, while one shows.
     root: Option<ElementId>,
     /// The notifications, the oldest first: each its number, what it tells, and when its time
-    /// started on the interface's clock.
-    shown: Vec<(NotificationId, Notification, Duration)>,
+    /// started on the host's clock.
+    shown: Vec<(NotificationId, Notification, Instant)>,
     /// The number that the next notification takes.
     next: u64,
     /// Whether the stack is to be built again, and the revision of its build.
@@ -91,7 +92,7 @@ pub(super) struct Notices {
 impl Ui {
     /// Shows `notification` at the window's bottom end, over the notifications that show, and gives
     /// its number, which [`Ui::update_notification`] and [`Ui::close_notification`] take. It goes
-    /// after the time that its kind sets on the interface's clock ([`Ui::advance`]), counted again
+    /// after the time that its kind sets on the host's clock ([`Ui::set_frame_shown`]), counted again
     /// while the pointer rests on it; one with a bar of progress, or an error, stays until it is
     /// closed. Each has a mark that closes it, and its buttons give their commands. Of more than 5,
     /// the oldest goes. Screen readers read it as it comes, a warning or an error at once.
@@ -133,7 +134,7 @@ impl Ui {
         self.notices.shown.iter().map(|(id, ..)| *id).collect()
     }
 
-    /// How long until the first notification whose time runs ends, on the interface's clock; none
+    /// How long until the first notification whose time runs ends, on the host's clock; none
     /// when none waits for its end. The one under the pointer counts its time again at each frame,
     /// so that it ends only once the pointer leaves it, which a frame follows.
     pub(crate) fn notice_remaining(&self) -> Option<Duration> {
@@ -143,7 +144,7 @@ impl Ui {
             .iter()
             .filter(|(id, notification, _)| notification.progress.is_none() && Some(*id) != rested)
             .filter_map(|(_, notification, since)| {
-                let shown = self.now.saturating_sub(*since);
+                let shown = self.now - *since;
                 Some(notification.kind.time()?.saturating_sub(shown))
             })
             .min()
@@ -164,7 +165,7 @@ impl Ui {
             }
             let lasting = notification.progress.is_some();
             match notification.kind.time() {
-                Some(time) if !lasting => now.saturating_sub(*since) < time,
+                Some(time) if !lasting => now - *since < time,
                 _ => true,
             }
         });

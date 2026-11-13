@@ -1,5 +1,5 @@
 //! Tooltips, and what the pointer resting does (`docs/adr/0150-layers.md`): an element's tooltip
-//! shows below it once the pointer has rested on it for half a second of the interface's clock, or
+//! shows below it once the pointer has rested on it for half a second of the host's clock, or
 //! once the keys gave it the focus, in a layer that the pointer passes through, and goes as the
 //! pointer leaves it, presses, or a key goes down; an item of a menu that the pointer rests on opens
 //! its submenu, or closes those of the other items.
@@ -9,6 +9,7 @@ use std::time::Duration;
 use super::{Along, Element, ElementId, ItemMark, Kind, Layer, Place, Role, Side, Ui};
 use crate::action::{Action, ActionKind};
 use crate::style::FlexDirection;
+use crate::time::Instant;
 
 /// How long the pointer rests on an element before its tooltip shows.
 const TOOLTIP_REST: Duration = Duration::from_millis(500);
@@ -16,11 +17,11 @@ const TOOLTIP_REST: Duration = Duration::from_millis(500);
 /// How long the pointer rests on an item of a menu before its submenu opens, or the others' close.
 const SUBMENU_REST: Duration = Duration::from_millis(250);
 
-/// Where the pointer rests: the deepest element under it, and since when, on the interface's clock.
+/// Where the pointer rests: the deepest element under it, and since when, on the host's clock.
 #[derive(Default)]
 pub(super) struct Rest {
     on: Option<ElementId>,
-    since: Duration,
+    since: Instant,
     /// Whether resting there showed its tooltip, or the input left it shown no more.
     tip_done: bool,
     /// Whether resting there opened a submenu, or closed the others'.
@@ -68,11 +69,11 @@ impl Ui {
     }
 
     /// How long the pointer must rest still before a tooltip shows or a submenu opens where it
-    /// rests, on the interface's clock; none when it rests where neither will.
+    /// rests, on the host's clock; none when it rests where neither will.
     pub(crate) fn rest_remaining(&self) -> Option<Duration> {
         let rest = &self.interaction.rest;
         let on = rest.on?;
-        let rested = self.now.saturating_sub(rest.since);
+        let rested = self.now - rest.since;
         let menu = (!rest.menu_done && self.is_menu_item(on)).then_some(SUBMENU_REST);
         let tip = (!rest.tip_done && self.tooltip_of(on).is_some()).then_some(TOOLTIP_REST);
         menu.into_iter()
@@ -81,14 +82,14 @@ impl Ui {
             .map(|rest| rest.saturating_sub(rested))
     }
 
-    /// What the pointer resting does once it has rested long enough on the interface's clock: an
+    /// What the pointer resting does once it has rested long enough on the host's clock: an
     /// item of a menu opens its submenu, or closes the others' in its menu; the tooltip of the
     /// element, or of its nearest ancestor that has one, shows. Run before a frame lays out.
     pub(crate) fn settle_rest(&mut self) {
         let Some(on) = self.interaction.rest.on else {
             return;
         };
-        let rested = self.now.saturating_sub(self.interaction.rest.since);
+        let rested = self.now - self.interaction.rest.since;
         if !self.interaction.rest.menu_done && rested >= SUBMENU_REST {
             self.interaction.rest.menu_done = true;
             self.rest_on_item(on);

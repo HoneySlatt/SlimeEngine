@@ -68,8 +68,8 @@ pub struct AppConfig {
     /// editor does (`docs/adr/0156-the-editors-window-and-its-operations.md`): an event of the
     /// window, a request of the development channel or its work that waits for a frame, the
     /// presentation's interface while it needs the next frame
-    /// ([`Ui::needs_frame`](uwui::tree::Ui::needs_frame)) and once its next change is due
-    /// ([`Ui::next_change`](uwui::tree::Ui::next_change)),
+    /// ([`Ui::needs_frame`](uwui::tree::Ui::needs_frame)) and once its next frame is due
+    /// ([`Ui::next_frame_due`](uwui::tree::Ui::next_frame_due)),
     /// the program through [`Context::request_frame`] or, from another thread, a
     /// [`Waker`](crate::Waker); a termination signal and the end of the tool that started the
     /// program wake it too, to stop. The frames asked one after another are scheduled at

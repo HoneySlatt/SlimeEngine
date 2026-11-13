@@ -1,7 +1,8 @@
 # 0249. The host's API: its items in three channels, and how each maps on five platforms
 
 - Status: Accepted; amends [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) (an
-  answer's three states; questions change uwui's caches)
+  answer's three states; questions change uwui's caches); amended by
+  [0251](0251-the-engines-host-clock-and-its-times.md) (the wake built with uwui's executor)
 - Date: 2026-11-13
 
 ## Context

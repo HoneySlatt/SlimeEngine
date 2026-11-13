@@ -6,11 +6,13 @@ use std::time::{Duration, Instant};
 
 use slime_gfx::{Gpu, PresentMode, Surface};
 use slime_platform::{Event, EventHandler, LoopControl, Window, WindowConfig};
+use uwui::time::{EventTime, FrameShown, FrameSource};
 
 use crate::app::{AppConfig, Frames};
 use crate::error::RunError;
 use crate::game::{Presentation, Simulation};
 use crate::host::{ExitReason, Host};
+use crate::time::HostClock;
 
 /// How many devices the run opens to replace lost ones within `RESTORE_WINDOW`: at the next loss
 /// within it, it gives up, since a device lost again at once, or soon after each new one, will not
@@ -23,6 +25,9 @@ const RESTORE_WINDOW: Duration = Duration::from_secs(5 * 60);
 /// window shown keeps its frames in step with it, and short enough that a request to a hidden
 /// game, an agent's, is answered at once.
 const SIGNAL_WAIT: Duration = Duration::from_millis(100);
+/// The shortest time suspended that the log tells: what parts the two clocks while the machine is
+/// awake is far below it.
+const SUSPEND_TOLD: Duration = Duration::from_secs(1);
 
 pub(crate) fn run_windowed(
     simulation: &mut impl Simulation,
@@ -37,6 +42,7 @@ pub(crate) fn run_windowed(
     let now = Instant::now();
     let host = Host::new(config);
     let frames = Frames::new(config, &host.context);
+    let ui_waker = host.context.waker().task_waker();
     let mut driver = WindowedDriver {
         simulation,
         presentation,
@@ -49,7 +55,8 @@ pub(crate) fn run_windowed(
         clipboard: OnceCell::new(),
         frame_period: Duration::from_secs(1) / config.max_frame_rate,
         last_frame: now,
-        ui_clock: now,
+        clock: HostClock::new(),
+        ui_waker,
         next_frame: now,
         redraw_asked: None,
         asked_from_outside: false,
@@ -86,8 +93,12 @@ struct WindowedDriver<'a, S, P> {
     /// The interval at which frames are scheduled, from `AppConfig::max_frame_rate`.
     frame_period: Duration,
     last_frame: Instant,
-    /// The instant up to which the presentation's interface's clock was moved on (`Ui::advance`).
-    ui_clock: Instant,
+    /// The host's clock, which gives the presentation's interface its times: each frame's start and
+    /// each event's reception (`docs/adr/0227-the-time-that-motion-reads.md`). The loop's own
+    /// pacing waits on `std::time::Instant`, as the platform's event loop does.
+    clock: HostClock,
+    /// The run's waker as the presentation's interface takes it (`Ui::set_waker`).
+    ui_waker: std::task::Waker,
     /// When the next frame is due.
     next_frame: Instant,
     /// When the loop asked the window for a redraw that has not come: on Wayland, one that waits
@@ -110,7 +121,7 @@ struct WindowedDriver<'a, S, P> {
     /// Whether something asked for a frame that has not run yet, when frames run on demand.
     wanted: bool,
     /// When the presentation's interface changes on its own, which a frame then shows, when frames
-    /// run on demand: a tooltip that shows, a notification that ends (`Ui::next_change`); or when
+    /// run on demand: a tooltip that shows, a notification that ends (`Ui::next_frame_due`); or when
     /// the presentation asked for a frame (`Context::request_frame_at`), the earlier.
     change_due: Option<Instant>,
     /// Whether both `start` methods succeeded, which makes both `stop` methods due at the end.
@@ -174,10 +185,17 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
             return;
         }
         let now = Instant::now();
-        // The interface's transitions go on by the frame's real time.
+        // The interface shows the frame at its start: the engine reads no time of presentation
+        // yet (M6d.7).
+        let shown = self.clock.now();
         if let Some(ui) = self.presentation.ui() {
-            ui.advance(now - self.ui_clock);
-            self.ui_clock = now;
+            ui.set_frame_shown(FrameShown {
+                at: shown,
+                source: FrameSource::Started,
+            });
+            if !ui.waker().will_wake(&self.ui_waker) {
+                ui.set_waker(self.ui_waker.clone());
+            }
         }
         let presented = self.frames.run_one(
             &mut self.host,
@@ -192,10 +210,11 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         self.last_frame = now;
         self.next_frame = next_due(self.next_frame, now, self.frame_period);
         let ui = self.presentation.ui();
+        // On the loop's clock, which the platform waits on, from the host's.
         let interface_due = ui
             .as_ref()
-            .and_then(|ui| ui.next_change())
-            .map(|after| now + after);
+            .and_then(|ui| ui.next_frame_due())
+            .map(|due| now + due.saturating_duration_since(shown));
         // The earlier of the interface's change and the time that the presentation asked for.
         self.change_due = match (interface_due, self.host.context.take_frame_due()) {
             (Some(interface), Some(asked)) => Some(interface.min(asked)),
@@ -383,13 +402,11 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
             return;
         }
         // The interface first; what it takes, neither the presentation nor the game sees.
-        // The interface's clock first, so that what the event starts, a pointer's rest, a
-        // transition, starts now, not when the last frame ran, which waiting may have left long
-        // ago.
+        // The event's time first, stamped as it came since winit gives none, so that what it
+        // starts, a pointer's rest, starts then, not when the last frame ran, which waiting may
+        // have left long ago.
         if let Some(ui) = self.presentation.ui() {
-            let now = Instant::now();
-            ui.advance(now - self.ui_clock);
-            self.ui_clock = now;
+            ui.set_event_time(EventTime::received(self.clock.now()));
         }
         let taken_by_interface = match self.presentation.ui() {
             Some(ui) => {
@@ -426,6 +443,14 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
     }
 
     fn about_to_wait(&mut self) -> LoopControl {
+        // The loop left a wait: whether the machine slept meanwhile. The host's clock counted it,
+        // so that what the interface waits for is due on time; the loop's waits end late by the
+        // sleep's length, on a clock that stops during a suspend on Linux and as relative waits
+        // that do not count one on Windows (M6d.7).
+        let suspended = self.clock.take_suspended();
+        if suspended >= SUSPEND_TOLD {
+            tracing::info!(?suspended, "the system was suspended");
+        }
         self.end_rest();
         if self.started {
             self.restore();

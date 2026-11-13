@@ -44,6 +44,7 @@ use uwui::look::{Colors, Density};
 use uwui::preferences::{Preferences, TextSize};
 use uwui::style::Display;
 use uwui::text::TextBounds;
+use uwui::time::{FrameShown, Instant};
 use uwui::tree::{ElementId, Kind, LayoutDirection};
 
 use widgets_panel::WidgetsPanel;
@@ -172,6 +173,7 @@ fn the_bars_menu_and_its_submenu_match_their_reference_image() {
 
 #[test]
 fn a_floating_panel_a_list_open_and_a_tooltip_match_their_reference_image() {
+    let mut at = Instant::ZERO;
     let mut panel = panel(LayoutDirection::LeftToRight);
     panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
     press(&mut panel, "main/window/menus/View");
@@ -189,7 +191,8 @@ fn a_floating_panel_a_list_open_and_a_tooltip_match_their_reference_image() {
     panel
         .ui
         .pointer_moved(tab.x + tab.width / 2.0, tab.y + tab.height / 2.0);
-    panel.ui.advance(std::time::Duration::from_millis(600));
+    at += std::time::Duration::from_millis(600);
+    panel.ui.set_frame_shown(FrameShown::simulated(at));
     check(&mut panel, "widgets-layers");
 }
 

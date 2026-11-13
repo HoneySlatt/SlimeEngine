@@ -12,6 +12,8 @@
   [0211](0211-the-executor-and-other-threads-through-channels.md) (tasks' timers on their clock's
   present time, and tasks woken outside a frame, run at a wake that draws nothing); amended by
   [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) (what M6d.5's API carries is built where it is read)
+  and [0251](0251-the-engines-host-clock-and-its-times.md) (the next wake and a wake that draws
+  nothing come with uwui's executor)
 - Date: 2026-11-10
 
 ## Context

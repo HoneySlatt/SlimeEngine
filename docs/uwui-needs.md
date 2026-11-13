@@ -65,7 +65,7 @@ The editor and games change their interfaces in two ways that applications rarel
 | uwui embedded in a host that owns the loop, the engine's `slime-app`, which calls it at each frame it runs | The editor and every game | Indispensable: Stage 6c | Yes: embedded in a host |
 | Drawing into a target that the host gives, composited over or under the host's image, in the host's pass, at the host's rate: every frame in a game, on demand in the editor | The HUD over the 3D image; the editor's panels around its viewports | Indispensable: Stage 7 | Precision: the canvas on wgpu records into the host's encoder, which the host submits (M6d.4b1b); drawing at every frame into a pass of the host's is to say |
 | A root that is not a window: its size, scale and safe area given by the host, several roots in one frame | A game's interface at its resolution, scaled for a television across the room; interfaces placed in the world | Indispensable: Stage 7 | Yes: roots that are not a window ([ADR-0132](adr/0132-the-engines-ui-framework.md)) |
-| A clock given by the host, for each root: motion and timers that follow the game's time, paused and slowed, or real time | Menus that run while the game is paused; a HUD that slows with it | Indispensable: Stage 7 | Yes: each root given its time and speed at each frame, the game's interpolated between its steps; the application's motion and timers follow it, hover, press, focus and uwui's own timings stay on the host's clock; what runs during a pause, a root of its own ([ADR-0227](adr/0227-the-time-that-motion-reads.md)) |
+| A clock given by the host, for each root: motion and timers that follow the game's time, paused and slowed, or real time | Menus that run while the game is paused; a HUD that slows with it | Indispensable: Stage 7 | Yes: each root given its time and speed at each frame, the game's interpolated between its steps; the application's motion and timers follow it, hover, press, focus and uwui's own timings stay on the host's clock; what runs during a pause, a root of its own ([ADR-0227](adr/0227-the-time-that-motion-reads.md)); met in uwui's core at M6d.5b (`Ui::set_root_clock`), its tasks' timers with its executor ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)) |
 | What lies behind an element read from the host's image, for its backdrop: blur, tint, glass | A menu over the blurred game; the editor's floating panels | Wished: Stage 7 | Precision: backdrops over what uwui drew; over the host's image is to say |
 | An element whose drawing the application gives, its shader or a scene of the engine's, with the pointer's raw actions held during a drag | The editor's viewports and their handles; a character turning in an inventory | Indispensable: Stage 6c | Yes: a view drawn by the application's shader; a scene of SlimeEngine in an element |
 
@@ -130,7 +130,14 @@ These stay in the engine. They ask uwui only for the general needs above.
 
 - **The layer of games' interfaces** ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)):
   drawing into the render graph with a game's materials and passes; effects on an element that a
-  game's shader makes; 3D within an interface; the game's clock fed to uwui's roots.
+  game's shader makes; 3D within an interface; the game's clock fed to uwui's roots
+  (`Ui::set_root_clock`): the game time that the frame shows, interpolated between its last two
+  steps as [ADR-0227](adr/0227-the-time-that-motion-reads.md#what-a-roots-clock-drives) gives
+  it, and its speed, 0 while paused; the layers that open over a root follow its clock.
+  What runs while the game is paused, a pause menu or a dialog over the paused game, is a root
+  of its own, on the host's clock, sharing its game's window: in the game's root, a switch's
+  travel, a panel's entrance or a task's timeout stop with the game
+  ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
 - **Interfaces in the world**: on surfaces, facing the camera or not, lit or not, and one day in
   virtual reality; names over hundreds of players and damage that rises, drawn by instances.
 - **Input actions** of Stage 7, mapped onto uwui's focus and actions; the glyphs of each controller
