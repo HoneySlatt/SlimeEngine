@@ -318,3 +318,4 @@ the ADR linking to it.
 | [0247](0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md) | The canvas tested on OpenGL ES through a feature of `uwui-render` alone | Accepted; amends 0016 and 0243 |
 | [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) | The host's API cut in five: built where it is read, three channels and a waker, AccessKit's translation in a crate of its own | Accepted; amends 0181, 0226, 0227 and 0246; amended by 0249 |
 | [0249](0249-the-hosts-api-its-items-and-their-table.md) | The host's API: its items in three channels, and how each maps on five platforms | Accepted; amends 0248 |
+| [0250](0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md) | Requests in flight answered in any order, cancelled with an answer, bounded in the core; events by subscription; M6d.9a1b cut in three | Accepted |

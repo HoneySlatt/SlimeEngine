@@ -21,23 +21,18 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [`stage-6d.md`](stage-6d.md).
 - Done: M6d.0a to M6d.2b2b3, closing M6d.1, how an application is written, and M6d.2, typed
   styles ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
-- Done: M6d.3, documents in KDL, cut in three at its start, on 2026-11-11, closed on 2026-11-12:
-  every document of uwui is KDL, read by a reader of its own
+- Done: M6d.3, every document of uwui in KDL, closed on 2026-11-12
   ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)):
-  [M6d.3a](stage-6d.md#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL; M6d.3b cut in two,
-  [M6d.3b1](stage-6d.md#m6d3b1--themes-in-kdl), themes, and
-  [M6d.3b2](stage-6d.md#m6d3b2--style-sheets-in-kdl), style sheets. M6d.3c cut in
-  three on 2026-11-12, [M6d.3c1](stage-6d.md#m6d3c1--shortcuts-in-kdl), shortcuts,
-  [M6d.3c2](stage-6d.md#m6d3c2--docks-layouts-in-kdl), docks' layouts, and
-  [M6d.3c3](stage-6d.md#m6d3c3--reflection-out-of-uwui), reflection out.
+  [M6d.3a to M6d.3c3](stage-6d.md#m6d3a--uwuis-reader-of-kdl).
 - In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
   session.
   - Track A, uwui's core, in the main checkout: M6d.3a to M6d.3c3, done; then M6d.9a, cut in
     five on 2026-11-12
     ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
     done, [M6d.9a1a](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning), the new wire;
-    next, [M6d.9a1b](stage-6d.md#m6d9a1b--requests-in-flight-and-events), once M6d.5a fixes
-    its seams.
+    then [M6d.9a1b](stage-6d.md#m6d9a1b--requests-in-flight-and-events), cut in three on
+    2026-11-13 ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)):
+    in progress, [M6d.9a1b1](#m6d9a1b1--requests-in-flight).
   - Track B, in a worktree: [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors),
     done; then [M6d.4](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on
     wgpu, closed on 2026-11-12: [M6d.4a](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr),
@@ -47,8 +42,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
     the host's API, cut in five on 2026-11-12
     ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): in progress,
     [M6d.5a](#m6d5a--the-apis-adr-and-its-table).
-  - M6d.5's parts run beside track A in ADR-0248's order; M6d.5a's ADR fixes three seams before
-    M6d.9a1b starts: one waker, meaning followed by each reader, an element's capture.
+  - M6d.5's parts run beside track A in ADR-0248's order; ADR-0249 fixed the three seams on
+    2026-11-13: one waker, meaning followed by each reader, an element's capture; M6d.9a1b3
+    follows M6d.5c.
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: the deletion of the branches `m6d1b-bench`, `m6d4a-prototype` and
@@ -73,7 +69,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a — The new wire, under today's meaning](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
-| [M6d.9a1b to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a1b--requests-in-flight-and-events) | Planned |
+| [M6d.9a1b1 — Requests in flight](#m6d9a1b1--requests-in-flight) | In progress |
+| [M6d.9a1b2 to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a1b2--events) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
@@ -100,6 +97,31 @@ Started on 2026-11-12, the first fifth of M6d.5
 - **Done when.** The owner accepts the ADR; its table has no empty cell; the prototype's cases pass
   on its branch; CI is green.
 - **Measured.** The prototype's questions, on one machine.
+
+## M6d.9a1b1 — Requests in flight
+
+Started on 2026-11-13, the first third of M6d.9a1b
+([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)),
+under [the stage's rules](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Several requests of a connection at once, bounded and cancellable.
+- **Crates.** `uwui-agent`, `slime-channel`, `slime-mcp`; `slime-app` and `slime-editor`, with
+  the owner's go.
+- **Delivers.**
+  - `uwui-agent`: requests in flight, each answered once, in any order; `cancel`; the bounds,
+    stated at the hello and the welcome; `BUSY`; core 2.
+  - `slime-channel`: a reader and a writer for each connection, 8 welcomed, the outbox bounded
+    in bytes; a client whose own thread reads, a timeout for each request.
+  - `slime-app`: one request of each connection in turn, within a budget of time; a cancelled
+    edit or capture answered, never applied; a closed connection's requests cancelled; the
+    captures of a frame sharing its image.
+  - `slime-mcp`: an agent's calls side by side.
+  - A request's memory as it is parsed, measured.
+- **Done when.** A connection's requests answered out of their order; a read answered while an
+  edit waits for a drag; a cancelled edit never applied; a tool that never reads keeps the game
+  within the bounds; every MCP session test passes; CI is green.
+- **Measured.** At rest, with the owner's go: an answer of the channel, against 42.8 µs; input to
+  present with an agent at the bounds, setting the budget.
 
 ## Ideas waiting for their milestone
 

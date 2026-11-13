@@ -133,7 +133,11 @@ in git.
   agents and its MCP server, cut in five at its start, on 2026-11-12
   ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)): done,
   [M6d.9a1a](#m6d9a1a--the-new-wire-under-todays-meaning), the new wire, on the same day; then
-  [M6d.9a1b](#m6d9a1b--requests-in-flight-and-events),
+  [M6d.9a1b](#m6d9a1b--requests-in-flight-and-events), cut in three on 2026-11-13
+  ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)):
+  in progress, [M6d.9a1b1](#m6d9a1b1--requests-in-flight), requests in flight; then
+  [M6d.9a1b2](#m6d9a1b2--events) and [M6d.9a1b3](#m6d9a1b3--long-lists-and-the-interfaces-family);
+  then
   [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
@@ -2031,6 +2035,50 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
 - **Done when.** Play reads the played game's time by events; the interface's session tests pass
   through uwui's family; CI is green.
 - **Measured.** An event from the program to the tool.
+- **Cut in three** at its start, on 2026-11-13
+  ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)):
+  requests in flight, then events, then long lists and the interface's family; the rules of all
+  three decided at once, as each meets the others.
+
+### M6d.9a1b1 — Requests in flight
+
+The first third of M6d.9a1b; in progress, its card in [`PLAN.md`](PLAN.md#m6d9a1b1--requests-in-flight).
+
+### M6d.9a1b2 — Events
+
+The second third of M6d.9a1b
+([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)).
+
+- **Goal.** A program sends a connection the changes it subscribed to.
+- **Crates.** `uwui-agent`, `slime-channel`, `slime-app`, `slime-editor`, with the owner's go for
+  the last two.
+- **Delivers.** The core's `subscribe` and `unsubscribe`; an event's current value after its
+  subscription, a newer one replacing one not yet written, none after the unsubscription; the
+  event `play/time`; the editor's Play reading it in place of its question every 200 ms, a build's
+  end posted into the same queue, a refused control read once.
+- **Done when.** Play reads the played game's time by events; a tool that stops reading keeps the
+  game's memory flat; CI is green.
+- **Measured.** At rest, with the owner's go: an event from the program to the tool, its median and
+  its slowest of 21, alone and behind a capture; no wake of the channel's threads at rest with a
+  subscription.
+
+### M6d.9a1b3 — Long lists and the interface's family
+
+The last third of M6d.9a1b
+([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)),
+once M6d.5c changed `Ui`'s methods of input, which an agent's action calls; where the family's
+messages live and how the places are given are put to the owner at its start.
+
+- **Goal.** A long list read by pages, and the interface's family served by uwui.
+- **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `slime-editor`, `slime-mcp`.
+- **Delivers.** The cursor: entities, elements, the editor's journal paged with a generation; the
+  families' versions raised; the interface's family moved into `uwui` behind its feature `agents`,
+  with the places of the code that wrote an element's own style
+  ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)); the build for shipping checked
+  free of the feature, the check itself shown to fail.
+- **Done when.** A journal past the tool's largest line is read whole by pages; the interface's
+  session tests pass through uwui's family; CI is green.
+- **Measured.** A page of a thousand elements, against the list of today.
 
 ### M6d.9a2 — uwui's MCP library and families
 
