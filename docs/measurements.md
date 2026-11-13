@@ -3745,3 +3745,28 @@ Two directions cost about half as much again as one. A long word after text of t
 costs ten times as much, the character at a point included, which calls parley alone: the cause is
 not found ([`debt.md`](debt.md)). The lowest machine of the quality bar is not measured: none is
 set up yet. These are not benchmarks.
+
+How long CI's jobs took on `5bb456e`, the commit that gave uwui's clipboard to its host, on
+2026-11-13:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 39 s |
+| `check (headless)` | 11 min 56 s |
+| `check (windowed)` | 11 min 31 s |
+| `check (game)` | 9 min 35 s |
+| `check (gles)` | 3 min 10 s |
+| `windows (tests)` | 15 min 41 s |
+| `windows (render)` | 5 min 50 s |
+| `windows (game)` | 7 min 51 s |
+| `windows-release` | 15 min 54 s |
+| `compositors (weston)` | 10 min 23 s |
+| `compositors (sway)` | 11 min 22 s |
+| `compositors (kwin)` | 14 min 34 s |
+| `compositors (mutter)` | 11 min 42 s |
+| `compositors (x11)` | 11 min 0 s |
+| Docs' `links` | 16 s |
+
+Every job stays within its limit of 20 minutes. `windows-release` is the longest, with 4 min 6 s of
+margin, and `windows (tests)` keeps 4 min 19 s; `check (headless)` took 5 min 5 s less than at
+M6d.5c1, on another runner. The compositors' series found the clipboard as its table says on each.

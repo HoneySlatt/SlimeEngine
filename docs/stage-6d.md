@@ -156,8 +156,8 @@ in git.
   ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)); then
   [M6d.5c](#m6d5c--input-and-output-in-uwui), cut in three on 2026-11-13
   ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)): done,
-  [M6d.5c1](#m6d5c1--events-and-outputs-on-one-target), on 2026-11-13; in progress,
-  [M6d.5c2](#m6d5c2--the-clipboard-and-the-hosts-questions); then
+  [M6d.5c1](#m6d5c1--events-and-outputs-on-one-target) and
+  [M6d.5c2](#m6d5c2--the-clipboard-and-the-hosts-questions), on 2026-11-13; then
   [M6d.5c3](#m6d5c3--the-targets); then
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui) and
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
@@ -1938,7 +1938,38 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
 
 ### M6d.5c2 — The clipboard and the host's questions
 
-The second third of M6d.5c; in progress, its card in [`PLAN.md`](PLAN.md#m6d5c2--the-clipboard-and-the-hosts-questions).
+The second third of M6d.5c
+([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)). It
+follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Copy, cut and paste reach uwui as events; a host asks what an input method asks.
+- **Crates.** `uwui`, `slime-app` (`interface.rs`), `slime-editor`.
+- **Delivers.** Copy, cut and paste as events, the answer's third state and the text written;
+  numbered reads of the clipboard, their answers as events; the `Clipboard` trait gone, the
+  editor's paste an action; the deletion around the caret; the questions: the text around the
+  caret in the host's unit, a range's rectangle, the character at a point, whether a point is
+  uwui's.
+- **Done when.** uwui's tests pass an input method's question right after its commit, a paste as
+  the web gives it, a paste pending as the focus moves, a second paste, no answer, a huge text;
+  the editor's tests of the clipboard pass; CI is green.
+- **Measured.** A question on a field of 4,000 bytes, against M6d.5a's prototype.
+- **Result.** Done on 2026-11-13, CI green
+  ([ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md), its three questions decided by the owner):
+  - The clipboard is the host's: a field's copy and cut write `Outputs::clipboard_write`, its
+    paste asks a numbered read, answered by `Input::ClipboardText`; reads bounded at 16, dropped
+    when their field loses the focus; the program's `Ui::write_clipboard` and `Ui::read_clipboard`,
+    its answer an action. The `Clipboard` trait gone.
+  - The platform's `Copy`, `Cut` and `Paste`, `DeleteAround`, and `Answer::TakenLeftToPlatform`
+    for a platform that fires its own clipboard events; a paste or a press during a composition
+    ends it, kept as typed.
+  - The questions: `Ui::text_around`, `Ui::range_box`, `Ui::character_at`, `Ui::covers`, in
+    `TextUnit`; a character's box a sixth of the prototype's cost
+    ([`measurements.md`](measurements.md#m6d5c2-the-clipboard-and-the-hosts-questions)).
+  - `slime-app` shows the outputs after each frame, an image drawn or not, and after each event
+    that the interface took; the editor's paste a read and its answer, a frame later.
+  - A huge text pasted whole, its costs later; the surrounding text as an output and the kinds of
+    a point wait for their readers, the owner's choices. The clipboard waits for a
+    [check by hand](PLAN.md#checks-by-hand-waiting-for-the-owner).
 
 ### M6d.5c3 — The targets
 

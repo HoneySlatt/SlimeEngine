@@ -39,9 +39,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
     [M6d.4](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on wgpu, done;
     then [M6d.5](stage-6d.md#m6d5--the-hosts-api), the host's API, cut in five
     ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): done, M6d.5a,
-    M6d.5b and [M6d.5c1](stage-6d.md#m6d5c1--events-and-outputs-on-one-target); in progress,
-    [M6d.5c2](#m6d5c2--the-clipboard-and-the-hosts-questions), the clipboard and the host's
-    questions.
+    M6d.5b, [M6d.5c1](stage-6d.md#m6d5c1--events-and-outputs-on-one-target) and
+    [M6d.5c2](stage-6d.md#m6d5c2--the-clipboard-and-the-hosts-questions), the clipboard and the
+    host's questions; M6d.5c3 may start.
   - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249;
     M6d.9a1b3 follows M6d.5c.
   - M6d.10 to M6d.12 run alone.
@@ -65,7 +65,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.5a — The API's ADR and its table](stage-6d.md#m6d5a--the-apis-adr-and-its-table) | Done |
 | [M6d.5b — The times](stage-6d.md#m6d5b--the-times) | Done |
 | [M6d.5c1 — Events and outputs on one target](stage-6d.md#m6d5c1--events-and-outputs-on-one-target) | Done |
-| [M6d.5c2 — The clipboard and the host's questions](#m6d5c2--the-clipboard-and-the-hosts-questions) | In progress |
+| [M6d.5c2 — The clipboard and the host's questions](stage-6d.md#m6d5c2--the-clipboard-and-the-hosts-questions) | Done |
 | [M6d.5c3 to M6d.5e — The rest of M6d.5](stage-6d.md#m6d5c3--the-targets) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
@@ -79,22 +79,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
 
-## M6d.5c2 — The clipboard and the host's questions
-
-Started on 2026-11-13, the second third of M6d.5c ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)).
-
-- **Goal.** Copy, cut and paste reach uwui as events; a host asks what an input method asks.
-- **Crates.** `uwui`, `slime-app` (`interface.rs`), `slime-editor`.
-- **Delivers.** Copy, cut and paste as events, the answer's third state and the text written;
-  numbered reads of the clipboard, their answers as events; the `Clipboard` trait gone, the
-  editor's paste an action; the deletion around the caret; the questions: the text around the
-  caret in the host's unit, a range's rectangle, the character at a point, whether a point is
-  uwui's.
-- **Done when.** uwui's tests pass an input method's question right after its commit, a paste as
-  the web gives it, a paste pending as the focus moves, a second paste, no answer, a huge text;
-  the editor's tests of the clipboard pass; CI is green.
-- **Measured.** A question on a field of 4,000 bytes, against M6d.5a's prototype.
-
 ## Ideas waiting for their milestone
 
 From two outside reviews, kept by the owner on 2026-11-10; each joins its milestone at its start.
@@ -105,6 +89,9 @@ From two outside reviews, kept by the owner on 2026-11-10; each joins its milest
   the simulation's parallel run tried on one case before its systems.
 - uwui's first stage: a channel's capacity, and its messages told apart, last value, kept events,
   large changes in parts ([ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md)).
+- A milestone that fixes a huge text's costs in a field, the owner's choice of 2026-11-13
+  ([ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)): placed
+  when Stage 6d's audit plans uwui's first stage.
 - Later: cells loaded under a budget before Stage 10a's formats; a view's durable state keyed
   apart from its path; themes' parts tried on hard components; few concepts to start with; early
   trials of mobile and web life cycles.
@@ -184,6 +171,10 @@ made after Stage 6e's first milestone runs on `games/open-world` where it names 
   composition in a field of the editor, its window beside the caret as it moves; the focus moved
   to another field, then back to the first, mid-composition, the composition ended each time and
   the next one starting clean.
+- **The clipboard through the outputs** (M6d.5c2): on the owner's Linux desktop and in the Windows
+  virtual machine, copy, cut and paste in a field of the editor, by the keys and between it and
+  another program; the editor's own copy and paste of entities; on macOS, whether ⌘V asks the
+  person before the engine reads, in a field and for the editor's paste.
 - **A suspend counted** (M6d.5b): the editor on Linux and in the Windows virtual machine, a
   notification shown, the machine suspended for a minute, the pointer moved as it wakes: the
   notification gone at that frame, and the log telling the time suspended.

@@ -744,7 +744,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Each edit lays the field's whole text out again, at a cost that grows with its length: about 1.1 ms for 4,000 bytes on the high tier, so about a quarter of a second for each keystroke in a field of 1 MB.
   A field undoes up to 100 edits, each a whole copy of its text, and forgets them when the program gives it another text.
   A field has no length that it holds at most, and no text hidden as a password's: a huge text pasted is taken whole, the owner's choice ([ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)). Past about 0.5 MB, one field's layout outweighs the cache of laid-out texts, 32 MiB at some 50 bytes for each byte of text, which then lays the other texts out again; not measured.
-  Followed by a milestone of its own, not yet placed in the roadmap: undo by edits, the layout by paragraph, a large layout outside the cache's budget, and a maximum length that the program sets, counted in graphemes, the cut told to the person.
+  Followed by a milestone of its own, among the [ideas waiting for their milestone](PLAN.md#ideas-waiting-for-their-milestone): undo by edits, the layout by paragraph, a large layout outside the cache's budget, and a maximum length that the program sets, counted in graphemes, the cut told to the person.
   A field of numbers has no bounds, and reads a full stop alone as its decimal mark, whatever the user's language.
   A field of numbers without a prefix is dragged only while it does not hold the focus.
   The input method's window is placed beside the caret as the last frame drew it.
