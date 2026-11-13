@@ -7,6 +7,7 @@ use slime_input::{
     ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey, ScrollDelta,
 };
 use uwui::action::{Action, ActionKind, Intent};
+use uwui::host::Person;
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::style::{Dimension, Display, FlexDirection, StyleBuilder, Track};
 use uwui::text::{Alignment, Fonts};

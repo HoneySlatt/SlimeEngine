@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
+use uwui::host::{Event, Input, Person, TargetId};
 use uwui::style::{Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::time::{EventTime, FrameShown, Instant};
@@ -94,8 +95,9 @@ fn the_interface_says_when_a_rest_will_show_a_tooltip_without_needing_frames_mea
     assert_eq!(ui.next_frame_due(), None, "nothing waits");
     assert!(!ui.needs_frame());
     // The rest starts when the pointer's move came, not at the last frame's time.
-    ui.set_event_time(EventTime::received(at + Duration::from_millis(40)));
-    ui.pointer_moved(50.0, 15.0);
+    let moved = Input::PointerMoved { x: 50.0, y: 15.0 };
+    let time = EventTime::received(at + Duration::from_millis(40));
+    let _ = ui.event(Event::new(TargetId::MAIN, time, moved));
     ui.frame();
     let shows = at + Duration::from_millis(540);
     assert_eq!(ui.next_frame_due(), Some(shows));

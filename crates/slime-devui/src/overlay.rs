@@ -115,8 +115,8 @@ impl Overlay {
         }
     }
 
-    /// The overlay's interface: whether one of its fields takes the keys ([`Ui::text_input`]),
-    /// what it means to agents.
+    /// The overlay's interface: whether one of its fields takes the keys ([`Ui::focus`]), what it
+    /// means to agents.
     pub fn ui(&self) -> &Ui {
         &self.ui
     }
@@ -400,6 +400,7 @@ fn settings(size: [f32; 2], scale: f32) -> RootSettings {
 mod tests {
     use slime_gfx::{RenderPassDescriptor, TextureFormat};
     use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
+    use uwui::host::Person;
     use uwui::tree::Role;
 
     use super::*;

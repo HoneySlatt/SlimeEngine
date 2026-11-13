@@ -32,6 +32,7 @@ mod color;
 mod control;
 pub(crate) mod expression;
 mod field;
+mod host;
 mod interact;
 mod layer;
 mod meaning;
@@ -1212,10 +1213,10 @@ struct Slot {
 /// Lengths are logical pixels in styles and pixels of the screen, logical pixels times the root's
 /// scale, in what a frame gives: boxes, clips and the display list.
 ///
-/// A person's input reaches it as the window gives it, the pointer's moves and buttons, the wheel,
-/// the modifiers and the keys ([`Ui::pointer_moved`], [`Ui::pointer_button`], [`Ui::wheel`],
-/// [`Ui::modifiers`], [`Ui::key`]), which become *actions*; an agent sends actions themselves
-/// ([`Ui::act`]). The program reads them from a queue ([`Ui::take_actions`]).
+/// A person's input reaches it as events that the host gives, the pointer's moves and buttons, the
+/// wheel, the modifiers, the keys and input methods ([`Ui::event`]), which become *actions*; an
+/// agent sends actions themselves ([`Ui::act`]). The program reads them from a queue
+/// ([`Ui::take_actions`]).
 ///
 /// ```
 /// use uwui::Rect;
@@ -1316,7 +1317,7 @@ pub struct Ui {
     picker: Option<color::Picker>,
     notices: notify::Notices,
     /// The host's clock: the latest time that the host gave, of a frame or of an event, which never
-    /// goes back ([`Ui::set_frame_shown`], [`Ui::set_event_time`]).
+    /// goes back ([`Ui::set_frame_shown`], [`Ui::event`]).
     now: Instant,
     /// The last frame's time, as the host gave it.
     frame_shown: FrameShown,
@@ -1334,6 +1335,8 @@ pub struct Ui {
     shown: motion::ShownStyles,
     /// Whether Tab enters the interface while no focus takes the keys ([`Ui::set_tab_enters`]).
     tab_enters: bool,
+    /// What the host was last told of the outputs ([`Ui::outputs`]).
+    told: host::Told,
 }
 
 impl Ui {
@@ -1381,6 +1384,7 @@ impl Ui {
             moving: Vec::new(),
             shown: motion::ShownStyles::default(),
             tab_enters: true,
+            told: host::Told::default(),
         };
         ui.make_bases();
         ui

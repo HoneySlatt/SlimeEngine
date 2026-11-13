@@ -284,12 +284,19 @@ pub trait Presentation {
     ///
     /// The run connects it to the window (`docs/adr/0145-text-edited.md`): it gives it each event
     /// of the window first, which neither [`on_event`](Self::on_event) nor the game's input sees
-    /// when the interface takes it; it gives it the system's clipboard; the times of the host's
-    /// clock, which counts a suspend: before each event, when it came, and before each frame, its
-    /// start, which it shows ([`Ui::set_event_time`], [`Ui::set_frame_shown`]); the run's waker
-    /// ([`Ui::set_waker`]); and after each frame drawn,
-    /// it shows the pointer's shape that the interface asks, and allows the input method while
-    /// one of its fields takes text. The default has none.
+    /// when the interface takes it, each with when it came on the host's clock, which counts a
+    /// suspend ([`Ui::event`]), but the pointer's moves, which the game sees first and the
+    /// interface as one, the last of a frame, before its next event or the frame; it gives it the
+    /// system's clipboard; before each frame, its start, which it shows
+    /// ([`Ui::set_frame_shown`]); the run's waker ([`Ui::set_waker`]); and after each frame drawn,
+    /// it shows what the interface's outputs ask ([`Ui::outputs`]), the pointer's shape, and the
+    /// input method allowed while one of its fields takes text. The default has none.
+    ///
+    /// The interface, once given, is the same one at every call until the run ends: the outputs
+    /// tell the window only what changed since the run last read them, so a presentation that
+    /// gave none for a while, or another interface, would leave the window showing what the
+    /// interface asked before
+    /// (`docs/adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md`).
     fn ui(&mut self) -> Option<&mut Ui> {
         None
     }

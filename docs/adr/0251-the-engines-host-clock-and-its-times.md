@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0227](0227-the-time-that-motion-reads.md) (the next wake and a wake
   that draws nothing come with uwui's executor; a layer follows the clock of the root that it opens
   over) and [0249](0249-the-hosts-api-its-items-and-their-table.md) (the rows "Wake" and "Frame and
-  wake")
+  wake"); amended by [0253](0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md) (an event's time carried
+  by the event)
 - Date: 2026-11-13
 
 ## Context

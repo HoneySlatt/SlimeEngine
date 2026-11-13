@@ -81,11 +81,8 @@ pub(super) struct Interaction {
 }
 
 impl Ui {
-    /// The pointer moved to `x` and `y`, in pixels of the screen from the surface's top left
-    /// corner: the button or the field under it is hovered, the one before is no longer, an item
-    /// of a menu that it comes over takes the focus, and a field that holds the pointer selects or
-    /// drags its number. A move is never taken: a game follows the pointer too.
-    pub fn pointer_moved(&mut self, x: f32, y: f32) {
+    /// What [`Input::PointerMoved`](crate::host::Input::PointerMoved) does.
+    pub(super) fn pointer_moved_input(&mut self, x: f32, y: f32) {
         self.interaction.pointer = Some([x, y]);
         if let Some((surface, _)) = self.interaction.surface {
             let at = self.on_surface(surface, [x, y]);
@@ -121,8 +118,9 @@ impl Ui {
                 _ => {}
             }
         }
-        self.hover();
+        // One walk of the tree finds what both the hover and the rest follow.
         let on = self.element_at(x, y);
+        self.hover_over(on);
         self.rest_on(on);
         // The item of a menu that the pointer comes over takes the focus, which the keys move on
         // from, as a press would give it; one of a bar of menus opens its menu while another's is
@@ -142,24 +140,16 @@ impl Ui {
         }
     }
 
-    /// The pointer left the surface: nothing is hovered any more.
-    pub fn pointer_left(&mut self) {
+    /// What [`Input::PointerLeft`](crate::host::Input::PointerLeft) does.
+    pub(super) fn pointer_left_input(&mut self) {
         self.interaction.pointer = None;
         self.hover();
         self.rest_on(None);
     }
 
-    /// A button of the mouse went down or up; gives whether the interface took it, which a game
-    /// then leaves. The primary button pressed over a button presses it, which then holds the
-    /// pointer: let go over it, it gives an [`ActionKind::Press`]; let go elsewhere, nothing. A
-    /// button that can hold the focus takes it. Pressed over a field, it gives the field the focus
-    /// and places its caret, Shift held extending the selection, and the field holds the pointer,
-    /// which selects as it moves; over a field of numbers that does not hold the focus, a move
-    /// past a few pixels drags its number instead. The primary button pressed elsewhere takes the
-    /// focus away, a field committing, unless a modal root is open. The interface takes a press of
-    /// any button over what it draws, a panel's box or a label's text as well as a button or a
-    /// field, and every press while a modal root is open; and the release of a press that it took.
-    pub fn pointer_button(&mut self, button: MouseButton, state: ButtonState) -> bool {
+    /// What [`Input::PointerButton`](crate::host::Input::PointerButton) does; gives whether the
+    /// interface took it.
+    pub(super) fn pointer_button_input(&mut self, button: MouseButton, state: ButtonState) -> bool {
         let primary = button == MouseButton::Left;
         if state == ButtonState::Pressed {
             self.interaction.by_pointer = true;
@@ -346,11 +336,8 @@ impl Ui {
         }
     }
 
-    /// The wheel scrolled: the box that scrolls or the list under the pointer scrolls, a line of
-    /// the wheel some 40 logical pixels. Gives whether the interface took it, which a game then
-    /// leaves: when such a box or list lies under the pointer, whether or not it had room to
-    /// scroll, and, as a press, over what the interface draws or while a modal root is open.
-    pub fn wheel(&mut self, delta: ScrollDelta) -> bool {
+    /// What [`Input::Wheel`](crate::host::Input::Wheel) does; gives whether the interface took it.
+    pub(super) fn wheel_input(&mut self, delta: ScrollDelta) -> bool {
         self.input_hides_tooltip();
         let surface = match self.interaction.surface {
             Some((surface, _)) => Some(surface),
@@ -384,11 +371,6 @@ impl Ui {
         let [at_x, at_y] = self.scroll(target).unwrap_or_default();
         self.scroll_to(target, [at_x - x, at_y - y]);
         true
-    }
-
-    /// The modifier keys held changed: shortcuts are read with them.
-    pub fn modifiers(&mut self, modifiers: Modifiers) {
-        self.interaction.modifiers = modifiers;
     }
 
     /// The drag under way, once the pointer moved a draggable element past a few pixels: what it
@@ -443,37 +425,15 @@ impl Ui {
         true
     }
 
-    /// The modifiers held, as [`Ui::modifiers`] last gave them: what a press of a row selects by,
+    /// The modifiers held, as the host last gave them
+    /// ([`Input::Modifiers`](crate::host::Input::Modifiers)): what a press of a row selects by,
     /// with Ctrl or Shift (`docs/adr/0167-the-hierarchy.md`).
     pub fn held_modifiers(&self) -> Modifiers {
         self.interaction.modifiers
     }
 
-    /// A key went down or up; gives whether the interface took it, which a game then leaves. A
-    /// press, or a repeat, reaches first the field that holds the focus, which takes what it types
-    /// and edits with; then it gives the command of a shortcut whose chord it is, in the scopes of
-    /// the focus, innermost first, then `global` ([`Ui::set_shortcuts`]), a press alone, its
-    /// repeats taken and giving none, so that a chord that toggles does not flicker
-    /// (`docs/adr/0154-floating-panels-and-held-keys.md`); else the intent that its key means: Tab
-    /// and Shift+Tab next and previous, the arrows a direction, Enter and Space accept, Escape
-    /// cancel. A focus that a press of the pointer gave to anything but a field
-    /// takes none of these keys, nor the widget's own, the arrows of a slider or a list to choose
-    /// from, unless it lies in a layer that closes as the user leaves it or in a modal root, or its
-    /// widget's layer is open: they reach the program, as with no focus
-    /// (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`). Tab and Shift+Tab, with no
-    /// focus that takes the keys, give the focus to the interface only where it lets them
-    /// ([`Ui::set_tab_enters`]); F6 and Shift+F6 give it to the first element of the next or the
-    /// previous root that holds one, the top root first, then to nothing
-    /// (`docs/adr/0153-tab-and-f6-in-a-games-interface.md`). The interface takes what a field
-    /// takes, a shortcut's key, the key of an intent while an element holds the focus and takes the
-    /// keys or once it gives the focus, F6 while a root holds an element that can take the focus,
-    /// and every key while a modal root is open; the intent of a key that it does not take still
-    /// reaches its queue. Its releases are left to the game, which pairs them with its
-    /// presses, but Alt's, which, pressed and let go alone, gives a bar of menus the focus, as F10
-    /// does ([`Kind::MenuBar`]). A press hides the tooltip that shows, which Escape does alone
-    /// then, and the element that it gives the focus shows its tooltip
-    /// ([`Element::tooltip`](super::Element::tooltip)).
-    pub fn key(&mut self, event: &KeyEvent) -> bool {
+    /// What [`Input::Key`](crate::host::Input::Key) does; gives whether the interface took it.
+    pub(super) fn key_input(&mut self, event: &KeyEvent) -> bool {
         let alt = event.logical == Key::Named(NamedKey::Alt);
         if event.state != ButtonState::Pressed {
             // Alt let go alone reaches the bar of menus.
@@ -599,7 +559,8 @@ impl Ui {
         [(x - rect.x) / scale, (y - rect.y) / scale]
     }
 
-    /// What a key's press does, as [`Ui::key`] says, once the tooltip is hidden.
+    /// What a key's press does, as [`Input::Key`](crate::host::Input::Key) says, once the tooltip
+    /// is hidden.
     fn press_key(&mut self, event: &KeyEvent) -> bool {
         // Escape closes the top layer that closes as the user leaves it.
         if event.logical == Key::Named(NamedKey::Escape) && self.dismiss_top() {
@@ -969,10 +930,12 @@ impl Ui {
             return;
         }
         if let Some(before) = self.interaction.focus.take() {
-            // A field that the focus leaves commits what the user typed; its caret goes.
+            // A field that the focus leaves commits what the user typed; its caret goes, and its
+            // input ends.
             if Some(before) != id && self.node(before).is_some_and(|node| node.field.is_some()) {
                 self.commit(before);
                 self.mark_paint(before);
+                self.told.field_left();
             }
             self.change_state(before, |state| {
                 state.focused = false;
@@ -1136,7 +1099,17 @@ impl Ui {
     /// The element under the pointer, or its nearest ancestor, of a kind that `takes`.
     pub(super) fn pointer_target(&self, takes: impl Fn(&Kind) -> bool) -> Option<ElementId> {
         let [x, y] = self.interaction.pointer?;
-        let mut at = self.element_at(x, y);
+        self.target_from(self.element_at(x, y), takes)
+    }
+
+    /// `at`, the element under the pointer, or its nearest ancestor, of a kind that `takes`, as
+    /// [`Ui::pointer_target`] says.
+    fn target_from(
+        &self,
+        mut at: Option<ElementId>,
+        takes: impl Fn(&Kind) -> bool,
+    ) -> Option<ElementId> {
+        let [x, y] = self.interaction.pointer?;
         while let Some(id) = at {
             let node = self.node(id)?;
             // A section takes the pointer on its header alone, two panels on their handle.
@@ -1214,7 +1187,16 @@ impl Ui {
     /// Hovers the button or the field under the pointer, the one that holds the pointer alone
     /// while it does.
     fn hover(&mut self) {
-        let over = self.pointer_target(Kind::takes_pointer);
+        let on = self
+            .interaction
+            .pointer
+            .and_then(|[x, y]| self.element_at(x, y));
+        self.hover_over(on);
+    }
+
+    /// Hovers what [`Ui::hover`] does, `on` being the element under the pointer.
+    fn hover_over(&mut self, on: Option<ElementId>) {
+        let over = self.target_from(on, Kind::takes_pointer);
         let hovered = match self.interaction.captured {
             Some(captured) => (over == Some(captured)).then_some(captured),
             None => over,

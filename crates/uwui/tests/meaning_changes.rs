@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 use slime_input::{ButtonState, MouseButton};
 use uwui::action::{Action, ActionKind};
+use uwui::host::Person;
 use uwui::style::{Dimension, Display, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{

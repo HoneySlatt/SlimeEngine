@@ -16,6 +16,7 @@ mod damage;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind};
 use uwui::dock::{self, Dock, Edge, LEAST, Layout, Node, Read, ReadError, Reading, Target};
+use uwui::host::{Person, TargetId};
 use uwui::text::Fonts;
 use uwui::tree::{ElementId, LayoutDirection, Role, RootSettings, Ui};
 
@@ -297,7 +298,10 @@ fn a_dock_s_borders_and_tabs_change_its_layout() {
         .id;
     let rect = ui.rect(border).expect("laid out");
     ui.pointer_moved(rect.x + rect.width / 2.0, 300.0);
-    assert_eq!(ui.cursor(), slime_input::CursorShape::ResizeHorizontal);
+    assert_eq!(
+        ui.outputs(TargetId::MAIN).cursor,
+        Some(slime_input::CursorShape::ResizeHorizontal)
+    );
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_moved(400.0, 300.0);
     frame(&mut ui, &mut dock, slot);

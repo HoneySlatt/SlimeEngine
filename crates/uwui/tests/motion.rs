@@ -8,6 +8,7 @@ use std::time::Duration;
 use slime_color::LinearColor;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::display::{DisplayList, Primitive};
+use uwui::host::Person;
 use uwui::preferences::Preferences;
 use uwui::style::{Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;

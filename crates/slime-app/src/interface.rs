@@ -1,38 +1,66 @@
 //! A presentation's interface connected to its window: the window's events given to the
-//! interface first, its clipboard, the pointer's shape and the input method
-//! (`docs/adr/0145-text-edited.md`).
+//! interface first, as the host's events of uwui, its clipboard, and what it asks the window to
+//! show, the pointer's shape and the input method (`docs/adr/0145-text-edited.md`,
+//! `docs/adr/0249-the-hosts-api-its-items-and-their-table.md`).
 
 use std::sync::{Arc, Mutex, PoisonError};
 
 use slime_platform::{Clipboard, CursorShape, Event, Window};
-use uwui::Rect;
-use uwui::tree::{ElementId, Ui};
+use uwui::host::{self, Input, InputMethod, TargetId};
+use uwui::time::EventTime;
+use uwui::tree::Ui;
 
-/// Gives `event` to `ui` as the interface's calls, and gives whether the interface took it, which
-/// the presentation's [`on_event`](crate::Presentation::on_event) and the game's input then do not
-/// see: a press over what the interface draws, and its release, a key that a field, a shortcut or
-/// the focus takes, a wheel over a box that scrolls or a list, or over what the interface draws,
-/// every press, key and wheel while a modal root is open, what an input method composes for a
-/// field. The pointer's moves, the modifiers and the releases of keys reach the game too.
-pub(crate) fn give(ui: &mut Ui, event: &Event) -> bool {
-    match event {
-        Event::CursorMoved { x, y } => {
-            ui.pointer_moved(*x as f32, *y as f32);
-            false
+/// What a presentation's interface is given of the window's events: each as the host's event of
+/// uwui on the window's target, but the pointer's moves, of which it holds the last until another
+/// of the interface's events comes or the next frame starts, so that the moves of a frame reach
+/// the interface as one
+/// (`docs/adr/0249-the-hosts-api-its-items-and-their-table.md`): a fast mouse's four moves for
+/// each frame at 240 Hz cost the interface one hit test, not four.
+#[derive(Debug, Default)]
+pub(crate) struct WindowInput {
+    /// The pointer's last move not yet given, and when it came.
+    moved: Option<(f32, f32, EventTime)>,
+}
+
+impl WindowInput {
+    /// Gives `event`, which came at `time`, to `ui`, and gives whether the interface took it,
+    /// which the presentation's [`on_event`](crate::Presentation::on_event) and the game's input
+    /// then do not see: a press over what the interface draws, and its release, a key that a
+    /// field, a shortcut or the focus takes, a wheel over a box that scrolls or a list, or over
+    /// what the interface draws, every press, key and wheel while a modal root is open, what an
+    /// input method composes for a field. The pointer's moves, the modifiers and the releases of
+    /// keys reach the game too; a move is held, and given before the interface's next event or
+    /// the next frame, so that the game sees it first. The window's other events, focus, raw
+    /// motion and the rest, are not the interface's, and leave a held move held.
+    pub(crate) fn give(&mut self, ui: &mut Ui, event: &Event, time: EventTime) -> bool {
+        let input = match event {
+            Event::CursorMoved { x, y } => {
+                self.moved = Some((*x as f32, *y as f32, time));
+                return false;
+            }
+            Event::CursorLeft => Input::PointerLeft,
+            Event::MouseButton { button, state } => Input::PointerButton {
+                button: *button,
+                state: *state,
+            },
+            Event::MouseWheel(delta) => Input::Wheel(*delta),
+            Event::ModifiersChanged(modifiers) => Input::Modifiers(*modifiers),
+            Event::Key(key) => Input::Key(key),
+            Event::Ime(ime) => Input::InputMethod(ime),
+            _ => return false,
+        };
+        self.give_moved(ui);
+        ui.event(host::Event::new(TargetId::MAIN, time, input))
+            .taken()
+    }
+
+    /// Gives `ui` the pointer's last move, if one is held, at the time that it came: before a
+    /// frame starts, so that the frame shows what it hovers.
+    pub(crate) fn give_moved(&mut self, ui: &mut Ui) {
+        if let Some((x, y, time)) = self.moved.take() {
+            let moved = Input::PointerMoved { x, y };
+            let _ = ui.event(host::Event::new(TargetId::MAIN, time, moved));
         }
-        Event::CursorLeft => {
-            ui.pointer_left();
-            false
-        }
-        Event::MouseButton { button, state } => ui.pointer_button(*button, *state),
-        Event::MouseWheel(delta) => ui.wheel(*delta),
-        Event::ModifiersChanged(modifiers) => {
-            ui.modifiers(*modifiers);
-            false
-        }
-        Event::Key(key) => ui.key(key),
-        Event::Ime(ime) => ui.ime(ime),
-        _ => false,
     }
 }
 
@@ -73,53 +101,70 @@ impl uwui::tree::Clipboard for SharedClipboard {
     }
 }
 
-/// What the window shows of the interface, as last set: set again only when it changes.
+/// Whether the window shows what an interface asked, rather than its own arrow and no input
+/// method.
 #[derive(Debug, Default)]
 pub(crate) struct Shown {
-    cursor: CursorShape,
-    /// The field that takes text and its caret's box, the input method allowed; none, forbidden.
-    text_input: Option<(ElementId, Rect)>,
+    /// Whether an interface's outputs reached the window since it last showed its own.
+    by_interface: bool,
+    /// Whether the window allows the input method, which is forbidden only while it is allowed.
+    ime_allowed: bool,
 }
 
 impl Shown {
-    /// Shows on `window` what `ui` asks after a frame: the pointer's shape, and the input method
-    /// allowed, beside the caret, while a field takes text; without an interface, the arrow and
-    /// the input method forbidden. When the focus goes from one field to another, the input method
-    /// is forbidden then allowed again, meant to end what it composed for the first, which no
-    /// input method was checked with yet.
-    pub(crate) fn update(&mut self, window: &Window, ui: Option<&Ui>) {
-        let cursor = ui.map_or(CursorShape::Default, Ui::cursor);
-        if cursor != self.cursor {
+    /// Shows on `window` what `ui`'s outputs tell changed after a frame: the pointer's shape; the
+    /// input method forbidden, or forbidden then allowed as a field's input starts, which is meant
+    /// to end what it composed for the field before, though no input method was checked with it
+    /// yet; and the caret's box, beside which it places its window. Without an interface, the
+    /// arrow and the input method forbidden. winit 0.30 tells an input method no field's purpose
+    /// but a password's and a terminal's, which uwui has none of.
+    pub(crate) fn update(&mut self, window: &Window, ui: Option<&mut Ui>) {
+        let Some(ui) = ui else {
+            if std::mem::take(&mut self.by_interface) {
+                window.set_cursor(CursorShape::Default);
+                self.allow_ime(window, false);
+            }
+            return;
+        };
+        self.by_interface = true;
+        let outputs = ui.outputs(TargetId::MAIN);
+        if let Some(cursor) = outputs.cursor {
             window.set_cursor(cursor);
-            self.cursor = cursor;
         }
-        let text_input = ui.and_then(|ui| ui.focus().zip(ui.text_input()));
-        let field = |shown: Option<(ElementId, Rect)>| shown.map(|(field, _)| field);
-        if field(text_input) != field(self.text_input) {
-            if self.text_input.is_some() {
-                window.set_ime_allowed(false);
-            }
-            if text_input.is_some() {
-                window.set_ime_allowed(true);
+        if let Some(input_method) = outputs.input_method {
+            self.allow_ime(window, false);
+            if input_method == InputMethod::On {
+                self.allow_ime(window, true);
             }
         }
-        if let Some((_, caret)) = text_input
-            && text_input != self.text_input
-        {
-            window.set_ime_area(caret.x, caret.y, caret.width.max(1.0), caret.height);
+        if let Some(area) = outputs.input_area {
+            window.set_ime_area(area.x, area.y, area.width.max(1.0), area.height);
         }
-        self.text_input = text_input;
+    }
+
+    /// Allows the input method, or forbids it, unless the window already does.
+    fn allow_ime(&mut self, window: &Window, allowed: bool) {
+        if self.ime_allowed != allowed {
+            window.set_ime_allowed(allowed);
+            self.ime_allowed = allowed;
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use slime_platform::{ButtonState, Key, KeyCode, KeyEvent, MouseButton};
     use uwui::style::Dimension;
     use uwui::text::Fonts;
-    use uwui::tree::{Element, LayoutDirection, RootSettings};
+    use uwui::time::Instant;
+    use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings};
 
     use super::*;
+
+    /// At the clock's zero.
+    const ZERO: EventTime = EventTime::received(Instant::ZERO);
 
     /// A press of a key that types `text`.
     fn typed(text: &str) -> Event {
@@ -132,10 +177,96 @@ mod tests {
         })
     }
 
+    /// A press or a release of the primary button.
+    fn press(state: ButtonState) -> Event {
+        Event::MouseButton {
+            button: MouseButton::Left,
+            state,
+        }
+    }
+
+    /// An interface of 400 by 300 pixels holding a field of 200 by 30 at its top left corner,
+    /// then a button as wide below it, laid out: the interface, the field and the button.
+    fn interface() -> (Ui, ElementId, ElementId) {
+        let mut ui = Ui::new(Fonts::new());
+        let settings = RootSettings {
+            size: [400.0, 300.0],
+            scale: 1.0,
+            direction: LayoutDirection::LeftToRight,
+            origin: [0.0; 2],
+            modal: false,
+        };
+        let root = ui.add_root("main", settings, |s| {
+            s.direction(uwui::style::FlexDirection::Column)
+        });
+        let size = |s: uwui::style::StyleBuilder| {
+            s.width(Dimension::Pixels(200.0))
+                .height(Dimension::Pixels(30.0))
+        };
+        let (mut field, mut button) = (None, None);
+        ui.build(root, 0, |children| {
+            field = Some(children.add("field", Element::text_field("").style(size), |_| {}));
+            button = Some(children.add("button", Element::button("go").style(size), |_| {}));
+        });
+        ui.frame();
+        (ui, field.expect("built"), button.expect("built"))
+    }
+
     /// The window's events reach the interface first; it takes a press on a field, the keys that
     /// the field types while it holds the focus, and leaves the game the rest.
     #[test]
     fn the_interface_takes_what_reaches_its_elements_and_leaves_the_game_the_rest() {
+        let (mut ui, _, _) = interface();
+        let mut input = WindowInput::default();
+        // Over nothing: the game's.
+        assert!(!input.give(&mut ui, &Event::CursorMoved { x: 300.0, y: 200.0 }, ZERO));
+        assert!(!input.give(&mut ui, &press(ButtonState::Pressed), ZERO));
+        assert!(!input.give(&mut ui, &press(ButtonState::Released), ZERO));
+        assert!(
+            !input.give(&mut ui, &typed("w"), ZERO),
+            "no element holds the focus"
+        );
+        // On the field: the interface's, and the keys it types.
+        input.give(&mut ui, &Event::CursorMoved { x: 10.0, y: 10.0 }, ZERO);
+        assert!(input.give(&mut ui, &press(ButtonState::Pressed), ZERO));
+        assert!(input.give(&mut ui, &press(ButtonState::Released), ZERO));
+        assert!(input.give(&mut ui, &typed("w"), ZERO));
+        assert!(!input.give(&mut ui, &Event::Focused(true), ZERO));
+    }
+
+    /// The pointer's moves reach the interface as one, the last, at the time it came: when another
+    /// of the interface's events comes, or the frame starts.
+    #[test]
+    fn the_pointers_moves_reach_the_interface_as_one_before_the_next_event_or_frame() {
+        let (mut ui, field, button) = interface();
+        let mut input = WindowInput::default();
+        let hovered = |ui: &Ui, id| ui.state(id).is_some_and(|state| state.hovered);
+        let at = |millis| EventTime::received(Instant::ZERO + Duration::from_millis(millis));
+        input.give(&mut ui, &Event::CursorMoved { x: 10.0, y: 10.0 }, at(1));
+        input.give(&mut ui, &Event::CursorMoved { x: 10.0, y: 40.0 }, at(2));
+        assert!(!hovered(&ui, field) && !hovered(&ui, button), "held");
+        // The window's own events leave it held.
+        assert!(!input.give(&mut ui, &Event::Focused(true), at(3)));
+        assert!(!hovered(&ui, button), "still held");
+        // A press reaches the button that the last move came over, after that move.
+        assert!(input.give(&mut ui, &press(ButtonState::Pressed), at(4)));
+        assert!(hovered(&ui, button) && !hovered(&ui, field));
+        assert!(input.give(&mut ui, &press(ButtonState::Released), at(5)));
+        // A move held until the frame, then given once: the pointer moved away since stays away.
+        input.give(&mut ui, &Event::CursorMoved { x: 10.0, y: 10.0 }, at(6));
+        assert!(hovered(&ui, button));
+        input.give_moved(&mut ui);
+        assert!(hovered(&ui, field) && !hovered(&ui, button));
+        let away = host::Input::PointerMoved { x: 300.0, y: 280.0 };
+        let _ = ui.event(host::Event::new(TargetId::MAIN, at(7), away));
+        input.give_moved(&mut ui);
+        assert!(!hovered(&ui, field), "given once");
+    }
+
+    /// A held move reaches the interface at the time it came, not the frame's: the pointer's rest
+    /// over a button with a tooltip starts then.
+    #[test]
+    fn a_held_move_reaches_the_interface_at_the_time_it_came() {
         let mut ui = Ui::new(Fonts::new());
         let settings = RootSettings {
             size: [400.0, 300.0],
@@ -146,27 +277,27 @@ mod tests {
         };
         let root = ui.add_root("main", settings, |s| s);
         ui.build(root, 0, |children| {
-            let field = Element::text_field("").style(|s| {
+            let button = Element::button("go").tooltip("Go").style(|s| {
                 s.width(Dimension::Pixels(200.0))
                     .height(Dimension::Pixels(30.0))
             });
-            children.add("field", field, |_| {});
+            children.add("button", button, |_| {});
         });
         ui.frame();
-        let press = |state| Event::MouseButton {
-            button: MouseButton::Left,
-            state,
-        };
-        // Over nothing: the game's.
-        assert!(!give(&mut ui, &Event::CursorMoved { x: 300.0, y: 200.0 }));
-        assert!(!give(&mut ui, &press(ButtonState::Pressed)));
-        assert!(!give(&mut ui, &press(ButtonState::Released)));
-        assert!(!give(&mut ui, &typed("w")), "no element holds the focus");
-        // On the field: the interface's, and the keys it types.
-        give(&mut ui, &Event::CursorMoved { x: 10.0, y: 10.0 });
-        assert!(give(&mut ui, &press(ButtonState::Pressed)));
-        assert!(give(&mut ui, &press(ButtonState::Released)));
-        assert!(give(&mut ui, &typed("w")));
-        assert!(!give(&mut ui, &Event::Focused(true)));
+        let moved_at = Instant::ZERO + Duration::from_secs(1);
+        let mut input = WindowInput::default();
+        let moved = Event::CursorMoved { x: 10.0, y: 10.0 };
+        input.give(&mut ui, &moved, EventTime::received(moved_at));
+        // The frame starts later, and takes the move first.
+        input.give_moved(&mut ui);
+        ui.set_frame_shown(uwui::time::FrameShown::simulated(
+            moved_at + Duration::from_millis(100),
+        ));
+        ui.frame();
+        // A tooltip shows after half a second of rest, from the move, not from the frame.
+        assert_eq!(
+            ui.next_frame_due(),
+            Some(moved_at + Duration::from_millis(500))
+        );
     }
 }

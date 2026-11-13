@@ -8,7 +8,9 @@ devui.world_panel.100k	elements	57
 devui.world_panel.100k	elements visited by a frame standing still	114
 devui.world_panel.100k	items of a frame standing still	77
 editor.hierarchy.100k	allocations of a frame standing still	19
+editor.hierarchy.100k	allocations of a pointer's move to another row	0
 editor.hierarchy.100k	bytes allocated by a frame standing still	72904
+editor.hierarchy.100k	bytes allocated by a pointer's move to another row	0
 editor.hierarchy.100k	elements	319
 editor.hierarchy.100k	elements visited by a frame standing still	638
 editor.hierarchy.100k	items of a frame standing still	142

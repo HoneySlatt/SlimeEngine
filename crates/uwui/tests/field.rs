@@ -13,6 +13,7 @@ use slime_input::{
 };
 use uwui::action::{ActionKind, FieldValue};
 use uwui::display::Primitive;
+use uwui::host::{InputMethod, Person, TargetId};
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::style::{Dimension, StyleBuilder};
 use uwui::text::Fonts;
@@ -31,6 +32,18 @@ fn ui() -> Ui {
     let mut ui = Ui::new(fonts);
     ui.set_platform(Platform::Linux);
     ui
+}
+
+/// The input method's state, as the host is told it: when it changed since the host last read.
+fn input_method(ui: &mut Ui) -> Option<InputMethod> {
+    ui.outputs(TargetId::MAIN).input_method
+}
+
+/// The caret's box that the input method is told, which changed since the host last read it.
+fn told_caret(ui: &mut Ui) -> uwui::Rect {
+    ui.outputs(TargetId::MAIN)
+        .input_area
+        .expect("the input method told a new caret")
 }
 
 /// Writes 200 by 30 logical pixels, of the tests' fonts.
@@ -237,8 +250,8 @@ fn an_input_method_composes_text_which_one_undo_takes_back() {
     assert!(!ui.ime(&preedit("に")), "no field holds the focus");
     ui.set_focus(Some(field));
     assert!(
-        ui.text_input().is_some(),
-        "the program allows the input method"
+        input_method(&mut ui) == Some(InputMethod::On),
+        "the input method on for the field"
     );
     ui.ime(&Ime::Enabled);
     ui.ime(&preedit("に"));
@@ -262,7 +275,7 @@ fn an_input_method_composes_text_which_one_undo_takes_back() {
         "the text before the composition"
     );
     ui.set_focus(None);
-    assert_eq!(ui.text_input(), None);
+    assert_eq!(input_method(&mut ui), Some(InputMethod::Off));
 }
 
 #[test]
@@ -296,10 +309,14 @@ fn the_pointer_places_the_caret_and_selects() {
     assert_eq!(ui.field_text(field), Some("W"));
     // The pointer's shape: the I-beam over the field, the arrow over the button.
     ui.pointer_moved(100.0, 15.0);
-    assert_eq!(ui.cursor(), CursorShape::Text);
+    assert_eq!(ui.outputs(TargetId::MAIN).cursor, Some(CursorShape::Text));
     assert_eq!(ui.rect(button).map(|rect| rect.x), Some(200.0));
     ui.pointer_moved(300.0, 15.0);
-    assert_eq!(ui.cursor(), CursorShape::Default);
+    assert_eq!(
+        ui.outputs(TargetId::MAIN).cursor,
+        Some(CursorShape::Default)
+    );
+    assert_eq!(ui.outputs(TargetId::MAIN).cursor, None, "told once");
 }
 
 #[test]
@@ -339,7 +356,10 @@ fn a_field_of_numbers_writes_only_what_the_user_changed() {
     // to the step's decimals, committed when let go.
     ui.set_focus(None);
     ui.pointer_moved(100.0, 15.0);
-    assert_eq!(ui.cursor(), CursorShape::ResizeHorizontal);
+    assert_eq!(
+        ui.outputs(TargetId::MAIN).cursor,
+        Some(CursorShape::ResizeHorizontal)
+    );
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_moved(102.0, 15.0);
     assert_eq!(
@@ -348,7 +368,11 @@ fn a_field_of_numbers_writes_only_what_the_user_changed() {
         "not yet past the threshold"
     );
     ui.pointer_moved(130.0, 15.0);
-    assert_eq!(ui.cursor(), CursorShape::ResizeHorizontal);
+    assert_eq!(
+        ui.outputs(TargetId::MAIN).cursor,
+        None,
+        "still the arrows of a drag"
+    );
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
     assert_eq!(ui.field_text(field), Some("4.5"));
     assert_eq!(values(&mut ui), ["changed 4.5", "committed 4.5"]);
@@ -682,10 +706,10 @@ fn a_field_keeps_its_caret_in_view_and_places_a_line_written_from_right_to_left_
     assert!(rect.height > 0.0);
     ui.set_focus(Some(field));
     type_text(&mut ui, &"wide ".repeat(20));
-    let caret = ui.text_input().expect("a field takes text");
+    let caret = told_caret(&mut ui);
     assert!(caret.x <= rect.x + rect.width && caret.x > rect.x + rect.width / 2.0);
     ui.key(&named(NamedKey::Home));
-    let caret = ui.text_input().expect("a field takes text");
+    let caret = told_caret(&mut ui);
     assert!(caret.x < rect.x + 5.0, "{caret:?}");
     // Its caret at its end again, the field shows the start of its text once the focus leaves it,
     // and its caret as the focus comes back.
@@ -701,15 +725,16 @@ fn a_field_keeps_its_caret_in_view_and_places_a_line_written_from_right_to_left_
         })
         .expect("its text");
     assert!(start >= rect.x, "{start} from {rect:?}");
+    assert_eq!(input_method(&mut ui), Some(InputMethod::Off));
     ui.set_focus(Some(field));
     ui.frame();
-    let caret = ui.text_input().expect("a field takes text");
+    let caret = told_caret(&mut ui);
     assert!(caret.x > rect.x + rect.width / 2.0, "{caret:?}");
     // Hebrew, its start on the right, in a field wider than it.
     let (mut ui, _, field, _) = interface(Element::text_field("שלום").style(style));
     ui.set_focus(Some(field));
     ui.key(&named(NamedKey::Home));
-    let caret = ui.text_input().expect("a field takes text");
+    let caret = told_caret(&mut ui);
     assert!(caret.x > rect.x + rect.width - 5.0, "{caret:?}");
 }
 
@@ -851,23 +876,29 @@ fn the_caret_stays_within_a_field_whose_text_is_pushed_to_its_end() {
     let (mut ui, _, field, _) = interface(aligned);
     let rect = ui.rect(field).expect("drawn");
     ui.set_focus(Some(field));
-    let within = |ui: &Ui| {
-        let caret = ui.text_input().expect("a field takes text");
+    // The caret's box as the input method was last told it: none told, it stayed where it was.
+    let within = |ui: &mut Ui, told: &mut Option<uwui::Rect>| {
+        if let Some(caret) = ui.outputs(TargetId::MAIN).input_area {
+            *told = Some(caret);
+        }
+        let caret = told.expect("a caret told as the field took the focus");
         assert!(
             caret.x >= rect.x && caret.x + caret.width <= rect.x + rect.width,
             "{caret:?} within {rect:?}"
         );
     };
-    within(&ui);
+    let mut told = None;
+    within(&mut ui, &mut told);
     type_text(&mut ui, "end");
-    within(&ui);
+    within(&mut ui, &mut told);
     type_text(&mut ui, &"wide ".repeat(20));
-    within(&ui);
+    within(&mut ui, &mut told);
     // Hebrew, which starts on the right, with its caret at its start.
     let (mut ui, _, field, _) = interface(Element::text_field("שלום").style(style));
     ui.set_focus(Some(field));
     ui.key(&named(NamedKey::Home));
-    within(&ui);
+    let mut told = None;
+    within(&mut ui, &mut told);
     assert!(ui.field_text(field).is_some());
 }
 

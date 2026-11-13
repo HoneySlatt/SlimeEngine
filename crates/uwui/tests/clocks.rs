@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use slime_color::LinearColor;
 use uwui::display::{DisplayList, Primitive};
+use uwui::host::{Event, Input, Person, TargetId};
 use uwui::style::{Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::theme::{StyleSheet, Theme};
@@ -561,7 +562,8 @@ fn an_event_earlier_than_the_interfaces_time_moves_nothing_back() {
     let (mut ui, _, _) = interface(BUTTONS, button());
     let at = Instant::from_nanos(9_000_000_000);
     ui.set_frame_shown(FrameShown::simulated(at));
-    ui.set_event_time(EventTime::received(Instant::from_nanos(1)));
+    let early = EventTime::received(Instant::from_nanos(1));
+    let _ = ui.event(Event::new(TargetId::MAIN, early, Input::PointerLeft));
     ui.notify(Notification {
         kind: NotificationKind::Information,
         text: "Saved".to_owned(),

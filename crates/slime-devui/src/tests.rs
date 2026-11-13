@@ -7,6 +7,7 @@ use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use slime_reflect::{Path, Reflect, Value};
 use slime_world::glam::{DVec3, Quat, Vec3};
 use slime_world::{Command, Entity, Light, Name, World};
+use uwui::host::Person;
 use uwui::look::{self, Colors, Density};
 use uwui::style::FlexDirection;
 use uwui::text::Fonts;

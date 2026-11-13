@@ -148,8 +148,8 @@ pub enum FrameSource {
     Started,
 }
 
-/// The time at which an input event came, and where that time comes from: given before each
-/// event by [`Ui::set_event_time`](crate::tree::Ui::set_event_time).
+/// The time at which an input event came, and where that time comes from: given with each event
+/// ([`Event::time`](crate::host::Event::time)).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EventTime {
     /// When the event came, on the host's clock.
@@ -166,6 +166,14 @@ impl EventTime {
             source: EventSource::Received,
         }
     }
+
+    /// An event that came `at`, at the time that a test or a headless run gives.
+    pub const fn simulated(at: Instant) -> Self {
+        Self {
+            at,
+            source: EventSource::Simulated,
+        }
+    }
 }
 
 /// Where an input event's time comes from (`docs/adr/0227-the-time-that-motion-reads.md`).
@@ -179,6 +187,8 @@ pub enum EventSource {
     /// stamp taken in a batch, or behind a busy frame, comes late.
     #[default]
     Received,
+    /// The time that a test or a headless run gives, as `host::Person` gives it.
+    Simulated,
 }
 
 /// A root's clock at a frame, as its host gives it

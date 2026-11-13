@@ -29,5 +29,7 @@ slime-reflect.workspace = true
 slime-world.workspace = true
 
 [dev-dependencies]
-# The tests use the panels as a person does: the pointer and the keys.
+# The tests use the panels as a person does: the pointer and the keys, given through
+# `uwui::host::Person` (ADR-0253).
 slime-input.workspace = true
+uwui = { workspace = true, features = ["editor-look", "test-input"] }

@@ -2,8 +2,8 @@
 //! and turns into what it changes, a command of the editor's or a game's
 //! (`docs/adr/0142-input-and-focus.md`).
 //!
-//! A person's input becomes actions ([`Ui::pointer_button`](crate::tree::Ui::pointer_button),
-//! [`Ui::key`](crate::tree::Ui::key)); an agent sends the same ([`Ui::act`](crate::tree::Ui::act)).
+//! A person's input becomes actions ([`Ui::event`](crate::tree::Ui::event)); an agent sends the
+//! same ([`Ui::act`](crate::tree::Ui::act)).
 //! The interface handles some itself, the intents that move the focus; the others wait in its
 //! queue until the program takes them ([`Ui::take_actions`](crate::tree::Ui::take_actions)).
 

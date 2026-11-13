@@ -7,6 +7,7 @@
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind, FieldValue};
 use uwui::display::Primitive;
+use uwui::host::{Person, TargetId};
 use uwui::style::{Align, Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementAction, ElementId, LayoutDirection, Role, RootSettings, Ui};
@@ -533,7 +534,10 @@ fn a_split_shares_its_length_and_its_handle_is_dragged_and_moved_by_the_keys() {
     assert_eq!(meaning.value.as_deref(), Some("0.25"));
     // The handle dragged to the middle.
     ui.pointer_moved(104.0, 100.0);
-    assert_eq!(ui.cursor(), slime_input::CursorShape::ResizeHorizontal);
+    assert_eq!(
+        ui.outputs(TargetId::MAIN).cursor,
+        Some(slime_input::CursorShape::ResizeHorizontal)
+    );
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_moved(204.0, 100.0);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);

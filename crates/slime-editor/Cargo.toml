@@ -43,3 +43,6 @@ serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
+[dev-dependencies]
+# The tests give the window's interface a person's input through `uwui::host::Person` (ADR-0253).
+uwui = { workspace = true, features = ["editor-look", "test-input"] }

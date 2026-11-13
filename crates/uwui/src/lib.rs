@@ -4,6 +4,7 @@ pub mod action;
 pub mod display;
 pub mod dock;
 mod document;
+pub mod host;
 mod layout;
 #[cfg(feature = "editor-look")]
 pub mod look;

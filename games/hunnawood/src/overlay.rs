@@ -99,7 +99,8 @@ impl DevOverlay {
 
     /// Whether one of the overlay's fields takes the keys, which F3 and F4 leave to it.
     pub fn typing(&self) -> bool {
-        self.overlay.ui().text_input().is_some()
+        let ui = self.overlay.ui();
+        ui.focus().and_then(|focus| ui.field_text(focus)).is_some()
     }
 
     /// Drops the overlay's GPU objects, once the GPU device is lost, and keeps its panels

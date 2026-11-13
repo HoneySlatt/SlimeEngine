@@ -14,9 +14,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - uwui's times (ADR-0227, ADR-0251): `uwui::time` holds `Instant`, a time of the host's clock, and
   `RootTime`, a time of a root's clock, in whole nanoseconds, which cannot be mixed. A host gives
   each frame's time and source (`Ui::set_frame_shown`, told back by `FrameStats::shown`), each
-  event's (`Ui::set_event_time`), each root's clock and speed (`Ui::set_root_clock`), which a
-  paused game holds, with the layers that open over its roots, while hover, press and focus go
-  on, and its waker (`Ui::set_waker`).
+  event's with the event (`uwui::host::Event`), each root's clock and speed (`Ui::set_root_clock`),
+  which a paused game holds, with the layers that open over its roots, while hover, press and focus
+  go on, and its waker (`Ui::set_waker`).
 - The engine's windowed runs give their interface times of a clock that counts a suspend, Linux's
   `CLOCK_BOOTTIME` and Windows' performance counter: after a suspend, the first frame that runs
   ends what was due meanwhile, a tooltip's rest or a notification. The run logs the time that the
@@ -25,6 +25,16 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- uwui takes input as the host's events (ADR-0253): `Ui::event(Event)`, each `uwui::host::Event`
+  with its target, its time and its input, the pointer, the wheel, the modifiers, a key or an input
+  method, answered at once, `Answer::Taken` or `NotTaken`. `Ui::pointer_moved`, `pointer_left`,
+  `pointer_button`, `wheel`, `modifiers`, `key`, `ime` and `set_event_time` are gone;
+  `uwui::host::Person`, with uwui's feature `test-input`, gives a test's input as a person would. A
+  host reads what each target shows after each frame, only what changed, from
+  `Ui::outputs(TargetId)`: the pointer's shape, the input method on as a field's input starts or
+  off, and its caret's box, in place of `Ui::cursor` and `Ui::text_input`; a presentation gives the
+  same interface at every call once given. The engine gives the pointer's moves of a frame as one,
+  and a move walks the tree once, so that it costs about half as much.
 - `Ui::advance` and `Ui::next_change` are gone: a host gives each frame its time on the host's
   clock, `Ui::set_frame_shown(FrameShown)`, and asks for a frame at `Ui::next_frame_due()`, an
   `Instant`. A bar of progress without a share keeps its place however long the machine has run.

@@ -6,6 +6,7 @@
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, Modifiers};
 use uwui::DocumentErrors;
 use uwui::action::ActionKind;
+use uwui::host::Person;
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::text::Fonts;
 use uwui::tree::{LayoutDirection, RootSettings, Ui};

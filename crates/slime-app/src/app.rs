@@ -403,7 +403,7 @@ impl Frames {
                 // The pointer's shape and the input method, as the interface left them, or as the
                 // window shows them without one.
                 if let Some(window) = host.context.window() {
-                    self.shown.update(window, presentation.ui().as_deref());
+                    self.shown.update(window, presentation.ui());
                     // What changed in what it means, while a screen reader reads the window.
                     #[cfg(feature = "accessibility")]
                     self.screen_readers.update(window, presentation.ui());

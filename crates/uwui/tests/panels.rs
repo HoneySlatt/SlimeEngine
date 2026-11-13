@@ -6,6 +6,7 @@
 
 use slime_input::{ButtonState, MouseButton};
 use uwui::action::{Action, ActionKind};
+use uwui::host::Person;
 use uwui::style::{Dimension, Style};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementId, Layer, LayoutDirection, Place, Role, RootSettings, Ui};

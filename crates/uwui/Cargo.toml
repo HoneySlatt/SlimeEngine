@@ -15,6 +15,9 @@ workspace = true
 # dev overlay (ADR-0148), built into the programs that draw in it; a game that draws neither leaves
 # it out.
 editor-look = []
+# `host::Person`: a person's input given without a time nor a target, for tests and benchmarks
+# alone, so that a host has one way to give input, `Ui::event` (ADR-0253).
+test-input = []
 
 [dependencies]
 # Text shaped, ordered, broken into lines and laid out, the fonts found by fontique, which parley
@@ -38,6 +41,10 @@ tracing.workspace = true
 uwui-kdl.workspace = true
 # The declarations of the styles, which the cascade applies (ADR-0229).
 uwui-macros.workspace = true
+
+[dev-dependencies]
+# uwui's own tests give a person's input through `host::Person`.
+uwui = { path = ".", features = ["test-input"] }
 
 # The editor's look is tested with its feature on.
 [[test]]

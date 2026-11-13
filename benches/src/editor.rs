@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use slime_editor::{Hierarchy, InterfaceFrame, Offscreen};
 use slime_gfx::Gpu;
 use slime_world::{Name, World};
+use uwui::host::Person;
 use uwui::look::{self, Colors, Density};
 use uwui::style::{Dimension, FlexDirection};
 use uwui::text::Fonts;
@@ -110,7 +111,36 @@ pub fn hierarchy(context: &mut Context) -> Result<Vec<Row>, String> {
         world.spawn();
         frame(&mut ui, &world, &mut hierarchy);
     });
+    // The pointer moved from a row to the next and back, each move hovering another row: what a
+    // host pays for each move that it gives, before the frame.
+    let (first, second) = match ui.children(list) {
+        [first, second, ..] => (*first, *second),
+        _ => return Err("no rows in sight".to_owned()),
+    };
+    let centre = |ui: &Ui, row| {
+        ui.rect(row)
+            .map(|rect| [rect.x + rect.width / 2.0, rect.y + rect.height / 2.0])
+            .ok_or("a row not laid out")
+    };
+    let points = [centre(&ui, first)?, centre(&ui, second)?];
+    let mut turn = 0;
+    let mut move_pointer = |ui: &mut Ui| {
+        turn += 1;
+        let [x, y] = points[turn % 2];
+        ui.pointer_moved(x, y);
+    };
+    move_pointer(&mut ui);
+    let ((), moved) = counted(|| move_pointer(&mut ui));
+    let moves = times(runs, || move_pointer(&mut ui));
     let mut rows = counters;
+    rows.push(Row::count(
+        "allocations of a pointer's move to another row",
+        moved.calls,
+    ));
+    rows.push(Row::count(
+        "bytes allocated by a pointer's move to another row",
+        moved.taken,
+    ));
     rows.extend(Row::times("a frame standing still", &still));
     rows.extend(Row::times("a frame scrolled by a row", &scrolled));
     rows.extend(Row::times("a frame after an entity was renamed", &renaming));
@@ -122,6 +152,7 @@ pub fn hierarchy(context: &mut Context) -> Result<Vec<Row>, String> {
         "a frame after an entity was spawned, the rows made again",
         &spawned,
     ));
+    rows.extend(Row::times("a pointer's move to another row", &moves));
     Ok(rows)
 }
 

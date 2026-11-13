@@ -7,6 +7,7 @@
 use slime_color::LinearColor;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{ActionKind, FieldValue};
+use uwui::host::Person;
 use uwui::style::{Align, Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementId, LayoutDirection, Meaning, Role, RootSettings, Ui};

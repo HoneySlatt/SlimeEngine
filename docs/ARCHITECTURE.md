@@ -412,12 +412,13 @@ slime_app::run
     │                            → Resized: surface.resize; with the `accessibility` feature,
     │                              Event::Accessibility goes to screen readers' side alone
     │                              (below); otherwise the event goes first to the interface of
-    │                              Presentation::ui (its time stamped at reception on the
-    │                              host's clock, Ui::set_event_time; interface::give, with the
-    │                              system's clipboard), then, unless it took it,
-    │                              presentation.on_event(ctx, &event); the host's input follows
-    │                              the event (Input::handle) unless one of them took a key or a
-    │                              button put down; CloseRequested → stop
+    │                              Presentation::ui as uwui's host event (Ui::event, its time
+    │                              stamped at reception on the host's clock; WindowInput::give,
+    │                              which holds the pointer's last move until the interface's next
+    │                              event or the frame; with the system's clipboard), then, unless
+    │                              it took it, presentation.on_event(ctx, &event); the host's
+    │                              input follows the event (Input::handle) unless one of them
+    │                              took a key or a button put down; CloseRequested → stop
     ├── winit "window_event"     RedrawRequested → driver.redraw_requested → a lost device
     │                            restored (below); the interface given the frame's start on
     │                            the host's clock (Ui::set_frame_shown, ADR-0227) and the run's
@@ -1709,15 +1710,18 @@ A theme changed while a program runs is cooked again, found by a `ManifestWatch`
 
 A person's input reaches an interface in the engine's vocabulary of input, `slime-input`, which
 `slime-platform` translates winit's events into ([ADR-0142](adr/0142-input-and-focus.md)), and
-which `slime-app` gives the presentation's interface first ([ADR-0145](adr/0145-text-edited.md)):
+which `slime-app` gives the presentation's interface first, as the host's events of uwui
+([ADR-0145](adr/0145-text-edited.md),
+[ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)):
 
 ```text
 Event::CursorMoved / CursorLeft                 the window's events, which slime-app gives the
 Event::MouseButton / MouseWheel                 interface of Presentation::ui
 Event::ModifiersChanged / Key / Ime
-ui.pointer_moved / pointer_left                 the button under the pointer hovered, pressed, held;
-ui.pointer_button / wheel                       a field focused, its caret placed, its text selected
-ui.modifiers / key / ime                        what the focused field types and edits with, then a
+ui.event(Event { target, time, input })         the moves of a frame given as one, the last;
+  PointerMoved / PointerLeft                    the button under the pointer hovered, pressed, held;
+  PointerButton / Wheel                         a field focused, its caret placed, its text selected
+  Modifiers / Key / InputMethod                 what the focused field types and edits with, then a
 │                                               shortcut's command, or an intent: Tab, the arrows,
 │                                               Enter and Space, Escape
 ├── intents that move the focus                 done by the interface: Tab in the tree's order, the
@@ -1725,12 +1729,13 @@ ui.modifiers / key / ime                        what the focused field types and
 │                                               scope, a modal root's or the focus's root
 └── a press, accept, cancel, a command,         queued
     a field changed or committed
-the call's answer, taken or not                 an event taken reaches neither Presentation::on_event
+the event's answer, taken or not                an event taken reaches neither Presentation::on_event
                                                 nor the game's input
 ui.act(action)                                  an agent's action, by the same path
 ui.take_actions()                               the program reads the queue, and does what it asks
-ui.cursor(), ui.text_input()                    slime-app, after each frame drawn: the pointer's
-                                                shape, the input method allowed beside the caret
+ui.outputs(target)                              slime-app, after each frame drawn, what changed: the
+                                                pointer's shape, the input method allowed as a
+                                                field's input starts or forbidden, its caret's box
 ```
 
 The interface takes an event when it reaches it: a press on what it draws, a button, a field, a

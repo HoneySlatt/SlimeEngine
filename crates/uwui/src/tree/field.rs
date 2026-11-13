@@ -508,7 +508,7 @@ impl Ui {
     /// The shape that the pointer takes where it is: the I-beam over a field of text and over a
     /// field of numbers that holds the focus, the arrows of a drag over one that does not, or
     /// while one is dragged; the arrow elsewhere.
-    pub fn cursor(&self) -> CursorShape {
+    pub(super) fn cursor(&self) -> CursorShape {
         if let Some(captured) = self.interaction.captured
             && self
                 .node(captured)
@@ -545,19 +545,9 @@ impl Ui {
         }
     }
 
-    /// Where text is typed, when a field holds the focus: its caret's box, in pixels of the
-    /// surface, beside which an input method places its window. The program allows the input
-    /// method while it is some, and forbids it otherwise.
-    pub fn text_input(&self) -> Option<Rect> {
-        let focus = self.interaction.focus?;
-        self.node(focus)?.field.as_ref().map(|field| field.caret)
-    }
-
-    /// An input method composed or committed text, or turned off: the field that holds the focus
-    /// shows what it composes, under a line, in place of its selection, which a composition
-    /// deletes as it starts, and takes what it commits as typed text. Gives whether a field took
-    /// it.
-    pub fn ime(&mut self, ime: &Ime) -> bool {
+    /// What [`Input::InputMethod`](crate::host::Input::InputMethod) does; gives whether a field
+    /// took it.
+    pub(super) fn ime_input(&mut self, ime: &Ime) -> bool {
         let Some(focus) = self.focused_field() else {
             return false;
         };

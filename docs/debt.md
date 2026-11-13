@@ -744,7 +744,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A field of numbers has no bounds, and reads a full stop alone as its decimal mark, whatever the user's language.
   A field of numbers without a prefix is dragged only while it does not hold the focus.
   The input method's window is placed beside the caret as the last frame drew it.
-  It is turned off and on again, meant to end a composition that the focus left, which no input method was checked with yet.
+  It is turned off and on again as each field's input starts, another field or the same one focused again, meant to end a composition that the focus left, which no input method was checked with yet; [M6d.8](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) checks it with the desktop host's input methods.
   A text that the program gives while an input method composes, which the field reads without the composition, is left aside: a field clears itself once the composition ends.
   The clipboard holds text alone.
   On Wayland, the clipboard needs a compositor that gives the protocol of the clipboard's managers, wlroots', niri's and Hyprland's among them, and falls back on X11 through XWayland elsewhere: in Mutter and Weston without XWayland, fields copy and paste nothing ([`compositors.md`](compositors.md)).
@@ -778,10 +778,18 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The loop's own waits end late by the length of a suspend, though what they wait for was due on the host's clock: on Linux, winit's `WaitUntil` waits on `std::time::Instant`, which stops during one; on Windows, winit waits by a relative time, which since Windows 8 does not count one. The loop measures the time suspended and logs it, but only once something wakes it.
   On macOS, the host's clock is `std::time::Instant` itself, which stops during a suspend.
   One frame's time serves every root of a `Ui`, where [ADR-0227](adr/0227-the-time-that-motion-reads.md) asks one for each window: an interface of two windows on displays of two rates steps by one of them.
-  The host gives the times through `Ui::set_frame_shown` and `Ui::set_event_time`, not carried by the events themselves; uwui keeps an event's time, not its source.
+  The host gives a frame's time through `Ui::set_frame_shown`, one for every root; an event carries its time ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)), of which uwui keeps the time, not its source.
   The engine gives no root a clock of its own: no game's root runs on uwui yet, and the dev overlay and the editor follow the host's clock.
   A motion asks for every frame while it moves.
-  Followed at [M6d.5c](stage-6d.md#m6d5c--input-and-output-in-uwui), whose events carry their times and their targets, and whose outputs are each target's; [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames), which reads the platforms' times, finds the system's notice that it resumed, gives the time suspended with it, and reads macOS's clock; the layer of games' interfaces, which feeds a game's clock to its roots ([`uwui-needs.md`](uwui-needs.md#slimeengines-own)); uwui's first stage builds the caps of motion.
+  Followed at [M6d.5c3](stage-6d.md#m6d5c3--the-targets), which gives each target its frame's time; [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames), which reads the platforms' times, finds the system's notice that it resumed, gives the time suspended with it, and reads macOS's clock; the layer of games' interfaces, which feeds a game's clock to its roots ([`uwui-needs.md`](uwui-needs.md#slimeengines-own)); uwui's first stage builds the caps of motion.
+- **uwui's host's API serves one target, and the engine gives the pointer's moves of a frame as one** ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)).
+  Every root draws on `TargetId::MAIN`; an event for another target is not taken, and its outputs are empty.
+  The engine holds the pointer's last move until another event or the frame: what the editor's viewport measures along the path, a drag's threshold and an orbit's length, sees one move for each frame, so a move out and back within a frame counts for nothing.
+  A host that gives every move pays a hit test for each.
+  The outputs tell the window only what changed since the run last read them: a presentation must give the same interface at every call once it gave one (`Presentation::ui`), or the window keeps the cursor and the input method that the interface asked before; [M6d.5e](stage-6d.md#m6d5e--slime-app-a-host-through-the-api-alone), which gives uwui the lifecycle, settles it.
+  The cost of a move on the lowest machine that the quality bar names is not measured: that machine is not set up yet ([`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-owner)).
+  The moves between two frames, the wheel's phase, a field's purpose, the pointer's entering and whether the cursor shows are not built: no code reads them.
+  Followed at [M6d.5c3](stage-6d.md#m6d5c3--the-targets), which gives each root its target and holds a move for each target; M6d.5e; the pen, inertial scrolling and the hosts of Android and the web, which read the rest.
 - **A wake that runs uwui's tasks without drawing waits for its executor** ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)).
   uwui asks only for its next frame due (`Ui::next_frame_due`), no wake: it has no tasks yet, and its timers, tooltips, submenus and notifications, all change the drawing, which waits for a frame.
   Each wake of the host's waker asks the engine for a frame; a hidden window holds it as [ADR-0187](adr/0187-a-hidden-window-at-rest.md) says.

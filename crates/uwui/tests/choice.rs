@@ -8,6 +8,7 @@
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind, FieldValue};
+use uwui::host::Person;
 use uwui::style::{Align, Dimension, FlexDirection};
 use uwui::text::Fonts;
 use uwui::tree::{

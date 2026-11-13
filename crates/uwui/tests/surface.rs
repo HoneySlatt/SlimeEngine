@@ -10,6 +10,7 @@ use slime_input::{
 };
 use uwui::action::{ActionKind, SurfaceInput};
 use uwui::display::{ImageKey, Primitive};
+use uwui::host::Person;
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::style::{Dimension, FlexDirection};
 use uwui::text::Fonts;

@@ -154,7 +154,11 @@ in git.
   ([ADR-0249](adr/0249-the-hosts-api-its-items-and-their-table.md)), and
   [M6d.5b](#m6d5b--the-times), the times, on 2026-11-13
   ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)); then
-  [M6d.5c](#m6d5c--input-and-output-in-uwui),
+  [M6d.5c](#m6d5c--input-and-output-in-uwui), cut in three on 2026-11-13
+  ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)): in progress,
+  [M6d.5c1](#m6d5c1--events-and-outputs-on-one-target), then
+  [M6d.5c2](#m6d5c2--the-clipboard-and-the-hosts-questions) and
+  [M6d.5c3](#m6d5c3--the-targets); then
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui) and
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
@@ -1887,6 +1891,54 @@ of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
   through the events; the editor's tests of input and the clipboard pass; CI is green.
 - **How to test.** `cargo test --workspace`.
 - **Measured.** Input to present; a pointer's move, counted in uwui's benchmarks.
+- **Cut in three** at its start, on 2026-11-13 ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)):
+  the events and the outputs on one target; the clipboard and the host's questions; the targets.
+  The moves between two frames, the wheel's phase, a field's purpose, the pointer's entering and
+  whether the cursor shows wait for their readers, the owner's choice.
+
+### M6d.5c1 — Events and outputs on one target
+
+The first third of M6d.5c; in progress, its card in [`PLAN.md`](PLAN.md#m6d5c1--events-and-outputs-on-one-target).
+
+### M6d.5c2 — The clipboard and the host's questions
+
+The second third of M6d.5c ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)). It follows the rules
+of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Copy, cut and paste reach uwui as events, and a host asks uwui what an input method
+  asks it.
+- **Crates.** `uwui`, `slime-app` (`interface.rs`), `slime-editor`.
+- **Delivers.**
+  - Copy, cut and paste as events: the answer's third state, taken and left to the platform, and
+    the text that the handler writes; a paste carrying its text.
+  - Reads of the clipboard asked as outputs, numbered, and their answers as events; an answer
+    not awaited, or whose field lost the focus, dropped.
+  - The `Clipboard` trait gone; the editor's paste a request and its answer, as an action.
+  - The deletion around the caret, as an event.
+  - The host's questions: the text around the caret, the selection and the composition, within a
+    bound, in the unit that the host names; a range's rectangle; the character at a point;
+    whether a point is uwui's.
+- **Done when.** M6d.5a's two hard cases of a single target pass in uwui's tests, an input
+  method's question right after its commit and a paste as the web gives it; ADR-0248's cases
+  pass: a paste pending when the focus moves, a second paste, no answer, a huge text; the editor's
+  tests of the clipboard pass; CI is green.
+- **How to test.** `cargo test --workspace`.
+- **Measured.** A question over a field of 4,000 bytes, against M6d.5a's prototype.
+
+### M6d.5c3 — The targets
+
+The last third of M6d.5c ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)).
+
+- **Goal.** A host draws uwui's roots on several targets, each with its own input and outputs.
+- **Crates.** `uwui`, `slime-app`, `slime-editor`, `slime-devui`.
+- **Delivers.** Each root on its target; each target's hit test, pointer, hover, capture, focus,
+  modal root, layers, display list, frame and frame's time; a layer that follows the root it opens
+  over to its target; each target's outputs; the engine holding one move for each target.
+- **Done when.** M6d.5a's third hard case, two targets with a button at the same place, passes in
+  uwui's tests; a hit test and a display list for each target; a layer over another target's
+  root; the editor's and the game's input unchanged; CI is green.
+- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **Measured.** Input to present, the editor and the game, with the owner's go on the GPU.
 
 ### M6d.5d — AccessKit's translation in uwui
 

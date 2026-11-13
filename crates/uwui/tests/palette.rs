@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
+use uwui::host::Person;
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::text::Fonts;
 use uwui::theme::StyleSheet;

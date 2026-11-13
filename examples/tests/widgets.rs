@@ -40,6 +40,7 @@ use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderPassDescriptor, TextureFormat};
 use uwui::Rect;
 use uwui::action::{Action, ActionKind};
+use uwui::host::Person;
 use uwui::look::{Colors, Density};
 use uwui::preferences::{Preferences, TextSize};
 use uwui::style::Display;

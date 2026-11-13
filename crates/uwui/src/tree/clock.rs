@@ -6,7 +6,7 @@ use std::task::Waker;
 use std::time::Duration;
 
 use super::{ElementId, Ui};
-use crate::time::{EventTime, FrameShown, Instant, RootClock, RootTime};
+use crate::time::{FrameShown, Instant, RootClock, RootTime};
 
 /// The clock that a motion follows: the host's, or its root's ([`RootClock`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -34,8 +34,8 @@ impl Ui {
     /// notification whose time came shows in that frame. A host gives it before each frame.
     ///
     /// The interface's time is the latest that the host gave, of a frame or of an event
-    /// ([`Ui::set_event_time`]), and never goes back: a time earlier than one given before moves
-    /// nothing, and the frame tells this one as given
+    /// ([`Event::time`](crate::host::Event::time)), and never goes back: a time earlier than one
+    /// given before moves nothing, and the frame tells this one as given
     /// ([`FrameStats::shown`](super::FrameStats::shown)). Until a host gives a time, the
     /// interface's time is the clock's zero: a host gives one before it adds what waits, a
     /// notification or the pointer's rest, which would otherwise wait from zero and end at the
@@ -43,13 +43,6 @@ impl Ui {
     pub fn set_frame_shown(&mut self, shown: FrameShown) {
         self.frame_shown = shown;
         self.now = self.now.max(shown.at);
-    }
-
-    /// Gives the interface the time at which the input event that the host gives next came, on
-    /// the host's clock, with its source: the pointer's rest that it starts, before a tooltip shows
-    /// or a submenu opens, starts then. Never back, as [`Ui::set_frame_shown`] says.
-    pub fn set_event_time(&mut self, time: EventTime) {
-        self.now = self.now.max(time.at);
     }
 
     /// Gives `root` its clock at the next frame: the time of the root's clock that the frame shows,

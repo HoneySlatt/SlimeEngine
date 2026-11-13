@@ -149,14 +149,19 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   (`docs/adr/0143-what-agents-see-of-the-interface.md`), which the presentation draws in `render`
   itself (`InterfaceRenderer`, below), and to which the dev overlay adds its panels as roots
   (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`); the run connects it to the window:
-  each event goes to the interface first, and to `on_event` and the game's input only when the
-  interface did not take it, but a key or a button let go, which always reaches the input; the
+  each event goes to the interface first, as uwui's host event (`Ui::event`), but the pointer's
+  moves, which the game sees first and the interface as one, the last of a frame; and to
+  `on_event` and the game's input only when the interface did not take it, but a key or a button
+  let go, which always reaches the input; the interface, once given, must be the same one at
+  every call; the
   interface gets the system's clipboard, the run's waker, and the times of the host's clock,
   which counts a suspend: each event's reception and each frame's start, uncapped
   (`docs/adr/0227-the-time-that-motion-reads.md`,
   `docs/adr/0251-the-engines-host-clock-and-its-times.md`); and after each frame the window
-  shows the pointer's shape that it asks and allows the input method while one of its fields takes
-  text (`docs/adr/0145-text-edited.md`), and, with the `accessibility` feature, screen readers get
+  shows what the interface's outputs tell changed (`Ui::outputs`), the pointer's shape and the
+  input method allowed while one of its fields takes text (`docs/adr/0145-text-edited.md`,
+  `docs/adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md`), and,
+  with the `accessibility` feature, screen readers get
   what changed in what it means; `gpu_lost` and `gpu_restored` when the run replaces a lost GPU
   device, which a game asks for with `AppConfig::restore_lost_device`: it drops its GPU objects in
   the first, before the new device opens, and creates them again in the second

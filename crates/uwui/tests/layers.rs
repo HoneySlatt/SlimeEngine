@@ -5,6 +5,7 @@
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
+use uwui::host::Person;
 use uwui::style::{Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{

@@ -87,14 +87,24 @@ Its logo is not under the code's licenses: its author keeps its rights, and
 - The host gives `Ui` its times (`time`, `docs/adr/0227-the-time-that-motion-reads.md`), in whole
   nanoseconds: `Instant`, a time of the host's clock, which counts a suspend, and `RootTime`, a
   time of a root's clock, which cannot be mixed. Before each frame, when it shows and where that
-  time comes from (`Ui::set_frame_shown`); before each input event, when it came
-  (`Ui::set_event_time`); each root's clock, its time and its speed, by default the host's at
+  time comes from (`Ui::set_frame_shown`); with each input event, when it came (`host::Event`);
+  each root's clock, its time and its speed, by default the host's at
   speed 1 (`Ui::set_root_clock`). What follows which clock is `RootClock`'s: in short, what
   answers a person follows the host's, the rest its root's, which a paused game holds, and a layer
   follows the root that it opens over. The host gives the waker by which any thread asks it for a
   step (`Ui::set_waker`, `Ui::waker`).
-- `Ui` takes a person's input, the pointer, the wheel, the modifiers and the keys in the types of
-  `slime-input`, and turns it into `action::Action`s: a button pressed, an intent of navigation, the
+- The host gives `Ui` a person's input as events (`host`, `Ui::event`,
+  `docs/adr/0249-the-hosts-api-its-items-and-their-table.md`,
+  `docs/adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md`): the
+  pointer, the wheel, the modifiers, the keys and input methods, in the types of `slime-input`,
+  each event with its *target*, where it came, and its time, each answered at once, taken or not,
+  which a game then leaves; the moves of a frame gathered by the host, as one. After each frame
+  the host reads what each target shows (`Ui::outputs`), only what changed: the pointer's shape;
+  the input method on as a field's input starts, off once no field holds the focus; and the
+  caret's box. The outputs are the host's: a second reader would take its changes. Every root
+  draws on one target today, `host::TargetId::MAIN`. With the feature `test-input`, which tests
+  and benchmarks turn on, `host::Person` gives a person's input at no time of its own. `Ui` turns
+  the input into `action::Action`s: a button pressed, an intent of navigation, the
   command of a shortcut. The program reads them from a queue (`Ui::take_actions`); an agent sends
   them (`Ui::act`). The interface moves the focus itself, by Tab in the order of the tree and by the
   arrows to the nearest element on screen, within its scope, and by F6 from one root to the next,
@@ -117,10 +127,8 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   user types, selects with the keys and the pointer, undoes, copies and pastes through the clipboard
   that the program gives (`tree::Clipboard`, `Ui::set_clipboard`), which the program reads and
   writes too (`Ui::clipboard_text`, `Ui::set_clipboard_text`), and composes through an input
-  method (`Ui::ime`); its text is laid out as a label's, parley moving its selection. The program
-  reads it as actions, changed and committed (`action::FieldValue`), and the window asks it for
-  the pointer's shape and where text is typed (`Ui::cursor`, `Ui::text_input`). The input calls
-  give whether the interface took the event, which a game then leaves.
+  method (`host::Input::InputMethod`); its text is laid out as a label's, parley moving its
+  selection. The program reads it as actions, changed and committed (`action::FieldValue`).
 - A surface (`Element::surface`) shows an image that the program draws, an editor's viewport, and
   gives the program the pointer over it as actions (`action::SurfaceInput`): a button pressed over
   it holds the pointer until it is let go, and the keys without Control, Alt or Super reach the

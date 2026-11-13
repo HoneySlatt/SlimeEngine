@@ -2,7 +2,9 @@
 
 - Status: Accepted; amends [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) (an
   answer's three states; questions change uwui's caches); amended by
-  [0251](0251-the-engines-host-clock-and-its-times.md) (the wake built with uwui's executor)
+  [0251](0251-the-engines-host-clock-and-its-times.md) (the wake built with uwui's executor) and
+  [0253](0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md) (the moves between two frames, the wheel's phase, a field's
+  purpose, the pointer's entering and whether the cursor shows wait for their readers)
 - Date: 2026-11-13
 
 ## Context

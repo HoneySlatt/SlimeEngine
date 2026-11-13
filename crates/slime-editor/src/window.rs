@@ -2862,6 +2862,7 @@ mod tests {
     use slime_reflect::Reflect;
     use slime_world::{Command, PersistentId};
     use uwui::display::Primitive;
+    use uwui::host::Person;
     use uwui::text::{TextBounds, TextStyle};
 
     use super::*;

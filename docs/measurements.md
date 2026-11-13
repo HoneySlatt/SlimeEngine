@@ -3558,3 +3558,33 @@ GitHub's hosted runners, on 2026-11-13, each run green, on `8581945`:
 
 Every job stays within its limit of 20 minutes; `check (headless)` keeps 2 min 8 s of margin, the
 least, and `compositors (sway)` took 3 min 35 s less than at M6d.9a1a, on another runner.
+
+## M6d.5c1, input as the host's events
+
+A pointer's move, on 2026-11-13, by `editor.hierarchy.100k` in a release build on an AMD Ryzen 7
+5800X, the machine not at rest (the other track building, a load of 1.4 to 6.0): the move from a
+row of the hierarchy over 100,000 entities to the next and back, each move hovering another row,
+given before any frame, as a host gives it; the code before and after a move walked the tree once
+for the hover and the rest, built and run in turn, twice.
+
+| Series | A move, median of 15 | Allocations |
+|---|---|---|
+| Before, first | 3.2 µs | 0 |
+| After, first | 1.6 µs | 0 |
+| Before, second | 3.2 µs | 0 |
+| After, second | 1.6 µs | 0 |
+
+What it says: a move costs half as much, and allocates nothing, which `benches/counters.txt` now
+checks. A mouse at 1,000 Hz gives about four moves for each frame at 240 Hz; the engine gives them
+uwui as one, so the hierarchy costs about 1.6 µs of hit test for each frame of motion; the editor's
+whole window, whose hit test walks every root's elements, costs more, not measured. The lowest
+machine of the quality bar was not measured: it is not set up yet. Input to present waits for
+M6d.5c3 and the owner's go on the GPU.
+
+The window's input through the engine, on the same day, by `scripts/input-to-present.sh` on
+lavapipe in a headless sway at 240 Hz, the machine not at rest: an end-to-end check that the
+engine's events and its moves given as one reach the interface, not a measure of the budget,
+which waits for the GPU. The editor gave 141 images after 200 inputs apart, clicks, the wheel, keys
+and moves, a median of 10.4 ms and a 99th percentile of 13.9 ms; and 441 after 1,000 moves in a
+row, 11.6 ms and 17.2 ms. *Hunna Wood* drew a frame every few seconds on lavapipe, too few to give
+any; both ended well.

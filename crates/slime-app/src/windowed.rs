@@ -63,6 +63,7 @@ pub(crate) fn run_windowed(
         checked_hold: false,
         resting: false,
         inputs: InputWait::default(),
+        input: crate::interface::WindowInput::default(),
         wanted: true,
         change_due: None,
         started: false,
@@ -118,6 +119,9 @@ struct WindowedDriver<'a, S, P> {
     resting: bool,
     /// The inputs that wait for an image, whose intervals of input to present the trace holds.
     inputs: InputWait,
+    /// What the presentation's interface is given of the window's events: the pointer's moves of
+    /// a frame as one.
+    input: crate::interface::WindowInput,
     /// Whether something asked for a frame that has not run yet, when frames run on demand.
     wanted: bool,
     /// When the presentation's interface changes on its own, which a frame then shows, when frames
@@ -189,6 +193,8 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         // yet (M6d.7).
         let shown = self.clock.now();
         if let Some(ui) = self.presentation.ui() {
+            // The pointer's last move first, at its own time, before the frame moves the clock.
+            self.input.give_moved(ui);
             ui.set_frame_shown(FrameShown {
                 at: shown,
                 source: FrameSource::Started,
@@ -401,13 +407,10 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
             }
             return;
         }
-        // The interface first; what it takes, neither the presentation nor the game sees.
-        // The event's time first, stamped as it came since winit gives none, so that what it
-        // starts, a pointer's rest, starts then, not when the last frame ran, which waiting may
-        // have left long ago.
-        if let Some(ui) = self.presentation.ui() {
-            ui.set_event_time(EventTime::received(self.clock.now()));
-        }
+        // The interface first; what it takes, neither the presentation nor the game sees. Its
+        // time stamped as it came, since winit gives none, so that what it starts, a pointer's
+        // rest, starts then, not when the last frame ran, which waiting may have left long ago.
+        let time = EventTime::received(self.clock.now());
         let taken_by_interface = match self.presentation.ui() {
             Some(ui) => {
                 let clipboard = self
@@ -416,7 +419,7 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
                 if let Some(clipboard) = clipboard {
                     clipboard.give(ui);
                 }
-                crate::interface::give(ui, &event)
+                self.input.give(ui, &event, time)
             }
             None => false,
         };

@@ -29,8 +29,9 @@ slime-editor.workspace = true
 # The editor's program on Hunna Wood's zone, whose interface `editor.window.zone` measures
 # (ADR-0186).
 hunnawood-editor.workspace = true
-# The interface's text (ADR-0136), and the editor's look, which the world panel is measured in.
-uwui = { workspace = true, features = ["editor-look"] }
+# The interface's text (ADR-0136), and the editor's look, which the world panel is measured in; a
+# person's input, which a pointer's move is measured by (ADR-0253).
+uwui = { workspace = true, features = ["editor-look", "test-input"] }
 # uwui's reader of KDL, the notation of its documents (ADR-0241).
 uwui-kdl.workspace = true
 # The canvas that `render.canvas` fills, and the canvas's renderer, whose cost against the renderer's

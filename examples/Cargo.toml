@@ -30,8 +30,9 @@ slime-platform.workspace = true
 slime-reflect.workspace = true
 slime-render.workspace = true
 # The interface's text, which the `text` example lays out and rasterizes (ADR-0136), and the
-# editor's look, in which the `widgets` example draws its widgets (ADR-0148).
-uwui = { workspace = true, features = ["editor-look"] }
+# editor's look, in which the `widgets` example draws its widgets (ADR-0148); a person's input,
+# which the tests give through `host::Person` (ADR-0253).
+uwui = { workspace = true, features = ["editor-look", "test-input"] }
 slime-world.workspace = true
 slime-world-render.workspace = true
 tracing.workspace = true
