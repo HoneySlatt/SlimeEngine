@@ -25,10 +25,13 @@ pub enum ChannelError {
     /// The system gave no random bits to draw a token from.
     #[error("the system gives no random bits")]
     Randomness(#[source] getrandom::Error),
-    /// The connection broke, or a reply did not come in time, at an earlier request: the replies
-    /// that follow could answer other requests, so the connection is given up.
+    /// The connection broke, or the game sent what is not a message of the protocol, at an earlier
+    /// request: the connection is given up.
     #[error("the connection to the game broke at an earlier request: open another")]
     Broken,
+    /// The request was cancelled before the game did it, and the game did not do it.
+    #[error("the request was cancelled before the game did it")]
+    Cancelled,
     /// The game started did not say where it listens within the time given, or ended first.
     #[error("the game started does not listen on its development channel: {0}")]
     NotListening(String),

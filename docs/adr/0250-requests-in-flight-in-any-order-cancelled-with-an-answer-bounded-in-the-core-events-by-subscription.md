@@ -2,7 +2,12 @@
 
 - Status: Accepted; settles the questions that
   [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) and
-  [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) left to M6d.9a1b
+  [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) left to M6d.9a1b; amends
+  [0122](0122-the-development-channel.md) (a connection's requests in flight, answered in any
+  order) and [0161](0161-the-open-step-and-the-handles.md) (an agent's reads answered while its
+  changes wait); amended by
+  [0252](0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md) (where the
+  bounds are kept)
 - Date: 2026-11-13
 
 ## Context

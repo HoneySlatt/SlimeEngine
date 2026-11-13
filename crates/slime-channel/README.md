@@ -42,6 +42,17 @@ listens, with its token (`docs/adr/0165-editing-while-playing.md`). Only program
   a reply carries bytes of its own after its line, an image's pixels; `Reply::Failed` crosses as an
   error of the core's. Entities are named by persistent identities, values given and answered as
   text in the engine's notation, which the game reads with its types: a tool needs none of them.
+- A connection may have several requests in flight
+  ([ADR-0250](../../docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)).
+  The game takes them in their order, one of each connection in turn, and answers each when it is
+  done, in any order: a read passes an edit that waits for a person's drag. A request cancelled
+  before it changed anything is answered `CANCELLED` and never done; those of a connection that
+  closed are never done. The game welcomes a bounded number of connections, and takes none of a
+  connection's requests while what it was sent and did not read passes a bound, nor of any
+  connection holding something unwritten while all of them pass another: a tool that stops
+  reading stops being served. The bounds are kept by the listener until a second carrier
+  ([ADR-0252](../../docs/adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md));
+  `Listener::open`'s rustdoc gives their figures.
 - Who starts a game draws its token, 128 bits of the system's randomness, and gives it to the game
   in its environment only, never on its command line.
 
@@ -65,7 +76,7 @@ let game = thread::spawn(move || loop {
 });
 let agent = Named::new("my agent", "1.0");
 let server = Named::new("my MCP server", "0.1");
-let mut client =
+let client =
     Client::connect(address, &token, &agent, &server).expect("the token is the game's");
 assert_eq!(client.program(), "my game");
 let (reply, _) = client.request(&Request::Pause).expect("an answer");
@@ -76,14 +87,16 @@ game.join().expect("the game answered");
 - `Token`: the secret, drawn with `Token::generate`, written as 32 hexadecimal digits, compared in
   a time that does not depend on where two tokens differ; its `Debug` form hides it.
 - `Listener::open(token, program, wake)`: the game's end, which `slime-app`'s `run` opens when the
-  environment gives a token, and which calls `wake` as each request comes, so that a game that
-  waits runs a frame; `Listener::next` gives a request that waits, which the game answers
-  with `Incoming::answer`, or with `Incoming::answer_with` when the reply carries an image's
-  pixels.
+  environment gives a token, and which calls `wake` as each request comes or is cancelled, so that
+  a game that waits runs a frame; `Listener::round` gives a request of each connection that has
+  one, `Listener::next` one alone, which the game answers with `Incoming::answer`, or with
+  `Incoming::answer_with` when the reply carries an image's pixels, shared; `Incoming::cancelled`
+  says whether its tool gave it up, and `Incoming::cancel` answers it so.
 - `launch(&mut command, timeout)`: starts a game with a new token, and waits for it to say where it
   listens; `Client::connect(address, &token, &agent, &client)` then opens a connection for an
   agent and the program that carries its requests, and `Client::request`
-  sends a `Request` and waits for its `Reply`. The game's standard input is a pipe that the tool
+  sends a `Request` and waits for its `Reply`, from any thread; `Client::send` sends it without
+  waiting, its `Pending` answer read with `Pending::wait` or given up with `Pending::cancel`. The game's standard input is a pipe that the tool
   holds, and the game ends once it closes, so that no game outlives the tool that started it.
   Both ends send each message at once, Nagle's algorithm off, so that a request is answered
   within the game's next frame rather than after tens of milliseconds of acknowledgements.

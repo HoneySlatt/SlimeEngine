@@ -40,6 +40,26 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   channel's messages derive `serde`'s traits, not `slime_reflect::Reflect`, and `slime-channel`
   depends on neither `slime-reflect` nor `slime-serialize`, whose `read_binary`, which read the
   channel's messages, is gone.
+- A connection of the development channel holds several requests in flight, answered in any
+  order by their numbers, bounded and cancellable (ADR-0250); the core's version is 2, and a tool
+  or game of before cannot speak to one of after. `Hello` gains `limits`, what the tool reads, and
+  `Welcome` gains `in_flight`; `ProgramSession::new` takes an `InFlight`, `ProgramSession::answer`
+  gives the line and the count of the bytes to send after it, `ProgramSession::written` frees a
+  request's place, and `ProgramSession::refuse` refuses a hello for the carrier's reason;
+  `ToolSession::request` fails with `AgentError::Full` past the requests in flight, and with
+  `AgentError::TooLarge` for one larger alone than their bytes, sending nothing, and
+  `ToolSession::cancel` writes the core's `cancel`. The faults `BUSY`, `TOO_LARGE`
+  and `CANCELLED` are new, and `Frame` holds its line's size. `Client::request` takes `&self`,
+  from any thread; `Client::send` gives a `Pending`, waited for or cancelled;
+  `Pending::wait_for` waits at most a time and `Pending::id` gives the number; `Client::is_broken`
+  says whether the connection is given up, which a request that timed out no longer does, and
+  `ChannelError::Broken` comes only then; `ChannelError::Cancelled` is new, and
+  `uwui_agent::json_size` counts a value's JSON. `slime-mcp` carries an agent's calls side by
+  side. `Incoming::answer_with` takes its bytes as an `Arc<Vec<u8>>`,
+  shared by the captures of one frame, and `Incoming::cancelled` and `Incoming::cancel` are new;
+  `Listener::round` gives a request of each connection in turn, and `Listener::waiting` says
+  whether one waits. A game welcomes a bounded number of connections; an edit of a connection
+  that closed while it waited is no longer applied.
 - The interface's canvas moves from the renderer into uwui, on wgpu (ADR-0244):
   `Renderer::draw_canvas`, the canvas's types, `Canvas`, `CanvasBox`, `CanvasGradient`,
   `CanvasShadow`, `CanvasStats`, `ImageQuad`, `ImageId`, `PixelRect`, `Radii` and

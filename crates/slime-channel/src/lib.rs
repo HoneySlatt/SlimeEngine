@@ -7,7 +7,7 @@ mod message;
 mod token;
 mod wire;
 
-pub use client::{Client, Launched, launch, launch_unless};
+pub use client::{Client, Launched, Pending, launch, launch_unless};
 pub use error::ChannelError;
 pub use listener::{Incoming, Listener};
 pub use message::{
@@ -16,6 +16,24 @@ pub use message::{
 };
 pub use token::Token;
 pub use uwui_agent::Named;
+
+/// Locks `mutex`, through a panic of another thread that held it: what it guards stays whole, each
+/// change being made under the lock in one step.
+pub(crate) fn locked<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Waits on `condition` with `guard`, as [`locked`] does through a panic of another thread.
+pub(crate) fn waited<'a, T>(
+    condition: &std::sync::Condvar,
+    guard: std::sync::MutexGuard<'a, T>,
+) -> std::sync::MutexGuard<'a, T> {
+    condition
+        .wait(guard)
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 
 /// The families of requests that the channel carries, each at its version: a tool and a game that
 /// speak another version of one refuse that family alone, and the rest is served
@@ -69,8 +87,9 @@ mod threads {
         send_and_sync::<Request>();
         send_and_sync::<Reply>();
         send_and_sync::<ChannelError>();
-        send::<Listener>();
-        send::<Incoming>();
+        send_and_sync::<Listener>();
+        send_and_sync::<Incoming>();
+        send::<crate::Pending>();
         send_and_sync::<Client>();
     }
 }

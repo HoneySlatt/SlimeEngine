@@ -5,7 +5,9 @@
   it on and off), [0135](0135-the-editors-program.md) (a tool's requests that change an editor's
   level or its selection wait while a person's gesture is under way) and
   [0129](0129-drawing-for-the-editor.md) (what a client draws over the image gains unlit instances,
-  with a depth of their own)
+  with a depth of their own); amended by
+  [0250](0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)
+  (an agent's reads answered while its changes wait)
 - Date: 2026-10-28
 
 ## Context

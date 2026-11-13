@@ -59,24 +59,36 @@ impl Session {
 
     /// Sends `method` with `params`, and returns the result of the server's answer.
     pub fn call(&mut self, method: &str, params: Value) -> Value {
-        self.next += 1;
-        let id = self.next;
-        let request = json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params });
-        writeln!(self.input, "{request}").expect("the server reads");
-        self.input.flush().expect("the server reads");
+        let id = self.send(method, params);
         loop {
-            let mut line = String::new();
-            let read = self
-                .output
-                .read_line(&mut line)
-                .expect("the server answers");
-            assert!(read > 0, "the server ended before answering {method}");
-            let answer: Value = serde_json::from_str(&line).expect("JSON");
+            let answer = self.next_message(method);
             if answer["id"] == json!(id) {
                 assert!(answer["error"].is_null(), "{method}: {answer}");
                 return answer["result"].clone();
             }
         }
+    }
+
+    /// Sends `method` with `params` without waiting for its answer: its number, which the answer
+    /// gives back.
+    pub fn send(&mut self, method: &str, params: Value) -> u64 {
+        self.next += 1;
+        let id = self.next;
+        let request = json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params });
+        writeln!(self.input, "{request}").expect("the server reads");
+        self.input.flush().expect("the server reads");
+        id
+    }
+
+    /// The server's next message, an answer or a notification, read while `waiting` waits.
+    pub fn next_message(&mut self, waiting: &str) -> Value {
+        let mut line = String::new();
+        let read = self
+            .output
+            .read_line(&mut line)
+            .expect("the server answers");
+        assert!(read > 0, "the server ended before answering {waiting}");
+        serde_json::from_str(&line).expect("JSON")
     }
 
     /// Calls the tool `name` with `arguments`, and returns the texts of its result and the result;

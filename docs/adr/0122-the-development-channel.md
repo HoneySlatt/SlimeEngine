@@ -20,7 +20,9 @@
   while a person drags; an MCP server that drives an editor and the game it plays; a game started
   with a token ending when its standard input closes) and
   [0209](0209-platforms-the-editor-and-agents.md) (the channel opened to a paired machine on the
-  local network, in development builds), then by [0218](0218-one-core-for-agents-in-uwui.md) (the channel on uwui's core) and [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) (its messages in JSON-RPC through `serde`, versioned by family)
+  local network, in development builds), then by [0218](0218-one-core-for-agents-in-uwui.md) (the channel on uwui's core) and [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) (its messages in JSON-RPC through `serde`, versioned by family); amended by
+  [0250](0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)
+  (a connection's requests in flight, answered in any order)
 - Date: 2026-10-21
 
 ## Context

@@ -65,6 +65,16 @@ impl Fault {
     pub const NOT_WELCOME: i64 = -32001;
     /// A request of a family that the program does not serve on the connection.
     pub const NOT_SERVED: i64 = -32002;
+    /// A request past the requests in flight that the program takes
+    /// ([`InFlight`](crate::InFlight)): refused before it is read, the connection kept. It may be
+    /// asked again once an answer came.
+    pub const BUSY: i64 = -32003;
+    /// An answer larger than the tool said it reads ([`Hello::limits`](crate::Hello::limits)), in
+    /// place of it: the request was done, and its answer dropped.
+    pub const TOO_LARGE: i64 = -32004;
+    /// A request cancelled before it changed anything ([`CANCEL`](crate::CANCEL)), and never done:
+    /// LSP's `RequestCancelled`.
+    pub const CANCELLED: i64 = -32800;
 
     /// A fault of `code`, saying `message`.
     pub fn new(code: i64, message: impl Into<String>) -> Self {
@@ -83,11 +93,15 @@ pub struct Frame {
     pub message: Message,
     /// The bytes that follow it.
     pub bytes: Vec<u8>,
+    /// The size of its line, its `\n` not counted: what a request in flight counts
+    /// ([`InFlight::bytes`](crate::InFlight::bytes)).
+    pub line: usize,
 }
 
 /// How large a connection lets a message's line, and the bytes that follow it, be: larger ones are
-/// refused before they are read whole.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// refused before they are read whole. A tool gives its own in its hello, so that the program
+/// answers what it cannot read with a fault rather than a line that the tool refuses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Limits {
     /// The most bytes of a line, its `\n` not counted; a `\r` before it is, as the whitespace that
     /// JSON lets a line end with.
@@ -210,8 +224,8 @@ pub struct Reader {
     buffer: Vec<u8>,
     /// How much of the buffer was looked through for a line's end.
     scanned: usize,
-    /// A message read, waiting for the bytes it announced.
-    waiting: Option<(Message, usize)>,
+    /// A message read, waiting for the bytes it announced, their count, and its line's size.
+    waiting: Option<(Message, usize, usize)>,
 }
 
 impl Reader {
@@ -263,13 +277,17 @@ impl Reader {
             self.buffer.drain(..=end);
             self.scanned = 0;
             // Within the limit, which a `usize` holds wherever the limit is held in memory.
-            self.waiting = Some((message, usize::try_from(bytes).unwrap_or(usize::MAX)));
+            self.waiting = Some((message, usize::try_from(bytes).unwrap_or(usize::MAX), end));
         }
         match self.waiting.take() {
-            Some((message, count)) if self.buffer.len() >= count => {
+            Some((message, count, line)) if self.buffer.len() >= count => {
                 let rest = self.buffer.split_off(count);
                 let bytes = std::mem::replace(&mut self.buffer, rest);
-                Ok(Some(Frame { message, bytes }))
+                Ok(Some(Frame {
+                    message,
+                    bytes,
+                    line,
+                }))
             }
             waiting => {
                 self.waiting = waiting;
@@ -359,7 +377,7 @@ mod tests {
 
     #[test]
     fn every_kind_of_message_comes_back_with_its_bytes_whatever_the_pieces() {
-        let frames = [
+        let mut frames = [
             Frame {
                 message: Message::Request {
                     id: 7,
@@ -367,6 +385,7 @@ mod tests {
                     params: Value::Null,
                 },
                 bytes: Vec::new(),
+                line: 0,
             },
             Frame {
                 message: Message::Response {
@@ -374,6 +393,7 @@ mod tests {
                     outcome: Ok(json!({ "reply": "image", "width": 2, "height": 1 })),
                 },
                 bytes: vec![1, 2, b'\n', 4, 5, 6, 7, 8],
+                line: 0,
             },
             Frame {
                 message: Message::Response {
@@ -381,6 +401,7 @@ mod tests {
                     outcome: Ok(Value::Null),
                 },
                 bytes: Vec::new(),
+                line: 0,
             },
             Frame {
                 message: Message::Response {
@@ -388,6 +409,7 @@ mod tests {
                     outcome: Err(Fault::new(Fault::PARSE, "not JSON")),
                 },
                 bytes: Vec::new(),
+                line: 0,
             },
             Frame {
                 message: Message::Event {
@@ -395,11 +417,15 @@ mod tests {
                     params: json!({ "paused": true }),
                 },
                 bytes: Vec::new(),
+                line: 0,
             },
         ];
         let mut bytes = Vec::new();
-        for frame in &frames {
-            bytes.extend(encode(&frame.message, frame.bytes.len()).expect("written"));
+        for frame in &mut frames {
+            let line = encode(&frame.message, frame.bytes.len()).expect("written");
+            // Its size as read: its end not counted.
+            frame.line = line.len() - 1;
+            bytes.extend(line);
             bytes.extend(&frame.bytes);
         }
         for piece in [1, 3, 17, bytes.len()] {

@@ -2065,8 +2065,9 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
     version is refused alone and the rest served, and a request of a family not served is refused
     by both ends. The game logs the agent and its client as fields; `slime-mcp` names its agent as
     its MCP client names itself, cut to 200 characters, and Play names the editor.
-  - A request's line is bounded on the game's side, far below an answer's: a line parsed whole
-    costs about 17 times its size in memory. `slime-serialize`'s `read_binary`, which only the
+  - A request's line is bounded on the game's side, far below an answer's: a line costs many
+    times its size in memory while it is read, as M6d.9a1b1 measured
+    ([`measurements.md`](measurements.md#m6d9a1b1-requests-in-flight)). `slime-serialize`'s `read_binary`, which only the
     channel read, is gone.
   - Every MCP session test passes, `edit` checking in addition that the editor logs the agent; the
     session's and the loopback's tests run on Windows in `cargo test --workspace`; each new test

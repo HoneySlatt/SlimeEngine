@@ -382,7 +382,7 @@ fn drive(
                     let again = modified(&program) != running || Some(&program) != built.as_ref();
                     if again {
                         built = Some(program);
-                        let unsaved = save(&mut client, directory).err();
+                        let unsaved = save(&client, directory).err();
                         tell(Event::Restarting {
                             unsaved: unsaved.clone(),
                         });
@@ -516,7 +516,7 @@ fn modified(file: &Path) -> Option<SystemTime> {
 
 /// Asks the game of `client` to save its run into Play's save, in `directory`: why it did not, if it
 /// did not.
-fn save(client: &mut Client, directory: &Path) -> Result<(), String> {
+fn save(client: &Client, directory: &Path) -> Result<(), String> {
     let file = directory.join("save.toml");
     let file = file
         .to_str()

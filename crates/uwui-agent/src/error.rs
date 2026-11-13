@@ -2,8 +2,10 @@
 
 /// Why bytes could not be read as a message, or a message could not be written or sent.
 ///
-/// [`AgentError::Malformed`] and [`AgentError::TooLarge`] lose the connection's framing: what
-/// follows cannot be found, and the connection is closed. The others leave it usable.
+/// [`AgentError::Malformed`], and [`AgentError::TooLarge`] from a [`Reader`](crate::Reader), lose
+/// the connection's framing: what follows cannot be found, and the connection is closed. The others
+/// leave it usable, [`AgentError::TooLarge`] from
+/// [`ToolSession::request`](crate::ToolSession::request) included, which sent nothing.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum AgentError {
@@ -13,7 +15,8 @@ pub enum AgentError {
     #[error("not a message of the core for agents: {0}")]
     Malformed(String),
     /// A message's line, or the bytes that it announces, larger than the connection's
-    /// [`Limits`](crate::Limits) allow: refused before it is read whole.
+    /// [`Limits`](crate::Limits) allow, refused before it is read whole; or a request larger alone
+    /// than the bytes in flight that the program takes, which the tool's end refuses to send.
     #[error("{what} of {size} bytes, past the {limit} that the connection allows")]
     TooLarge {
         /// What is too large: a line, or the bytes that follow one.
@@ -30,6 +33,11 @@ pub enum AgentError {
     /// A request before the program's welcome, or a second hello.
     #[error("{0}")]
     OutOfTurn(&'static str),
+    /// A request past the requests in flight that the program takes
+    /// ([`InFlight`](crate::InFlight)), refused by the tool's end before it is sent: it may be
+    /// asked once an answer came.
+    #[error("as many requests in flight as the program takes: an answer must come first")]
+    Full,
     /// A request of a family's enum that is not written as one, an object of a `method` and its
     /// `params` alone ([`call`](crate::call)).
     #[error("a request that is not written as its method and its parameters")]

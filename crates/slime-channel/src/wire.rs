@@ -11,9 +11,8 @@ use crate::error::ChannelError;
 pub(crate) const MAX_LINE: usize = 16 << 20;
 
 /// The most bytes of a request's line after the hello, which the game refuses past it. A tool's
-/// requests are small, and a line read whole costs its program about 17 times its size in memory
-/// as it is parsed (`docs/measurements.md`, M6d.9a1a): 1 MiB keeps each
-/// request a connection makes under some 17 MiB.
+/// requests are small, and a line costs its program many times its size in memory while it is
+/// read (`docs/measurements.md`, M6d.9a1b1): 1 MiB keeps what each request costs it small.
 pub(crate) const MAX_REQUEST: usize = 1 << 20;
 
 /// The most bytes after a message: the pixels of an image of 16 384 × 16 384, the largest that the
@@ -50,4 +49,17 @@ pub(crate) fn receive(stream: &mut impl Read, reader: &mut Reader) -> Result<Fra
         }
         reader.push(&piece[..read]);
     }
+}
+
+/// `error` and its causes, on one line. `slime_app::error_chain` and `slime-mcp`'s `causes` write
+/// the same for their own errors: `slime-channel` lies below the first and links no logging.
+pub(crate) fn why(error: &dyn std::error::Error) -> String {
+    let mut why = error.to_string();
+    let mut cause = error.source();
+    while let Some(error) = cause {
+        why.push_str(": ");
+        why.push_str(&error.to_string());
+        cause = error.source();
+    }
+    why
 }

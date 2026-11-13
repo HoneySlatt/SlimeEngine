@@ -64,10 +64,14 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its dev
      alone. An editor opens a window unless it is started with `--headless`. `cook` and `run_tests` run \
      in the repository's root, where the server runs.";
 
-/// The game that the server drives, if one runs.
+/// The game that the server drives, if one runs. Its connections are shared, so that an agent's
+/// calls go side by side: a tool that asks the game holds the server's lock to choose one, or to
+/// replace one lost, never while its request waits for its answer. `stop_game` and
+/// `drive_played_game` hold it for their own requests, so that one game at a time runs, and they
+/// wait for a place in flight like the others.
 struct Game {
     child: Child,
-    client: Client,
+    client: Arc<Client>,
     /// Where it listens, and its token: a new connection replaces one that broke.
     address: SocketAddr,
     token: Token,
@@ -78,7 +82,7 @@ struct Game {
     log: PathBuf,
     /// A connection to the game that the program, an editor, plays, while the game's tools drive
     /// it (`drive_played_game`, `docs/adr/0165-editing-while-playing.md`).
-    played: Option<Client>,
+    played: Option<Arc<Client>>,
 }
 
 /// The server, as it names itself to the games that it connects to.
@@ -451,46 +455,77 @@ impl Server {
     /// Asks the game `request`, on a thread that may wait, so that the server goes on answering,
     /// and gives its reply as a result: the game that an editor plays while the game's tools
     /// drive it, but for the editor's requests (`docs/adr/0165-editing-while-playing.md`), the
-    /// program that `start_game` started otherwise. A game that ended is forgotten, its end told;
-    /// after a request to the program that failed, a new connection replaces the one that the
-    /// game's late answer would throw out of step; after one to the game that an editor plays
-    /// that failed, the game's tools drive the editor again.
+    /// program that `start_game` started otherwise. An agent's calls go side by side, each in
+    /// flight on the connection at once (`docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md`).
+    /// A game that ended is forgotten, its end told; once the connection to the program is lost, a
+    /// new one replaces it; once the one to the game that an editor plays is, the game's tools
+    /// drive the editor again.
     async fn ask(&self, request: Request) -> Result<CallToolResult, McpError> {
         let game = Arc::clone(&self.game);
         let answer = tokio::task::spawn_blocking(move || {
-            let mut slot = game.lock().unwrap_or_else(PoisonError::into_inner);
-            let Some(running) = slot.as_mut() else {
-                return Err("no game runs: start one with `start_game`".to_owned());
+            // The connection that the request goes to, chosen under the lock, which the request
+            // does not hold while it waits for its answer.
+            let (client, to_played) = {
+                let mut slot = game.lock().unwrap_or_else(PoisonError::into_inner);
+                let Some(running) = slot.as_mut() else {
+                    return Err("no game runs: start one with `start_game`".to_owned());
+                };
+                if let Some(ended) = running.ended() {
+                    *slot = None;
+                    return Err(ended);
+                }
+                // What is not an editor's request reaches the game that the editor plays, while
+                // the game's tools drive it.
+                match &running.played {
+                    Some(played) if !matches!(request, Request::Edit { .. }) => {
+                        (Arc::clone(played), true)
+                    }
+                    _ => (Arc::clone(&running.client), false),
+                }
             };
-            if let Some(ended) = running.ended() {
-                *slot = None;
-                return Err(ended);
-            }
-            // What is not an editor's request reaches the game that the editor plays, while the
-            // game's tools drive it.
-            if !matches!(request, Request::Edit { .. })
-                && let Some(played) = running.played.as_mut()
-            {
-                return played.request(&request).map_err(|error| {
-                    running.played = None;
-                    format!(
-                        "the game that the editor plays does not answer ({}): the game's tools \
-                         drive the editor again",
-                        causes(&error)
-                    )
-                });
-            }
-            let error = match running.client.request(&request) {
+            let error = match client.request(&request) {
                 Ok(answer) => return Ok(answer),
                 Err(error) => causes(&error),
             };
+            // A request that failed on a connection that still serves, as one that timed out,
+            // leaves it as it is.
+            if !client.is_broken() {
+                return Err(error);
+            }
+            let mut slot = game.lock().unwrap_or_else(PoisonError::into_inner);
+            let Some(running) = slot.as_mut() else {
+                return Err(error);
+            };
+            if to_played {
+                let replaced = !running
+                    .played
+                    .as_ref()
+                    .is_some_and(|played| Arc::ptr_eq(played, &client));
+                if replaced {
+                    return Err(format!(
+                        "the game that the editor plays does not answer ({error}); the game's \
+                         tools drive another game meanwhile"
+                    ));
+                }
+                running.played = None;
+                return Err(format!(
+                    "the game that the editor plays does not answer ({error}): the game's tools \
+                     drive the editor again"
+                ));
+            }
             if let Some(ended) = running.ended() {
                 *slot = None;
                 return Err(format!("{error}\n{ended}"));
             }
+            if !Arc::ptr_eq(&running.client, &client) {
+                return Err(format!(
+                    "{error}; the server connected to the game again meanwhile: the request may \
+                     have run"
+                ));
+            }
             Err(match Client::connect(running.address, &running.token, &running.agent, &server()) {
                 Ok(client) => {
-                    running.client = client;
+                    running.client = Arc::new(client);
                     format!(
                         "{error}; the server connected to the game again: the request may have run"
                     )
@@ -777,7 +812,7 @@ impl Server {
             );
             *game = Some(Game {
                 child: launched.child,
-                client,
+                client: Arc::new(client),
                 address: launched.address,
                 token: launched.token,
                 agent,
@@ -1223,7 +1258,7 @@ impl Server {
                 .map_err(|error| format!("the editor gave no token: {error}"))?;
             let client = Client::connect(address, &token, &running.agent, &server())
                 .map_err(|error| causes(&error))?;
-            running.played = Some(client);
+            running.played = Some(Arc::new(client));
             Ok(format!(
                 "the game's tools drive the game that the editor plays, which listens at {address}"
             ))

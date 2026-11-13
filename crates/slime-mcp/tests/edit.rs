@@ -445,6 +445,25 @@ fn main() {
         }),
     );
     assert!(lamp(&mut session, "lamp 3").contains("z = 9.0"));
+    // An agent's calls go side by side: a read asked while a step of many frames runs is answered
+    // first (`docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md`).
+    session.tool("pause", json!({}));
+    let tool = |name: &str, arguments| json!({ "name": name, "arguments": arguments });
+    let stepping = session.send("tools/call", tool("step", json!({ "steps": 600 })));
+    let reading = session.send("tools/call", tool("game_state", json!({})));
+    let mut answered = Vec::new();
+    while answered.len() < 2 {
+        let message = session.next_message("a step and a read");
+        if let Some(id) = message["id"].as_u64() {
+            assert!(
+                message["error"].is_null() && message["result"]["isError"] != json!(true),
+                "{message}"
+            );
+            answered.push(id);
+        }
+    }
+    assert_eq!(answered, [reading, stepping], "the read passes the step");
+    session.tool("resume", json!({}));
     let (said, _) = session.tool("drive_played_game", json!({ "played": false }));
     assert_eq!(said, ["the game's tools drive the editor again"]);
     let in_editor = lamp(&mut session, "lamp 3");

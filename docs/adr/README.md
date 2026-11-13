@@ -190,7 +190,7 @@ the ADR linking to it.
 | [0119](0119-the-worlds-ticks-blocks-and-log.md) | The world's ticks, blocks and log | Accepted |
 | [0120](0120-a-frame-that-owns-what-it-draws.md) | A frame that owns what it draws | Accepted; amended by 0121 |
 | [0121](0121-a-game-as-a-simulation-and-a-presentation.md) | A game as a simulation and a presentation | Accepted; amended by 0122, 0134, 0135 and 0155 |
-| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125, 0126, 0127, 0128, 0130, 0134, 0135, 0143, 0146, 0155, 0209, 0218 and 0246 |
+| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125, 0126, 0127, 0128, 0130, 0134, 0135, 0143, 0146, 0155, 0209, 0218, 0246 and 0250 |
 | [0123](0123-the-linux-checks-in-two-jobs.md) | The Linux checks in two jobs | Accepted; amends 0007 and 0104; amended by 0155, 0175 and 0228 |
 | [0124](0124-driven-components-keys-and-created-entities-in-levels.md) | Driven components, start keys and created entities written into levels | Accepted; amended by 0125 |
 | [0125](0125-saves-per-scene.md) | Saves per scene, scenes unloaded and adoption | Accepted |
@@ -229,7 +229,7 @@ the ADR linking to it.
 | [0158](0158-the-viewport.md) | The viewport | Accepted; amended by 0159, 0160 |
 | [0159](0159-picking-and-the-selection.md) | Picking and the selection | Accepted; amended by 0160 |
 | [0160](0160-two-viewports-and-blenders-way.md) | Two viewports and Blender's way | Accepted |
-| [0161](0161-the-open-step-and-the-handles.md) | The open step and the handles | Accepted |
+| [0161](0161-the-open-step-and-the-handles.md) | The open step and the handles | Accepted; amended by 0250 |
 | [0162](0162-creating-copying-and-arranging.md) | Creating, copying and arranging | Accepted |
 | [0163](0163-placing-prefabs-and-the-history-panel.md) | Placing prefabs and the history panel | Accepted |
 | [0164](0164-play.md) | Play | Accepted |
@@ -318,5 +318,6 @@ the ADR linking to it.
 | [0247](0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md) | The canvas tested on OpenGL ES through a feature of `uwui-render` alone | Accepted; amends 0016 and 0243 |
 | [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) | The host's API cut in five: built where it is read, three channels and a waker, AccessKit's translation in a crate of its own | Accepted; amends 0181, 0226, 0227 and 0246; amended by 0249 |
 | [0249](0249-the-hosts-api-its-items-and-their-table.md) | The host's API: its items in three channels, and how each maps on five platforms | Accepted; amends 0248; amended by 0251 |
-| [0250](0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md) | Requests in flight answered in any order, cancelled with an answer, bounded in the core; events by subscription; M6d.9a1b cut in three | Accepted |
+| [0250](0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md) | Requests in flight answered in any order, cancelled with an answer, bounded in the core; events by subscription; M6d.9a1b cut in three | Accepted; amends 0122 and 0161; amended by 0252 |
 | [0251](0251-the-engines-host-clock-and-its-times.md) | The engine's host clock and its times: rustix and windows-sys, the times given before each frame and event, the wake waiting for the executor | Accepted; amends 0227 and 0249 |
+| [0252](0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md) | The channel's bounds of memory kept by its carrier until a second carrier; a place freed as its answer leaves; the budget measured by a run's frames | Accepted; amends 0250 |

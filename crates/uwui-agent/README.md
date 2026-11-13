@@ -10,9 +10,11 @@ Its name is provisional: the names of uwui's crates are settled at M6d.10
 
 ## Status
 
-M6d.9a1a: the session and its messages, both ends, one request answered at a time by its carrier.
-Requests in flight, events that a program sends, attaching to a program already running, consent,
-rights and previews come with M6d.9a's later parts
+M6d.9a1b1: the session and its messages, both ends, several requests in flight, answered in any
+order, bounded and cancellable
+([ADR-0250](../../docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)).
+Events that a program sends, long lists read by pages, attaching to a program already running,
+consent, rights and previews come with M6d.9a's later parts
 ([`stage-6d.md`](../../docs/stage-6d.md#m6d9a--one-core-for-agents-and-its-mcp-server)).
 
 ## Role
@@ -30,21 +32,31 @@ rights and previews come with M6d.9a's later parts
 - `Reader` reads messages from bytes as they come, in pieces of any size, within `Limits`: a line
   or bytes past them, or a line that is not JSON-RPC 2.0, are refused, and the connection closed.
 - The first message, `hello`, names the agent and the program that carries it, as they say they
-  are, gives the carrier's secret, and lists the *families* that the tool speaks, each at its
-  version: a family is a named group of requests and events, `play` for `play/pause`. The
+  are, gives the carrier's secret, says how large an answer the tool reads (`Limits`), and lists
+  the *families* that the tool speaks, each at its version: a family is a named group of requests and events, `play` for `play/pause`. The
   `ProgramSession` welcomes it with the families that the program serves at the same versions, and
   refuses the others one by one, or refuses the hello whole for another version of the core
   (`CORE_VERSION`) or another secret. A request of a family not served is answered `NOT_SERVED`.
 - `ToolSession` numbers the requests, refuses to send one of a family not served, and matches each
   answer to the request that waits for it.
+- A request is *in flight* from when the tool sends it until its answer comes: several may be, the
+  welcome stating how many and how many bytes of their lines (`InFlight`, whose rustdoc gives the
+  default). The program begins them in their order and answers each when it is done, in any order,
+  by its number. `ToolSession::request` refuses one past the bounds, `AgentError::Full`, so that
+  its carrier waits for an answer; the program answers one that passes them anyway `BUSY`, and
+  one whose number is in flight already `INVALID`. A request's place frees once its carrier takes
+  its answer to write it, and says so, `ProgramSession::written`.
+- The tool cancels a request in flight with the core's event `cancel`. The program still answers
+  it once: with its result if it had changed something, `CANCELLED` if it had not, and then never
+  does it. An answer larger than the tool reads becomes the fault `TOO_LARGE`, without its bytes.
 
 ## Entry points
 
 ```rust
 use serde_json::Value;
 use uwui_agent::{
-    CORE_VERSION, Family, FromProgram, FromTool, Hello, Limits, Named, ProgramSession, Reader,
-    ToolSession,
+    CORE_VERSION, Family, FromProgram, FromTool, Hello, InFlight, Limits, Named, ProgramSession,
+    Reader, ToolSession,
 };
 
 // Each end reads what the other wrote through a reader of its own.
@@ -54,7 +66,7 @@ fn read(bytes: &[u8]) -> uwui_agent::Frame {
     reader.message().expect("a message").expect("whole")
 }
 
-let mut program = ProgramSession::new("my game", vec![Family::new("play", 1)]);
+let mut program = ProgramSession::new("my game", vec![Family::new("play", 1)], InFlight::DEFAULT);
 let mut tool = ToolSession::new();
 let hello = tool
     .hello(&Hello {
@@ -63,6 +75,7 @@ let hello = tool
         client: Named::new("my server", "0.1"),
         secret: "the token".to_owned(),
         families: vec![Family::new("play", 1)],
+        limits: Limits { line: 1 << 20, bytes: 1 << 30 },
     })
     .expect("written");
 let FromTool::Welcomed { reply, .. } = program
@@ -79,7 +92,7 @@ else {
     panic!("a request");
 };
 assert_eq!(name, "pause");
-let answer = program.answer(id, Ok(Value::Null), 0).expect("written");
+let (answer, _) = program.answer(id, Ok(Value::Null), 0).expect("written");
 assert!(matches!(tool.receive(read(&answer)), Ok(FromProgram::Response { .. })));
 ```
 

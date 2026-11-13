@@ -102,8 +102,9 @@ under [the stage's rules](stage-6d.md#stage-6d--uwui-leaves-the-engine).
 - **Done when.** A connection's requests answered out of their order; a read answered while an
   edit waits for a drag; a cancelled edit never applied; a tool that never reads keeps the game
   within the bounds; every MCP session test passes; CI is green.
-- **Measured.** At rest, with the owner's go: an answer of the channel, against 42.8 µs; input to
-  present with an agent at the bounds, setting the budget.
+- **Measured.** At rest, with the owner's go: an answer of the channel, against 42.8 µs; a
+  headless run's frames with agents at the bounds, with the budget and without
+  ([ADR-0252](adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md)).
 
 ## Ideas waiting for their milestone
 

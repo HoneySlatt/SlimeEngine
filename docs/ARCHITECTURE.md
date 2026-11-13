@@ -2013,19 +2013,27 @@ slime_channel::launch(command)
                                                      the tool's, which stops the run as a
                                                      termination signal does
 Client::connect(address, token, agent, client)
-└── hello: the core's version, the agent and ──▶ a thread for the connection, unless too many
-    its client, the token, the families,         wait for their hello: ProgramSession refuses it
-    ToolSession (uwui-agent)                     with the reason (another core or token, not a
-                                                 hello, too large, too late), or welcomes it with
-                                                 the families served, the others refused one by
-                                                 one, and logs the agent; a later hello is
-                                                 answered as no request
-Client::request(request) ──────────────────────▶ the connection's thread reads its method, of a
-  `family/name`, numbered                        family served, as a Request, and queues it for
-                                                 the game at the start of the next frame,
+├── hello: the core's version, the agent and ──▶ a thread for the connection, unless too many
+│   its client, the token, the families, what    wait for their hello: ProgramSession refuses it
+│   it reads, ToolSession (uwui-agent)           with the reason (another core or token, not a
+│                                                hello, too large, too late, as many welcomed as
+│                                                it takes),
+│                                                or welcomes it with the families served, the
+│                                                others refused one by one, and the requests in
+│                                                flight it takes, and logs the agent; a later
+│                                                hello is answered as no request
+└── a thread that reads the answers, each to its request, by number
+Client::send(request), from any thread, ───────▶ the connection's reader reads its method, of a
+  `family/name`, numbered, within the            family served, as a Request, in flight until its
+  requests in flight that the welcome states     answer leaves for the writer, BUSY past the
+  (Client::request sends and waits;              bounds, and queues it for the game; a cancel
+  Pending::cancel cancels)                       marks it; at the start of the next frame,
                                                  DevChannel::answer(host, simulation,
                                                  presentation):
                                                  ├── the steps asked for that have all run: Done
+                                                 ├── what waits and changed nothing yet, and its
+                                                 │   tool cancelled: CANCELLED, never done; of a
+                                                 │   connection that closed: dropped, unanswered
                                                  ├── the pickings whose answers the presentation
                                                  │   gave: Picked, the entity's identity and name;
                                                  │   one whose PickAnswer it dropped: Failed
@@ -2033,7 +2041,11 @@ Client::request(request) ──────────────────�
                                                  │   waited, in their order, once
                                                  │   Simulation::edits_wait says they no longer
                                                  │   do (ADR-0161)
-                                                 ├── each request queued, answered with the host's
+                                                 ├── each request queued, one of each connection
+                                                 │   in turn, in rounds within a budget of time,
+                                                 │   none of a connection whose writer is behind,
+                                                 │   the rest left for the next frame; answered
+                                                 │   with the host's
                                                  │   world, clocks and input, a save or a load, a
                                                  │   value set and an editor's request by the
                                                  │   simulation (Simulation::apply, edit), those
@@ -2052,8 +2064,12 @@ Client::request(request) ──────────────────�
                                                      window's image, before it is shown, cropped
                                                      to the view that it names, or to where an
                                                      element of the interface shows
-reply, and an image's pixels ◀────────────────── written by the connection's thread, the answer
-                                                 numbered as its request, Failed as an error
+reply, and an image's pixels ◀────────────────── written by the connection's writer as each is
+                                                 done, in any order, numbered as its request,
+                                                 Failed as an error; while what it holds
+                                                 unwritten passes its bound, the game takes none
+                                                 of the connection's requests, and its reader
+                                                 reads none
 ```
 
 Messages are JSON-RPC 2.0, a message a line, the families' types written through `serde`; the values
@@ -2074,7 +2090,9 @@ GPU objects through clones of the `Gpu`. Each renderer has a thread of its own b
 uploader's, which submits the copies of what the loads bring, and waits rather than computes
 (ADR-0118). The sky's environment is computed by frame tasks of the same pool, and the
 cooker encodes textures on it. A game's development channel has a thread that accepts connections,
-and one for each connection, which wait rather than compute ([above](#the-development-channel)).
+and two for each connection, one that reads its requests and one that writes its answers, and a
+tool's client one that reads its answers; all wait rather than compute
+([above](#the-development-channel)).
 The handler of termination signals runs on a thread of its own, and logs from another
 ([below](#termination-signals)); with the `accessibility` feature, AccessKit's adapter asks for the
 window's tree from its own thread, the event loop answering it ([above](#what-a-screen-reader-reads-of-an-interface)).
@@ -2093,7 +2111,8 @@ of its own for the display list); rustdoc states it for the others:
   drawings, pickings and what they found, windows, events, the input, the host, its `Context` and
   `AppConfig`, worlds and entity handles, scene libraries and resolved scenes, the
   frame builder of `slime-world-render`, its frames and its picker, reflected values and registries,
-  the development channel's tokens, messages and clients, an interface's display list, fonts and
+  the development channel's tokens, messages, clients, its `Listener` and the requests it hands
+  over, `Incoming`, an interface's display list, fonts and
   text cache, a canvas and its renderer (`CanvasRenderer`), the renderer of display lists
   (`UiRenderer`) and the engine's bridge to it (`InterfaceRenderer`), the editor's core
   (`Editor`), and the error types of those crates.
@@ -2105,9 +2124,8 @@ of its own for the display list); rustdoc states it for the others:
   configured.
 - **Moved between threads, used by one at a time** (`Send` only): a `GpuTimer`, which reads its
   times back through a cell, and so the renderer's `View` that holds them; `Renderer::render` takes
-  it mutably anyway. A `Readback`, which keeps through a cell what wgpu said of its copy. The
-  development channel's `Listener` and the requests it hands over, `Incoming`, which answer through
-  a channel of the standard library.
+  it mutably anyway. A `Readback`, which keeps through a cell what wgpu said of its copy. A request in flight of
+  the development channel's client, `Pending`, which waits on a channel of the standard library.
 - **Kept on the thread that made them** (neither `Send` nor `Sync`): an interface
   (`uwui::tree::Ui`), and so the dev overlay that holds one (`slime_devui::Overlay`), which no
   test checks; a presentation uses them on the main thread, where `run` drives it.

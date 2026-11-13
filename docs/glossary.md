@@ -1409,6 +1409,10 @@ lives, the cache keeps the asset, or keeps loading it; its last handle dropped s
 load, or makes the asset *releasable*. It says what became of the asset, and stays valid through new
 *cooked data* and a lost *device* ([ADR-0128](adr/0128-asset-requests.md)).
 
+**Request in flight (core for agents).** A request that a tool sent and whose answer it has not
+read: a connection may have several, answered in any order by their numbers; the program frees
+its place once it takes the answer to write it, and answers it once even when the tool cancels it ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)).
+
 **Resolve (multisampling).** Averaging the *samples (multisampling)* of each pixel of a multisampled
 *render target* into an ordinary one, which later passes can read. The renderer weighs each sample
 by its brightness, so that the edges of bright surfaces are smooth too

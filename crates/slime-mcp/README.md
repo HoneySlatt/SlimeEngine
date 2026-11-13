@@ -25,10 +25,10 @@ in scripted input yet: an interface is used through its elements' actions.
   development channel that the game opens, naming to the game the agent, as its MCP client names
   itself, and the server, which the game logs; the game's standard error, its log, goes to a file of
   the system's temporary directory, which `start_game` names and which stays there once the game
-  ended. A game still running when the agent goes is stopped. After a request that failed, the
-  server opens a new connection to the game, so that a late answer is not read as the next one's;
-  after one to the game that an editor plays that failed, it drops that connection, and the game's
-  tools drive the editor again.
+  ended. A game still running when the agent goes is stopped. An agent's calls go side by side,
+  each a request in flight on the one connection (`docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md`).
+  Once the connection to the program is lost, the server opens a new one; once the one to the
+  game that an editor plays is, it drops it, and the game's tools drive the editor again.
 - Runs the engine's cooker and `cargo test` in the directory where it runs: run it from the
   repository's root.
 

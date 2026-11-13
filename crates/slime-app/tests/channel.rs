@@ -7,13 +7,19 @@
 //! A run reads its token from its environment, which only a process's start sets, so each test runs
 //! this test program again as a child, restricted to the run, its environment set.
 
+use std::collections::VecDeque;
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
 use slime_app::{AppConfig, AppError, Simulation, SimulationContext, run};
-use slime_channel::{ANNOUNCEMENT, Client, Named, Reply, Request, TOKEN_ENV_VAR, Token, launch};
+use slime_channel::{
+    ANNOUNCEMENT, ChannelError, Client, Named, Pending, Reply, Request, TOKEN_ENV_VAR, Token,
+    launch,
+};
 use slime_color::LinearColor;
 use slime_platform::KeyCode;
 use slime_world::{Light, Transform, World};
@@ -113,12 +119,12 @@ fn command(test: &str) -> Command {
 }
 
 /// Asks `request`, and returns the reply.
-fn ask(client: &mut Client, request: Request) -> Reply {
+fn ask(client: &Client, request: Request) -> Reply {
     client.request(&request).expect("answered").0
 }
 
 /// Where the lantern stands along x, as the run that `client` drives answers.
-fn x(client: &mut Client) -> f64 {
+fn x(client: &Client) -> f64 {
     let Reply::Entity { components, .. } = ask(
         client,
         Request::Entity {
@@ -156,11 +162,11 @@ fn a_tool_with_the_token_drives_a_headless_run() {
         Client::connect(launched.address, &other, &tester(), &tester()),
         Err(slime_channel::ChannelError::Refused(_))
     ));
-    let mut client =
+    let client =
         Client::connect(launched.address, &launched.token, &tester(), &tester()).expect("accepted");
 
-    assert_eq!(ask(&mut client, Request::Pause), Reply::Done);
-    let Reply::State { state } = ask(&mut client, Request::State) else {
+    assert_eq!(ask(&client, Request::Pause), Reply::Done);
+    let Reply::State { state } = ask(&client, Request::State) else {
         panic!("a state");
     };
     assert!(state.paused);
@@ -169,17 +175,17 @@ fn a_tool_with_the_token_drives_a_headless_run() {
     // W held, twenty steps, more than a frame runs: the step is answered once they have all run,
     // and the lantern moved 20 m.
     let w = || "KeyW".to_owned();
-    assert_eq!(ask(&mut client, Request::Press { key: w() }), Reply::Done);
-    assert_eq!(ask(&mut client, Request::Step { steps: 20 }), Reply::Done);
-    let Reply::State { state } = ask(&mut client, Request::State) else {
+    assert_eq!(ask(&client, Request::Press { key: w() }), Reply::Done);
+    assert_eq!(ask(&client, Request::Step { steps: 20 }), Reply::Done);
+    let Reply::State { state } = ask(&client, Request::State) else {
         panic!("a state");
     };
     assert_eq!(state.steps, steps + 20);
-    assert_eq!(ask(&mut client, Request::Release { key: w() }), Reply::Done);
+    assert_eq!(ask(&client, Request::Release { key: w() }), Reply::Done);
     let Reply::Entity {
         entity, components, ..
     } = ask(
-        &mut client,
+        &client,
         Request::Entity {
             entity: "lantern".to_owned(),
         },
@@ -201,25 +207,19 @@ fn a_tool_with_the_token_drives_a_headless_run() {
     // 20 m. A file that holds no save is refused, the run left as it is.
     let saved = std::env::temp_dir().join(format!("slime-app-channel-{}.txt", std::process::id()));
     let file = || saved.to_string_lossy().into_owned();
-    assert_eq!(
-        ask(&mut client, Request::Save { file: file() }),
-        Reply::Done
-    );
-    assert_eq!(ask(&mut client, Request::Press { key: w() }), Reply::Done);
-    assert_eq!(ask(&mut client, Request::Step { steps: 5 }), Reply::Done);
-    assert_eq!(ask(&mut client, Request::Release { key: w() }), Reply::Done);
-    assert_eq!(x(&mut client), 25.0);
-    assert_eq!(
-        ask(&mut client, Request::Load { file: file() }),
-        Reply::Done
-    );
-    assert_eq!(x(&mut client), 20.0);
+    assert_eq!(ask(&client, Request::Save { file: file() }), Reply::Done);
+    assert_eq!(ask(&client, Request::Press { key: w() }), Reply::Done);
+    assert_eq!(ask(&client, Request::Step { steps: 5 }), Reply::Done);
+    assert_eq!(ask(&client, Request::Release { key: w() }), Reply::Done);
+    assert_eq!(x(&client), 25.0);
+    assert_eq!(ask(&client, Request::Load { file: file() }), Reply::Done);
+    assert_eq!(x(&client), 20.0);
     std::fs::write(&saved, "not a number").expect("written");
     assert!(matches!(
-        ask(&mut client, Request::Load { file: file() }),
+        ask(&client, Request::Load { file: file() }),
         Reply::Failed { .. }
     ));
-    assert_eq!(x(&mut client), 20.0);
+    assert_eq!(x(&client), 20.0);
     std::fs::remove_file(&saved).expect("removed");
 
     // A value given as text, read with the component's type, within its range.
@@ -229,9 +229,9 @@ fn a_tool_with_the_token_drives_a_headless_run() {
         path: "intensity".to_owned(),
         value: value.to_owned(),
     };
-    assert_eq!(ask(&mut client, dim("12.5")), Reply::Done);
+    assert_eq!(ask(&client, dim("12.5")), Reply::Done);
     let Reply::Entity { components, .. } = ask(
-        &mut client,
+        &client,
         Request::Entity {
             entity: "lantern".to_owned(),
         },
@@ -246,7 +246,7 @@ fn a_tool_with_the_token_drives_a_headless_run() {
     // Out of its range, of another type, not a value.
     for wrong in ["-1.0", "true", "\"bright\"", "bright"] {
         assert!(
-            matches!(ask(&mut client, dim(wrong)), Reply::Failed { .. }),
+            matches!(ask(&client, dim(wrong)), Reply::Failed { .. }),
             "{wrong}"
         );
     }
@@ -261,14 +261,14 @@ fn a_tool_with_the_token_drives_a_headless_run() {
         set("nowhere", 1.0),
         set("lantern", 3.0),
     ];
-    let reply = ask(&mut client, Request::Apply { commands });
+    let reply = ask(&client, Request::Apply { commands });
     assert!(
         matches!(&reply, Reply::Failed { message }
             if message.starts_with("command 1:") && message.contains("after it, 1, not applied")),
         "{reply:?}"
     );
     let Reply::Entity { components, .. } = ask(
-        &mut client,
+        &client,
         Request::Entity {
             entity: "lantern".to_owned(),
         },
@@ -282,7 +282,7 @@ fn a_tool_with_the_token_drives_a_headless_run() {
         "{components:?}"
     );
     let Reply::Entities { entities, more } = ask(
-        &mut client,
+        &client,
         Request::Entities {
             filter: "LANT".to_owned(),
         },
@@ -290,7 +290,7 @@ fn a_tool_with_the_token_drives_a_headless_run() {
         panic!("entities");
     };
     assert_eq!((entities.len(), more), (1, 0));
-    let Reply::Logs { lines } = ask(&mut client, Request::Logs { after: 0 }) else {
+    let Reply::Logs { lines } = ask(&client, Request::Logs { after: 0 }) else {
         panic!("logs");
     };
     assert!(
@@ -304,7 +304,7 @@ fn a_tool_with_the_token_drives_a_headless_run() {
     );
     assert!(matches!(
         ask(
-            &mut client,
+            &client,
             Request::Capture {
                 view: String::new()
             }
@@ -313,7 +313,7 @@ fn a_tool_with_the_token_drives_a_headless_run() {
     ));
     assert!(matches!(
         ask(
-            &mut client,
+            &client,
             Request::Press {
                 key: "W".to_owned()
             }
@@ -324,20 +324,20 @@ fn a_tool_with_the_token_drives_a_headless_run() {
     // Steps that no run would end, dropped when another tool lets game time run again: the step is
     // answered so.
     let stepping = thread::spawn(move || {
-        let reply = ask(&mut client, Request::Step { steps: u32::MAX });
+        let reply = ask(&client, Request::Step { steps: u32::MAX });
         (client, reply)
     });
-    let mut other =
+    let other =
         Client::connect(launched.address, &launched.token, &tester(), &tester()).expect("accepted");
     thread::sleep(Duration::from_millis(50));
-    assert_eq!(ask(&mut other, Request::Resume), Reply::Done);
-    let (mut client, dropped) = stepping.join().expect("answered");
+    assert_eq!(ask(&other, Request::Resume), Reply::Done);
+    let (client, dropped) = stepping.join().expect("answered");
     assert!(
         matches!(&dropped, Reply::Failed { message } if message.contains("dropped")),
         "{dropped:?}"
     );
 
-    assert_eq!(ask(&mut client, Request::Stop), Reply::Done);
+    assert_eq!(ask(&client, Request::Stop), Reply::Done);
     let status = launched.child.wait().expect("the run ends");
     assert!(status.success(), "{status}");
 }
@@ -396,7 +396,7 @@ fn a_tool_s_edits_wait_while_the_simulation_says_so() {
     let connect = || {
         Client::connect(launched.address, &launched.token, &tester(), &tester()).expect("accepted")
     };
-    let mut reader = connect();
+    let reader = connect();
     let step = |label: &str| Request::Edit {
         edit: slime_channel::Edit::Step {
             label: label.to_owned(),
@@ -405,27 +405,27 @@ fn a_tool_s_edits_wait_while_the_simulation_says_so() {
         },
     };
     // Answered at once while nothing is under way.
-    assert_eq!(ask(&mut reader, step("1")), Reply::Done);
-    assert_eq!(x(&mut reader), 1.0);
+    assert_eq!(ask(&reader, step("1")), Reply::Done);
+    assert_eq!(x(&reader), 1.0);
     let w = || "KeyW".to_owned();
-    assert_eq!(ask(&mut reader, Request::Press { key: w() }), Reply::Done);
+    assert_eq!(ask(&reader, Request::Press { key: w() }), Reply::Done);
     // Two edits, the second asked once the first waits.
     let edits: Vec<_> = ["2", "3"]
         .into_iter()
         .map(|label| {
-            let mut client = connect();
+            let client = connect();
             let request = step(label);
-            let edit = thread::spawn(move || ask(&mut client, request));
+            let edit = thread::spawn(move || ask(&client, request));
             thread::sleep(Duration::from_millis(100));
             edit
         })
         .collect();
     // A value set waits too; a read of the history is answered at once, as the simulation answers
     // it (this one refuses all but steps).
-    let mut client = connect();
+    let client = connect();
     let dim = thread::spawn(move || {
         ask(
-            &mut client,
+            &client,
             Request::SetProperty {
                 entity: "lantern".to_owned(),
                 component: "Light".to_owned(),
@@ -437,21 +437,233 @@ fn a_tool_s_edits_wait_while_the_simulation_says_so() {
     let history = Request::Edit {
         edit: slime_channel::Edit::History,
     };
-    assert!(matches!(ask(&mut reader, history), Reply::Failed { .. }));
+    assert!(matches!(ask(&reader, history), Reply::Failed { .. }));
     thread::sleep(Duration::from_millis(100));
     assert_eq!(
-        x(&mut reader),
+        x(&reader),
         1.0,
         "nothing applied while the gesture is under way"
     );
     assert!(edits.iter().all(|edit| !edit.is_finished()) && !dim.is_finished());
-    assert_eq!(ask(&mut reader, Request::Release { key: w() }), Reply::Done);
+    assert_eq!(ask(&reader, Request::Release { key: w() }), Reply::Done);
     for edit in edits {
         assert_eq!(edit.join().expect("answered"), Reply::Done);
     }
     assert_eq!(dim.join().expect("answered"), Reply::Done);
-    assert_eq!(x(&mut reader), 123.0, "applied in their order");
-    assert_eq!(ask(&mut reader, Request::Stop), Reply::Done);
+    assert_eq!(x(&reader), 123.0, "applied in their order");
+    assert_eq!(ask(&reader, Request::Stop), Reply::Done);
+    let status = launched.child.wait().expect("the run ends");
+    assert!(status.success(), "{status}");
+}
+
+/// On one connection, a read is answered while an edit of the same connection waits for a drag's
+/// end; an edit cancelled meanwhile is answered so at once, and one of a connection that closed is
+/// dropped: neither is applied once the drag ends
+/// (`docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md`).
+#[test]
+fn a_read_passes_a_waiting_edit_and_a_cancelled_edit_is_never_applied() {
+    if std::env::var_os(CHILD_ENV).is_some() {
+        run(&mut Holder::default(), &mut (), &AppConfig::default()).expect("the run starts");
+        return;
+    }
+    let mut launched = launch(
+        &mut command("a_read_passes_a_waiting_edit_and_a_cancelled_edit_is_never_applied"),
+        Duration::from_secs(60),
+    )
+    .expect("the run listens");
+    let connect = || {
+        Client::connect(launched.address, &launched.token, &tester(), &tester()).expect("accepted")
+    };
+    let client = connect();
+    let step = |label: &str| Request::Edit {
+        edit: slime_channel::Edit::Step {
+            label: label.to_owned(),
+            commands: Vec::new(),
+            selection: None,
+        },
+    };
+    let soon = Duration::from_secs(30);
+    assert_eq!(ask(&client, step("1")), Reply::Done);
+    assert_eq!(
+        ask(
+            &client,
+            Request::Press {
+                key: "KeyW".to_owned()
+            }
+        ),
+        Reply::Done
+    );
+    let edit = client.send(&step("2")).expect("sent");
+    thread::sleep(Duration::from_millis(100));
+    // A read on the same connection, answered while the edit waits.
+    let read = client
+        .send(&Request::Entity {
+            entity: "lantern".to_owned(),
+        })
+        .expect("sent");
+    assert!(matches!(
+        read.wait_for(soon).expect("answered meanwhile").0,
+        Reply::Entity { .. }
+    ));
+    edit.cancel();
+    assert!(
+        matches!(edit.wait_for(soon), Err(ChannelError::Cancelled)),
+        "answered while the drag goes on"
+    );
+    // An edit whose connection closes while it waits.
+    let other = connect();
+    let _dropped = other.send(&step("3")).expect("sent");
+    thread::sleep(Duration::from_millis(100));
+    drop(other);
+    thread::sleep(Duration::from_millis(100));
+    assert_eq!(
+        ask(
+            &client,
+            Request::Release {
+                key: "KeyW".to_owned()
+            }
+        ),
+        Reply::Done
+    );
+    // Each answered at a frame's start: what waited would be applied by the second.
+    for _ in 0..2 {
+        ask(&client, Request::State);
+    }
+    assert_eq!(x(&client), 1.0, "neither edit applied");
+    assert_eq!(ask(&client, Request::Stop), Reply::Done);
+    let status = launched.child.wait().expect("the run ends");
+    assert!(status.success(), "{status}");
+}
+
+/// A crowd of keyed entities, each placed, which a tool lists page after page; it times its frames
+/// by the wall's clock, as a headless run gives each frame its fixed step, and saves their median
+/// and the longest since the last save.
+#[derive(Default)]
+struct Crowd {
+    last: Option<std::time::Instant>,
+    frames: Vec<Duration>,
+}
+
+/// How many entities the crowd holds: past the 1 000 that a list gives, each list a costly request.
+const CROWD: usize = 5_000;
+
+impl Simulation for Crowd {
+    fn start(
+        &mut self,
+        _ctx: &mut SimulationContext<'_>,
+        world: &mut World,
+    ) -> Result<(), AppError> {
+        for at in 0..CROWD {
+            let entity = world.spawn_keyed(&format!("crowd {at}"))?;
+            world.insert(entity, Transform::IDENTITY);
+        }
+        Ok(())
+    }
+
+    fn update(&mut self, _ctx: &mut SimulationContext<'_>, _world: &mut World) {
+        let now = std::time::Instant::now();
+        if let Some(last) = self.last.replace(now) {
+            self.frames.push(now - last);
+        }
+        // As the lantern's frames, a little rest each.
+        thread::sleep(Duration::from_millis(1));
+    }
+
+    fn save(&mut self, _world: &World, file: &Path) -> Result<(), AppError> {
+        let mut frames = std::mem::take(&mut self.frames);
+        frames.sort();
+        let median = frames.get(frames.len() / 2).copied().unwrap_or_default();
+        let longest = frames.last().copied().unwrap_or_default();
+        std::fs::write(
+            file,
+            format!(
+                "{} {:.3} {:.3}",
+                frames.len(),
+                median.as_secs_f64() * 1e3,
+                longest.as_secs_f64() * 1e3
+            ),
+        )?;
+        Ok(())
+    }
+}
+
+/// The frames of a run that agents keep at the channel's bounds: as many connections as it
+/// welcomes, each with as many requests in flight as it takes, each a list of a thousand entities.
+/// It prints the frames' median and longest by the wall's clock over six seconds, after two of
+/// warming; by hand, in a release build, at rest (`docs/measurements.md`, M6d.9a1b1):
+/// `cargo test --release -p slime-app --features development --test channel -- --ignored frames_with_agents --nocapture`.
+#[test]
+#[ignore = "a measure, run by hand at rest"]
+fn frames_with_agents_at_the_bounds() {
+    if std::env::var_os(CHILD_ENV).is_some() {
+        run(&mut Crowd::default(), &mut (), &AppConfig::default()).expect("the run starts");
+        return;
+    }
+    // The child runs this test too, which it skips unless told that it is ignored.
+    let mut child = command("frames_with_agents_at_the_bounds");
+    child.arg("--ignored");
+    let mut launched = launch(&mut child, Duration::from_secs(60)).expect("the run listens");
+    let clients: Vec<Arc<Client>> = (0..8)
+        .map(|_| {
+            Arc::new(
+                Client::connect(launched.address, &launched.token, &tester(), &tester())
+                    .expect("accepted"),
+            )
+        })
+        .collect();
+    let stop = Arc::new(AtomicBool::new(false));
+    let agents: Vec<_> = clients
+        .iter()
+        .skip(1)
+        .map(|client| {
+            let (client, stop) = (Arc::clone(client), Arc::clone(&stop));
+            thread::spawn(move || {
+                let list = Request::Entities {
+                    filter: String::new(),
+                };
+                let mut flying = VecDeque::new();
+                while !stop.load(Ordering::Relaxed) {
+                    while flying.len() < 16 {
+                        flying.push_back(client.send(&list).expect("sent"));
+                    }
+                    let oldest: Pending = flying.pop_front().expect("in flight");
+                    oldest.wait().expect("listed");
+                }
+                for pending in flying {
+                    let _ = pending.wait();
+                }
+            })
+        })
+        .collect();
+    let stats = std::env::temp_dir().join(format!("slime-frames-{}.txt", std::process::id()));
+    let save = || {
+        ask(
+            &clients[0],
+            Request::Save {
+                file: stats.display().to_string(),
+            },
+        )
+    };
+    thread::sleep(Duration::from_secs(2));
+    assert_eq!(save(), Reply::Done);
+    thread::sleep(Duration::from_secs(6));
+    assert_eq!(save(), Reply::Done);
+    stop.store(true, Ordering::Relaxed);
+    for agent in agents {
+        agent.join().expect("the agent ends");
+    }
+    let measured = std::fs::read_to_string(&stats).expect("the frames' times");
+    let _ = std::fs::remove_file(&stats);
+    let [count, median, longest]: [&str; 3] = measured
+        .split(' ')
+        .collect::<Vec<_>>()
+        .try_into()
+        .expect("three figures");
+    println!(
+        "frames with 7 agents at the bounds and one that measures: {count} frames, {median} ms \
+         the median, {longest} ms the longest"
+    );
+    assert_eq!(ask(&clients[0], Request::Stop), Reply::Done);
     let status = launched.child.wait().expect("the run ends");
     assert!(status.success(), "{status}");
 }

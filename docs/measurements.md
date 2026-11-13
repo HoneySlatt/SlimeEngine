@@ -3474,3 +3474,64 @@ How long CI's jobs took on `ab9496e`, the commit that gave uwui the host's times
 Every job stays within its limit of 20 minutes. `windows-release` is the longest, with 3 min 14 s
 of margin, 4 min 9 s more than at M6d.5a's run above; `check (headless)` took 4 min 58 s less. The
 runners vary; the milestone adds no job and one test file of uwui.
+
+## M6d.9a1b1, requests in flight
+
+On 2026-11-13, on an AMD Ryzen 7 5800X: the most bytes held at once while `uwui-agent`'s reader
+reads a request's line of 1 MiB, the reader's copy of the line counted, not the caller's, as
+`uwui-agent`'s test
+`a_request_s_line_costs_a_bounded_multiple_of_its_size_as_it_is_read` counts them through a global
+allocator of its own (`cargo test --release -p uwui-agent --test request_memory -- --nocapture`).
+Its parameters are one shape repeated in a list; a debug build gives the same figures. It replaces
+the 17 times that M6d.9a1a's documents gave, which no measure held.
+
+| A line of 1 MiB whose parameters are a list of | Bytes held at most | Times the line |
+|---|---|---|
+| numbers, `0` | 26,214,415 | 25.0 |
+| empty lists, `[]` | 26,214,415 | 25.0 |
+| empty texts, `""` | 26,214,415 | 25.0 |
+| empty objects, `{}` | 26,214,415 | 25.0 |
+| short texts, `"lamp 3"` | 7,733,269 | 7.4 |
+| the world's commands, as an editor sends them | 2,471,605 | 2.4 |
+
+The worst holds a value of 32 bytes for each two or three of the line, in a list that doubles its
+room as it grows, its last two blocks held at once. The test fails past 25.5 times. It measures the
+reader alone: the game then reads the value into its request, both held a moment, which no test
+measures.
+
+On 2026-11-13, on the same machine at rest before each series (load under 1, no `cargo` nor
+`rustc` running), in release builds:
+
+- A request of the development channel answered at once, on the loopback, with 64 bytes after its
+  answer, the median of 21, as `slime-channel`'s test
+  `a_request_is_answered_in_well_under_the_delay_of_an_acknowledgement` measures it
+  (`cargo test --release -p slime-channel a_request_is_answered -- --nocapture`). Before is
+  `e4616dc`, one request in flight a connection, built in a worktree of its own; after is this
+  milestone's, each connection with a reader and a writer. Five passes each, alternated; the median
+  of the five.
+
+| Measure | Before | After |
+|---|---|---|
+| a request of the development channel, answered at once, median of 21 | 41.1 µs | 45.3 µs |
+| its five passes | 38.3 to 42.1 µs | 43.7 to 46.3 µs |
+
+  The writer's thread adds a hop between the game's answer and the socket.
+
+- A headless run's frames by the wall's clock, over six seconds after two of warming, while seven
+  connections each keep sixteen lists of a thousand entities in flight, of a world of five thousand,
+  and an eighth asks how the frames went, as `slime-app`'s test `frames_with_agents_at_the_bounds`
+  measures it (`cargo test --release -p slime-app --features development --test channel --
+  --ignored frames_with_agents --nocapture`). Each frame rests 1 ms, as the channel's tests do.
+  With the budget of a frame's start, 0.5 ms, and without it, the same build with the budget made
+  endless. Three passes each, alternated; the load rose to 2.4 during them, the measure's own nine
+  threads.
+
+| A frame, with agents at the bounds | With the budget | Without it |
+|---|---|---|
+| frames in six seconds | 1,424 to 1,474 | 0 |
+| median | 4.03 to 4.10 ms | none |
+| longest | 5.84 to 12.22 ms | none |
+
+  Without the budget, the agents' requests come back as fast as the frame's start takes them, and
+  it never ends. With it, one round, a list of each connection, passes the 0.5 ms alone: the frame
+  holds the round and the rest.

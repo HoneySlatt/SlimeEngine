@@ -24,6 +24,29 @@ pub fn write(value: &impl Serialize) -> Result<Value, AgentError> {
     serde_json::to_value(value).map_err(AgentError::unwritable)
 }
 
+/// How many bytes of JSON `value` writes, counted as it is written, without holding them: what a
+/// carrier counts of an answer that waits to be written. A value that JSON cannot write counts
+/// what it wrote before it failed.
+pub fn json_size(value: &impl Serialize) -> usize {
+    /// Counts what is written to it, and keeps none of it.
+    struct Counter(usize);
+
+    impl std::io::Write for Counter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0 += bytes.len();
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let mut counter = Counter(0);
+    let _ = serde_json::to_writer(&mut counter, value);
+    counter.0
+}
+
 /// A value of a family's own type read out of the JSON that a message holds.
 ///
 /// # Errors
@@ -143,6 +166,15 @@ mod tests {
         assert_eq!(
             read::<u32>(json!(-7)).map_err(|fault| fault.code),
             Err(Fault::BAD_PARAMS)
+        );
+    }
+
+    #[test]
+    fn a_value_s_size_is_the_bytes_of_its_json() {
+        let value = serde_json::json!({ "text": "lamp 3", "steps": [1, 2, 3] });
+        assert_eq!(
+            json_size(&value),
+            serde_json::to_vec(&value).expect("written").len()
         );
     }
 }

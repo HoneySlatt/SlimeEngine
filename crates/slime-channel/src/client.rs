@@ -1,36 +1,92 @@
 //! A tool's end: it starts a game with a token, connects to it, and asks.
 
-use std::io::{BufRead, BufReader};
-use std::net::{SocketAddr, TcpStream};
+use std::collections::HashMap;
+use std::io::{self, BufRead, BufReader};
+use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
-use std::thread;
+use std::sync::{Arc, Condvar, Mutex, PoisonError, mpsc};
+use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use uwui_agent::{
-    CORE_VERSION, Family, FromProgram, Hello, Limits, Named, Reader, ToolSession, Welcome,
+    AgentError, CORE_VERSION, Family, Fault, FromProgram, Hello, Limits, Named, Reader,
+    ToolSession, Value, Welcome,
 };
 
 use crate::error::ChannelError;
+use crate::locked;
 use crate::message::{Reply, Request};
 use crate::token::Token;
-use crate::wire::{MAX_BYTES, MAX_LINE, receive, send};
+use crate::wire::{MAX_BYTES, MAX_LINE, receive, send, why};
 use crate::{ANNOUNCEMENT, TOKEN_ENV_VAR};
 
-/// How long a connection waits for the game's answer to a request before it gives up: a game
-/// answers at its next frame, which takes seconds on a CPU's renderer, and a step of many fixed
-/// steps once the frames have run them all.
+/// How long a request waits for a place in flight, then for the game's answer, before it gives up
+/// and cancels it: a game answers at its next frame, which takes seconds on a CPU's renderer, and
+/// a step of many fixed steps once the frames have run them all.
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(600);
+
+/// What a request's answer is: the reply, and the bytes that follow it.
+type Answer = Result<(Reply, Vec<u8>), ChannelError>;
 
 /// A connection to a game's development channel, open once the game welcomed its hello: it carries
 /// the tool's end of the session of uwui's core for agents (`uwui_agent::ToolSession`).
+///
+/// Several threads may ask through one client at once: each request is in flight until its answer
+/// comes, in any order, and a thread of the client's own reads the answers and hands each to its
+/// request (`docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md`).
+/// A request past those in flight that the game takes waits for an answer to be read.
 pub struct Client {
+    shared: Arc<Shared>,
+    /// A clone of the connection, which the client shuts down when dropped, so that its reader
+    /// ends.
     stream: TcpStream,
-    reader: Reader,
-    session: ToolSession,
+    reader: Option<JoinHandle<()>>,
     program: String,
-    /// Whether a request failed: the connection is given up then ([`ChannelError::Broken`]).
-    broken: bool,
+}
+
+/// What the client's callers and its reader share.
+struct Shared {
+    state: Mutex<State>,
+    /// Told when an answer came, which frees a place in flight, or the connection broke.
+    answered: Condvar,
+    /// The connection, written under its own lock so that no line is cut by another, and so that
+    /// the reader, which never takes it, reads on while a caller's write waits for the game.
+    writer: Mutex<TcpStream>,
+}
+
+struct State {
+    session: ToolSession,
+    /// Where each request in flight waits for its answer, by number; a request given up is no
+    /// longer here, and its answer, which still comes, is dropped.
+    waiting: HashMap<u64, mpsc::Sender<Answer>>,
+    /// Why the connection broke, once it did.
+    broken: Option<Broken>,
+}
+
+/// Why a connection broke, which each request that waited is told.
+#[derive(Clone)]
+enum Broken {
+    /// Reading or writing failed, of this kind, as the system said.
+    Io(io::ErrorKind, String),
+    /// The game sent what is not a message of the protocol, or said that it could not read the
+    /// tool's.
+    Malformed(String),
+}
+
+impl Broken {
+    fn error(&self) -> ChannelError {
+        match self {
+            Broken::Io(kind, why) => ChannelError::Io(io::Error::new(*kind, why.clone())),
+            Broken::Malformed(why) => ChannelError::Malformed(why.clone()),
+        }
+    }
+}
+
+/// A request in flight, whose answer comes later ([`Pending::wait`]).
+pub struct Pending {
+    id: u64,
+    answer: mpsc::Receiver<Answer>,
+    shared: Arc<Shared>,
 }
 
 impl Client {
@@ -41,9 +97,9 @@ impl Client {
     /// # Errors
     ///
     /// [`ChannelError::Refused`] with the game's reason when it refuses the token or the version of
-    /// the core; [`ChannelError::Io`] when no game listens there or the connection breaks;
-    /// [`ChannelError::Malformed`] or [`ChannelError::Session`] when what answers does not speak
-    /// the protocol.
+    /// the core, or serves as many connections as it takes; [`ChannelError::Io`] when no game
+    /// listens there or the connection breaks; [`ChannelError::Malformed`] or
+    /// [`ChannelError::Session`] when what answers does not speak the protocol.
     pub fn connect(
         address: SocketAddr,
         token: &Token,
@@ -63,40 +119,64 @@ impl Client {
         client: &Named,
         families: Vec<Family>,
     ) -> Result<(Self, Welcome), ChannelError> {
-        let stream = TcpStream::connect(address)?;
+        let mut stream = TcpStream::connect(address)?;
         // Each message goes out at once, rather than waiting for the acknowledgement of the last.
         stream.set_nodelay(true)?;
         stream.set_read_timeout(Some(ANSWER_TIMEOUT))?;
-        let mut connection = Self {
-            stream,
-            reader: Reader::new(Limits {
-                line: MAX_LINE,
-                bytes: MAX_BYTES,
-            }),
-            session: ToolSession::new(),
-            program: String::new(),
-            broken: false,
+        let limits = Limits {
+            line: MAX_LINE,
+            bytes: MAX_BYTES,
         };
-        let hello = connection.session.hello(&Hello {
+        let mut reader = Reader::new(limits);
+        let mut session = ToolSession::new();
+        let hello = session.hello(&Hello {
             core: CORE_VERSION,
             agent: agent.clone(),
             client: client.clone(),
             secret: token.to_string(),
             families,
+            limits,
         })?;
-        send(&mut connection.stream, &hello, &[])?;
-        let frame = receive(&mut connection.stream, &mut connection.reader)?;
-        match connection.session.receive(frame)? {
-            FromProgram::Welcomed(welcome) => {
-                connection.program.clone_from(&welcome.program);
-                Ok((connection, welcome))
+        send(&mut stream, &hello, &[])?;
+        let frame = receive(&mut stream, &mut reader)?;
+        let welcome = match session.receive(frame)? {
+            FromProgram::Welcomed(welcome) => welcome,
+            FromProgram::Refused(reason) => return Err(ChannelError::Refused(reason)),
+            FromProgram::Unreadable(fault) => return Err(ChannelError::Refused(fault.message)),
+            other => {
+                return Err(ChannelError::Malformed(format!(
+                    "the game answered {other:?} to a hello"
+                )));
             }
-            FromProgram::Refused(reason) => Err(ChannelError::Refused(reason)),
-            FromProgram::Unreadable(fault) => Err(ChannelError::Refused(fault.message)),
-            other => Err(ChannelError::Malformed(format!(
-                "the game answered {other:?} to a hello"
-            ))),
-        }
+        };
+        // Events may not come for hours: each request keeps its own time instead.
+        stream.set_read_timeout(None)?;
+        let shared = Arc::new(Shared {
+            state: Mutex::new(State {
+                session,
+                waiting: HashMap::new(),
+                broken: None,
+            }),
+            answered: Condvar::new(),
+            writer: Mutex::new(stream.try_clone()?),
+        });
+        let reading = stream.try_clone()?;
+        let reader = {
+            let shared = Arc::clone(&shared);
+            thread::Builder::new()
+                .name("slime dev channel client".to_owned())
+                .spawn(move || read_answers(reading, reader, &shared))?
+        };
+        let program = welcome.program.clone();
+        Ok((
+            Self {
+                shared,
+                stream,
+                reader: Some(reader),
+                program,
+            },
+            welcome,
+        ))
     }
 
     /// The name of the game's program.
@@ -104,54 +184,201 @@ impl Client {
         &self.program
     }
 
+    /// Whether the connection is given up: it broke, or the game sent what is not a message of
+    /// the protocol. Every request fails with [`ChannelError::Broken`] then.
+    pub fn is_broken(&self) -> bool {
+        locked(&self.shared.state).broken.is_some()
+    }
+
     /// Sends `request`, and waits for the game's answer: the reply, and the bytes that follow it,
-    /// the pixels of an image. A request holds at most 1 MiB, which the game refuses past it, closing
-    /// the connection; an answer at most 16 MiB, and its bytes 1 GiB.
+    /// the pixels of an image. A request holds at most 1 MiB; an answer at most 16 MiB, and its
+    /// bytes 1 GiB, past which the game answers that it is too large. A request that finds no
+    /// place in flight, or no answer, within ten minutes, fails then, and is cancelled.
+    ///
+    /// # Errors
+    ///
+    /// As [`Client::send`], and [`Pending::wait`]. A request that the game refuses is answered
+    /// [`Reply::Failed`], which is no error.
+    pub fn request(&self, request: &Request) -> Answer {
+        self.send(request)?.wait()
+    }
+
+    /// Sends `request` without waiting for its answer: it is in flight until [`Pending::wait`]
+    /// reads it. It waits first, at most ten minutes, while the requests in flight are as many as
+    /// the game takes.
     ///
     /// # Errors
     ///
     /// [`ChannelError::Session`] when the game does not serve the request's family on this
-    /// connection, which sends nothing and leaves the connection usable. [`ChannelError::Io`] when
-    /// the connection breaks, or the game does not answer within ten minutes;
-    /// [`ChannelError::Malformed`] or [`ChannelError::Session`] when its answer is not a reply of
-    /// the protocol. After such an error, the game's answer may still come, and would be read as
-    /// the answer to the next request: every later request fails with [`ChannelError::Broken`],
-    /// and a new connection is needed. A request that the game refuses is answered
-    /// [`Reply::Failed`], which is no error.
-    pub fn request(&mut self, request: &Request) -> Result<(Reply, Vec<u8>), ChannelError> {
-        if self.broken {
-            return Err(ChannelError::Broken);
-        }
+    /// connection, or the request is larger than 1 MiB, which sends nothing and leaves the
+    /// connection usable; [`ChannelError::Io`] of the kind `TimedOut` when no place freed in time,
+    /// which sends nothing either; [`ChannelError::Broken`] once the connection broke;
+    /// [`ChannelError::Io`] when it breaks now.
+    pub fn send(&self, request: &Request) -> Result<Pending, ChannelError> {
         let (method, params) = request.call()?;
-        let (id, line) = self.session.request(&method, params)?;
-        let answer = self.exchange(id, &line);
-        self.broken = answer.is_err();
-        answer
+        let until = Instant::now() + ANSWER_TIMEOUT;
+        let mut state = locked(&self.shared.state);
+        let (id, line) = loop {
+            if state.broken.is_some() {
+                return Err(ChannelError::Broken);
+            }
+            match state.session.request(&method, params.clone()) {
+                Err(AgentError::Full) => {
+                    let left = until.saturating_duration_since(Instant::now());
+                    if left.is_zero() {
+                        return Err(io::Error::from(io::ErrorKind::TimedOut).into());
+                    }
+                    state = self
+                        .shared
+                        .answered
+                        .wait_timeout(state, left)
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .0;
+                }
+                sent => break sent?,
+            }
+        };
+        let (answer, answered) = mpsc::channel();
+        state.waiting.insert(id, answer);
+        drop(state);
+        let written = send(&mut *locked(&self.shared.writer), &line, &[]);
+        if let Err(error) = written {
+            let mut state = locked(&self.shared.state);
+            state.waiting.remove(&id);
+            state.broken = Some(Broken::Io(error.kind(), error.to_string()));
+            self.shared.answered.notify_all();
+            return Err(error.into());
+        }
+        Ok(Pending {
+            id,
+            answer: answered,
+            shared: Arc::clone(&self.shared),
+        })
+    }
+}
+
+impl Drop for Client {
+    fn drop(&mut self) {
+        // The reader, blocked on the socket, ends.
+        let _ = self.stream.shutdown(Shutdown::Both);
+        if let Some(reader) = self.reader.take() {
+            let _ = reader.join();
+        }
+    }
+}
+
+impl Pending {
+    /// The request's number.
+    pub fn id(&self) -> u64 {
+        self.id
     }
 
-    /// Sends a request's `line`, and waits for the answer numbered `id`.
-    fn exchange(&mut self, id: u64, line: &[u8]) -> Result<(Reply, Vec<u8>), ChannelError> {
-        send(&mut self.stream, line, &[])?;
-        loop {
-            let frame = receive(&mut self.stream, &mut self.reader)?;
-            match self.session.receive(frame)? {
-                FromProgram::Response {
-                    id: answered,
-                    outcome,
-                    bytes,
-                } if answered == id => return Ok((Reply::read(outcome)?, bytes)),
-                // The channel's families send no event yet.
-                FromProgram::Event { .. } => {}
-                FromProgram::Unreadable(fault) => {
-                    return Err(ChannelError::Malformed(fault.message));
+    /// Waits for the game's answer, at most ten minutes, after which the request is cancelled.
+    ///
+    /// # Errors
+    ///
+    /// [`ChannelError::Io`] when the connection breaks, with the system's reason, or the game does
+    /// not answer in time, of the kind `TimedOut`; [`ChannelError::Malformed`] when the game sent
+    /// what is not a message of the protocol, after which the connection is given up and every
+    /// later request fails with [`ChannelError::Broken`], or when this answer alone is not a reply
+    /// of the channel, the connection kept; [`ChannelError::Cancelled`] for a request cancelled
+    /// before the game did it.
+    pub fn wait(self) -> Answer {
+        self.wait_for(ANSWER_TIMEOUT)
+    }
+
+    /// Waits for the game's answer as [`Pending::wait`] does, at most `timeout`; past it, it cancels
+    /// the request unless another thread is writing on the connection.
+    ///
+    /// # Errors
+    ///
+    /// As [`Pending::wait`].
+    pub fn wait_for(self, timeout: Duration) -> Answer {
+        match self.answer.recv_timeout(timeout) {
+            Ok(answer) => answer,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                // Given up: an answer that came meanwhile is taken still, and one that comes later
+                // dropped.
+                locked(&self.shared.state).waiting.remove(&self.id);
+                if let Ok(answer) = self.answer.try_recv() {
+                    return answer;
                 }
-                other => {
-                    return Err(ChannelError::Malformed(format!(
-                        "the game answered {other:?}"
-                    )));
+                // Not waiting for another thread's write, which may be blocked on a game that
+                // reads nothing: the cancel is given up then, and the answer dropped when it comes.
+                if let Ok(mut writer) = self.shared.writer.try_lock() {
+                    self.send_cancel(&mut writer);
                 }
+                Err(io::Error::from(io::ErrorKind::TimedOut).into())
             }
+            Err(mpsc::RecvTimeoutError::Disconnected) => Err(ChannelError::Broken),
         }
+    }
+
+    /// Asks the game to cancel the request: it still answers it, with its result if it had changed
+    /// something, [`ChannelError::Cancelled`] if it had not. Nothing is sent once the answer came,
+    /// nor on a connection broken.
+    pub fn cancel(&self) {
+        self.send_cancel(&mut locked(&self.shared.writer));
+    }
+
+    /// Sends the cancel on `writer`, the connection, locked.
+    fn send_cancel(&self, writer: &mut TcpStream) {
+        let line = {
+            let state = locked(&self.shared.state);
+            if state.broken.is_some() {
+                return;
+            }
+            match state.session.cancel(self.id) {
+                Ok(Some(line)) => line,
+                _ => return,
+            }
+        };
+        if let Err(error) = send(writer, &line, &[]) {
+            locked(&self.shared.state).broken = Some(Broken::Io(error.kind(), error.to_string()));
+            self.shared.answered.notify_all();
+        }
+    }
+}
+
+/// Reads the game's answers until the connection closes or breaks, and hands each to the request
+/// that waits for it. It never takes the writer's lock.
+fn read_answers(mut stream: TcpStream, mut reader: Reader, shared: &Shared) {
+    let broken = loop {
+        let frame = match receive(&mut stream, &mut reader) {
+            Ok(frame) => frame,
+            Err(ChannelError::Io(error)) => break Broken::Io(error.kind(), error.to_string()),
+            Err(error) => break Broken::Malformed(why(&error)),
+        };
+        let mut state = locked(&shared.state);
+        let (id, answer) = match state.session.receive(frame) {
+            Ok(FromProgram::Response { id, outcome, bytes }) => {
+                (id, read_reply(outcome).map(|reply| (reply, bytes)))
+            }
+            // The channel's families send no event yet.
+            Ok(FromProgram::Event { .. }) => continue,
+            Ok(FromProgram::Unreadable(fault)) => break Broken::Malformed(fault.message),
+            Ok(other) => break Broken::Malformed(format!("the game answered {other:?}")),
+            Err(error) => break Broken::Malformed(why(&error)),
+        };
+        if let Some(waiting) = state.waiting.remove(&id) {
+            let _ = waiting.send(answer);
+        }
+        shared.answered.notify_all();
+    };
+    let mut state = locked(&shared.state);
+    for (_, waiting) in state.waiting.drain() {
+        let _ = waiting.send(Err(broken.error()));
+    }
+    state.broken = Some(broken);
+    shared.answered.notify_all();
+}
+
+/// The reply of an answer's outcome: a request cancelled before the game did it is
+/// [`ChannelError::Cancelled`].
+fn read_reply(outcome: Result<Value, Fault>) -> Result<Reply, ChannelError> {
+    match outcome {
+        Err(fault) if fault.code == Fault::CANCELLED => Err(ChannelError::Cancelled),
+        outcome => Reply::read(outcome),
     }
 }
 

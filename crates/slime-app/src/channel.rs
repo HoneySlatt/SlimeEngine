@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use std::io::{IsTerminal as _, Write as _};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use slime_channel::{
     ANNOUNCEMENT, ComponentText, Edit, ElementSummary, EntitySummary, GameState, Incoming,
@@ -27,6 +27,12 @@ use crate::log_lines;
 
 /// How many frames the measurements of the frames' times cover.
 const FRAMES_MEASURED: usize = 120;
+
+/// How long a frame's start spends taking the tools' requests, past one of each connection: the
+/// rest wait for the next frame, so that a busy agent does not drop the frames of a person who
+/// plays. Estimated, a little over a tenth of a frame at 240 Hz
+/// (`docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md`).
+const REQUESTS_BUDGET: Duration = Duration::from_micros(500);
 
 /// Whether the tool that started the game ended: its standard input, which the tool held, closed.
 /// Set once and never cleared, as a termination signal is.
@@ -121,7 +127,11 @@ impl DevChannel {
     }
 
     /// At the start of a frame that represents `real` time, after `frames` frames: answers the
-    /// requests that arrived, which change the host as a frame's start may. A step is answered once
+    /// steps that ran, drops what waits and its tool cancelled, answering it so, answers the
+    /// pickings that came and the edits that waited and no longer do, then takes the requests that
+    /// arrived, one of each connection in turn, until a budget
+    /// of time passed, the rest left for the next frame ([`DevChannel::waiting`]); each changes the
+    /// host as a frame's start may. A step is answered once
     /// the frames have run every step asked for, so that what the tool asks next comes after them;
     /// a capture waits for the frame's image ([`DevChannel::capture`]), and a picking for the
     /// answer that the presentation gives a frame or more later ([`Presentation::pick`]);
@@ -160,6 +170,24 @@ impl DevChannel {
             }
         }
         self.steps = waiting;
+        // What waits and changed nothing yet, and its tool cancelled.
+        for (incoming, _) in self
+            .picks
+            .extract_if(.., |(incoming, _)| incoming.cancelled())
+        {
+            incoming.cancel();
+        }
+        for incoming in self
+            .captures
+            .extract_if(.., |incoming| incoming.cancelled())
+        {
+            incoming.cancel();
+        }
+        let mut edits: Vec<_> = self.edits.drain(..).collect();
+        for incoming in edits.extract_if(.., |incoming| incoming.cancelled()) {
+            incoming.cancel();
+        }
+        self.edits = edits.into();
         let mut waiting = Vec::new();
         for (incoming, slot) in self.picks.drain(..) {
             // Counted before the answer is looked for: once the presentation let go of it, no
@@ -191,45 +219,78 @@ impl DevChannel {
             );
             incoming.answer(reply);
         }
-        while let Some(incoming) = self.listener.next() {
-            // An edit waits while the simulation says so, and behind those that wait already.
-            if changes_an_editor(incoming.request())
-                && (simulation.edits_wait() || !self.edits.is_empty())
-            {
-                self.edits.push_back(incoming);
-                continue;
+        in_rounds(
+            self,
+            REQUESTS_BUDGET,
+            Instant::now,
+            |channel| channel.listener.round(),
+            |channel, incoming| {
+                channel.take(
+                    incoming,
+                    host,
+                    simulation,
+                    presentation,
+                    &views,
+                    frames,
+                    windowed,
+                );
+            },
+        );
+    }
+
+    /// Takes `incoming`, a request that a tool made: answers it, or keeps it until what it waits
+    /// for comes, as [`DevChannel::answer`] says.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "what a request reaches: the host, the game's two halves, and the frame's views"
+    )]
+    fn take(
+        &mut self,
+        incoming: Incoming,
+        host: &mut Host,
+        simulation: &mut dyn Simulation,
+        presentation: &mut dyn Presentation,
+        views: &[ShownView],
+        frames: u64,
+        windowed: bool,
+    ) {
+        // An edit waits while the simulation says so, and behind those that wait already.
+        if changes_an_editor(incoming.request())
+            && (simulation.edits_wait() || !self.edits.is_empty())
+        {
+            self.edits.push_back(incoming);
+            return;
+        }
+        if matches!(
+            incoming.request(),
+            Request::Capture { .. } | Request::CaptureElement { .. }
+        ) && windowed
+        {
+            self.captures.push(incoming);
+            return;
+        }
+        if let Request::Pick { view, x, y } = incoming.request() {
+            match pick(presentation, views, view, (*x, *y), windowed) {
+                Ok(slot) => self.picks.push((incoming, slot)),
+                Err(message) => incoming.answer(failed(message)),
             }
-            if matches!(
-                incoming.request(),
-                Request::Capture { .. } | Request::CaptureElement { .. }
-            ) && windowed
-            {
-                self.captures.push(incoming);
-                continue;
-            }
-            if let Request::Pick { view, x, y } = incoming.request() {
-                match pick(presentation, &views, view, (*x, *y), windowed) {
-                    Ok(slot) => self.picks.push((incoming, slot)),
-                    Err(message) => incoming.answer(failed(message)),
-                }
-                continue;
-            }
-            let reply = self.reply(
-                host,
-                simulation,
-                presentation,
-                &views,
-                frames,
-                incoming.request(),
-                windowed,
-            );
-            if matches!(incoming.request(), Request::Step { .. }) && reply == Reply::Done {
-                let ctx = host.context();
-                let until = ctx.time().game().steps() + u64::from(ctx.steps_asked());
-                self.steps.push((incoming, until));
-            } else {
-                incoming.answer(reply);
-            }
+            return;
+        }
+        let reply = self.reply(
+            host,
+            simulation,
+            presentation,
+            views,
+            frames,
+            incoming.request(),
+            windowed,
+        );
+        if matches!(incoming.request(), Request::Step { .. }) && reply == Reply::Done {
+            let ctx = host.context();
+            let until = ctx.time().game().steps() + u64::from(ctx.steps_asked());
+            self.steps.push((incoming, until));
+        } else {
+            incoming.answer(reply);
         }
     }
 
@@ -239,13 +300,14 @@ impl DevChannel {
     }
 
     /// Whether what a tool asked waits for the next frame: a capture, the steps asked for, a
-    /// picking that the presentation answers a frame or more later, or an edit that waits for the
-    /// simulation.
+    /// picking that the presentation answers a frame or more later, an edit that waits for the
+    /// simulation, or a request that the last frame's budget left.
     pub(crate) fn waiting(&self) -> bool {
         !self.captures.is_empty()
             || !self.steps.is_empty()
             || !self.picks.is_empty()
             || !self.edits.is_empty()
+            || self.listener.waiting()
     }
 
     /// Answers the captures that wait with `target`, the frame's image, drawn and not yet shown, or
@@ -258,6 +320,8 @@ impl DevChannel {
         ui: Option<&Ui>,
     ) {
         let image = gpu.read_render_target(target);
+        // The whole image, shared by every capture of it.
+        let mut whole: Option<Arc<Vec<u8>>> = None;
         for incoming in self.captures.drain(..) {
             let image = match &image {
                 Ok(image) => image,
@@ -272,7 +336,8 @@ impl DevChannel {
                         width: image.width,
                         height: image.height,
                     };
-                    incoming.answer_with(reply, image.pixels.clone());
+                    let pixels = whole.get_or_insert_with(|| Arc::new(image.pixels.clone()));
+                    incoming.answer_with(reply, Arc::clone(pixels));
                     continue;
                 }
                 Request::Capture { view } => views
@@ -293,7 +358,7 @@ impl DevChannel {
             });
             match reply {
                 Ok((width, height, pixels)) => {
-                    incoming.answer_with(Reply::Image { width, height }, pixels);
+                    incoming.answer_with(Reply::Image { width, height }, Arc::new(pixels));
                 }
                 Err(message) => incoming.answer(failed(message)),
             }
@@ -476,6 +541,31 @@ impl DevChannel {
                 .into_iter()
                 .map(|(name, _)| name)
                 .collect(),
+        }
+    }
+}
+
+/// Takes the requests that `round` gives, a round at a time, and hands each to `handle`, until a
+/// round comes empty or `budget` has passed since the first began, by the clock `now`: at least
+/// one round, whatever its cost.
+fn in_rounds<C, T>(
+    context: &mut C,
+    budget: Duration,
+    mut now: impl FnMut() -> Instant,
+    mut round: impl FnMut(&mut C) -> Vec<T>,
+    mut handle: impl FnMut(&mut C, T),
+) {
+    let started = now();
+    loop {
+        let taken = round(context);
+        if taken.is_empty() {
+            return;
+        }
+        for one in taken {
+            handle(context, one);
+        }
+        if now().saturating_duration_since(started) >= budget {
+            return;
         }
     }
 }
@@ -1401,5 +1491,45 @@ mod tests {
             act(&mut (), "", &InterfaceAction::Next),
             Err(NO_INTERFACE.to_owned())
         );
+    }
+
+    /// The requests of a frame's start: one round at least, whatever it costs, then rounds until
+    /// the budget passed, the rest left for the next frame.
+    #[test]
+    fn a_frame_takes_one_round_at_least_then_rounds_within_its_budget() {
+        // Three connections with three requests each, a round taking one of each.
+        let take = |queues: &mut Vec<Vec<u32>>| -> Vec<u32> {
+            queues.iter_mut().filter_map(|queue| queue.pop()).collect()
+        };
+        let start = Instant::now();
+        let run = |step: Duration| {
+            let mut queues = vec![vec![1, 2, 3]; 3];
+            let mut handled = Vec::new();
+            let mut ticks = 0_u32;
+            // Each reading of the clock, a step later.
+            let clock = || {
+                ticks += 1;
+                start + step * ticks
+            };
+            in_rounds(
+                &mut queues,
+                Duration::from_millis(1),
+                clock,
+                take,
+                |_, request| handled.push(request),
+            );
+            (handled.len(), queues.iter().map(Vec::len).sum::<usize>())
+        };
+        assert_eq!(
+            run(Duration::from_secs(1)),
+            (3, 6),
+            "a round past the budget, then none"
+        );
+        assert_eq!(
+            run(Duration::from_micros(600)),
+            (6, 3),
+            "two rounds, the second ending past the budget"
+        );
+        assert_eq!(run(Duration::ZERO), (9, 0), "every round within it");
     }
 }

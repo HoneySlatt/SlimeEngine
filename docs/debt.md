@@ -17,10 +17,24 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The asset requests rank loads and stop those that nothing holds, but hold none back ([ADR-0128](adr/0128-asset-requests.md)).
   Each renderer has its own uploader: two renderers send twice the budget.
   The budget, and how many loads' tasks run at once, were measured on the owner's RX 6900 XT alone.
-- **The development channel's queue and its welcomed connections are unbounded** ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)).
-  The connections that wait for their hello are few, their first line short, and each later request's line bounded (`listener.rs`'s documentation); but the connections welcomed, and the requests queued for the game's next frame, have no cap, and every request queued is answered in one frame.
-  A connection asks one request at a time, so each holds at most one in the queue; a request's line, parsed whole, costs about 17 times its size in memory ([`measurements.md`](measurements.md#m6d9a1a-the-development-channel-on-uwuis-core-for-agents)).
-  Followed at [M6d.9a1b](stage-6d.md#m6d9a1b--requests-in-flight-and-events), which bounds the requests in flight; the number of connections welcomed has no milestone yet, and is put to the owner then.
+- **The development channel's bounds of memory are its carrier's, estimated, and leave room** ([ADR-0252](adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md)).
+  The bytes unwritten and the connections welcomed are kept by `slime-channel`'s listener, not by the core, until a second carrier; their figures are estimates.
+  The game stops taking a connection's requests once its writer is behind, but what it took already is answered still: a connection's requests in flight may each bring an answer as large as a capture, which no bound counts until it is made.
+  A reader blocked on its socket when the bound is passed holds the one request it read until it is not.
+  A tool that sends a line that is not a message, then stays connected without reading, holds its place among those welcomed until it goes.
+  A request's line costs many times its size while it is read ([`measurements.md`](measurements.md#m6d9a1b1-requests-in-flight)), and the game then holds the value and its request a moment, which no test measures.
+  A tool that uses again a number that it has in flight gets the refusal under that number, which its own session reads as that request's answer; the core's tool never does.
+  Followed at uwui's first stage, whose carrier of `uwui dev` is the second to keep the bounds, and which moves them into the core.
+- **`slime-mcp`'s `stop_game` and `drive_played_game` hold the server's lock while their requests wait** ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)).
+  So that one game at a time runs, they hold it for their own requests, and the agent's other calls wait meanwhile; with every place in flight held by long steps, `stop_game` waits for one, and `resume`, which would free them, waits for the lock.
+  Followed at [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families), which builds the server on uwui's MCP library.
+- **The budget of a frame's start for the tools' requests is not measured from input to present** ([ADR-0252](adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md)).
+  It is measured by a headless run's frames with agents at the channel's bounds; `scripts/input-to-present.sh` starts its programs without a channel, and gives no agent.
+  A frame's start takes one request of each connection whatever the budget: seven agents listing a thousand entities each make frames of about 4 ms ([`measurements.md`](measurements.md#m6d9a1b1-requests-in-flight)), near a frame at 240 Hz.
+  Followed at uwui's first stage, whose measures of input to present run on uwui's own host, with its agents.
+- **Three helpers write an error and its causes on one line** ([ADR-0008](adr/0008-errors-logging-and-assertions.md)).
+  `slime_app::error_chain`, `slime-mcp`'s `causes` and `slime-channel`'s `why` write the same; neither crate links another's, `slime-channel` lying below `slime-app` and linking no logging.
+  Followed at M6d.9a2, which builds `slime-mcp` on uwui's MCP library and can share one.
 - **The core for agents writes a float that is not finite as `null`** ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)).
   JSON holds no other; a family's float reads `null` as a fault, so such a float is refused where it is read, not where it is written, and a family holds no optional float, which would read it as none (`uwui_agent::write`).
   `slime-mcp` cuts the agent's name and version to 200 characters, so that a hello stays within its limit; no test checks the cut.
@@ -531,7 +545,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The pivot is the middle of the origins, not of the bounds.
   A drop meets meshes only, not colliders nor the ground's grid, and refuses when nothing lies below.
   A drop moves each entity on its own: two selected one above the other land as if the other did not move.
-  While a person drags, an agent's requests that change the level wait; through the MCP server, which asks one request at a time, its reads wait too; followed at [M6d.9a1b](stage-6d.md#m6d9a1b--requests-in-flight-and-events), requests in flight.
+  While a person drags, an agent's requests that change the level wait, and its reads are answered meanwhile ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)).
   Escape during a drag is tested through the model, not through a key of the window; it waits for a [check by hand](PLAN.md#checks-by-hand-waiting-for-the-owner).
 - **Creating and arranging in the editor** ([ADR-0162](adr/0162-creating-copying-and-arranging.md)).
   What is duplicated and pasted goes last among its parent's children, in place.
@@ -854,7 +868,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The frame after a change of theme has its targets ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)), but `ui.tree.look` holds a dozen styles, far below the cap: no benchmark measures a tree past it.
   Followed at uwui's first stage, which benchmarks its own cascade.
   Selectors hold no combinators but an ancestor's kind or class.
-  The place of each call that wrote an element's own style is kept (`OwnStyle::places`), but nothing reads it yet; followed at [M6d.9a1b](stage-6d.md#m6d9a1b--requests-in-flight-and-events), which gives it to agents with the interface's family.
+  The place of each call that wrote an element's own style is kept (`OwnStyle::places`), but nothing reads it yet; followed at [M6d.9a1b3](stage-6d.md#m6d9a1b3--long-lists-and-the-interfaces-family), which gives it to agents with the interface's family.
   A rule of a style sheet that names `Hovered` or `Pressed` may set what lays out the element, which a hover or a press written in code cannot ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)); no rule of the repository does; followed at uwui's first stage, which types rules for each state.
 - **uwui's own layers take no defaults, and selected text no color of its own** ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)).
   The tooltip, the palette of commands, the notifications and the colour picker are containers that the look styles by their classes: without a look they draw no box, and their colors are their elements' kinds' alone.
@@ -872,7 +886,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **An editor's journal grows across recoveries** ([ADR-0135](adr/0135-the-editors-program.md)).
   Each recovery goes on with the journal that it recovered; only a start with nothing unwritten begins it anew.
   The history of steps outlives a stop only when something is unwritten.
-  `editor_journal` fails once the journal is larger than the channel's largest answer; followed at [M6d.9a1b](stage-6d.md#m6d9a1b--requests-in-flight-and-events), whose lists that may be long give a cursor to the rest.
+  `editor_journal` fails once the journal is larger than the channel's largest answer, now with the fault that says so; followed at [M6d.9a1b3](stage-6d.md#m6d9a1b3--long-lists-and-the-interfaces-family), whose lists that may be long give a cursor to the rest.
 - **A selection made just before a crash is lost** ([ADR-0134](adr/0134-the-editors-core.md)).
   The journal writes a selection made apart from a step with the entry that follows it.
 - **A journal whose last entry a crash of the system tore is not recovered, nor one that a crash cut just after the level was written** ([ADR-0135](adr/0135-the-editors-program.md)).

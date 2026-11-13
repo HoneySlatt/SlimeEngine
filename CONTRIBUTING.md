@@ -104,6 +104,8 @@ scripts/input-to-present.sh [--gpu]                       # measure their input 
 nix develop .#compositors -c scripts/compositors.sh weston|sway|kwin|mutter|x11  # run the editor and the game in a headless compositor of the series, against docs/compositors.md (ADR-0195, ADR-0240)
 scripts/resources.sh [--gpu] [--heaptrack] [--undos <count>] [--plays <count>]  # measure the editor's and the game's memory, video memory and the GPU's power in a headless Weston (ADR-0193)
 scripts/canvas-cost.sh [--gpu] [--runs <count>]           # measure what the renderer costs an interface against the canvas alone (ADR-0180)
+cargo test --release -p uwui-agent --test request_memory -- --nocapture  # measure what a request's line costs in memory as it is read (ADR-0250)
+cargo test --release -p slime-app --features development --test channel -- --ignored frames_with_agents --nocapture  # measure a run's frames with agents at the channel's bounds (ADR-0250)
 scripts/uwui-program.sh [--features <list>]               # measure what a program on uwui compiles: crates, build times, binary (ADR-0180)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
