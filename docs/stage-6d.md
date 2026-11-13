@@ -135,7 +135,7 @@ in git.
   [M6d.9a1a](#m6d9a1a--the-new-wire-under-todays-meaning), the new wire, on the same day; then
   [M6d.9a1b](#m6d9a1b--requests-in-flight-and-events), cut in three on 2026-11-13
   ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)):
-  in progress, [M6d.9a1b1](#m6d9a1b1--requests-in-flight), requests in flight; then
+  done, [M6d.9a1b1](#m6d9a1b1--requests-in-flight), requests in flight, on the same day; then
   [M6d.9a1b2](#m6d9a1b2--events) and [M6d.9a1b3](#m6d9a1b3--long-lists-and-the-interfaces-family);
   then
   [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families),
@@ -2100,7 +2100,55 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
 
 ### M6d.9a1b1 — Requests in flight
 
-The first third of M6d.9a1b; in progress, its card in [`PLAN.md`](PLAN.md#m6d9a1b1--requests-in-flight).
+The first third of M6d.9a1b, started on 2026-11-13
+([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)),
+under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Several requests of a connection at once, bounded and cancellable.
+- **Crates.** `uwui-agent`, `slime-channel`, `slime-mcp`; `slime-app` and `slime-editor`, with
+  the owner's go.
+- **Delivers.**
+  - `uwui-agent`: requests in flight, each answered once, in any order; `cancel`; the bounds,
+    stated at the hello and the welcome; `BUSY`; core 2.
+  - `slime-channel`: a reader and a writer for each connection, 8 welcomed, the outbox bounded
+    in bytes; a client whose own thread reads, a timeout for each request.
+  - `slime-app`: one request of each connection in turn, within a budget of time; a cancelled
+    edit or capture answered, never applied; a closed connection's requests cancelled; the
+    captures of a frame sharing its image.
+  - `slime-mcp`: an agent's calls side by side.
+  - A request's memory as it is parsed, measured.
+- **Done when.** A connection's requests answered out of their order; a read answered while an
+  edit waits for a drag; a cancelled edit never applied; a tool that never reads keeps the game
+  within the bounds; every MCP session test passes; CI is green.
+- **Measured.** At rest, with the owner's go: an answer of the channel, against 42.8 µs; a
+  headless run's frames with agents at the bounds, with the budget and without
+  ([ADR-0252](adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md)).
+- **Result.** Done on 2026-11-13, CI green on `8581945`
+  ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md),
+  [ADR-0252](adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md)):
+  - `uwui-agent`, core 2: a connection's requests in flight, answered once each in any order,
+    `BUSY` past the bounds that the welcome states, a number in flight refused, `cancel`, and
+    `TOO_LARGE` for an answer past what the tool reads; the tool's end holds back what would pass
+    the bounds.
+  - `slime-channel`: a reader and a writer for each connection, the game's thread never on a
+    socket; a bounded number of connections; none of a connection's requests taken while its
+    writer is behind, the answers' JSON counted; a place freed as its answer leaves for the
+    writer, which the owner's decision records; a client shared by threads, each request with
+    its own timeout.
+  - `slime-app`: one request of each connection in turn within a budget of time; what waits and
+    was cancelled answered `CANCELLED`, never done; a frame's captures share its image.
+    `slime-mcp`: an agent's calls side by side, a connection replaced only once lost.
+  - Two closing reviews, after which two hangs and seven defects were fixed; each new test fails
+    without its code, checked by mutation.
+  - Measured at rest, in release builds: an answer of the channel, 45.3 µs against 41.1 µs
+    before, the writer's hop; a request's line, up to 25 times its size while read, not the 17
+    that the documents gave; with seven agents at the bounds, frames of 4.1 ms with the budget,
+    and none at all without it
+    ([`measurements.md`](measurements.md#m6d9a1b1-requests-in-flight)).
+  - Left for later ([`debt.md`](debt.md)): the bounds of memory in the carrier until a second;
+    answers already taken counted only once made; the budget not measured from input to present;
+    `slime-mcp`'s `stop_game` and `drive_played_game` under the server's lock; three helpers
+    writing an error's causes.
 
 ### M6d.9a1b2 — Events
 

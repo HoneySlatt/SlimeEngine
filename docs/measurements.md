@@ -3535,3 +3535,26 @@ On 2026-11-13, on the same machine at rest before each series (load under 1, no 
   Without the budget, the agents' requests come back as fast as the frame's start takes them, and
   it never ends. With it, one round, a list of each connection, passes the 0.5 ms alone: the frame
   holds the round and the rest.
+
+GitHub's hosted runners, on 2026-11-13, each run green, on `8581945`:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 27 s |
+| `check (headless)` | 17 min 52 s |
+| `check (windowed)` | 11 min 31 s |
+| `check (game)` | 9 min 59 s |
+| `check (gles)` | 4 min 14 s |
+| `windows (tests)` | 15 min 29 s |
+| `windows (render)` | 7 min 6 s |
+| `windows (game)` | 7 min 10 s |
+| `windows-release` | 15 min 56 s |
+| `compositors (weston)` | 13 min 20 s |
+| `compositors (sway)` | 16 min 2 s |
+| `compositors (kwin)` | 13 min 28 s |
+| `compositors (mutter)` | 14 min 2 s |
+| `compositors (x11)` | 14 min 42 s |
+| Docs' `links` | 21 s |
+
+Every job stays within its limit of 20 minutes; `check (headless)` keeps 2 min 8 s of margin, the
+least, and `compositors (sway)` took 3 min 35 s less than at M6d.9a1a, on another runner.

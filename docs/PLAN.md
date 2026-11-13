@@ -32,7 +32,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
     done, [M6d.9a1a](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning), the new wire;
     then [M6d.9a1b](stage-6d.md#m6d9a1b--requests-in-flight-and-events), cut in three on
     2026-11-13 ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)):
-    in progress, [M6d.9a1b1](#m6d9a1b1--requests-in-flight).
+    done, [M6d.9a1b1](stage-6d.md#m6d9a1b1--requests-in-flight), requests in flight; next,
+    [M6d.9a1b2](stage-6d.md#m6d9a1b2--events), events.
   - Track B, in a worktree: [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors),
     done; then [M6d.4](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on
     wgpu, closed on 2026-11-12: [M6d.4a](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr),
@@ -73,38 +74,12 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a — The new wire, under today's meaning](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
-| [M6d.9a1b1 — Requests in flight](#m6d9a1b1--requests-in-flight) | In progress |
+| [M6d.9a1b1 — Requests in flight](stage-6d.md#m6d9a1b1--requests-in-flight) | Done |
 | [M6d.9a1b2 to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a1b2--events) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.9a1b1 — Requests in flight
-
-Started on 2026-11-13, the first third of M6d.9a1b
-([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)),
-under [the stage's rules](stage-6d.md#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** Several requests of a connection at once, bounded and cancellable.
-- **Crates.** `uwui-agent`, `slime-channel`, `slime-mcp`; `slime-app` and `slime-editor`, with
-  the owner's go.
-- **Delivers.**
-  - `uwui-agent`: requests in flight, each answered once, in any order; `cancel`; the bounds,
-    stated at the hello and the welcome; `BUSY`; core 2.
-  - `slime-channel`: a reader and a writer for each connection, 8 welcomed, the outbox bounded
-    in bytes; a client whose own thread reads, a timeout for each request.
-  - `slime-app`: one request of each connection in turn, within a budget of time; a cancelled
-    edit or capture answered, never applied; a closed connection's requests cancelled; the
-    captures of a frame sharing its image.
-  - `slime-mcp`: an agent's calls side by side.
-  - A request's memory as it is parsed, measured.
-- **Done when.** A connection's requests answered out of their order; a read answered while an
-  edit waits for a drag; a cancelled edit never applied; a tool that never reads keeps the game
-  within the bounds; every MCP session test passes; CI is green.
-- **Measured.** At rest, with the owner's go: an answer of the channel, against 42.8 µs; a
-  headless run's frames with agents at the bounds, with the budget and without
-  ([ADR-0252](adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md)).
 
 ## Ideas waiting for their milestone
 
