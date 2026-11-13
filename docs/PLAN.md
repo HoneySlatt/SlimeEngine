@@ -40,8 +40,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
     [M6d.4b1b](stage-6d.md#m6d4b1b--the-canvas-on-wgpu) and
     [M6d.4b2](stage-6d.md#m6d4b2--the-canvass-layout-chosen), its layout chosen; then M6d.5,
     the host's API, cut in five on 2026-11-12
-    ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): in progress,
-    [M6d.5a](#m6d5a--the-apis-adr-and-its-table).
+    ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): done,
+    [M6d.5a](stage-6d.md#m6d5a--the-apis-adr-and-its-table), the API decided item by item
+    ([ADR-0249](adr/0249-the-hosts-api-its-items-and-their-table.md)); M6d.5b may start.
   - M6d.5's parts run beside track A in ADR-0248's order; ADR-0249 fixed the three seams on
     2026-11-13: one waker, meaning followed by each reader, an element's capture; M6d.9a1b3
     follows M6d.5c.
@@ -63,7 +64,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.4b1a — The canvas moved into uwui-render](stage-6d.md#m6d4b1a--the-canvas-moved-into-uwui-render) | Done |
 | [M6d.4b1b — The canvas on wgpu](stage-6d.md#m6d4b1b--the-canvas-on-wgpu) | Done |
 | [M6d.4b2 — The canvas's layout chosen](stage-6d.md#m6d4b2--the-canvass-layout-chosen) | Done |
-| [M6d.5a — The API's ADR and its table](#m6d5a--the-apis-adr-and-its-table) | In progress |
+| [M6d.5a — The API's ADR and its table](stage-6d.md#m6d5a--the-apis-adr-and-its-table) | Done |
 | [M6d.5b to M6d.5e — The rest of M6d.5](stage-6d.md#m6d5b--the-times) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
@@ -75,28 +76,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.5a — The API's ADR and its table
-
-Started on 2026-11-12, the first fifth of M6d.5
-([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)), under
-[the stage's rules](stage-6d.md#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** Every item of the host's API decided and checked against the five platforms before
-  its code.
-- **Crates.** None: `docs/adr/`; a prototype on a branch, thrown away.
-- **Delivers.**
-  - The API's ADR: each item of [M6d.5's card](stage-6d.md#m6d5--the-hosts-api) in its channel,
-    events, questions or outputs, what M6d.5 builds and what waits for its reader.
-  - Its table: for each item, how it maps or why it needs nothing, on Android, the web, UIKit,
-    AppKit, the engine, and winit, split into Wayland, X11, Windows and macOS where it gives
-    nothing; each cell with its source.
-  - The three seams with track A.
-  - A prototype without a window, over `Ui`: an input method's synchronous question, a paste as
-    the web gives it, two targets; thrown away, its findings in the ADR.
-- **Done when.** The owner accepts the ADR; its table has no empty cell; the prototype's cases pass
-  on its branch; CI is green.
-- **Measured.** The prototype's questions, on one machine.
 
 ## M6d.9a1b1 — Requests in flight
 

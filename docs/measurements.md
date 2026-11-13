@@ -3416,3 +3416,25 @@ an edit with its question takes about a quarter; a host that asks a rectangle fo
 of a composition pays the first line's figure for each. The lowest machine is not measured: M6d.5c
 measures that case there, and counts a pointer's move in uwui's benchmarks. These are not
 benchmarks.
+
+How long CI's jobs took on `226ae4c`, the commit that decided the host's API, on 2026-11-13: the
+documents changed and `uwui`'s colours' paths compiled only with the tests that read them.
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 10 min 10 s |
+| `check (headless)` | 17 min 12 s |
+| `check (windowed)` | 9 min 13 s |
+| `check (game)` | 9 min 34 s |
+| `check (gles)` | 3 min 28 s |
+| `windows (tests)` | 12 min 41 s |
+| `windows (render)` | 7 min 0 s |
+| `windows (game)` | 5 min 58 s |
+| `windows-release` | 12 min 37 s |
+| Docs' `links` | 23 s |
+
+Every job stays within its limit of 20 minutes; the compositors' jobs did not run, no path of
+theirs changed. Against M6d.9a1a's run above, `check (headless)` took 2 min 40 s more and
+`check (lint)` 2 min 46 s more, while `check (game)`, `windows (tests)`, `windows (game)` and
+`windows-release` took 3 to 6 min less: the runners vary, and uwui's one `cfg` explains neither.
+`check (headless)` keeps 2 min 48 s of margin.

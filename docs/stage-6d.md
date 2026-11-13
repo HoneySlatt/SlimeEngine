@@ -149,8 +149,9 @@ in git.
   its open decisions; its code moves there at M6d.11.
 - In progress on track B: [M6d.5](#m6d5--the-hosts-api), the host's API, cut in five at its
   start, on 2026-11-12
-  ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): in progress,
-  [M6d.5a](#m6d5a--the-apis-adr-and-its-table), the API's ADR and its table; then
+  ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): done,
+  [M6d.5a](#m6d5a--the-apis-adr-and-its-table), the API's ADR and its table, on 2026-11-13
+  ([ADR-0249](adr/0249-the-hosts-api-its-items-and-their-table.md)); then
   [M6d.5b](#m6d5b--the-times), [M6d.5c](#m6d5c--input-and-output-in-uwui),
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui) and
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
@@ -1794,7 +1795,40 @@ the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
 
 ### M6d.5a — The API's ADR and its table
 
-The first fifth of M6d.5; in progress, its card in [`PLAN.md`](PLAN.md#m6d5a--the-apis-adr-and-its-table).
+The first fifth of M6d.5
+([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)). It follows the rules
+of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Every item of the host's API decided and checked against the five platforms before
+  its code.
+- **Crates.** None: `docs/adr/`; a prototype on a branch, thrown away.
+- **Delivers.**
+  - The API's ADR: each item of [M6d.5's card](#m6d5--the-hosts-api) in its channel,
+    events, questions or outputs, what M6d.5 builds and what waits for its reader.
+  - Its table: for each item, how it maps or why it needs nothing, on Android, the web, UIKit,
+    AppKit, the engine, and winit, split into Wayland, X11, Windows and macOS where it gives
+    nothing; each cell with its source.
+  - The three seams with track A.
+  - A prototype without a window, over `Ui`: an input method's synchronous question, a paste as
+    the web gives it, two targets; thrown away, its findings in the ADR.
+- **Done when.** The owner accepts the ADR; its table has no empty cell; the prototype's cases pass
+  on its branch; CI is green.
+- **Measured.** The prototype's questions, on one machine.
+- **Result.** Done on 2026-11-13, CI green
+  ([ADR-0249](adr/0249-the-hosts-api-its-items-and-their-table.md), accepted by the owner):
+  - Every item of the card in its channel, with the part that builds it or the reader it waits
+    for; an event's answer in three states; questions answered from uwui's live state, the
+    edits of the same step included; positions in the target's physical pixels, the owner's
+    choice; text in UTF-8, converted to the unit that the host names.
+  - The table: 45 rows on winit, Android, the web, UIKit, AppKit and the engine, winit split by
+    desktop where it gives nothing, each API with its source; the facts left unconfirmed listed
+    in the ADR's consequences.
+  - The prototype, branch `m6d5a-prototype`: the three hard cases passed; a range's rectangle in
+    about 0.1 ms over 4,000 bytes
+    ([`measurements.md`](measurements.md#m6d5a-the-hosts-api-tried-on-a-prototype)); where uwui
+    assumes one surface, listed for M6d.5c and M6d.5d.
+  - `cargo clippy -p uwui` passes on uwui built alone, its colours' paths compiled only with the
+    tests that read them.
 
 ### M6d.5b — The times
 
