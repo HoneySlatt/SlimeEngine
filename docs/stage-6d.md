@@ -2240,7 +2240,42 @@ under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
 
 ### M6d.9a1b2 — Events
 
-The second third of M6d.9a1b; in progress, its card in [`PLAN.md`](PLAN.md#m6d9a1b2--events).
+The second third of M6d.9a1b, started on 2026-11-13
+([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md),
+[ADR-0254](adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)),
+under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** A program sends a connection the changes it subscribed to.
+- **Crates.** `uwui-agent`, `slime-channel`; `slime-app` and `slime-editor`, with the owner's go.
+- **Delivers.** `subscribe` and `unsubscribe`, the events listed in the welcome; a cell for each
+  subscription; `play/time`, published at the frame's end; Play on one queue, without polling.
+- **Done when.** Play reads the played game's time by events; a tool that stops reading keeps the
+  game's memory flat; CI is green.
+- **Measured.** At rest, with the owner's go: an event to the tool, median and slowest of 21, alone
+  and behind a capture; the channel's answer again; no wake at rest with a subscription.
+- **Result.** Done on 2026-11-13, CI green on `15a6c2b`
+  ([ADR-0254](adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md),
+  its seven questions decided by the owner):
+  - `uwui-agent`: a family's events declared by the program and listed in the welcome, read as
+    none from a welcome of before; `subscribe` and `unsubscribe` checked whole, in flight as any
+    request; an event larger than the tool reads not written. Core 2 and `play` 1 kept.
+  - `slime-channel`: a cell for each subscription, started and ended as the writer takes the
+    answers, compared as written, written once between two answers; none started once the reader
+    finished or the game stopped; `Client::connect_with` hands the events and the connection's
+    end to a function, outside the client's lock.
+  - `slime-app`: `play/time`, pause, speed and `held`, published at the end of each frame while
+    subscribed; a game at rest wakes none of the channel's threads.
+  - `slime-editor`: Play on one queue, without `POLL` and `MEASURE`; a build's end posted as
+    cargo's outputs close; the game's end seen as its connection closes, checked each second; a
+    refused control told the last time received; a start's and a build's inputs told apart.
+  - Two closing reviews, after which three defects were fixed, a subscription armed after the
+    reader finished or the game stopped and a stop missed after a refused control; every new test
+    fails without its code, 32 mutations checked.
+  - Measured at rest, in release builds: an event in 22.4 µs alone and 13.2 ms behind a 4K
+    capture; the channel's answer, 45.7 µs against 46.3 µs before; Play's time to control on
+    100 000 entities as before ([`measurements.md`](measurements.md#m6d9a1b2-events)).
+  - Left for later ([`debt.md`](debt.md)): three paths of Play without a test; `play.zone` and
+    Windows by hand.
 
 ### M6d.9a1b3 — Long lists and the interface's family
 

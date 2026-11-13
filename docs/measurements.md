@@ -3674,3 +3674,28 @@ is this milestone's.
 - At rest, a game subscribed to by two connections wakes none of its channel's threads over a
   second, as `slime-app`'s test `a_run_on_demand_tells_its_subscribers_how_game_time_stands` counts
   their context switches on Linux; it runs on every check.
+
+How long CI's jobs took on `15a6c2b`, the commit that sent tools the events they subscribed to, on
+2026-11-13:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 39 s |
+| `check (headless)` | 13 min 55 s |
+| `check (windowed)` | 7 min 33 s |
+| `check (game)` | 9 min 26 s |
+| `check (gles)` | 4 min 5 s |
+| `windows (tests)` | 15 min 52 s |
+| `windows (render)` | 7 min 10 s |
+| `windows (game)` | 6 min 28 s |
+| `windows-release` | 16 min 12 s |
+| `compositors (weston)` | 11 min 32 s |
+| `compositors (sway)` | 12 min 45 s |
+| `compositors (kwin)` | 11 min 31 s |
+| `compositors (mutter)` | 10 min 33 s |
+| `compositors (x11)` | 11 min 7 s |
+| Docs' `links` | 18 s |
+
+Every job stays within its limit of 20 minutes. `windows-release` is the longest, with 3 min 48 s
+of margin. The milestone adds a dozen tests of `slime-channel`, six of `uwui-agent`, one of
+`slime-app` that runs a game, and a step to `slime-mcp`'s session of the editor.
