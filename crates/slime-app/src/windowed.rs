@@ -1,7 +1,6 @@
 //! The windowed driver: frames run from the callbacks of the platform's event loop, each time the
 //! windowing system lets the window draw.
 
-use std::cell::OnceCell;
 use std::time::{Duration, Instant};
 
 use slime_gfx::{Gpu, PresentMode, Surface};
@@ -52,7 +51,6 @@ pub(crate) fn run_windowed(
         present_mode: config.present_mode,
         restore_lost_device: config.restore_lost_device,
         restores: Vec::new(),
-        clipboard: OnceCell::new(),
         frame_period: Duration::from_secs(1) / config.max_frame_rate,
         last_frame: now,
         clock: HostClock::new(),
@@ -88,9 +86,6 @@ struct WindowedDriver<'a, S, P> {
     restore_lost_device: bool,
     /// When the run opened the devices that replaced lost ones, within `RESTORE_WINDOW`.
     restores: Vec<Instant>,
-    /// The system's clipboard, which the presentation's interface copies to and pastes from,
-    /// opened as the presentation first gives an interface: none where the system gives none.
-    clipboard: OnceCell<Option<crate::interface::SharedClipboard>>,
     /// The interval at which frames are scheduled, from `AppConfig::max_frame_rate`.
     frame_period: Duration,
     last_frame: Instant,
@@ -210,6 +205,18 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
             now - self.last_frame,
             self.surface.as_mut(),
         );
+        // What the interface asks of the window and the clipboard, as the frame left it, whether
+        // or not it drew an image, a window hidden or covered included: the pointer's shape, the
+        // input method, and the reads that the frame asked, the editor's paste among them,
+        // answered at once, whose paste the next frame shows.
+        let ui = self.presentation.ui();
+        let answered = match self.host.context.window() {
+            Some(window) => {
+                let time = EventTime::received(self.clock.now());
+                self.frames.shown.show(window, ui, time)
+            }
+            None => false,
+        };
         if presented {
             self.after_present();
         }
@@ -226,7 +233,8 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
             (Some(interface), Some(asked)) => Some(interface.min(asked)),
             (due, None) | (None, due) => due,
         };
-        self.wanted = ui.is_some_and(|ui| ui.needs_frame())
+        self.wanted = answered
+            || ui.is_some_and(|ui| ui.needs_frame())
             || self.host.context.take_frame_request()
             || self.frames.waiting()
             || self.host.context.steps_asked() > 0;
@@ -413,13 +421,13 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         let time = EventTime::received(self.clock.now());
         let taken_by_interface = match self.presentation.ui() {
             Some(ui) => {
-                let clipboard = self
-                    .clipboard
-                    .get_or_init(crate::interface::SharedClipboard::open);
-                if let Some(clipboard) = clipboard {
-                    clipboard.give(ui);
+                let taken = self.input.give(ui, &event, time);
+                // What the event asked of the window and the clipboard, at once: a paste lands
+                // in the step of its key.
+                if taken && let Some(window) = self.host.context.window() {
+                    self.frames.shown.show(window, Some(ui), time);
                 }
-                self.input.give(ui, &event, time)
+                taken
             }
             None => false,
         };

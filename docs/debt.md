@@ -559,7 +559,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Pasting reads any text in the system's clipboard, and refuses what is not a copy or changes what it does not create.
   A copy keeps an ID's last word of four letters, and drops one that holds a digit, as the editor's IDs end.
   So an ID of four letters that the editor made stays, `torch-abcd`, and grows a suffix at each copy.
-  With a window, an agent's `edit.paste` is answered before the window pastes, at the next frame.
+  With a window, an agent's `edit.paste` is answered before the window pastes, two frames later: the host answers the window's read of the clipboard after the frame that asked it, and the window makes its request at the next ([ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)).
   A shortcut that a field of one line does not take reaches the editor while the field holds the focus: Ctrl and the up arrow in a number of the world panel nudge what is selected, and Ctrl+D duplicates it.
 - **Placing prefabs and the history panel** ([ADR-0163](adr/0163-placing-prefabs-and-the-history-panel.md)).
   A prefab placed takes a transform of its own at its root, which replaces the turn and the scale that its prefab gives its root.
@@ -741,15 +741,18 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   It lays its text out one caret's width within its content box, so that the caret shows at either end.
   It does not scroll up and down: a text taller than its box is cut above and below.
   Escape in a field leaves the focus, which commits what the user typed rather than giving back what it held.
-  Each edit lays the field's whole text out again, at a cost that grows with its length.
-  A field undoes up to 100 edits, and forgets them when the program gives it another text.
-  A field has no length that it holds at most, and no text hidden as a password's.
+  Each edit lays the field's whole text out again, at a cost that grows with its length: about 1.1 ms for 4,000 bytes on the high tier, so about a quarter of a second for each keystroke in a field of 1 MB.
+  A field undoes up to 100 edits, each a whole copy of its text, and forgets them when the program gives it another text.
+  A field has no length that it holds at most, and no text hidden as a password's: a huge text pasted is taken whole, the owner's choice ([ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)). Past about 0.5 MB, one field's layout outweighs the cache of laid-out texts, 32 MiB at some 50 bytes for each byte of text, which then lays the other texts out again; not measured.
+  Followed by a milestone of its own, not yet placed in the roadmap: undo by edits, the layout by paragraph, a large layout outside the cache's budget, and a maximum length that the program sets, counted in graphemes, the cut told to the person.
   A field of numbers has no bounds, and reads a full stop alone as its decimal mark, whatever the user's language.
   A field of numbers without a prefix is dragged only while it does not hold the focus.
   The input method's window is placed beside the caret as the last frame drew it.
   It is turned off and on again as each field's input starts, another field or the same one focused again, meant to end a composition that the focus left, which no input method was checked with yet; [M6d.8](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) checks it with the desktop host's input methods.
   A text that the program gives while an input method composes, which the field reads without the composition, is left aside: a field clears itself once the composition ends.
   The clipboard holds text alone.
+  A cut deletes what it wrote whether or not the host has a clipboard: uwui does not know; the undo gives it back.
+  A paste of the platform's, with no field that holds the focus, is not given to the program: the web's and macOS's hosts, which give it, read it ([ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)).
   On Wayland, the clipboard needs a compositor that gives the protocol of the clipboard's managers, wlroots', niri's and Hyprland's among them, and falls back on X11 through XWayland elsewhere: in Mutter and Weston without XWayland, fields copy and paste nothing ([`compositors.md`](compositors.md)).
   An agent sets a field's value whole, and does not type in it key by key.
 - **Widgets** ([ADR-0148](adr/0148-widgets.md)).
@@ -792,6 +795,9 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The outputs tell the window only what changed since the run last read them: a presentation must give the same interface at every call once it gave one (`Presentation::ui`), or the window keeps the cursor and the input method that the interface asked before; [M6d.5e](stage-6d.md#m6d5e--slime-app-a-host-through-the-api-alone), which gives uwui the lifecycle, settles it.
   The cost of a move on the lowest machine that the quality bar names is not measured: that machine is not set up yet ([`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-owner)).
   The moves between two frames, the wheel's phase, a field's purpose, the pointer's entering and whether the cursor shows are not built: no code reads them.
+  The surrounding text is not told as an output after each change, and whether a point is uwui's tells no kind of region, a bar's caption, edges or buttons: their readers are M6d.8's input methods and M6d.7's decorations ([ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)).
+  The program's writes and reads of the clipboard go to the main target's outputs.
+  A question over a field of 4,000 bytes whose long word follows text of two directions costs about 0.2 ms, ten times as much as over one direction, the character at a point included; the cause, found neither in uwui nor yet in parley, is not known ([`measurements.md`](measurements.md#m6d5c2-the-clipboard-and-the-hosts-questions)).
   Followed at [M6d.5c3](stage-6d.md#m6d5c3--the-targets), which gives each root its target and holds a move for each target; M6d.5e; the pen, inertial scrolling and the hosts of Android and the web, which read the rest.
 - **A wake that runs uwui's tasks without drawing waits for its executor** ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)).
   uwui asks only for its next frame due (`Ui::next_frame_due`), no wake: it has no tasks yet, and its timers, tooltips, submenus and notifications, all change the drawing, which waits for a frame.

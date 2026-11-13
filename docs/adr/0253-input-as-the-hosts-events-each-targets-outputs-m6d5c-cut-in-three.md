@@ -4,7 +4,8 @@
   moves between two frames wait for their reader),
   [0249](0249-the-hosts-api-its-items-and-their-table.md) (the rows "Pointer", "Wheel", "Cursor"
   and "Input method's state": what waits for its reader) and
-  [0251](0251-the-engines-host-clock-and-its-times.md) (an event's time carried by the event)
+  [0251](0251-the-engines-host-clock-and-its-times.md) (an event's time carried by the event);
+  amended by [0255](0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md) (the answer's third state carries no text)
 - Date: 2026-11-13
 
 ## Context

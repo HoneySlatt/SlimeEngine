@@ -35,25 +35,15 @@ documentation was updated and reread. Every milestone is also checked on Windows
     done, [M6d.9a1b1](stage-6d.md#m6d9a1b1--requests-in-flight), requests in flight, and
     [M6d.9a1b2](stage-6d.md#m6d9a1b2--events), events; next,
     [M6d.9a1b3](stage-6d.md#m6d9a1b3--long-lists-and-the-interfaces-family), once M6d.5c is done.
-  - Track B, in a worktree: [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors),
-    done; then [M6d.4](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on
-    wgpu, closed on 2026-11-12: [M6d.4a](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr),
-    [M6d.4b1a](stage-6d.md#m6d4b1a--the-canvas-moved-into-uwui-render),
-    [M6d.4b1b](stage-6d.md#m6d4b1b--the-canvas-on-wgpu) and
-    [M6d.4b2](stage-6d.md#m6d4b2--the-canvass-layout-chosen), its layout chosen; then M6d.5,
-    the host's API, cut in five on 2026-11-12
-    ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): done,
-    [M6d.5a](stage-6d.md#m6d5a--the-apis-adr-and-its-table), the API decided item by item
-    ([ADR-0249](adr/0249-the-hosts-api-its-items-and-their-table.md)), and
-    [M6d.5b](stage-6d.md#m6d5b--the-times), the times
-    ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)); then
-    [M6d.5c](stage-6d.md#m6d5c--input-and-output-in-uwui), cut in three on 2026-11-13
-    ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)): done,
-    [M6d.5c1](stage-6d.md#m6d5c1--events-and-outputs-on-one-target), the events and the
-    outputs on one target; M6d.5c2 may start.
-  - M6d.5's parts run beside track A in ADR-0248's order; ADR-0249 fixed the three seams on
-    2026-11-13: one waker, meaning followed by each reader, an element's capture; M6d.9a1b3
-    follows M6d.5c.
+  - Track B, in a worktree: [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors) and
+    [M6d.4](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on wgpu, done;
+    then [M6d.5](stage-6d.md#m6d5--the-hosts-api), the host's API, cut in five
+    ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): done, M6d.5a,
+    M6d.5b and [M6d.5c1](stage-6d.md#m6d5c1--events-and-outputs-on-one-target); in progress,
+    [M6d.5c2](#m6d5c2--the-clipboard-and-the-hosts-questions), the clipboard and the host's
+    questions.
+  - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249;
+    M6d.9a1b3 follows M6d.5c.
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: the deletion of the branches `m6d1b-bench`, `m6d4a-prototype` and
@@ -75,7 +65,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.5a — The API's ADR and its table](stage-6d.md#m6d5a--the-apis-adr-and-its-table) | Done |
 | [M6d.5b — The times](stage-6d.md#m6d5b--the-times) | Done |
 | [M6d.5c1 — Events and outputs on one target](stage-6d.md#m6d5c1--events-and-outputs-on-one-target) | Done |
-| [M6d.5c2 to M6d.5e — The rest of M6d.5](stage-6d.md#m6d5c2--the-clipboard-and-the-hosts-questions) | Planned |
+| [M6d.5c2 — The clipboard and the host's questions](#m6d5c2--the-clipboard-and-the-hosts-questions) | In progress |
+| [M6d.5c3 to M6d.5e — The rest of M6d.5](stage-6d.md#m6d5c3--the-targets) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
@@ -87,6 +78,22 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
+
+## M6d.5c2 — The clipboard and the host's questions
+
+Started on 2026-11-13, the second third of M6d.5c ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)).
+
+- **Goal.** Copy, cut and paste reach uwui as events; a host asks what an input method asks.
+- **Crates.** `uwui`, `slime-app` (`interface.rs`), `slime-editor`.
+- **Delivers.** Copy, cut and paste as events, the answer's third state and the text written;
+  numbered reads of the clipboard, their answers as events; the `Clipboard` trait gone, the
+  editor's paste an action; the deletion around the caret; the questions: the text around the
+  caret in the host's unit, a range's rectangle, the character at a point, whether a point is
+  uwui's.
+- **Done when.** uwui's tests pass an input method's question right after its commit, a paste as
+  the web gives it, a paste pending as the focus moves, a second paste, no answer, a huge text;
+  the editor's tests of the clipboard pass; CI is green.
+- **Measured.** A question on a field of 4,000 bytes, against M6d.5a's prototype.
 
 ## Ideas waiting for their milestone
 

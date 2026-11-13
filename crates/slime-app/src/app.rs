@@ -270,8 +270,8 @@ pub(crate) struct Frames {
     /// The development channel, when the environment gave a token.
     #[cfg(feature = "development")]
     channel: Option<crate::channel::DevChannel>,
-    /// What the window shows of the presentation's interface.
-    shown: crate::interface::Shown,
+    /// What the window shows of the presentation's interface, and the clipboard it serves.
+    pub(crate) shown: crate::interface::Shown,
     /// What screen readers read of the presentation's interface.
     #[cfg(feature = "accessibility")]
     pub(crate) screen_readers: crate::accessibility::ScreenReaders,
@@ -400,12 +400,10 @@ impl Frames {
                     let _span = tracing::trace_span!("render").entered();
                     presentation.render(&mut host.context, image.target());
                 }
-                // The pointer's shape and the input method, as the interface left them, or as the
-                // window shows them without one.
+                // What changed in what the interface means, while a screen reader reads the
+                // window.
+                #[cfg(feature = "accessibility")]
                 if let Some(window) = host.context.window() {
-                    self.shown.update(window, presentation.ui());
-                    // What changed in what it means, while a screen reader reads the window.
-                    #[cfg(feature = "accessibility")]
                     self.screen_readers.update(window, presentation.ui());
                 }
                 #[cfg(feature = "development")]

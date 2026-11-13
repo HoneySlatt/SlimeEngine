@@ -156,8 +156,8 @@ in git.
   ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)); then
   [M6d.5c](#m6d5c--input-and-output-in-uwui), cut in three on 2026-11-13
   ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)): done,
-  [M6d.5c1](#m6d5c1--events-and-outputs-on-one-target), on 2026-11-13; then
-  [M6d.5c2](#m6d5c2--the-clipboard-and-the-hosts-questions) and
+  [M6d.5c1](#m6d5c1--events-and-outputs-on-one-target), on 2026-11-13; in progress,
+  [M6d.5c2](#m6d5c2--the-clipboard-and-the-hosts-questions); then
   [M6d.5c3](#m6d5c3--the-targets); then
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui) and
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
@@ -1938,28 +1938,7 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
 
 ### M6d.5c2 — The clipboard and the host's questions
 
-The second third of M6d.5c ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)). It follows the rules
-of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** Copy, cut and paste reach uwui as events, and a host asks uwui what an input method
-  asks it.
-- **Crates.** `uwui`, `slime-app` (`interface.rs`), `slime-editor`.
-- **Delivers.**
-  - Copy, cut and paste as events: the answer's third state, taken and left to the platform, and
-    the text that the handler writes; a paste carrying its text.
-  - Reads of the clipboard asked as outputs, numbered, and their answers as events; an answer
-    not awaited, or whose field lost the focus, dropped.
-  - The `Clipboard` trait gone; the editor's paste a request and its answer, as an action.
-  - The deletion around the caret, as an event.
-  - The host's questions: the text around the caret, the selection and the composition, within a
-    bound, in the unit that the host names; a range's rectangle; the character at a point;
-    whether a point is uwui's.
-- **Done when.** M6d.5a's two hard cases of a single target pass in uwui's tests, an input
-  method's question right after its commit and a paste as the web gives it; ADR-0248's cases
-  pass: a paste pending when the focus moves, a second paste, no answer, a huge text; the editor's
-  tests of the clipboard pass; CI is green.
-- **How to test.** `cargo test --workspace`.
-- **Measured.** A question over a field of 4,000 bytes, against M6d.5a's prototype.
+The second third of M6d.5c; in progress, its card in [`PLAN.md`](PLAN.md#m6d5c2--the-clipboard-and-the-hosts-questions).
 
 ### M6d.5c3 — The targets
 

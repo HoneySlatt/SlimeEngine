@@ -878,7 +878,8 @@ impl Ui {
             | ActionKind::ContextMenu { .. }
             | ActionKind::Dismissed
             | ActionKind::Dropped { .. }
-            | ActionKind::Surface(_) => {
+            | ActionKind::Surface(_)
+            | ActionKind::ClipboardText { .. } => {
                 self.interaction.actions.push(action);
             }
             // An agent places a floating layer as the pointer would, at a place of finite numbers
@@ -936,6 +937,7 @@ impl Ui {
                 self.commit(before);
                 self.mark_paint(before);
                 self.told.field_left();
+                self.drop_field_reads();
             }
             self.change_state(before, |state| {
                 state.focused = false;
@@ -1098,18 +1100,18 @@ impl Ui {
 
     /// The element under the pointer, or its nearest ancestor, of a kind that `takes`.
     pub(super) fn pointer_target(&self, takes: impl Fn(&Kind) -> bool) -> Option<ElementId> {
-        let [x, y] = self.interaction.pointer?;
-        self.target_from(self.element_at(x, y), takes)
+        let pointer @ [x, y] = self.interaction.pointer?;
+        self.target_from(self.element_at(x, y), pointer, takes)
     }
 
-    /// `at`, the element under the pointer, or its nearest ancestor, of a kind that `takes`, as
-    /// [`Ui::pointer_target`] says.
+    /// `at`, the element under the point `x` and `y`, or its nearest ancestor, of a kind that
+    /// `takes`, as [`Ui::pointer_target`] says.
     fn target_from(
         &self,
         mut at: Option<ElementId>,
+        [x, y]: [f32; 2],
         takes: impl Fn(&Kind) -> bool,
     ) -> Option<ElementId> {
-        let [x, y] = self.interaction.pointer?;
         while let Some(id) = at {
             let node = self.node(id)?;
             // A section takes the pointer on its header alone, two panels on their handle.
@@ -1154,16 +1156,34 @@ impl Ui {
     }
 
     /// Whether a press or the wheel where the pointer is reaches the interface, which a game then
-    /// leaves: a modal root is open, or the pointer lies on what the interface draws, as its last
-    /// frame drew it, a box with a fill, a border or a shadow, a text, where its lines lie, an
-    /// image or a field. A box that only lays others out draws nothing, nor does an empty text.
+    /// leaves: a modal root is open, or the pointer lies on what the interface draws
+    /// ([`Ui::draws_at`]).
     fn holds_pointer(&self) -> bool {
         if !self.interaction.modals.is_empty() {
             return true;
         }
-        let Some([x, y]) = self.interaction.pointer else {
-            return false;
-        };
+        self.interaction
+            .pointer
+            .is_some_and(|[x, y]| self.draws_at(x, y))
+    }
+
+    /// Whether a press at `x` and `y` would be the interface's, a modal root open or not: the
+    /// interface draws there, or a button, a field or a surface takes the pointer there.
+    pub(super) fn takes_press_at(&self, x: f32, y: f32) -> bool {
+        if !self.interaction.modals.is_empty() || self.draws_at(x, y) {
+            return true;
+        }
+        let at = self.element_at(x, y);
+        self.target_from(at, [x, y], |kind| {
+            kind.takes_pointer() || matches!(kind, Kind::Surface { .. })
+        })
+        .is_some()
+    }
+
+    /// Whether the point `x` and `y` lies on what the interface draws, as its last frame drew it:
+    /// a scroll bar, a box with a fill, a border or a shadow, a text, where its lines lie, an image
+    /// or a field. A box that only lays others out draws nothing, nor does an empty text.
+    fn draws_at(&self, x: f32, y: f32) -> bool {
         if self.bar_at(x, y).is_some() {
             return true;
         }
@@ -1196,7 +1216,10 @@ impl Ui {
 
     /// Hovers what [`Ui::hover`] does, `on` being the element under the pointer.
     fn hover_over(&mut self, on: Option<ElementId>) {
-        let over = self.target_from(on, Kind::takes_pointer);
+        let over = self
+            .interaction
+            .pointer
+            .and_then(|pointer| self.target_from(on, pointer, Kind::takes_pointer));
         let hovered = match self.interaction.captured {
             Some(captured) => (over == Some(captured)).then_some(captured),
             None => over,
@@ -1424,6 +1447,15 @@ impl Ui {
                 .get(id.index as usize)
                 .is_some_and(|slot| slot.generation == id.generation && slot.node.is_some())
         };
+        // A field that the focus leaves with its element drops the reads it asked, as one that
+        // the focus leaves otherwise does.
+        if self
+            .interaction
+            .focus
+            .is_some_and(|id| !alive(&self.slots, id))
+        {
+            self.drop_field_reads();
+        }
         let interaction = &mut self.interaction;
         for id in [
             &mut interaction.hovered,

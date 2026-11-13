@@ -1,7 +1,8 @@
 //! The host's events and outputs on the interface
 //! (`docs/adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md`):
 //! [`Ui::event`] hands each event to the input's handlers, and [`Ui::outputs`] tells what the
-//! host shows of the interface, the cursor and the input method, as it changed.
+//! host shows of the interface, the cursor and the input method, and what it asks of the
+//! clipboard, as it changed.
 
 use slime_input::CursorShape;
 #[cfg(feature = "test-input")]
@@ -63,16 +64,34 @@ impl Ui {
                 self.interaction.modifiers = modifiers;
                 false
             }
-            Input::Key(key) => self.key_input(key),
+            Input::Key(key) => {
+                self.clipboard.left_to_platform = false;
+                let taken = self.key_input(key);
+                if std::mem::take(&mut self.clipboard.left_to_platform) {
+                    return Answer::TakenLeftToPlatform;
+                }
+                taken
+            }
             Input::InputMethod(ime) => self.ime_input(ime),
+            Input::DeleteAround {
+                before,
+                after,
+                unit,
+            } => self.delete_around(before, after, unit),
+            Input::Copy => self.copy_input(false),
+            Input::Cut => self.copy_input(true),
+            Input::Paste(text) => self.paste_input(text),
+            Input::ClipboardText { read, text } => self.clipboard_answer(read, text),
         };
         Answer::of(taken)
     }
 
     /// What `target` shows of the interface and changed since the host last read it: the
     /// pointer's shape where the pointer is; the input method, on as a field's input starts, off
-    /// once no field holds the focus; and the caret's box of the field that takes text. The host
-    /// reads them after each frame, and after an event whose effect it shows at once; a target
+    /// once no field holds the focus; the caret's box of the field that takes text; the text to
+    /// write on the clipboard and the reads asked of it. The host reads them after each frame, and
+    /// after an event whose effect it shows at once, a key of paste, whose read a platform that
+    /// asks the person before a program reads lets through only in answer to the key; a target
     /// other than [`TargetId::MAIN`] has none. They are the host's alone: what another reader
     /// takes, the host is not told.
     pub fn outputs(&mut self, target: TargetId) -> Outputs {
@@ -98,13 +117,17 @@ impl Ui {
         told.field = field;
         told.ended = false;
         told.area = area;
+        let cursor = (cursor != told.cursor).then(|| {
+            told.cursor = cursor;
+            cursor
+        });
+        let (clipboard_write, clipboard_reads) = self.clipboard.take();
         Outputs {
-            cursor: (cursor != told.cursor).then(|| {
-                told.cursor = cursor;
-                cursor
-            }),
+            cursor,
             input_method,
             input_area,
+            clipboard_write,
+            clipboard_reads,
         }
     }
 }
@@ -137,6 +160,18 @@ impl Person for Ui {
 
     fn ime(&mut self, ime: &Ime) -> bool {
         self.person(Input::InputMethod(ime)).taken()
+    }
+
+    fn serve_clipboard(&mut self, board: &mut Option<String>) -> Outputs {
+        let outputs = self.outputs(TargetId::MAIN);
+        if let Some(text) = &outputs.clipboard_write {
+            *board = Some(text.clone());
+        }
+        for &read in &outputs.clipboard_reads {
+            let text = board.as_deref();
+            let _ = self.person(Input::ClipboardText { read, text });
+        }
+        outputs
     }
 }
 

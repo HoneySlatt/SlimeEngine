@@ -433,8 +433,9 @@ impl Interface {
                     self.scale = scale;
                     self.tell(format!("scale {scale}"));
                 }
-                // It holds no check box, list to choose from, color well nor surface, and opens no
-                // menu, layer that closes as the user leaves it, nor floating panel.
+                // It holds no check box, list to choose from, color well nor surface, opens no
+                // menu, layer that closes as the user leaves it, nor floating panel, and reads no
+                // clipboard of its own.
                 ActionKind::Committed(
                     FieldValue::Checked(_) | FieldValue::Chosen(_) | FieldValue::Color(_),
                 )
@@ -442,7 +443,8 @@ impl Interface {
                 | ActionKind::Dismissed
                 | ActionKind::Placed { .. }
                 | ActionKind::Dropped { .. }
-                | ActionKind::Surface(_) => {}
+                | ActionKind::Surface(_)
+                | ActionKind::ClipboardText { .. } => {}
             }
         }
         stop

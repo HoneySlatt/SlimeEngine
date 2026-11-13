@@ -22,6 +22,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   ends what was due meanwhile, a tooltip's rest or a notification. The run logs the time that the
   machine spent suspended once something wakes it; its own waits still end late by the sleep's
   length.
+- uwui answers a host's questions from its live state, in the unit that the host counts in
+  (`uwui::host::TextUnit`), as an input method asks them (ADR-0255): the text around the caret
+  (`Ui::text_around`), a range's box (`Ui::range_box`), the character at a point
+  (`Ui::character_at`), and whether a point is the interface's (`Ui::covers`).
 
 ### Changed
 
@@ -35,6 +39,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   off, and its caret's box, in place of `Ui::cursor` and `Ui::text_input`; a presentation gives the
   same interface at every call once given. The engine gives the pointer's moves of a frame as one,
   and a move walks the tree once, so that it costs about half as much.
+- uwui's clipboard is its host's (ADR-0255): the trait `uwui::tree::Clipboard`, `Ui::set_clipboard`,
+  `has_clipboard`, `clipboard_text` and `set_clipboard_text` are gone. A field's copy and cut write
+  `Outputs::clipboard_write`, and its paste asks a numbered read in `Outputs::clipboard_reads`,
+  which the host answers with `Input::ClipboardText`; a program writes with `Ui::write_clipboard`
+  and reads with `Ui::read_clipboard`, its answer an `ActionKind::ClipboardText`. The platform's own
+  `Input::Copy`, `Cut` and `Paste`, an input method's `Input::DeleteAround`, and the answer
+  `Answer::TakenLeftToPlatform` for a platform that fires its own clipboard events from the keys
+  (`Ui::set_clipboard_events`) are new. A cut deletes what it copied whether or not the host has a
+  clipboard. The editor's paste reaches the level a frame later than before.
 - `Ui::advance` and `Ui::next_change` are gone: a host gives each frame its time on the host's
   clock, `Ui::set_frame_shown(FrameShown)`, and asks for a frame at `Ui::next_frame_due()`, an
   `Instant`. A bar of progress without a share keeps its place however long the machine has run.

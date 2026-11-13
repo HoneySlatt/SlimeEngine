@@ -194,7 +194,7 @@ lists every dependency.
   depends on `slime-world`, since it owns the game's world
   ([ADR-0079](adr/0079-the-engines-own-world.md)), and on `uwui`, since it connects the
   interface that a presentation gives (`Presentation::ui`) to the window, its events first, the
-  clipboard, the pointer's shape, the input method and its time
+  pointer's shape, the input method, the clipboard that its outputs ask for, and its time
   ([ADR-0145](adr/0145-text-edited.md), [ADR-0149](adr/0149-the-looks-foundations.md)), to screen
   readers ([ADR-0146](adr/0146-screen-readers.md)) and to the development channel's tools
   ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), and on `uwui-render`, through which
@@ -358,16 +358,20 @@ frame                                     span "frame", trace level
 │   │                                     span "acquire"
 │   ├── presentation.render(ctx, target)  6. draws into the image, without the world; span
 │   │                                        "render"
-│   ├── interface::Shown::update          the pointer's shape and the input method, as the
-│   │                                     presentation's interface asks (ADR-0145); with the
-│   │                                     `accessibility` feature, what changed in its meaning sent
-│   │                                     to screen readers (ADR-0146)
+│   ├── screen readers                    with the `accessibility` feature, what changed in the
+│   │                                     interface's meaning sent to them (ADR-0146)
 │   ├── channel.capture(gpu, target,      a tool asked for the image, or for the part of it that
 │   │       views, presentation.ui())     one of its views draws, or that an element of the
 │   │                                     interface shows: copied back to the CPU
 │   └── image.present()                   hands it to the window; span "present"
 └── channel.publish(ctx)                  with the `development` feature and a token: how game
                                           time stands, to the tools subscribed (below)
+then, with a window, an image drawn or not:
+└── interface::Shown::show                the pointer's shape and the input method, as the
+                                          presentation's interface asks (ADR-0145); the text
+                                          written on the system's clipboard, then each read
+                                          answered as an event, after which a frame follows
+                                          (ADR-0255)
 ```
 
 The run stops before the next frame once the game has asked for it (`request_exit`) or failed it
@@ -417,8 +421,10 @@ slime_app::run
     │                              Presentation::ui as uwui's host event (Ui::event, its time
     │                              stamped at reception on the host's clock; WindowInput::give,
     │                              which holds the pointer's last move until the interface's next
-    │                              event or the frame; with the system's clipboard), then, unless
-    │                              it took it, presentation.on_event(ctx, &event); the host's
+    │                              event or the frame); what it took shown at once (Shown::show:
+    │                              its outputs, the clipboard written, then each read answered as
+    │                              an event), then, unless it took it,
+    │                              presentation.on_event(ctx, &event); the host's
     │                              input follows the event (Input::handle) unless one of them
     │                              took a key or a button put down; CloseRequested → stop
     ├── winit "window_event"     RedrawRequested → driver.redraw_requested → a lost device
@@ -1555,8 +1561,12 @@ edit.copy (Ctrl+C)
     │                                        inserted last
     └── command.write(world) each            a step as the journal writes it, `# do`, then each
                                              command after `# command`, the copied identities
-        → shared.clipboard, and the window puts it on the system's clipboard
-edit.paste (Ctrl+V): the window reads the system's clipboard, or the editor's copy without one
+        → shared.clipboard, and the window writes it to the interface's outputs (Ui::write_clipboard),
+          which the host puts on the system's clipboard
+edit.paste (Ctrl+V): the window writes a copy not yet written, then asks the host a read
+(Ui::read_clipboard); the host answers it after the frame (Shown::show), the window reads the
+answer at the next frame (ActionKind::ClipboardText), or takes the editor's copy where the
+clipboard held none
 └── Editor::paste(world, label, text)
     ├── Renaming::of_commands(world, key, commands)   a new identity of the level for each entity
     │                                                 that a Create or a Place names
@@ -1754,8 +1764,10 @@ or a widget gives it a focus that takes no keys, which reach the program, unless
 menu, a list or a dialog ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md),
 [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)). A game with no focus that takes the keys
 and no modal root open receives every key but those its shortcuts name, Tab unless its interface
-lets Tab in, and F6 while a root holds what can take the focus. `slime-app` gives the interface the
-system's clipboard, which a field copies to and pastes from.
+lets Tab in, and F6 while a root holds what can take the focus. A field's copy and cut reach the
+interface's outputs, and its paste asks a read there; `slime-app` writes and reads the system's
+clipboard for them, after each event that the interface took and after each frame
+([ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)).
 
 A popup or a dialog is a root of its own at a place on the window's surface; a modal one keeps the
 pointer from the roots below and the focus among its elements, and gives the focus back when it is

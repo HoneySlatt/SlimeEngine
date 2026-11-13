@@ -3413,9 +3413,9 @@ holds 4,000 bytes, 2,590 characters; the host asks its questions as an input met
 Parley's selection walks the whole line, wherever the character lies. Shaping is what each edit
 pays already. Against the editor's frame of 4.17 ms at 240 Hz ([`ROADMAP.md`](ROADMAP.md#4-quality-bar)),
 an edit with its question takes about a quarter; a host that asks a rectangle for each character
-of a composition pays the first line's figure for each. The lowest machine is not measured: M6d.5c
-measures that case there, and counts a pointer's move in uwui's benchmarks. These are not
-benchmarks.
+of a composition pays the first line's figure for each. The lowest machine is not measured, nor
+was it at M6d.5c, none being set up; M6d.5c1 counts a pointer's move in uwui's benchmarks. These
+are not benchmarks.
 
 How long CI's jobs took on `226ae4c`, the commit that decided the host's API, on 2026-11-13: the
 documents changed and `uwui`'s colours' paths compiled only with the tests that read them.
@@ -3699,3 +3699,49 @@ How long CI's jobs took on `15a6c2b`, the commit that sent tools the events they
 Every job stays within its limit of 20 minutes. `windows-release` is the longest, with 3 min 48 s
 of margin. The milestone adds a dozen tests of `slime-channel`, six of `uwui-agent`, one of
 `slime-app` that runs a game, and a step to `slime-mcp`'s session of the editor.
+
+## M6d.5c2, the clipboard and the host's questions
+
+The host's questions over a field of one line of 4,000 bytes, on 2026-11-13, in a release build on
+an AMD Ryzen 7 5800X, the machine not at rest: another project's tests ran, a load of 2.6 to 4.3.
+The prototype of M6d.5a (`9e48a0e`, its test `cost_over_a_field_of_4000_bytes`) and this
+milestone's test of the same name (`cargo test -p uwui --release --test questions -- --ignored
+--nocapture`) were run in turn, three times each, over the prototype's text: ASCII, two-byte,
+three-byte and four-byte characters, `word é 日 😀 ` repeated. Each figure is the range of the
+three runs' means, each mean of 2,000 to 20,000 questions; the edit, of 200.
+
+| Question | Prototype | M6d.5c2 |
+|---|---|---|
+| The text around the caret, 100 units of UTF-16 each side | 6.4 to 6.8 µs | 2.3 to 2.4 µs |
+| The box of the last character | 123 to 125 µs | 19 to 20 µs |
+| The box of the first character | 113 to 116 µs | 7.5 to 8.4 µs |
+| The caret's box at the end | 15.5 to 16.0 µs | 14.7 to 16.5 µs |
+| The character at a point | 12.6 to 13.0 µs | 12.6 to 13.0 µs |
+| An edit to a new text, Backspace, then a box | 1.14 to 1.18 ms | 1.03 to 1.09 ms |
+
+What it says:
+
+- A character's box costs a sixth of the prototype's: a range of one direction on one line is
+  boxed from its ends' carets, where the prototype walked the whole line.
+- The text around the caret costs a third: its places are counted once from the text's start,
+  then within the excerpt.
+- The caret's box and the character at a point cost what they did.
+- An edit with its question still takes about a quarter of the editor's frame at 240 Hz: the
+  shaping of the edit's new text, which every edit pays, holds it.
+- A host that asks a box for each character of a composition, as Android and the web do, pays
+  about 20 µs for each.
+
+Over two other texts of 4,000 bytes, the same day, twice each, this milestone's code alone:
+
+| Question | Latin and Hebrew, `word שלום ` repeated | A few of those, then one word of 3,400 letters |
+|---|---|---|
+| The text around the caret | 2.4 µs | 2.3 µs |
+| The box of the last character | 30 to 31 µs | 278 to 286 µs |
+| The caret's box at the end | 22 µs | 196 to 199 µs |
+| The character at a point | 18 to 19 µs | 204 to 208 µs |
+| An edit, Backspace, then a box | 1.34 to 1.38 ms | 0.92 to 0.95 ms |
+
+Two directions cost about half as much again as one. A long word after text of two directions
+costs ten times as much, the character at a point included, which calls parley alone: the cause is
+not found ([`debt.md`](debt.md)). The lowest machine of the quality bar is not measured: none is
+set up yet. These are not benchmarks.

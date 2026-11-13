@@ -1,12 +1,10 @@
 //! A presentation's interface connected to its window: the window's events given to the
-//! interface first, as the host's events of uwui, its clipboard, and what it asks the window to
-//! show, the pointer's shape and the input method (`docs/adr/0145-text-edited.md`,
-//! `docs/adr/0249-the-hosts-api-its-items-and-their-table.md`).
-
-use std::sync::{Arc, Mutex, PoisonError};
+//! interface first, as the host's events of uwui, and what it asks the window to show, the
+//! pointer's shape and the input method, and the system's clipboard to write and read
+//! (`docs/adr/0145-text-edited.md`, `docs/adr/0249-the-hosts-api-its-items-and-their-table.md`).
 
 use slime_platform::{Clipboard, CursorShape, Event, Window};
-use uwui::host::{self, Input, InputMethod, TargetId};
+use uwui::host::{self, Input, InputMethod, ReadId, TargetId};
 use uwui::time::EventTime;
 use uwui::tree::Ui;
 
@@ -64,69 +62,42 @@ impl WindowInput {
     }
 }
 
-/// The system's clipboard, shared by the interfaces that a run's presentation gives.
-#[derive(Clone)]
-pub(crate) struct SharedClipboard(Arc<Mutex<Clipboard>>);
-
-impl SharedClipboard {
-    /// The system's clipboard; none, which the log tells, when the system gives none.
-    pub(crate) fn open() -> Option<Self> {
-        match Clipboard::open() {
-            Ok(clipboard) => Some(Self(Arc::new(Mutex::new(clipboard)))),
-            Err(error) => {
-                tracing::warn!(%error, "fields will copy and paste nothing");
-                None
-            }
-        }
-    }
-
-    /// Gives `ui` the clipboard, unless it has one.
-    pub(crate) fn give(&self, ui: &mut Ui) {
-        if !ui.has_clipboard() {
-            ui.set_clipboard(Box::new(self.clone()));
-        }
-    }
-}
-
-impl uwui::tree::Clipboard for SharedClipboard {
-    fn text(&mut self) -> Option<String> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner).text()
-    }
-
-    fn set_text(&mut self, text: &str) {
-        self.0
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .set_text(text);
-    }
-}
-
-/// Whether the window shows what an interface asked, rather than its own arrow and no input
-/// method.
+/// What the window shows of the interface's outputs, rather than its own arrow and no input
+/// method, and the system's clipboard that it serves them.
 #[derive(Debug, Default)]
 pub(crate) struct Shown {
     /// Whether an interface's outputs reached the window since it last showed its own.
     by_interface: bool,
     /// Whether the window allows the input method, which is forbidden only while it is allowed.
     ime_allowed: bool,
+    /// The system's clipboard, opened as an interface's outputs are first shown, as before uwui's
+    /// clipboard went through them, so that the compositors' series reads whether the engine has
+    /// one in each: none where the system gives none, which the log tells once.
+    clipboard: Option<Option<Clipboard>>,
 }
 
 impl Shown {
-    /// Shows on `window` what `ui`'s outputs tell changed after a frame: the pointer's shape; the
-    /// input method forbidden, or forbidden then allowed as a field's input starts, which is meant
-    /// to end what it composed for the field before, though no input method was checked with it
-    /// yet; and the caret's box, beside which it places its window. Without an interface, the
-    /// arrow and the input method forbidden. winit 0.30 tells an input method no field's purpose
-    /// but a password's and a terminal's, which uwui has none of.
-    pub(crate) fn update(&mut self, window: &Window, ui: Option<&mut Ui>) {
+    /// Does on `window` what `ui`'s outputs ask since they were last read, at `time`: the
+    /// pointer's shape; the input method forbidden, or forbidden then allowed as a field's input
+    /// starts, which is meant to end what it composed for the field before, though no input
+    /// method was checked with it yet; the caret's box, beside which it places its window; the
+    /// text written on the system's clipboard, then each read of it answered at once, with none
+    /// where the system gives no clipboard. Without an interface, the arrow and the input method
+    /// forbidden. The run shows them after each frame, an image drawn or not, and right after
+    /// each event that the interface took, so that a paste lands in the step of its key, which
+    /// macOS is expected to let a program read without asking the person, not yet checked. Gives
+    /// whether it answered a read, whose paste the next frame shows. winit 0.30 tells an input
+    /// method no field's purpose but a password's and a terminal's, which uwui has none of.
+    pub(crate) fn show(&mut self, window: &Window, ui: Option<&mut Ui>, time: EventTime) -> bool {
         let Some(ui) = ui else {
             if std::mem::take(&mut self.by_interface) {
                 window.set_cursor(CursorShape::Default);
                 self.allow_ime(window, false);
             }
-            return;
+            return false;
         };
         self.by_interface = true;
+        let _ = self.clipboard();
         let outputs = ui.outputs(TargetId::MAIN);
         if let Some(cursor) = outputs.cursor {
             window.set_cursor(cursor);
@@ -140,6 +111,51 @@ impl Shown {
         if let Some(area) = outputs.input_area {
             window.set_ime_area(area.x, area.y, area.width.max(1.0), area.height);
         }
+        self.serve_clipboard(ui, outputs.clipboard_write, &outputs.clipboard_reads, time)
+    }
+
+    /// Writes `write` on the system's clipboard, then answers each of `reads` at `time`, so that
+    /// a read asked after a write reads it; gives whether it answered any.
+    fn serve_clipboard(
+        &mut self,
+        ui: &mut Ui,
+        write: Option<String>,
+        reads: &[ReadId],
+        time: EventTime,
+    ) -> bool {
+        if write.is_none() && reads.is_empty() {
+            return false;
+        }
+        let mut clipboard = self.clipboard();
+        if let (Some(text), Some(clipboard)) = (write, clipboard.as_mut()) {
+            clipboard.set_text(&text);
+        }
+        // Read once for every read that waits: they asked the same clipboard in the same step.
+        let text = match reads {
+            [] => None,
+            _ => clipboard.and_then(|clipboard| clipboard.text()),
+        };
+        for &read in reads {
+            let answer = Input::ClipboardText {
+                read,
+                text: text.as_deref(),
+            };
+            let _ = ui.event(host::Event::new(TargetId::MAIN, time, answer));
+        }
+        !reads.is_empty()
+    }
+
+    /// The system's clipboard, opened the first time; none where the system gives none.
+    fn clipboard(&mut self) -> Option<&mut Clipboard> {
+        self.clipboard
+            .get_or_insert_with(|| match Clipboard::open() {
+                Ok(clipboard) => Some(clipboard),
+                Err(error) => {
+                    tracing::warn!(%error, "fields will copy and paste nothing");
+                    None
+                }
+            })
+            .as_mut()
     }
 
     /// Allows the input method, or forbids it, unless the window already does.

@@ -5,9 +5,10 @@
   [0227](0227-the-time-that-motion-reads.md) (what M6d.5's API carries, built where it is read),
   and [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) (three
   seams that M6d.9a1b keeps); amended by [0249](0249-the-hosts-api-its-items-and-their-table.md)
-  (an answer's three states; questions change uwui's caches) and
+  (an answer's three states; questions change uwui's caches),
   [0253](0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md) (the moves
-  between two frames wait for their reader)
+  between two frames wait for their reader) and
+  [0255](0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md) (what a copy writes travels in the outputs)
 - Date: 2026-11-12
 
 ## Context

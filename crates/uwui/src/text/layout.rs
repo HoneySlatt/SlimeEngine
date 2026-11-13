@@ -426,6 +426,60 @@ impl TextLayout {
             .collect()
     }
 
+    /// The box of the bytes `range` on their first line, and the byte where their part on it
+    /// ends: `range`'s end when it lies on one line. An empty range gives the caret there, one
+    /// pixel wide. A range of one direction on one line is boxed from its ends' carets rather than
+    /// by a selection's walk of the whole line, a sixth of its cost on a line of 4,000 bytes
+    /// (`docs/measurements.md`, M6d.5c2).
+    pub fn first_line_box(&self, range: Range<usize>) -> (Rect, usize) {
+        let layout = self.shown_layout();
+        let start = Cursor::from_byte_index(layout, range.start, ParleyAffinity::Downstream);
+        let first = (!range.is_empty())
+            .then(|| Cluster::from_byte_index(layout, range.start))
+            .flatten();
+        let Some(first) = first else {
+            return (rect(start.geometry(layout, 1.0)), range.start);
+        };
+        let line = first.path().line_index();
+        let rtl = first.is_rtl();
+        let line_end = first.line().text_range().end;
+        let end = range.end.min(line_end);
+        // A caret at a line's end that a break follows stands at the next line's start: the walk
+        // then boxes the line's end.
+        let last_line = line + 1 == layout.len();
+        // One direction on one line: the clusters between, read in logical order.
+        let mut cluster = Some(first);
+        let mut one_direction = end < line_end || last_line;
+        while one_direction && let Some(each) = cluster.filter(|each| each.text_range().start < end)
+        {
+            if each.path().line_index() != line || each.is_rtl() != rtl {
+                one_direction = false;
+                break;
+            }
+            cluster = each.next_logical();
+        }
+        if one_direction {
+            let a = start.geometry(layout, 1.0);
+            let b = Cursor::from_byte_index(layout, end, ParleyAffinity::Upstream)
+                .geometry(layout, 1.0);
+            let bounds = BoundingBox::new(
+                a.x0.min(b.x0),
+                a.y0.min(b.y0),
+                a.x0.max(b.x0),
+                a.y1.max(b.y1),
+            );
+            return (rect(bounds), end);
+        }
+        let end_cursor = Cursor::from_byte_index(layout, end, ParleyAffinity::Upstream);
+        let mut union: Option<BoundingBox> = None;
+        Selection::new(start, end_cursor).geometry_with(layout, |bounds, each| {
+            if each == line {
+                union = Some(union.map_or(bounds, |union| union.union(bounds)));
+            }
+        });
+        (rect(union.unwrap_or(start.geometry(layout, 1.0))), end)
+    }
+
     /// The layout of the text shown, as parley holds it, which a field moves its selection on.
     pub(crate) fn shown_layout(&self) -> &Layout<()> {
         self.cut.as_ref().map_or(&self.whole, |cut| &cut.layout)

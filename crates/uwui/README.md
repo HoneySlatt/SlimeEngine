@@ -98,10 +98,17 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   `docs/adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md`): the
   pointer, the wheel, the modifiers, the keys and input methods, in the types of `slime-input`,
   each event with its *target*, where it came, and its time, each answered at once, taken or not,
-  which a game then leaves; the moves of a frame gathered by the host, as one. After each frame
-  the host reads what each target shows (`Ui::outputs`), only what changed: the pointer's shape;
-  the input method on as a field's input starts, off once no field holds the focus; and the
-  caret's box. The outputs are the host's: a second reader would take its changes. Every root
+  which a game then leaves; the moves of a frame gathered by the host, as one; the platform's
+  copy, cut and paste, the answer to a read of the clipboard, and an input method's deletion
+  around the caret. After each frame and each event that it took, the host reads what each target
+  shows and asks (`Ui::outputs`), only what changed: the pointer's shape; the input method on as a
+  field's input starts, off once no field holds the focus; the caret's box; the text to write on
+  the clipboard and the reads of it asked, numbered, each answered by an event. The outputs are
+  the host's: a second reader would take its changes. The host asks what an input method asks,
+  answered from the live state, in the unit that it counts in (`host::TextUnit`): the text around
+  the caret (`Ui::text_around`), a range's box (`Ui::range_box`), the character at a point
+  (`Ui::character_at`), and whether a point is the interface's (`Ui::covers`)
+  (`docs/adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md`). Every root
   draws on one target today, `host::TargetId::MAIN`. With the feature `test-input`, which tests
   and benchmarks turn on, `host::Person` gives a person's input at no time of its own. `Ui` turns
   the input into `action::Action`s: a button pressed, an intent of navigation, the
@@ -124,9 +131,9 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   (`docs/adr/0160-two-viewports-and-blenders-way.md`). Its errors, as the style sheets' and
   themes', are `DocumentErrors`.
 - A field (`Element::text_field`, `Element::text_area`, `Element::number_field`) keeps what the
-  user types, selects with the keys and the pointer, undoes, copies and pastes through the clipboard
-  that the program gives (`tree::Clipboard`, `Ui::set_clipboard`), which the program reads and
-  writes too (`Ui::clipboard_text`, `Ui::set_clipboard_text`), and composes through an input
+  user types, selects with the keys and the pointer, undoes, copies and pastes through the host's
+  clipboard, which the program writes and reads too (`Ui::write_clipboard`, `Ui::read_clipboard`,
+  its answer an `action::ActionKind::ClipboardText`), and composes through an input
   method (`host::Input::InputMethod`); its text is laid out as a label's, parley moving its
   selection. The program reads it as actions, changed and committed (`action::FieldValue`).
 - A surface (`Element::surface`) shows an image that the program draws, an editor's viewport, and

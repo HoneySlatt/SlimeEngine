@@ -154,13 +154,16 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   `on_event` and the game's input only when the interface did not take it, but a key or a button
   let go, which always reaches the input; the interface, once given, must be the same one at
   every call; the
-  interface gets the system's clipboard, the run's waker, and the times of the host's clock,
+  interface gets the run's waker, and the times of the host's clock,
   which counts a suspend: each event's reception and each frame's start, uncapped
   (`docs/adr/0227-the-time-that-motion-reads.md`,
-  `docs/adr/0251-the-engines-host-clock-and-its-times.md`); and after each frame the window
-  shows what the interface's outputs tell changed (`Ui::outputs`), the pointer's shape and the
-  input method allowed while one of its fields takes text (`docs/adr/0145-text-edited.md`,
-  `docs/adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md`), and,
+  `docs/adr/0251-the-engines-host-clock-and-its-times.md`); after each frame, an image drawn or
+  not, and right after each event that the interface took, the run does what the interface's
+  outputs ask (`Ui::outputs`): the pointer's shape, the input method allowed while one of its
+  fields takes text, a text written on the system's clipboard, then each read of it answered at
+  once (`docs/adr/0145-text-edited.md`,
+  `docs/adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md`,
+  `docs/adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md`); and,
   with the `accessibility` feature, screen readers get
   what changed in what it means; `gpu_lost` and `gpu_restored` when the run replaces a lost GPU
   device, which a game asks for with `AppConfig::restore_lost_device`: it drops its GPU objects in

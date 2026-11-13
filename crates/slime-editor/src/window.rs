@@ -717,6 +717,7 @@ impl Model {
             }
         }
         match (&action.kind, action.element) {
+            (ActionKind::ClipboardText { text, .. }, None) => Some(self.paste(text.clone())),
             // A prefab chosen in the palette, by its asset ID.
             (ActionKind::Command(name), _) if name.starts_with(PLACE) => Some(Request::Run {
                 name: "edit.place".to_owned(),
@@ -1264,21 +1265,12 @@ impl Model {
                     };
                 }
                 "edit.snap" => self.snap = !self.snap,
-                // What the system's clipboard holds, or, without one, what the editor copied.
+                // What the system's clipboard holds, read by the host, whose answer comes back as
+                // an action (`Window::paste`); a copy that the core made since the last frame
+                // written first, which the host writes before it reads.
                 "edit.paste" => {
-                    // A copy that the core made since the last frame first.
                     self.put_copy();
-                    let text = self
-                        .ui
-                        .clipboard_text()
-                        .or_else(|| self.shared.borrow().clipboard.clone())
-                        .unwrap_or_default();
-                    let label =
-                        operation::operation("edit.paste").map_or("Paste", |paste| paste.label);
-                    self.shared.borrow_mut().requests.push_back(Request::Paste {
-                        label: label.to_owned(),
-                        text,
-                    });
+                    self.ui.read_clipboard();
                 }
                 "view.keys_default" => self.choose_keys(false),
                 "view.keys_blender" => self.choose_keys(true),
@@ -1407,13 +1399,26 @@ impl Model {
         self.shared.borrow_mut().revision += 1;
     }
 
+    /// The paste of `text`, the system's clipboard's as the host read it, or, where it held none
+    /// or the host has no clipboard, what the editor copied.
+    fn paste(&self, text: Option<String>) -> Request {
+        let text = text
+            .or_else(|| self.shared.borrow().clipboard.clone())
+            .unwrap_or_default();
+        let label = operation::operation("edit.paste").map_or("Paste", |paste| paste.label);
+        Request::Paste {
+            label: label.to_owned(),
+            text,
+        }
+    }
+
     /// Puts what the core copied last on the system's clipboard, once.
     fn put_copy(&mut self) {
         let shared = self.shared.borrow();
         if shared.copies != self.copies {
             self.copies = shared.copies;
             if let Some(text) = &shared.clipboard {
-                self.ui.set_clipboard_text(text);
+                self.ui.write_clipboard(text);
             }
         }
     }
@@ -2906,6 +2911,8 @@ mod tests {
         session: Session,
         model: Model,
         shared: Shared,
+        /// The system's clipboard, as the yard's host serves it after each frame.
+        board: Option<String>,
     }
 
     impl Yard {
@@ -2985,18 +2992,21 @@ mod tests {
                 session,
                 model,
                 shared,
+                board: None,
             };
             yard.frame();
             yard
         }
 
         /// A frame of the program: the core answers what the window asked, then the window acts
-        /// and lays out.
+        /// and lays out; then the host serves the clipboard that the frame asked, as `slime-app`
+        /// does after each frame.
         fn frame(&mut self) {
             self.host
                 .frame(&mut self.session, std::time::Duration::from_millis(16));
             self.model.act(self.host.world());
             self.model.frame(self.host.world(), SIZE, 1.0);
+            let _ = self.model.ui.serve_clipboard(&mut self.board);
         }
 
         /// A step that renames the well, made as an agent makes it.
@@ -3377,8 +3387,8 @@ mod tests {
 
     /// The operations that create and arrange, run by their names as the menus and the keys run
     /// them, each a step: a duplicate in place, nudged, the nudge repeated, the well and its
-    /// duplicate grouped where they were, the group copied and pasted, through the window, which
-    /// pastes what the editor copied without a clipboard of the system, deleted, and an entity
+    /// duplicate grouped where they were, the group copied and pasted, through the window, whose
+    /// host's clipboard the copy reaches before the paste reads it, deleted, and an entity
     /// created (`docs/adr/0162-creating-copying-and-arranging.md`).
     #[test]
     fn what_is_selected_is_duplicated_nudged_grouped_copied_pasted_and_deleted_each_a_step() {
@@ -3393,6 +3403,9 @@ mod tests {
                     },
                 )
                 .unwrap_or_else(|error| panic!("{name}: {error}"));
+            // The window runs it; a paste's read, answered after that frame, reaches the window
+            // at the next, whose request the core makes at the third.
+            yard.frame();
             yard.frame();
             yard.frame();
         };
@@ -3463,7 +3476,7 @@ mod tests {
         );
     }
 
-    /// Runs the operation `name` as a person does, then two frames, the window's included.
+    /// Runs the operation `name` as a person does, then three frames, the window's included.
     fn run(yard: &mut Yard, name: &str) {
         run_with(yard, name, &[]);
     }
@@ -3476,20 +3489,6 @@ mod tests {
             .expect("placed")
     }
 
-    /// A clipboard of the system that a test holds.
-    #[derive(Clone, Default)]
-    struct Board(std::sync::Arc<std::sync::Mutex<Option<String>>>);
-
-    impl uwui::tree::Clipboard for Board {
-        fn text(&mut self) -> Option<String> {
-            self.0.lock().expect("not poisoned").clone()
-        }
-
-        fn set_text(&mut self, text: &str) {
-            *self.0.lock().expect("not poisoned") = Some(text.to_owned());
-        }
-    }
-
     /// Under a base turned a quarter about Y and twice as large: a post grouped with the well stays
     /// where it was in the world, the group at their middle; nudged, it moves a quarter of a metre
     /// along the world's X; an entity created goes where it is; a paste repeated pastes again; and
@@ -3498,13 +3497,7 @@ mod tests {
     #[test]
     fn what_is_grouped_nudged_and_created_under_a_turned_parent_stays_where_it_is_in_the_world() {
         let mut yard = Yard::new("turned");
-        let board = Board::default();
-        board
-            .0
-            .lock()
-            .expect("not poisoned")
-            .replace("a word".to_owned());
-        yard.model.ui.set_clipboard(Box::new(board.clone()));
+        yard.board = Some("a word".to_owned());
         let id = |text: &str| -> PersistentId { text.parse().expect("an identity") };
         let (base, post, well) = (id("yard/base-k3f9"), id("yard/post-k3f9"), id("yard/well"));
         let transform = |translation: DVec3, quarter: bool, scale: f32| {
@@ -3608,14 +3601,12 @@ mod tests {
         }
         yard.frame();
         yard.frame();
+        yard.frame();
         run(&mut yard, "edit.repeat");
         let done = yard.history().0;
         assert_eq!(done[done.len() - 2..], ["Paste", "Paste"], "{done:?}");
         assert!(
-            board
-                .0
-                .lock()
-                .expect("not poisoned")
+            yard.board
                 .as_deref()
                 .is_some_and(|text| text.starts_with("# do")),
             "the copy on the system's clipboard"
@@ -3721,6 +3712,9 @@ mod tests {
                 },
             )
             .unwrap_or_else(|error| panic!("{name}: {error}"));
+        // The window runs it; a paste's read, answered after that frame, reaches the window at
+        // the next, whose request the core makes at the third.
+        yard.frame();
         yard.frame();
         yard.frame();
     }

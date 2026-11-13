@@ -16,6 +16,7 @@ use super::meaning::{FieldText, RUN_CHARACTERS, RunCharacter, TextRun};
 use super::{ElementId, Kind, Ui};
 use crate::Rect;
 use crate::action::{Action, ActionKind, FieldValue};
+use crate::host::TextUnit;
 use crate::shortcuts::{self, Platform};
 use crate::text::{Affinity, Alignment, TextBounds, TextLayout, TextPosition};
 
@@ -26,15 +27,6 @@ const UNDO_DEPTH: usize = 100;
 /// does not hold the focus drags its number rather than gives it the focus, and a press on a
 /// draggable element drags it rather than presses it.
 pub(super) const DRAG_THRESHOLD: f32 = 3.0;
-
-/// The system's clipboard, of text, as an interface reads and writes it ([`Ui::set_clipboard`]):
-/// the platform's, which `slime-app` gives, or a test's own.
-pub trait Clipboard: Send {
-    /// The text that it holds; none when it holds no text.
-    fn text(&mut self) -> Option<String>;
-    /// Puts `text` in it, in place of what it held.
-    fn set_text(&mut self, text: &str);
-}
 
 /// What a field keeps between two events.
 pub(crate) struct Field {
@@ -140,6 +132,11 @@ impl Field {
         true
     }
 
+    /// The text selected; empty for a caret.
+    pub(super) fn selected_text(&self) -> &str {
+        &self.text[self.selected()]
+    }
+
     /// The bytes selected, from the first to the last.
     fn selected(&self) -> Range<usize> {
         if self.pending.is_some() {
@@ -168,7 +165,7 @@ impl Field {
     }
 
     /// The selection's anchor and focus, by bytes.
-    fn ends(&self) -> (usize, usize) {
+    pub(super) fn ends(&self) -> (usize, usize) {
         self.pending.unwrap_or((
             self.selection.anchor().index(),
             self.selection.focus().index(),
@@ -333,32 +330,6 @@ pub(crate) fn rounded(value: f64, terms: &[f64]) -> f64 {
 }
 
 impl Ui {
-    /// Gives the interface the system's clipboard, which its fields copy to and paste from:
-    /// without one, they copy and paste nothing.
-    pub fn set_clipboard(&mut self, clipboard: Box<dyn Clipboard>) {
-        self.clipboard = Some(clipboard);
-    }
-
-    /// Whether the interface has a clipboard ([`Ui::set_clipboard`]).
-    pub fn has_clipboard(&self) -> bool {
-        self.clipboard.is_some()
-    }
-
-    /// The text that the interface's clipboard holds, for a program that copies and pastes without
-    /// a field, as an editor copies what is selected
-    /// (`docs/adr/0162-creating-copying-and-arranging.md`); none without a clipboard, or when it
-    /// holds no text.
-    pub fn clipboard_text(&mut self) -> Option<String> {
-        self.clipboard.as_mut()?.text()
-    }
-
-    /// Puts `text` on the interface's clipboard, in place of what it held; nothing without one.
-    pub fn set_clipboard_text(&mut self, text: &str) {
-        if let Some(clipboard) = &mut self.clipboard {
-            clipboard.set_text(text);
-        }
-    }
-
     /// The text that the field `id` holds now, as the user left it, the text that an input
     /// method composes included; none for an element that is no field.
     pub fn field_text(&self, id: ElementId) -> Option<&str> {
@@ -466,6 +437,7 @@ impl Ui {
     /// [`ElementAction::SetValue`](super::ElementAction::SetValue) when a person's rules apply.
     /// The focus stays where it is.
     pub fn select_text(&mut self, id: ElementId, anchor: usize, focus: usize) -> bool {
+        self.leave_composition(id);
         self.edit_field(id, |field, layout| {
             let start = |byte: usize| {
                 let mut byte = byte.min(field.text.len());
@@ -588,6 +560,45 @@ impl Ui {
         true
     }
 
+    /// What [`Input::DeleteAround`](crate::host::Input::DeleteAround) does; gives whether a field
+    /// held the focus, which took it.
+    pub(super) fn delete_around(&mut self, before: usize, after: usize, unit: TextUnit) -> bool {
+        let Some(focus) = self.focused_field() else {
+            return false;
+        };
+        self.edit_text(focus, |field, _| {
+            // As winit asks it: what the input method composes taken out, the text around deleted,
+            // what it composes put back, so that an undo gives back the text without it.
+            let composed = field.compose.clone().map(|range| {
+                let (_, caret) = field.ends();
+                (field.text[range.clone()].to_owned(), caret - range.start)
+            });
+            field.uncompose();
+            let (anchor, caret) = field.ends();
+            let kept = field.selected();
+            let from =
+                kept.start - whole_characters(field.text[..kept.start].chars().rev(), before, unit);
+            let to = kept.end + whole_characters(field.text[kept.end..].chars(), after, unit);
+            let deleted = from != kept.start || to != kept.end;
+            if deleted {
+                field.remember(true);
+                field.text.replace_range(kept.end..to, "");
+                field.text.replace_range(from..kept.start, "");
+                field.edited = true;
+            }
+            let shift = kept.start - from;
+            field.pending = Some((anchor - shift, caret - shift));
+            if let Some((text, caret)) = composed {
+                let start = kept.start - shift;
+                field.text.insert_str(start, &text);
+                field.compose = Some(start..start + text.len());
+                field.pending = Some((start + caret, start + caret));
+            }
+            deleted
+        });
+        true
+    }
+
     /// Commits the field `id`, as Enter, the focus leaving, the release of a drag or an agent's
     /// `Accept` does: the text that an input method composes goes, and what the field holds
     /// reaches the queue as [`ActionKind::Committed`] if the user changed it since it took the
@@ -683,24 +694,6 @@ impl Ui {
             _ => String::new(),
         };
         if primary {
-            let clipboard = |ui: &mut Self, cut: bool| {
-                let selected = ui
-                    .node(id)
-                    .and_then(|node| node.field.as_ref())
-                    .map(|field| field.text[field.selected()].to_owned())
-                    .unwrap_or_default();
-                // Without a clipboard, a cut deletes nothing that it could not give back.
-                let Some(clipboard) = ui.clipboard.as_mut() else {
-                    return;
-                };
-                if selected.is_empty() {
-                    return;
-                }
-                clipboard.set_text(&selected);
-                if cut {
-                    ui.edit_text(id, |field, _| field.delete(0..0));
-                }
-            };
             match letter.as_str() {
                 "a" => {
                     self.edit_field(id, |field, layout| {
@@ -716,25 +709,8 @@ impl Ui {
                     });
                     return true;
                 }
-                "c" => {
-                    clipboard(self, false);
-                    return true;
-                }
-                "x" => {
-                    clipboard(self, true);
-                    return true;
-                }
-                "v" => {
-                    let pasted = self
-                        .clipboard
-                        .as_mut()
-                        .and_then(|clipboard| clipboard.text());
-                    if let Some(mut text) = pasted {
-                        if !multiline {
-                            text = text.replace(['\r', '\n'], " ");
-                        }
-                        self.edit_text(id, |field, _| field.insert(&text, false));
-                    }
+                "c" | "x" | "v" => {
+                    self.clipboard_key(id, &letter);
                     return true;
                 }
                 // Redo is Shift and Z, or Y, as Primary gives them (ADR-0145).
@@ -953,6 +929,7 @@ impl Ui {
     /// Places the caret of the field `id` at `x` and `y`, in pixels of the surface, or extends its
     /// selection there.
     fn place_caret(&mut self, id: ElementId, x: f32, y: f32, extend: bool) {
+        self.leave_composition(id);
         let Some(origin) = self.field_origin(id) else {
             return;
         };
@@ -999,6 +976,43 @@ impl Ui {
         if self.edit_field(id, edit) == Some(true) {
             self.changed(id);
         }
+    }
+
+    /// Ends what an input method composes in the field `id`, before the selection moves out of
+    /// it, or a text comes in that the method did not compose: kept as typed, its input ends, the
+    /// host told that it starts again ([`Ui::outputs`]), as a press on a platform's own field ends
+    /// it.
+    pub(super) fn leave_composition(&mut self, id: ElementId) {
+        if self.end_composition(id) {
+            self.told.field_left();
+        }
+    }
+
+    /// Keeps what an input method composes in the field `id` as typed text, the caret after it,
+    /// as a commit of it would; gives whether it composed.
+    fn end_composition(&mut self, id: ElementId) -> bool {
+        let composed = self
+            .node(id)
+            .and_then(|node| node.field.as_ref())
+            .and_then(|field| field.compose.clone());
+        let Some(range) = composed else {
+            return false;
+        };
+        let Some(text) = self.field_text(id).map(|text| text[range].to_owned()) else {
+            return false;
+        };
+        self.edit_text(id, |field, _| field.insert(&text, true));
+        true
+    }
+
+    /// Deletes what the field `id` selects, as a cut does: one edit.
+    pub(super) fn delete_selection(&mut self, id: ElementId) {
+        self.edit_text(id, |field, _| field.delete(0..0));
+    }
+
+    /// Puts `text` in the field `id` in place of its selection, as a paste does: one edit.
+    pub(super) fn insert_pasted(&mut self, id: ElementId, text: &str) {
+        self.edit_text(id, |field, _| field.insert(text, false));
     }
 
     /// Queues what the field `id` holds as [`ActionKind::Changed`], unless it reads as nothing.
@@ -1599,4 +1613,19 @@ fn text_end(selection: &Selection, layout: &Layout<()>, extend: bool) -> Selecti
     } else {
         end.into()
     }
+}
+
+/// How many bytes the characters of `characters` take, taken in their order while their units,
+/// counted in `unit`, stay within `count`: never half a character.
+fn whole_characters(characters: impl Iterator<Item = char>, count: usize, unit: TextUnit) -> usize {
+    let mut counted = 0;
+    let mut bytes = 0;
+    for character in characters {
+        counted += unit.of(character);
+        if counted > count {
+            break;
+        }
+        bytes += character.len_utf8();
+    }
+    bytes
 }

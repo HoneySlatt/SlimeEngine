@@ -85,6 +85,16 @@ pub enum ActionKind {
         /// Where in the target, from its top, 0, to its bottom, 1.
         at: f32,
     },
+    /// The clipboard's text that the program asked for
+    /// ([`Ui::read_clipboard`](crate::tree::Ui::read_clipboard)), as its host answered it; none
+    /// when the clipboard held no text, could not be read, the host has none, or the read was
+    /// dropped, past the reads that wait at most. No element.
+    ClipboardText {
+        /// The read that it answers, as `Ui::read_clipboard` gave it.
+        read: crate::host::ReadId,
+        /// The clipboard's text.
+        text: Option<String>,
+    },
 }
 
 /// What the pointer did on a surface ([`ActionKind::Surface`]), where it was in logical pixels from

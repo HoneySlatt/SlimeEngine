@@ -7,10 +7,15 @@
 //!
 //! - *events*, given one at a time by [`Ui::event`](crate::tree::Ui::event), each with its target
 //!   and its time, each answered at once ([`Answer`]);
-//! - *questions* that the host asks and that uwui answers from its live state, which come with the
-//!   clipboard and input methods' questions;
-//! - *outputs*, which the host reads for each target after each frame, only what changed since it
-//!   last read them ([`Ui::outputs`](crate::tree::Ui::outputs));
+//! - *questions* that the host asks and that uwui answers from its live state, the edits of the
+//!   same step included, as an input method asks them in the middle of a keystroke
+//!   ([`Ui::text_around`](crate::tree::Ui::text_around),
+//!   [`Ui::range_box`](crate::tree::Ui::range_box),
+//!   [`Ui::character_at`](crate::tree::Ui::character_at), [`Ui::covers`](crate::tree::Ui::covers));
+//! - *outputs*, which the host reads for each target after each frame and after each event that
+//!   the interface took, inside the platform's handler of that event, only what changed since it
+//!   last read them ([`Ui::outputs`](crate::tree::Ui::outputs)): the web lets a page write the
+//!   clipboard only during the gesture's own event;
 //! - the *waker*, which any thread calls to ask the host for a step
 //!   ([`Ui::set_waker`](crate::tree::Ui::set_waker)).
 //!
@@ -21,6 +26,15 @@
 //!
 //! Positions are in the target's physical pixels, from its top left corner, as the platform's
 //! pointer gives them; a host whose platform counts in logical pixels multiplies by the scale.
+//! Places in a field's text are counted in the unit that the host names ([`TextUnit`]): uwui holds
+//! text in UTF-8 and converts.
+//!
+//! The clipboard is the host's. uwui asks it to write a text and to read one through the outputs,
+//! and takes each read's answer as an event, [`Input::ClipboardText`], so that a host whose
+//! platform reads it later, the web's or Wayland's, serves it as well as one that reads it at
+//! once.
+
+use std::ops::Range;
 
 use slime_input::{ButtonState, CursorShape, Ime, KeyEvent, Modifiers, MouseButton, ScrollDelta};
 
@@ -134,6 +148,170 @@ pub enum Input<'a> {
     /// deletes as it starts, and takes what it commits as typed text. Taken when a field holds the
     /// focus.
     InputMethod(&'a Ime),
+    /// The input method deletes text around the caret: `before` units before the selection, or
+    /// before the composition while it composes, and `after` units after it, counted in `unit`.
+    /// The selection and the composition stay; a count past the text's end stops there, and one
+    /// that ends inside a character deletes up to that character alone, never half of it. One
+    /// edit, which typing joins in one undo. Taken when a field holds the focus.
+    DeleteAround {
+        /// How many units before.
+        before: usize,
+        /// How many units after.
+        after: usize,
+        /// The unit counted.
+        unit: TextUnit,
+    },
+    /// The platform's own copy: the web's `copy` event, the Edit menu's of macOS, UIKit's
+    /// `copy(_:)`, Android's menu of the selection. Taken when a field holds the focus, which
+    /// writes what it selects, if anything, to the outputs' [`Outputs::clipboard_write`], which
+    /// the host reads before its handler ends: the web writes the clipboard during the gesture
+    /// alone, and only when the page prevents the event's own copy.
+    Copy,
+    /// The platform's own cut: a [`Input::Copy`] whose field then deletes what it selected, one
+    /// edit.
+    Cut,
+    /// The platform's own paste, carrying the clipboard's text: the web's `paste` event, the Edit
+    /// menu's of macOS, UIKit's `paste(_:)`. Taken when a field holds the focus, which takes the
+    /// text in place of its selection, a field of one line a line break as a space. While an
+    /// input method composes, what it composed is kept as typed, its input ends, the host told
+    /// [`InputMethod::On`] again, and the text is pasted after it.
+    Paste(&'a str),
+    /// The host's answer to a read of the clipboard that uwui asked ([`Outputs::clipboard_reads`]):
+    /// its text, or none when the clipboard holds no text, cannot be read, the person refused, or
+    /// the host has no clipboard. Taken when uwui awaits that read, which it then awaits no more;
+    /// an answer to a read not awaited, given twice or dropped, is not taken and changes nothing.
+    /// A field's read is pasted as [`Input::Paste`] is, if the field holds the focus and did not
+    /// lose it since it asked; a program's read gives the program
+    /// [`ActionKind::ClipboardText`](crate::action::ActionKind::ClipboardText).
+    ClipboardText {
+        /// The read that it answers.
+        read: ReadId,
+        /// The clipboard's text.
+        text: Option<&'a str>,
+    },
+}
+
+/// The unit in which a host counts text, as its platform does. uwui counts in UTF-8 bytes and
+/// converts at the boundary, which counts from the text's start (`docs/measurements.md`,
+/// M6d.5c2).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TextUnit {
+    /// Bytes of UTF-8, as Wayland's text input and winit count.
+    #[default]
+    Utf8,
+    /// Code units of UTF-16, as Android, Apple's systems, Windows and the web count.
+    Utf16,
+    /// Characters, Unicode's code points, as Android's deletions in code points count.
+    CodePoint,
+}
+
+impl TextUnit {
+    /// How many units `character` takes.
+    pub(crate) fn of(self, character: char) -> usize {
+        match self {
+            Self::Utf8 => character.len_utf8(),
+            Self::Utf16 => character.len_utf16(),
+            Self::CodePoint => 1,
+        }
+    }
+
+    /// How many units `text` takes.
+    pub(crate) fn count(self, text: &str) -> usize {
+        // A byte that starts a character counts one; one that starts a character of four bytes,
+        // which UTF-16 writes in two units, one more. No decoding.
+        let starts = |byte: &u8| byte & 0xC0 != 0x80;
+        match self {
+            Self::Utf8 => text.len(),
+            Self::Utf16 => text
+                .bytes()
+                .map(|byte| usize::from(starts(&byte)) + usize::from(byte >= 0xF0))
+                .sum(),
+            Self::CodePoint => text.bytes().filter(starts).count(),
+        }
+    }
+
+    /// The byte of `text` that `at` units from its start reach: the start of the character that
+    /// they end inside, or its end when `up`; the text's end past it.
+    pub(crate) fn byte(self, text: &str, at: usize, up: bool) -> usize {
+        if self == Self::Utf8 {
+            let mut byte = at.min(text.len());
+            while !text.is_char_boundary(byte) {
+                if up {
+                    byte += 1;
+                } else {
+                    byte -= 1;
+                }
+            }
+            return byte;
+        }
+        let mut counted = 0;
+        for (start, character) in text.char_indices() {
+            if counted >= at {
+                return start;
+            }
+            counted += self.of(character);
+            if counted > at {
+                return if up {
+                    start + character.len_utf8()
+                } else {
+                    start
+                };
+            }
+        }
+        text.len()
+    }
+}
+
+/// A read of the clipboard that uwui asked its host for ([`Outputs::clipboard_reads`]), named so
+/// that its answer finds it ([`Input::ClipboardText`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ReadId(pub(crate) u64);
+
+/// What the host asks of the text around the caret ([`Ui::text_around`](crate::tree::Ui::text_around)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TextQuery {
+    /// How many units before the selection, and the composition when the query counts it, at most.
+    pub before: usize,
+    /// How many units after the selection, and the composition when the query counts it, at most.
+    pub after: usize,
+    /// The unit counted, of the counts and of the answer's places.
+    pub unit: TextUnit,
+    /// Whether the text that an input method composes is part of the text, as Android and macOS
+    /// count it; Wayland's and winit's surrounding text leave it out.
+    pub composition: bool,
+}
+
+/// The text around the caret of the field that holds the focus
+/// ([`Ui::text_around`](crate::tree::Ui::text_around)): an excerpt, where it starts in the field's
+/// whole text, and the selection and the composition within the excerpt, as Wayland and Android
+/// count them; each place in the query's unit.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TextAround {
+    /// The text before the selection, up to the count asked, never cutting a character; the
+    /// selection and the composition that the query counts, whole, which the host cuts where its
+    /// platform bounds the whole, as Wayland's 4,000 bytes do; then the text after them, up to the
+    /// count asked.
+    pub text: String,
+    /// Where `text` starts in the field's whole text.
+    pub start: usize,
+    /// The selection's side that stays as it grows, in `text`; for a caret, the caret.
+    pub anchor: usize,
+    /// The selection's side that moves, in `text`; for a caret, the caret.
+    pub focus: usize,
+    /// The text that the input method composes, in `text`, while it composes and the query counts
+    /// it.
+    pub composition: Option<Range<usize>>,
+}
+
+/// The box of the first line of a range of a field's text
+/// ([`Ui::range_box`](crate::tree::Ui::range_box)).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RangeBox {
+    /// The box, in the target's physical pixels; a caret's, one pixel wide, for an empty range.
+    pub rect: Rect,
+    /// Where the part of the range that the box holds ends, in the unit asked: the range's end
+    /// when it lies on one line, else the end of its first line, from which the host asks again.
+    pub end: usize,
 }
 
 /// What an event answers at once, inside the platform's handler.
@@ -145,12 +323,17 @@ pub enum Answer {
     NotTaken,
     /// The interface took it: the program, a game, leaves it.
     Taken,
+    /// The interface took it, and leaves the platform its own handling, which the host does not
+    /// prevent: a key of copy, cut or paste in a field, where the platform fires its own events
+    /// for them ([`Ui::set_clipboard_events`](crate::tree::Ui::set_clipboard_events)), which the
+    /// host then gives as [`Input::Copy`], [`Input::Cut`] and [`Input::Paste`].
+    TakenLeftToPlatform,
 }
 
 impl Answer {
-    /// Whether the interface took the event.
+    /// Whether the interface took the event, left to the platform or not.
     pub const fn taken(self) -> bool {
-        matches!(self, Self::Taken)
+        matches!(self, Self::Taken | Self::TakenLeftToPlatform)
     }
 
     /// [`Answer::Taken`] when `taken`, else [`Answer::NotTaken`].
@@ -172,6 +355,14 @@ pub struct Outputs {
     /// window, in the target's physical pixels, as the field was last laid out: told with each
     /// [`InputMethod::On`], and when it moves.
     pub input_area: Option<Rect>,
+    /// The text to put on the clipboard, the last written since the host read: a field's copy or
+    /// cut, by its keys or the platform's [`Input::Copy`] and [`Input::Cut`], or the program's
+    /// ([`Ui::write_clipboard`](crate::tree::Ui::write_clipboard)). The host writes it before it
+    /// answers the reads beside it, so that a read asked after a write reads what it wrote.
+    pub clipboard_write: Option<String>,
+    /// The reads of the clipboard asked since the host read, oldest first: each answered once, by
+    /// [`Input::ClipboardText`].
+    pub clipboard_reads: Vec<ReadId>,
 }
 
 /// Whether the target takes text through an input method.
@@ -210,4 +401,8 @@ pub trait Person {
     fn key(&mut self, key: &KeyEvent) -> bool;
     /// An input method turned on or off, composed or committed ([`Input::InputMethod`]).
     fn ime(&mut self, ime: &Ime) -> bool;
+    /// Serves the clipboard as a host would, from `board`, a test's clipboard: reads the main
+    /// target's outputs, puts on `board` the text written, then answers each read with what
+    /// `board` holds. Gives the outputs that it read, which the interface tells only once.
+    fn serve_clipboard(&mut self, board: &mut Option<String>) -> Outputs;
 }

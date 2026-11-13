@@ -41,7 +41,7 @@ mod threads {
         send_and_sync::<Event>();
         send_and_sync::<Input>();
         send_and_sync::<PlatformError>();
-        // The clipboard goes with the interface it serves, which a presentation may move.
+        // The clipboard goes with the run that serves the interface's outputs.
         send::<Clipboard>();
     }
 }

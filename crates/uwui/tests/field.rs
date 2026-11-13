@@ -1,12 +1,11 @@
-//! Fields of text and of numbers, without a GPU, with an input method and a clipboard simulated
-//! (`docs/adr/0145-text-edited.md`): text typed, moved through by clusters and words, in text of
-//! both directions, selected by the keys and the pointer, undone, copied and pasted, composed;
+//! Fields of text and of numbers, without a GPU, with an input method and a host's clipboard
+//! simulated (`docs/adr/0145-text-edited.md`): text typed, moved through by clusters and words, in
+//! text of both directions, selected by the keys and the pointer, undone, copied and pasted,
+//! composed;
 //! what the program reads of it, changed and committed; a field of numbers typed and dragged, which
 //! writes nothing that the user did not change, and one of single precision; the program's text,
 //! which replaces the user's only when it changes; the keys and presses that a field takes; the
 //! pointer's shapes.
-
-use std::sync::{Arc, Mutex};
 
 use slime_input::{
     ButtonState, CursorShape, Ime, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey,
@@ -17,7 +16,7 @@ use uwui::host::{InputMethod, Person, TargetId};
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::style::{Dimension, StyleBuilder};
 use uwui::text::Fonts;
-use uwui::tree::{Clipboard, Element, ElementId, LayoutDirection, RootSettings, Ui};
+use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
 
 /// An interface whose fonts are the tests' Noto Sans and Noto Sans Hebrew, following Linux's ways
 /// with keys, Ctrl the modifier of shortcuts, whatever the platform the tests run on.
@@ -145,20 +144,6 @@ fn shown(value: &FieldValue) -> String {
     }
 }
 
-/// A clipboard that a test reads.
-#[derive(Clone, Default)]
-struct Board(Arc<Mutex<Option<String>>>);
-
-impl Clipboard for Board {
-    fn text(&mut self) -> Option<String> {
-        self.0.lock().expect("not poisoned").clone()
-    }
-
-    fn set_text(&mut self, text: &str) {
-        *self.0.lock().expect("not poisoned") = Some(text.to_owned());
-    }
-}
-
 #[test]
 fn text_typed_is_moved_through_by_clusters_and_words_and_committed_once_changed() {
     let (mut ui, _, field, _) = interface(Element::text_field("").style(style));
@@ -215,29 +200,50 @@ fn typing_is_undone_whole_and_done_again() {
 }
 
 #[test]
-fn text_is_copied_cut_and_pasted_through_the_clipboard() {
+fn text_is_copied_cut_and_pasted_through_the_hosts_clipboard() {
     let (mut ui, _, field, _) = interface(Element::text_field("copy me").style(style));
-    let board = Board::default();
-    ui.set_clipboard(Box::new(board.clone()));
-    assert!(ui.has_clipboard());
+    // The host's clipboard, which it serves after each key, as a host serves it after each event
+    // that the interface takes.
+    let mut board = None;
     ui.set_focus(Some(field));
-    chord(&mut ui, control(), &typed("a"));
-    chord(&mut ui, control(), &typed("c"));
-    assert_eq!(board.0.lock().unwrap().as_deref(), Some("copy me"));
-    chord(&mut ui, control(), &typed("x"));
+    let key = |ui: &mut Ui, board: &mut Option<String>, letter: &str| {
+        chord(ui, control(), &typed(letter));
+        let _ = ui.serve_clipboard(board);
+    };
+    key(&mut ui, &mut board, "a");
+    key(&mut ui, &mut board, "c");
+    assert_eq!(board.as_deref(), Some("copy me"));
+    key(&mut ui, &mut board, "x");
     assert_eq!(ui.field_text(field), Some(""));
-    chord(&mut ui, control(), &typed("v"));
-    chord(&mut ui, control(), &typed("v"));
+    key(&mut ui, &mut board, "v");
+    key(&mut ui, &mut board, "v");
     assert_eq!(ui.field_text(field), Some("copy mecopy me"));
     // A field of one line takes a line break as a space.
-    board.clone().set_text("one\ntwo");
-    chord(&mut ui, control(), &typed("a"));
-    chord(&mut ui, control(), &typed("v"));
+    board = Some("one\ntwo".to_owned());
+    key(&mut ui, &mut board, "a");
+    key(&mut ui, &mut board, "v");
     assert_eq!(ui.field_text(field), Some("one two"));
-    // The program reads and writes the same clipboard.
-    assert_eq!(ui.clipboard_text().as_deref(), Some("one\ntwo"));
-    ui.set_clipboard_text("from the program");
-    assert_eq!(board.0.lock().unwrap().as_deref(), Some("from the program"));
+    // The program writes it, and reads it through an action.
+    ui.write_clipboard("from the program");
+    let asked = ui.read_clipboard();
+    ui.take_actions();
+    let _ = ui.serve_clipboard(&mut board);
+    assert_eq!(board.as_deref(), Some("from the program"));
+    let read: Vec<_> = ui
+        .take_actions()
+        .into_iter()
+        .map(|action| (action.element, action.kind))
+        .collect();
+    assert_eq!(
+        read,
+        [(
+            None,
+            ActionKind::ClipboardText {
+                read: asked,
+                text: Some("from the program".to_owned())
+            }
+        )]
+    );
 }
 
 #[test]
@@ -485,8 +491,7 @@ fn an_edit_that_changes_nothing_tells_nothing() {
     ui.key(&named(NamedKey::Backspace));
     chord(&mut ui, control(), &typed("z"));
     chord(&mut ui, control(), &typed("y"));
-    // Without a clipboard, a cut keeps the selection, which it could not give back.
-    chord(&mut ui, control(), &typed("a"));
+    // A cut of nothing selected deletes nothing.
     chord(&mut ui, control(), &typed("x"));
     assert_eq!(ui.field_text(field), Some("text"));
     assert!(values(&mut ui).is_empty());
@@ -585,8 +590,7 @@ fn held(shift: bool, control: bool, alt: bool, command: bool) -> Modifiers {
 fn on_macos_a_field_copies_and_undoes_with_command_moves_by_words_with_option_and_option_types() {
     let (mut ui, _, field, _) = interface(Element::text_field("hello big world").style(style));
     ui.set_platform(Platform::Mac);
-    let board = Board::default();
-    ui.set_clipboard(Box::new(board.clone()));
+    let mut board = None;
     ui.set_focus(Some(field));
     let command = held(false, false, false, true);
     let option = held(false, false, true, false);
@@ -594,11 +598,13 @@ fn on_macos_a_field_copies_and_undoes_with_command_moves_by_words_with_option_an
     // selects nothing, and types nothing.
     chord(&mut ui, control(), &typed("a"));
     chord(&mut ui, control(), &typed("c"));
-    assert_eq!(*board.0.lock().unwrap(), None);
+    let _ = ui.serve_clipboard(&mut board);
+    assert_eq!(board, None);
     assert_eq!(ui.field_text(field), Some("hello big world"));
     chord(&mut ui, command, &typed("a"));
     chord(&mut ui, command, &typed("c"));
-    assert_eq!(board.0.lock().unwrap().as_deref(), Some("hello big world"));
+    let _ = ui.serve_clipboard(&mut board);
+    assert_eq!(board.as_deref(), Some("hello big world"));
     // ⌘ and the left arrow, the line's start; ⌘ and the right arrow, its end; Option and the left
     // arrow, a word back.
     chord(&mut ui, command, &named(NamedKey::ArrowLeft));
@@ -615,11 +621,9 @@ fn on_macos_a_field_copies_and_undoes_with_command_moves_by_words_with_option_an
         &named(NamedKey::ArrowDown),
     );
     chord(&mut ui, command, &typed("x"));
+    let _ = ui.serve_clipboard(&mut board);
     assert_eq!(ui.field_text(field), Some(""));
-    assert_eq!(
-        board.0.lock().unwrap().as_deref(),
-        Some("Xhello big Yworld")
-    );
+    assert_eq!(board.as_deref(), Some("Xhello big Yworld"));
     // Option and Delete, the word before the caret deleted.
     type_text(&mut ui, "one two");
     chord(&mut ui, option, &named(NamedKey::Backspace));

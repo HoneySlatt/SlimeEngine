@@ -27,6 +27,7 @@ use crate::time::{FrameShown, Instant, RootClock};
 #[cfg(test)]
 mod cascade_tests;
 mod choice;
+mod clipboard;
 mod clock;
 mod color;
 mod control;
@@ -41,6 +42,7 @@ mod motion;
 mod notify;
 mod palette;
 mod panel;
+mod questions;
 #[cfg(all(test, feature = "editor-look"))]
 mod reads_tests;
 #[cfg(all(test, feature = "editor-look"))]
@@ -48,7 +50,6 @@ mod roles_tests;
 mod scroll_bar;
 mod tooltip;
 
-pub use field::Clipboard;
 pub use interact::Dragging;
 use interact::Interaction;
 pub use layer::{Along, Layer, Place, Side};
@@ -1269,8 +1270,8 @@ pub struct Ui {
     rules: Vec<Rule>,
     /// What a person's input reached, and the actions that wait for the program.
     interaction: Interaction,
-    /// The system's clipboard, which its fields copy to and paste from.
-    clipboard: Option<Box<dyn Clipboard>>,
+    /// The clipboard as the host serves it: what waits to be written, the reads awaited.
+    clipboard: clipboard::Clipboard,
     /// The tokens that the interface declared, the core's roles first
     /// (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`).
     declared: Vec<Erased>,
@@ -1355,7 +1356,7 @@ impl Ui {
             scrolled: Vec::new(),
             restyled: Vec::new(),
             interaction: Interaction::default(),
-            clipboard: None,
+            clipboard: clipboard::Clipboard::default(),
             rules: Vec::new(),
             declared: theme::ROLES.each().collect(),
             tokens: TokenValues::fallbacks(&theme::ROLES.each().collect::<Vec<_>>()),
