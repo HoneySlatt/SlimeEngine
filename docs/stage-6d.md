@@ -151,8 +151,10 @@ in git.
   start, on 2026-11-12
   ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): done,
   [M6d.5a](#m6d5a--the-apis-adr-and-its-table), the API's ADR and its table, on 2026-11-13
-  ([ADR-0249](adr/0249-the-hosts-api-its-items-and-their-table.md)); then
-  [M6d.5b](#m6d5b--the-times), [M6d.5c](#m6d5c--input-and-output-in-uwui),
+  ([ADR-0249](adr/0249-the-hosts-api-its-items-and-their-table.md)), and
+  [M6d.5b](#m6d5b--the-times), the times, on 2026-11-13
+  ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)); then
+  [M6d.5c](#m6d5c--input-and-output-in-uwui),
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui) and
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
@@ -1847,6 +1849,27 @@ of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
 - **How to test.** uwui's tests of motion and timers on times that the test gives;
   `cargo test --workspace`.
 - **Measured.** The editor's and the game's rest.
+- **Result.** Done on 2026-11-13, CI green
+  ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md), its three questions decided by the
+  owner):
+  - `uwui::time`: `Instant` and `RootTime` in whole nanoseconds, which cannot be mixed; each
+    frame's time and source (`Ui::set_frame_shown`, `FrameShown`), each event's
+    (`Ui::set_event_time`), never back; `Ui::advance` gone.
+  - Each root's clock and speed (`Ui::set_root_clock`): what answers a person on the host's
+    clock, the rest on its root's, which a paused game holds without drawing or laying out; a
+    layer on the clock of the root that it opens over, the owner's choice; a first clock or a
+    clock gone back keeping each transition's place.
+  - `Ui::next_frame_due` in place of `Ui::next_change`; the host's waker (`Ui::set_waker`). The
+    next wake and a wake that draws nothing wait for uwui's executor, the owner's choice; one
+    frame's time serves every root until M6d.5c's targets.
+  - `slime-app`'s host clock, `CLOCK_BOOTTIME` through rustix and the performance counter through
+    windows-sys, the owner's choice, and the time suspended logged; each frame's start and each
+    event's reception given to uwui; the loop's own waits still end late after a suspend
+    ([`debt.md`](debt.md)).
+  - A pause menu as a root of its own, in [`uwui-needs.md`](uwui-needs.md#slimeengines-own).
+  - Rest unchanged: the editor's and the game's checks of rest pass, no thread waking in 10 s;
+    the frame of a change of look allocates 200 kB more, as many times
+    ([`measurements.md`](measurements.md#m6d5b-the-times)).
 
 ### M6d.5c — Input and output in uwui
 

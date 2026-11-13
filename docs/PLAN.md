@@ -42,8 +42,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
     the host's API, cut in five on 2026-11-12
     ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): done,
     [M6d.5a](stage-6d.md#m6d5a--the-apis-adr-and-its-table), the API decided item by item
-    ([ADR-0249](adr/0249-the-hosts-api-its-items-and-their-table.md)); in progress,
-    [M6d.5b](#m6d5b--the-times), the times.
+    ([ADR-0249](adr/0249-the-hosts-api-its-items-and-their-table.md)), and
+    [M6d.5b](stage-6d.md#m6d5b--the-times), the times
+    ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)); M6d.5c may start.
   - M6d.5's parts run beside track A in ADR-0248's order; ADR-0249 fixed the three seams on
     2026-11-13: one waker, meaning followed by each reader, an element's capture; M6d.9a1b3
     follows M6d.5c.
@@ -66,7 +67,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.4b1b — The canvas on wgpu](stage-6d.md#m6d4b1b--the-canvas-on-wgpu) | Done |
 | [M6d.4b2 — The canvas's layout chosen](stage-6d.md#m6d4b2--the-canvass-layout-chosen) | Done |
 | [M6d.5a — The API's ADR and its table](stage-6d.md#m6d5a--the-apis-adr-and-its-table) | Done |
-| [M6d.5b — The times](#m6d5b--the-times) | In progress |
+| [M6d.5b — The times](stage-6d.md#m6d5b--the-times) | Done |
 | [M6d.5c to M6d.5e — The rest of M6d.5](stage-6d.md#m6d5c--input-and-output-in-uwui) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
@@ -103,22 +104,6 @@ under [the stage's rules](stage-6d.md#stage-6d--uwui-leaves-the-engine).
   within the bounds; every MCP session test passes; CI is green.
 - **Measured.** At rest, with the owner's go: an answer of the channel, against 42.8 µs; input to
   present with an agent at the bounds, setting the budget.
-
-## M6d.5b — The times
-
-Started on 2026-11-13, the second of M6d.5's five parts
-([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)), track B; its whole
-card in [`stage-6d.md`](stage-6d.md#m6d5b--the-times).
-
-- **Goal.** uwui reads the host's times as ADR-0227 decides, and the engine gives what it can.
-- **Crates.** `uwui`, `slime-app` (`windowed.rs`, `time.rs`, `wake.rs`).
-- **Delivers.** `Instant` and `RootTime`; each frame's time and source; each root's clock; each
-  event's time; the next frame due; the host's waker; the host's clock counting a suspend; a
-  pause menu as a root of its own, documented. The wake waits for the executor
-  ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)).
-- **Done when.** uwui's motion and timers read the host's times alone; the editor's and the
-  game's rest are unchanged; CI is green.
-- **Measured.** The editor's and the game's rest.
 
 ## Ideas waiting for their milestone
 

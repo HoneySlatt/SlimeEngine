@@ -3438,3 +3438,39 @@ theirs changed. Against M6d.9a1a's run above, `check (headless)` took 2 min 40 s
 `check (lint)` 2 min 46 s more, while `check (game)`, `windows (tests)`, `windows (game)` and
 `windows-release` took 3 to 6 min less: the runners vary, and uwui's one `cfg` explains neither.
 `check (headless)` keeps 2 min 48 s of margin.
+
+## M6d.5b, the times
+
+The rest, on 2026-11-13, by the checks that the quality bar names, in `scripts/check.sh` on an AMD
+Ryzen 7 5800X with lavapipe in a headless Weston, the machine not at rest (the other track
+building): the editor at rest with a panel floating, then Hunna Wood paused and minimized, none of
+their threads waking in 10 s, as before the milestone. No series ran on the RX 6900 XT, by the
+owner's choice: the milestone changes the times given, no frame nor wake at rest.
+
+The counters: the frame of a change of the editor's look (`ui.tree.look`) allocates as many times
+as before and 24,688,729 bytes against 24,488,489, 0.8 % more: each transition's start names the
+clock that it follows.
+
+How long CI's jobs took on `ab9496e`, the commit that gave uwui the host's times, on 2026-11-13:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 13 s |
+| `check (headless)` | 12 min 14 s |
+| `check (windowed)` | 10 min 16 s |
+| `check (game)` | 11 min 51 s |
+| `check (gles)` | 4 min 17 s |
+| `windows (tests)` | 11 min 4 s |
+| `windows (render)` | 7 min 0 s |
+| `windows (game)` | 7 min 50 s |
+| `windows-release` | 16 min 46 s |
+| `compositors (weston)` | 11 min 39 s |
+| `compositors (sway)` | 11 min 47 s |
+| `compositors (kwin)` | 14 min 28 s |
+| `compositors (mutter)` | 15 min 0 s |
+| `compositors (x11)` | 14 min 44 s |
+| Docs' `links` | 20 s |
+
+Every job stays within its limit of 20 minutes. `windows-release` is the longest, with 3 min 14 s
+of margin, 4 min 9 s more than at M6d.5a's run above; `check (headless)` took 4 min 58 s less. The
+runners vary; the milestone adds no job and one test file of uwui.
