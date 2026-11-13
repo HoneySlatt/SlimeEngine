@@ -1918,19 +1918,6 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
 - **Done when.** The engine's input reaches uwui through the events; uwui's, the editor's and the
   dev overlay's tests of input pass; CI is green.
 - **Measured.** A pointer's move over the editor's hierarchy, timed and counted.
-
-## M6d.9a1b2 — Events
-
-Started on 2026-11-13 ([ADR-0254](adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).
-
-- **Goal.** A program sends a connection the changes it subscribed to.
-- **Crates.** `uwui-agent`, `slime-channel`, `slime-app`, `slime-editor`.
-- **Delivers.** `subscribe` and `unsubscribe`, the events listed in the welcome; a cell for each
-  subscription; `play/time`, published at the frame's end; Play on one queue, without polling.
-- **Done when.** Play reads the played game's time by events; a tool that stops reading keeps the
-  game's memory flat; CI is green.
-- **Measured.** An event to the tool, median and slowest of 21, alone and behind a capture; the
-  channel's answer; no wake at rest with a subscription.
 - **Result.** Done on 2026-11-13, CI green
   ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md), its four questions decided by the owner):
   - `uwui::host`: one entry, `Ui::event`, each event with its target, its time and its source,
