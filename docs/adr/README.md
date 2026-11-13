@@ -232,7 +232,7 @@ the ADR linking to it.
 | [0161](0161-the-open-step-and-the-handles.md) | The open step and the handles | Accepted; amended by 0250 |
 | [0162](0162-creating-copying-and-arranging.md) | Creating, copying and arranging | Accepted |
 | [0163](0163-placing-prefabs-and-the-history-panel.md) | Placing prefabs and the history panel | Accepted |
-| [0164](0164-play.md) | Play | Accepted |
+| [0164](0164-play.md) | Play | Accepted; amended by 0254 |
 | [0165](0165-editing-while-playing.md) | Editing while playing | Accepted |
 | [0166](0166-building-the-game-again.md) | Building the game again | Accepted |
 | [0167](0167-the-hierarchy.md) | The hierarchy | Accepted; amends 0108 |
@@ -318,7 +318,8 @@ the ADR linking to it.
 | [0247](0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md) | The canvas tested on OpenGL ES through a feature of `uwui-render` alone | Accepted; amends 0016 and 0243 |
 | [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) | The host's API cut in five: built where it is read, three channels and a waker, AccessKit's translation in a crate of its own | Accepted; amends 0181, 0226, 0227 and 0246; amended by 0249 and 0253 |
 | [0249](0249-the-hosts-api-its-items-and-their-table.md) | The host's API: its items in three channels, and how each maps on five platforms | Accepted; amends 0248; amended by 0251 and 0253 |
-| [0250](0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md) | Requests in flight answered in any order, cancelled with an answer, bounded in the core; events by subscription; M6d.9a1b cut in three | Accepted; amends 0122 and 0161; amended by 0252 |
+| [0250](0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md) | Requests in flight answered in any order, cancelled with an answer, bounded in the core; events by subscription; M6d.9a1b cut in three | Accepted; amends 0122 and 0161; amended by 0252 and 0254 |
 | [0251](0251-the-engines-host-clock-and-its-times.md) | The engine's host clock and its times: rustix and windows-sys, the times given before each frame and event, the wake waiting for the executor | Accepted; amends 0227 and 0249; amended by 0253 |
 | [0252](0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md) | The channel's bounds of memory kept by its carrier until a second carrier; a place freed as its answer leaves; the budget measured by a run's frames | Accepted; amends 0250 |
 | [0253](0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md) | Input as the host's events, answered at once, and each target's outputs: M6d.5c cut in three | Accepted; amends 0248, 0249 and 0251 |
+| [0254](0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md) | Events declared in the welcome, replaced in the carrier, published at the frame's end; Play waits on one queue | Accepted; amends 0164 and 0250 |

@@ -7,7 +7,9 @@
   order) and [0161](0161-the-open-step-and-the-handles.md) (an agent's reads answered while its
   changes wait); amended by
   [0252](0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md) (where the
-  bounds are kept)
+  bounds are kept) and
+  [0254](0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)
+  (`play/time` holds `held`; events declared in the welcome)
 - Date: 2026-11-13
 
 ## Context

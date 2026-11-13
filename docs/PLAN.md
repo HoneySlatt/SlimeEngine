@@ -32,8 +32,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
     done, [M6d.9a1a](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning), the new wire;
     then [M6d.9a1b](stage-6d.md#m6d9a1b--requests-in-flight-and-events), cut in three on
     2026-11-13 ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)):
-    done, [M6d.9a1b1](stage-6d.md#m6d9a1b1--requests-in-flight), requests in flight; next,
-    [M6d.9a1b2](stage-6d.md#m6d9a1b2--events), events.
+    done, [M6d.9a1b1](stage-6d.md#m6d9a1b1--requests-in-flight), requests in flight; in
+    progress, [M6d.9a1b2](#m6d9a1b2--events), events.
   - Track B, in a worktree: [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors),
     done; then [M6d.4](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on
     wgpu, closed on 2026-11-12: [M6d.4a](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr),
@@ -79,7 +79,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a — The new wire, under today's meaning](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a1b1 — Requests in flight](stage-6d.md#m6d9a1b1--requests-in-flight) | Done |
-| [M6d.9a1b2 to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a1b2--events) | Planned |
+| [M6d.9a1b2 — Events](#m6d9a1b2--events) | In progress |
+| [M6d.9a1b3 to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a1b3--long-lists-and-the-interfaces-family) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
@@ -106,6 +107,19 @@ Started on 2026-11-13, the first third of M6d.5c ([ADR-0253](adr/0253-input-as-t
 - **Done when.** The engine's input reaches uwui through the events; uwui's, the editor's and the
   dev overlay's tests of input pass; CI is green.
 - **Measured.** A pointer's move over the editor's hierarchy, timed and counted.
+
+## M6d.9a1b2 — Events
+
+Started on 2026-11-13 ([ADR-0254](adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).
+
+- **Goal.** A program sends a connection the changes it subscribed to.
+- **Crates.** `uwui-agent`, `slime-channel`, `slime-app`, `slime-editor`.
+- **Delivers.** `subscribe` and `unsubscribe`, the events listed in the welcome; a cell for each
+  subscription; `play/time`, published at the frame's end; Play on one queue, without polling.
+- **Done when.** Play reads the played game's time by events; a tool that stops reading keeps the
+  game's memory flat; CI is green.
+- **Measured.** An event to the tool, median and slowest of 21, alone and behind a capture; the
+  channel's answer; no wake at rest with a subscription.
 
 ## Ideas waiting for their milestone
 
