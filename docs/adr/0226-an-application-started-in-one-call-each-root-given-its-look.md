@@ -14,7 +14,7 @@
   [0223](0223-styles-written-in-code-through-tokens.md) (the bottom of the stack is any look, not
   the core's; under forced colours, the sheets' literal colours give way too) and [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)
   (M6d.1d2b cut in two; `layouts!` becomes `files!`; blank renamed Plain); amended by
-  [0231](0231-an-elements-own-style-written-in-code.md) (the order of styling read field by field) and [0237](0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md) (the curve of the size of text given by stops; the user's preferences taken by the core before their reader)
+  [0231](0231-an-elements-own-style-written-in-code.md) (the order of styling read field by field) and [0237](0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md) (the curve of the size of text given by stops; the user's preferences taken by the core before their reader) and [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) (what M6d.5's API carries is built where it is read)
 - Date: 2026-11-09
 
 ## Context

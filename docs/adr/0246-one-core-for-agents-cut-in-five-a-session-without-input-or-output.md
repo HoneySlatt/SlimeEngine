@@ -4,7 +4,8 @@
   JSON-RPC, not in the engine's binary encoding), [0122](0122-the-development-channel.md) (the
   channel's messages in JSON-RPC through `serde`, versioned by family, `slime-reflect` and
   `slime-serialize` gone from `slime-channel`) and [0218](0218-one-core-for-agents-in-uwui.md)
-  (M6d.9a cut in five)
+  (M6d.9a cut in five); amended by [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) (one waker, meaning followed by each reader, an
+  element's capture from the host's image)
 - Date: 2026-11-12
 
 ## Context

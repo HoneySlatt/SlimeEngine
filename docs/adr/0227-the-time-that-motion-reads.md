@@ -10,7 +10,8 @@
   that follows input keeps the display's), [0205](0205-signals-change-uwuis-interface.md) (a timer
   at a granularity ends at civil boundaries too) and
   [0211](0211-the-executor-and-other-threads-through-channels.md) (tasks' timers on their clock's
-  present time, and tasks woken outside a frame, run at a wake that draws nothing)
+  present time, and tasks woken outside a frame, run at a wake that draws nothing); amended by
+  [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) (what M6d.5's API carries is built where it is read)
 - Date: 2026-11-10
 
 ## Context

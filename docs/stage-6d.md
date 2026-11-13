@@ -1800,7 +1800,10 @@ The first fifth of M6d.5; in progress, its card in [`PLAN.md`](PLAN.md#m6d5a--th
   and its source, the engine's the frame's start; each root its clock, its time and its speed;
   each event's time and its source, the engine's stamped at reception; the next frame due and the
   next wake in place of `Ui::next_change`, a wake running uwui's timers without drawing; the
-  host's clock counting a suspend, its dependency put to the owner at the start.
+  waker that the host gives uwui; the host's clock counting a suspend, and the time spent
+  suspended, its dependency put to the owner at the start; a pause menu as a root of its own, in
+  the documentation of the engine's layer for games' interfaces
+  ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
 - **Done when.** uwui's motion and timers read the host's times alone; the editor's and the game's
   rest are unchanged; CI is green.
 - **How to test.** uwui's tests of motion and timers on times that the test gives;
@@ -1840,8 +1843,9 @@ The first fifth of M6d.5; in progress, its card in [`PLAN.md`](PLAN.md#m6d5a--th
 
 - **Goal.** `slime-app` reaches uwui through the host's API alone, the engine's sessions unchanged.
 - **Crates.** `slime-app`, `slime-platform`; `slime-editor`, `slime-devui`, *Hunna Wood*.
-- **Delivers.** The lifecycle given to uwui: focus, suspend and resume, occlusion where winit gives
-  it; the surface lost and made again rather than ending the run; each root's size and scale given
+- **Delivers.** The lifecycle given to uwui: focus, suspend and resume, occlusion and low memory
+  where winit gives them; the text's size and less motion given through the API; the surface lost
+  and made again rather than ending the run; each root's size and scale given
   by the host, the presentations no longer reading the window; the table's column of the engine
   checked against its code.
 - **Done when.** `slime-app` reaches uwui through the API alone, the agents' surface apart

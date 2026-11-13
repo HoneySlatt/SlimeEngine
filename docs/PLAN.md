@@ -51,8 +51,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
     M6d.9a1b starts: one waker, meaning followed by each reader, an element's capture.
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
-- Waiting for the owner: the deletion of the branches `m6d1b-bench` and `m6d4a-prototype`, the
-  last kept while measurements link to its code; the mirror of the game's assets, a private repository, which `scripts/fetch-assets.sh`
+- Waiting for the owner: the deletion of the branches `m6d1b-bench`, `m6d4a-prototype` and
+  `m6d5a-prototype`, the last two kept while measurements link to their code; the mirror of the game's assets, a private repository, which `scripts/fetch-assets.sh`
   cannot reach, CI living on its cache; and the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
@@ -99,7 +99,7 @@ Started on 2026-11-12, the first fifth of M6d.5
     the web gives it, two targets; thrown away, its findings in the ADR.
 - **Done when.** The owner accepts the ADR; its table has no empty cell; the prototype's cases pass
   on its branch; CI is green.
-- **Measured.** Nothing.
+- **Measured.** The prototype's questions, on one machine.
 
 ## Ideas waiting for their milestone
 

@@ -4,7 +4,8 @@
   own), [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) and
   [0227](0227-the-time-that-motion-reads.md) (what M6d.5's API carries, built where it is read),
   and [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) (three
-  seams that M6d.9a1b keeps)
+  seams that M6d.9a1b keeps); amended by [0249](0249-the-hosts-api-its-items-and-their-table.md)
+  (an answer's three states; questions change uwui's caches)
 - Date: 2026-11-12
 
 ## Context

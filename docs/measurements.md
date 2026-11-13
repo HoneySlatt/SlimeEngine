@@ -3393,3 +3393,26 @@ Every job stays within its limit of 20 minutes; `compositors (sway)` has 23 s of
 run on `5291eb1`, 11 min 35 s, each of its builds took about half again as long, a slower runner,
 and the zone was cooked whole, 3 min 2 s against 3 s, where that run found it cooked, its cooker
 changed with `slime-serialize`; the agent's session that drives the game, `drive`, took 2 min 43 s against 1 min 56 s.
+
+## M6d.5a, the host's API tried on a prototype
+
+On 2026-11-12, on an AMD Ryzen 7 5800X, in a release build, single runs, the CPU's load not
+recorded: the throwaway prototype of [ADR-0249](adr/0249-the-hosts-api-its-items-and-their-table.md),
+branch `m6d5a-prototype` at `9e48a0e`, its test `cost_over_a_field_of_4000_bytes`
+(`cargo test -p uwui --release --test host_prototype -- --ignored --nocapture`). A single-line field
+holds 4,000 bytes, 2,590 characters; the host asks its questions as an input method would.
+
+| Question | Time |
+|---|---|
+| a character's rectangle | 109 to 122 µs, of which parley's selection 101 to 109 µs |
+| the caret's rectangle | 15 µs, of which parley's caret 3.5 µs |
+| the character at a point | 13.5 µs, of which parley's cluster 3.1 µs |
+| the text around the caret, its UTF-16 offsets computed | 6.1 µs |
+| the text laid out again after an edit, then a question | 1.1 ms, of which shaping 0.88 ms |
+
+Parley's selection walks the whole line, wherever the character lies. Shaping is what each edit
+pays already. Against the editor's frame of 4.17 ms at 240 Hz ([`ROADMAP.md`](ROADMAP.md#4-quality-bar)),
+an edit with its question takes about a quarter; a host that asks a rectangle for each character
+of a composition pays the first line's figure for each. The lowest machine is not measured: M6d.5c
+measures that case there, and counts a pointer's move in uwui's benchmarks. These are not
+benchmarks.

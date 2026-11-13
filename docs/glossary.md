@@ -689,7 +689,12 @@ are hosts ([ADR-0107](adr/0107-the-execution-model.md),
 **Host (uwui).** What embeds *uwui* and calls it, owning the loop: it gives uwui its surface, its
 input, the system's keyboard, the lifecycle, the clipboard and the bridge to accessibility, and
 draws when uwui asks for a frame. A desktop program on winit, a Kotlin program on Android, a web
-page and the engine's own loop are hosts ([ADR-0181](adr/0181-uwuis-scope.md)).
+page and the engine's own loop are hosts ([ADR-0181](adr/0181-uwuis-scope.md)). It talks to uwui
+through three channels: *events* that it gives and that answer at once, *questions* that uwui
+answers from its live state, and *outputs* that it reads after each event and frame; and it gives
+uwui one *waker*. Each time it wakes it runs a *step*: the events that came, then a frame or a wake
+([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md),
+[ADR-0249](adr/0249-the-hosts-api-its-items-and-their-table.md)).
 
 **Hot reload.** Replacing, in a running game, the *cooked data* or the shaders that changed on
 disk, without restarting the game. `slime-cook watch` cooks again the sources that change, and a
@@ -1726,6 +1731,10 @@ up, which stops the run, when that fails or when it is lost again each time
 normal and the *handedness* w (±1, −1 where the texture is mirrored on the surface), it gives the
 bitangent, cross(normal, tangent) × w, and with it the *tangent space* in which *normal textures*
 are stored (`MeshData::tangents`, glTF's convention).
+
+**Target (uwui).** Where a root of *uwui* draws: a window, a region of the *host*'s image, or a
+texture. Every event and output of the host's API names its target
+([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
 
 **Task pool.** Threads that run small pieces of work, *tasks*, as they come, each on the first
 thread free. The engine has one, `slime-tasks`, the machine's logical cores but one, whose tasks
