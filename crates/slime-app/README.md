@@ -328,8 +328,11 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   `set_view_settings`, `reports`, `pick` and `ui`,
   the last lines of its log (`slime_channel::MAX_LOG_LINES`), which only such a run keeps, and its
   run saved to a file and loaded from one, by the simulation's `save` and `load`, and an editor's
-  requests, by the simulation's `edit`. Without a token,
-  it does not listen. The `slime-channel` crate holds the protocol and its limits;
+  requests, by the simulation's `edit`. At the end of each frame, it tells the tools subscribed to
+  `play/time` how game time stands, when it changed in the frame or a subscription started, whose
+  first value it is
+  (`docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md`).
+  Without a token, it does not listen. The `slime-channel` crate holds the protocol and its limits;
   `tests/channel.rs` drives a headless run through it.
 - The `accessibility` feature: a windowed run gives screen readers its window's tree, the window's
   node holding what the presentation's interface means (`uwui::tree::Ui::take_meaning_changes`),

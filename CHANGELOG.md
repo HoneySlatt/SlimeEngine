@@ -70,6 +70,17 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `Listener::round` gives a request of each connection in turn, and `Listener::waiting` says
   whether one waits. A game welcomes a bounded number of connections; an edit of a connection
   that closed while it waited is no longer applied.
+- A tool subscribes to the events that a program declares (ADR-0254): the core's requests
+  `subscribe` and `unsubscribe` (`ToolSession::subscribe`, `unsubscribe`), the welcome's `events`,
+  which a welcome of before reads as none, `FromTool::Subscribe` and `Unsubscribe`,
+  `ProgramSession::subscribed` and `event`, and `AgentError::NotDeclared`; `ProgramSession::new`
+  takes the events that the families declare. `slime_channel::FAMILIES` gives each family's
+  events; `Event::Time` and `GameTime`, `play/time`, tell how game time stands, which a game
+  publishes at the end of each frame (`Listener::wants`, `subscriptions`, `publish`);
+  `Client::connect_with` hands each event and the connection's end to a function, a `Notice`,
+  `Client::subscribe` and `unsubscribe` subscribe, `Client::events` lists what the game declares;
+  `ChannelError::Refused` also says why a subscription was refused. The editor's Play follows game
+  time by the game's events, whoever changes it, and no longer asks the game every 200 ms.
 - The interface's canvas moves from the renderer into uwui, on wgpu (ADR-0244):
   `Renderer::draw_canvas`, the canvas's types, `Canvas`, `CanvasBox`, `CanvasGradient`,
   `CanvasShadow`, `CanvasStats`, `ImageQuad`, `ImageId`, `PixelRect`, `Radii` and

@@ -24,6 +24,8 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A tool that sends a line that is not a message, then stays connected without reading, holds its place among those welcomed until it goes.
   A request's line costs many times its size while it is read ([`measurements.md`](measurements.md#m6d9a1b1-requests-in-flight)), and the game then holds the value and its request a moment, which no test measures.
   A tool that uses again a number that it has in flight gets the refusal under that number, which its own session reads as that request's answer; the core's tool never does.
+  The values of events waiting to be written are not counted in the bytes unwritten: one of each event subscribed to, on each connection ([ADR-0254](adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).
+  An event waits behind the message being written on its connection, which may be an image of 1 GiB.
   Followed at uwui's first stage, whose carrier of `uwui dev` is the second to keep the bounds, and which moves them into the core.
 - **`slime-mcp`'s `stop_game` and `drive_played_game` hold the server's lock while their requests wait** ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)).
   So that one game at a time runs, they hold it for their own requests, and the agent's other calls wait meanwhile; with every place in flight held by long steps, `stop_game` waits for one, and `resume`, which would free them, waits for the lock.
@@ -615,18 +617,19 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The console builds a label for each line that it keeps, 500 at most, again as lines come.
   It scrolls to the last line whenever lines come, even while the user reads older ones.
   *Hunna Wood* has no run without a window: an agent's editor without one plays it in a window all the same.
-  A control that the game refuses is told, but the toolbar shows what the game says only once it answers the state asked after the control.
+  Play sees the game's end as its connection closes, and checks the game's process each second besides: a game that runs on without its connection is seen to end a second late at most.
+  Three paths of Play are checked by reading and review alone, no test reaching them: a control that the game refuses, told the last time received again; a connection closed while its game runs on; a game whose welcome lists no `play/time`, which Play ends.
 - **Building the game again** ([ADR-0166](adr/0166-building-the-game-again.md)).
   A change of the game's sources is seen by polling the files that cargo lists, and cargo's manifests and locks above them, until notify comes with M6c.7.
   A source that the last build did not list, a new file, is seen only with a change of one that it did.
   A new build that builds but does not start, or crashes as it starts, ends Play, and the run's save goes with Play's directory.
   Cargo stopped during a build leaves its compilers to finish the crate under way.
+  A process that cargo started and that holds its output open after cargo ends delays the build's end until it lets go of it.
   On Windows, that the copy that runs leaves the build free to replace the program, and that cargo and the game open no console window, wait for a [check by hand](PLAN.md#checks-by-hand-waiting-for-the-owner).
 - **Play's time to control** ([`docs/measurements.md`](measurements.md), M6c.4d).
   A level of 100 000 entities gives control far over ADR-0110's budget in a debug build: the editor writes the level, and the game reads and spawns it, without optimizations.
   Such a level fits one scene file only with entities that hold little (`slime_serialize::MAX_VALUES`), which levels of several files, M6c.6, are to settle.
   The owner chose, on 2026-10-29, to leave it until M6c.6 measures it again.
-  Play asks the game how its time stands at each of its frames until it gives control, which a game that holds its time long, as behind a menu, pays for meanwhile.
 - **Compiling** ([ADR-0221](adr/0221-compiling-within-its-budgets.md), [`measurements.md`](measurements.md#c1-after-ryzen-7-5800x)).
   A change of a game's code runs again in a debug build within [ADR-0215](adr/0215-the-engine-measured-against-the-market.md)'s budget by a tenth of it, and only with mold, in the Nix shell on Linux: rustc's own lld, outside it, misses the budget, and Windows is not measured.
   The figure is a sum of the build's time and Play's time to control, not one interval timed end to end.

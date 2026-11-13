@@ -3614,3 +3614,63 @@ Every job stays within its limit of 20 minutes. `check (headless)` is the longes
 of margin; `windows (tests)` took 15 min 14 s, on another runner. The part adds one test file of
 uwui and two tests of `slime-app`.
 
+## M6d.9a1b2, events
+
+On 2026-11-13, on an AMD Ryzen 7 5800X, in release builds, each series started at rest: a load
+under 1 over a minute, no `cargo` nor `rustc` running; the loads over five and fifteen minutes still
+near 4, from builds that had just ended. Before is `c08c90c`, built in a worktree of its own; after
+is this milestone's.
+
+- A request of the development channel answered at once, as M6d.9a1b1 measured it
+  (`cargo test --release -p slime-channel --lib a_request_is_answered -- --nocapture`), five passes
+  each, alternated; the median of the five. The writer now looks at the subscriptions' cells
+  between two items: no change.
+
+| Measure | Before | After |
+|---|---|---|
+| a request of the development channel, answered at once, median of 21 | 46.3 µs | 45.7 µs |
+| its five passes | 45.8 to 50.6 µs | 39.6 to 49.8 µs |
+
+- An event, `play/time`, from the game's publication to the tool's function that the client calls
+  on its own thread, on the loopback, 21 times: alone, then each behind the answer to a request of
+  a 4K capture's bytes, 3840 × 2160 × 4, which the game leaves for the writer just before it
+  publishes, as `slime-channel`'s test `an_event_behind_a_capture` measures it
+  (`cargo test --release -p slime-channel --lib an_event_behind -- --ignored --nocapture`). Three
+  passes; the median of their medians, and the range of their slowest.
+
+| An event to the tool | Median of 21 | Slowest of 21 |
+|---|---|---|
+| alone | 22.4 µs | 28.9 to 62.2 µs |
+| behind a 4K capture | 13.2 ms | 24.0 to 27.7 ms |
+
+  Behind a capture, the event waits for the writer to write its 33 MB, then goes out before the
+  next answer ([ADR-0254](adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).
+  A tool that wants its events at once asks for no capture on their connection, as the editor's
+  Play does.
+
+- Play's time to control on a level of 100 000 entities, `play.level.100k`
+  (`cargo run --release -p slime-benches -- play.level.100k`), before measured by asking the game
+  every 5 ms and after by the first `play/time` whose `held` is false; two passes each, alternated.
+
+| `play.level.100k`, of 5 | Before | After |
+|---|---|---|
+| from the request to control, median, pass 1 | 1,358 ms | 1,503 ms |
+| from the request to control, 90th percentile, pass 1 | 1,361 ms | 2,495 ms |
+| from the request to control, median, pass 2 | 1,325 ms | 1,330 ms |
+| from the request to control, 90th percentile, pass 2 | 1,346 ms | 1,498 ms |
+| of it, the editor writing the level, median, pass 1 | 374 ms | 448 ms |
+| of it, the editor writing the level, 90th percentile, pass 1 | 379 ms | 804 ms |
+| of it, the editor writing the level, median, pass 2 | 366 ms | 368 ms |
+| of it, the editor writing the level, 90th percentile, pass 2 | 377 ms | 470 ms |
+
+  The first pass after was disturbed: the editor writing the level, which the milestone does not
+  change, took a fifth longer at the median and twice as long at the 90th percentile. In the
+  second, the medians agree, and the 90th percentile is a tenth higher, as is the editor's writing,
+  which the event does not touch: the event gives about the same time to control as the question
+  it replaces, which two passes cannot tell apart better. ADR-0110's budget, at the 90th
+  percentile, holds in each. *Hunna Wood*'s `play.zone` runs in a window on the owner's desktop, and was not
+  measured again: a [check by hand](PLAN.md#checks-by-hand-waiting-for-the-owner).
+
+- At rest, a game subscribed to by two connections wakes none of its channel's threads over a
+  second, as `slime-app`'s test `a_run_on_demand_tells_its_subscribers_how_game_time_stands` counts
+  their context switches on Linux; it runs on every check.

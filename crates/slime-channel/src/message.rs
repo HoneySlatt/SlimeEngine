@@ -567,6 +567,46 @@ pub struct LogLine {
     pub text: String,
 }
 
+/// What a game tells a connection that subscribed to it, each event a state: its current value
+/// once the subscription is answered, then each change, a newer value replacing one not yet written
+/// (`docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md`).
+/// Each is named on the wire by its method, `play/time`, which its family declares
+/// ([`FAMILIES`](crate::FAMILIES)).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "method", content = "params")]
+pub enum Event {
+    /// How game time stands.
+    #[serde(rename = "play/time")]
+    Time(GameTime),
+}
+
+/// How game time stands, as [`Event::Time`] tells it: three values that change seldom.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GameTime {
+    /// Whether game time is paused.
+    pub paused: bool,
+    /// The speed of game time, a finite number above zero.
+    pub speed: f64,
+    /// Whether the game holds game time, apart from the pause, as while its zone loads
+    /// ([`GameState::held`]): the first time that tells it false gives the player control.
+    pub held: bool,
+}
+
+impl Event {
+    /// The name of [`Event::Time`], which a tool subscribes to.
+    pub const TIME: &'static str = "play/time";
+
+    /// The method and the parameters that carry the event.
+    pub(crate) fn call(&self) -> Result<(String, Value), ChannelError> {
+        Ok(uwui_agent::call(self)?)
+    }
+
+    /// The event that `method` and `params` make, or why none.
+    pub(crate) fn read(method: &str, params: Value) -> Result<Self, Fault> {
+        uwui_agent::read_call(method, params)
+    }
+}
+
 impl Request {
     /// The method and the parameters that carry the request.
     pub(crate) fn call(&self) -> Result<(String, Value), ChannelError> {
@@ -750,7 +790,7 @@ mod tests {
             let (method, params) = request.call().expect("written");
             let (family, _) = method.split_once('/').expect("a family's method");
             assert!(
-                crate::FAMILIES.iter().any(|&(name, _)| name == family),
+                crate::FAMILIES.iter().any(|&(name, _, _)| name == family),
                 "{method} names a family that the channel serves"
             );
             assert_eq!(Request::read(family, &method, params), Ok(request));
@@ -927,6 +967,28 @@ mod tests {
                 message: "not served".to_owned()
             },
             "every error of the core's reads as a failure"
+        );
+    }
+
+    #[test]
+    fn every_event_comes_back_from_its_method_and_is_declared_by_its_family() {
+        let events = [Event::Time(GameTime {
+            paused: true,
+            speed: 0.5,
+            held: false,
+        })];
+        for event in events {
+            let (method, params) = event.call().expect("written");
+            assert!(
+                crate::events().contains(&method),
+                "{method} is declared by its family"
+            );
+            assert_eq!(Event::read(&method, params), Ok(event));
+        }
+        assert_eq!(
+            crate::events(),
+            ["play/time"],
+            "each declared event has its variant"
         );
     }
 }

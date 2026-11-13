@@ -192,6 +192,9 @@ made after Stage 6e's first milestone runs on `games/open-world` where it names 
 - **A suspend counted** (M6d.5b): the editor on Linux and in the Windows virtual machine, a
   notification shown, the machine suspended for a minute, the pointer moved as it wakes: the
   notification gone at that frame, and the log telling the time suspended.
+- **Play by events** (M6d.9a1b2): `play.zone` on the owner's desktop, its time to control now from
+  the first `play/time` whose `held` is false; in the Windows virtual machine, Play's toolbar
+  following a pause made from the dev overlay, and Stop, the game's end seen at once.
 
 ## Known debt
 

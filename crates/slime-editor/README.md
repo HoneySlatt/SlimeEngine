@@ -117,7 +117,9 @@ editor's other panels come with Stage 6c's next milestones.
   the level is open, never written nor undone (`docs/adr/0169-the-eye-and-the-lock.md`). Play (F5, a
   toolbar above the viewports) runs the game that `Program::play` starts on the level as the editor
   holds it, its steps not written handed over as private copies, paused, stepped, at a speed and
-  stopped, its log in a console below the viewports (`docs/adr/0164-play.md`); the steps made,
+  stopped, its toolbar following game time as the game tells it, whoever changes it
+  (`docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md`),
+  its log in a console below the viewports (`docs/adr/0164-play.md`); the steps made,
   undone and done again while it runs reach it, the game's refusals told
   (`docs/adr/0165-editing-while-playing.md`). Play builds the game with cargo as `Program::build`
   says, as it starts it and again as its code changes while it plays, the game then starting again

@@ -25,7 +25,8 @@ saved to a file and loaded from one (`docs/adr/0125-saves-per-scene.md`), and an
 (`Request::Edit`): steps of commands as text, undo and redo, its history, its journal, its selection
 and its level written back (`docs/adr/0135-the-editors-program.md`), its operations listed and run
 by name (`docs/adr/0156-the-editors-window-and-its-operations.md`), and where the game that it plays
-listens, with its token (`docs/adr/0165-editing-while-playing.md`). Only programs built with
+listens, with its token (`docs/adr/0165-editing-while-playing.md`). Its one event, `play/time`,
+tells how game time stands to a connection that subscribed to it. Only programs built with
 `slime-app`'s `development` feature listen; a build for shipping holds no channel.
 
 ## Role
@@ -53,6 +54,16 @@ listens, with its token (`docs/adr/0165-editing-while-playing.md`). Only program
   reading stops being served. The bounds are kept by the listener until a second carrier
   ([ADR-0252](../../docs/adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md));
   `Listener::open`'s rustdoc gives their figures.
+- A connection subscribes to the events that the families declare (`FAMILIES`, `Event`), which
+  the welcome lists
+  ([ADR-0254](../../docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).
+  Each subscription has a *cell* in its connection: the value that the game published last and
+  the writer has not taken, which a newer one replaces, and the last value written. The writer
+  starts a subscription as it takes the answer to `subscribe`, so that the first value follows
+  the answer, and ends it as it takes the answer to `unsubscribe`, so that nothing follows. It
+  writes a value only when it differs from the last written, and the cells that wait once between
+  two answers: a tool that stops reading holds one value of each event, and an event waits behind
+  the one message being written.
 - Who starts a game draws its token, 128 bits of the system's randomness, and gives it to the game
   in its environment only, never on its command line.
 
@@ -91,12 +102,16 @@ game.join().expect("the game answered");
   a game that waits runs a frame; `Listener::round` gives a request of each connection that has
   one, `Listener::next` one alone, which the game answers with `Incoming::answer`, or with
   `Incoming::answer_with` when the reply carries an image's pixels, shared; `Incoming::cancelled`
-  says whether its tool gave it up, and `Incoming::cancel` answers it so.
+  says whether its tool gave it up, and `Incoming::cancel` answers it so. `Listener::wants` says
+  whether a connection subscribed to an event, and `Listener::publish` leaves it for each, which a
+  game does at the end of a frame.
 - `launch(&mut command, timeout)`: starts a game with a new token, and waits for it to say where it
   listens; `Client::connect(address, &token, &agent, &client)` then opens a connection for an
   agent and the program that carries its requests, and `Client::request`
   sends a `Request` and waits for its `Reply`, from any thread; `Client::send` sends it without
-  waiting, its `Pending` answer read with `Pending::wait` or given up with `Pending::cancel`. The game's standard input is a pipe that the tool
+  waiting, its `Pending` answer read with `Pending::wait` or given up with `Pending::cancel`.
+  `Client::connect_with` hands each event and the connection's end to a function of the tool's,
+  on the client's own thread, and `Client::subscribe` subscribes. The game's standard input is a pipe that the tool
   holds, and the game ends once it closes, so that no game outlives the tool that started it.
   Both ends send each message at once, Nagle's algorithm off, so that a request is answered
   within the game's next frame rather than after tens of milliseconds of acknowledgements.

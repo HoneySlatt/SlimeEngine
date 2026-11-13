@@ -2,7 +2,7 @@
 //! `docs/adr/0166-building-the-game-again.md`): an editor's program started as agents start it,
 //! without its window, on a copy of a level and with a journal, data and state of the run's own, Play
 //! asked through the development channel, and the time read from the editor's log, which Play
-//! measures from the request to the first state of the game whose time it no longer holds.
+//! measures from the request to the first time that the game tells it no longer holds its time.
 //! The editor's log, the game's in it, is kept in the run's directory, `editor.log`.
 
 use std::fmt::Write as _;

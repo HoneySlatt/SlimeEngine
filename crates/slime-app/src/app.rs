@@ -428,6 +428,11 @@ impl Frames {
                 presented = true;
             }
         }
+        // How game time stands after all that changed it in the frame, for the tools subscribed.
+        #[cfg(feature = "development")]
+        if let Some(channel) = &mut self.channel {
+            channel.publish(&host.context);
+        }
         self.count += 1;
         presented
     }

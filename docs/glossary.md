@@ -446,6 +446,12 @@ scene its target belongs to
 on the CPU into a *cube texture* and its *prefiltered levels* (`slime_render::Environment`,
 [ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md)).
 
+**Event (core for agents).** A notification of JSON-RPC's, which nothing answers. A *family*'s
+event, `family/name`, is one that a program sends a tool unasked, which the family declares and
+the welcome lists: it tells a state, its current value once the tool
+subscribed, then each change, a newer value replacing one not yet written. The engine's one event
+is `play/time`, how game time stands ([ADR-0254](adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).
+
 **Example.** A runnable program in the `examples/` directory that demonstrates one feature.
 
 **Exposure value (EV100).** A photographer's measure of an *exposure*, in stops, at the
@@ -1253,8 +1259,8 @@ console ([ADR-0164](adr/0164-play.md)). The steps made while it runs are sent to
 texts of the commands that they applied ([ADR-0165](adr/0165-editing-while-playing.md)). Play
 builds the game with cargo as it starts it, and again as its code changes while it runs, the game
 then starting again on a save of its run ([ADR-0166](adr/0166-building-the-game-again.md)). Its
-*time to control* runs from the request to play to the first state of the game whose time it no
-longer holds, which [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md) bounds on the game's
+*time to control* runs from the request to play to the first time that the game tells it no longer
+holds its time (`play/time`), which [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md) bounds on the game's
 largest level.
 
 **Pivot (handles).** The point about which the editor's *handles* stand, turn and scale: the middle
@@ -1714,6 +1720,12 @@ from a `.style.kdl` file.
 **Sub-asset.** An *asset* inside a source file, such as a mesh, a material or a scene of a glTF
 file, whose ID is derived from the file's ID, its kind and its name
 ([ADR-0069](adr/0069-the-asset-pipeline.md)).
+
+**Subscription (core for agents).** A tool's request to be sent an *event (core for agents)*,
+`subscribe`, until it asks `unsubscribe`. It starts, *armed*, as the program's carrier takes its
+answer to write it, so that its first value follows the answer; it ends, *disarmed*, as the
+carrier takes the answer to `unsubscribe`, after which none of it comes. Its *cell*, in the
+carrier, holds the value not yet written and the last written ([ADR-0254](adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).
 
 **Submission.** Recorded GPU work handed to the GPU at once (`slime_gfx::Gpu::submit`, or the single
 pass of `Gpu::render`): one call into the driver, and a unit of synchronization on the GPU. Each

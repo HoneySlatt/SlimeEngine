@@ -8,9 +8,9 @@ use std::sync::{Arc, PoisonError};
 use std::time::{Duration, Instant};
 
 use slime_channel::{
-    ANNOUNCEMENT, ComponentText, Edit, ElementSummary, EntitySummary, GameState, Incoming,
-    InterfaceAction, Listener, LogLine, MAX_ELEMENTS, MAX_ENTITIES, MAX_LOG_LINES, Reply, Request,
-    TOKEN_ENV_VAR, Token, ViewSummary,
+    ANNOUNCEMENT, ComponentText, Edit, ElementSummary, EntitySummary, Event, GameState, GameTime,
+    Incoming, InterfaceAction, Listener, LogLine, MAX_ELEMENTS, MAX_ENTITIES, MAX_LOG_LINES, Reply,
+    Request, TOKEN_ENV_VAR, Token, ViewSummary,
 };
 use slime_gfx::{Gpu, Image, RenderTarget};
 use slime_platform::KeyCode;
@@ -22,7 +22,7 @@ use uwui::action::{Action, ActionKind, Intent};
 use uwui::tree::{ElementAction, ElementState, Meaning, Ui};
 
 use crate::game::{PickAnswer, PickSlot, Presentation, Reflected, ShownView, Simulation};
-use crate::host::Host;
+use crate::host::{Context, Host};
 use crate::log_lines;
 
 /// How many frames the measurements of the frames' times cover.
@@ -61,6 +61,10 @@ pub(crate) struct DevChannel {
     edits: VecDeque<Incoming>,
     /// The time between the starts of the last frames.
     frames: VecDeque<Duration>,
+    /// How game time stood as the last frame's end published it, while a connection subscribed.
+    published: Option<GameTime>,
+    /// The listener's count of subscriptions started, as the last publication found it.
+    subscriptions: u64,
 }
 
 /// Ends the run once the game's standard input closes: the tool that started it with a token holds a
@@ -123,6 +127,8 @@ impl DevChannel {
             picks: Vec::new(),
             steps: Vec::new(),
             frames: VecDeque::new(),
+            published: None,
+            subscriptions: 0,
         })
     }
 
@@ -291,6 +297,32 @@ impl DevChannel {
             self.steps.push((incoming, until));
         } else {
             incoming.answer(reply);
+        }
+    }
+
+    /// At the end of a frame, after its presentation: tells each connection subscribed to
+    /// `play/time` how game time stands in `ctx`, when it changed since the last frame, or when a
+    /// subscription started since, whose first value it is; builds nothing while no connection
+    /// subscribed. At the end, so that what changed it in the frame, a request, the game's input,
+    /// its presentation that lets go of game time, is told without a frame more
+    /// (`docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md`).
+    pub(crate) fn publish(&mut self, ctx: &Context) {
+        // The count of subscriptions read before whether one wants the event: a subscription
+        // counted in it is counted in what `wants` reads.
+        let subscriptions = self.listener.subscriptions();
+        if !self.listener.wants(Event::TIME) {
+            self.published = None;
+            return;
+        }
+        let time = GameTime {
+            paused: ctx.paused(),
+            speed: ctx.speed(),
+            held: ctx.held(),
+        };
+        if self.published != Some(time) || self.subscriptions != subscriptions {
+            self.listener.publish(&Event::Time(time));
+            self.published = Some(time);
+            self.subscriptions = subscriptions;
         }
     }
 

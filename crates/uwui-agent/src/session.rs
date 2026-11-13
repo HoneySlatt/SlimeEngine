@@ -20,6 +20,20 @@ pub const HELLO: &str = "hello";
 /// (`docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md`).
 pub const CANCEL: &str = "cancel";
 
+/// The core's own request, from the tool: it subscribes to the events that it names,
+/// `{"events": ["play/time"]}`, each `family/name` of a family served that declares it
+/// ([`Welcome::events`]), and is answered `{}`. Each event tells a state: its current value comes
+/// as an event after the answer, then each change. A newer value replaces one that its carrier has
+/// not yet handed to the connection, so that a tool that reads slowly holds at most one of each
+/// event. A second subscription to an event sends its current value again
+/// (`docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md`).
+pub const SUBSCRIBE: &str = "subscribe";
+
+/// The core's own request, from the tool: it ends its subscriptions to the events that it names,
+/// as [`SUBSCRIBE`] names them, and is answered `{}`; none of them comes after the answer. A name
+/// not subscribed is ignored.
+pub const UNSUBSCRIBE: &str = "unsubscribe";
+
 /// How many requests a connection may have in flight, sent and not yet answered, and how many
 /// bytes of their lines: the program states it in its welcome, the tool waits for an answer
 /// rather than pass it, and the program answers a request past it with [`Fault::BUSY`].
@@ -136,6 +150,11 @@ pub struct Welcome {
     pub refused: Vec<Refusal>,
     /// How many requests the connection may have in flight.
     pub in_flight: InFlight,
+    /// The events that the families served declare, each `family/name`, which the tool may
+    /// subscribe to ([`SUBSCRIBE`]); none in a welcome that does not list them, as a program's
+    /// before them.
+    #[serde(default)]
+    pub events: Vec<String>,
 }
 
 /// A family that the tool asked for and the program does not serve.
@@ -169,6 +188,8 @@ fn family_of(method: &str) -> Option<(&str, &str)> {
 pub struct ProgramSession {
     program: String,
     families: Vec<Family>,
+    /// The events that the families declare, `family/name`.
+    events: BTreeSet<String>,
     in_flight: InFlight,
     /// The families served on this connection, once its hello is welcomed.
     served: Option<BTreeSet<String>>,
@@ -218,6 +239,24 @@ pub enum FromTool {
         /// The answer, to send.
         reply: Vec<u8>,
     },
+    /// A subscription to `events` ([`SUBSCRIBE`]), each declared by a family served, now in
+    /// flight: its carrier answers it `{}` ([`ProgramSession::subscribed`]) and starts the
+    /// subscription as it takes that answer to write it, so that the first value follows the
+    /// answer; one cancelled before is answered [`Fault::CANCELLED`], and starts nothing.
+    Subscribe {
+        /// Its number, which the answer gives back.
+        id: u64,
+        /// The events, each named once, in their order.
+        events: Vec<String>,
+    },
+    /// The end of the subscriptions to `events` ([`UNSUBSCRIBE`]), now in flight: its carrier
+    /// ends them as it takes the answer to write it, so that none comes after the answer.
+    Unsubscribe {
+        /// Its number, which the answer gives back.
+        id: u64,
+        /// The events, each named once, in their order.
+        events: Vec<String>,
+    },
     /// The tool gives up the request in flight numbered `id` ([`CANCEL`]): the program answers it
     /// still, with [`Fault::CANCELLED`] if it changed nothing yet.
     Cancel {
@@ -230,12 +269,29 @@ pub enum FromTool {
 }
 
 impl ProgramSession {
-    /// The end of `program`, which serves `families`, each at one version, and takes `in_flight`
-    /// requests at once.
-    pub fn new(program: impl Into<String>, families: Vec<Family>, in_flight: InFlight) -> Self {
+    /// The end of `program`, which serves `families`, each at one version, whose `events`, each
+    /// `family/name`, a tool may subscribe to, and which takes `in_flight` requests at once.
+    ///
+    /// # Panics
+    ///
+    /// If an event is not `family/name` of one of `families`: a program's own mistake.
+    pub fn new(
+        program: impl Into<String>,
+        families: Vec<Family>,
+        events: Vec<String>,
+        in_flight: InFlight,
+    ) -> Self {
+        for event in &events {
+            assert!(
+                family_of(event)
+                    .is_some_and(|(family, _)| families.iter().any(|served| served.name == family)),
+                "the event {event:?} is not `family/name` of a family that the program serves"
+            );
+        }
         Self {
             program: program.into(),
             families,
+            events: events.into_iter().collect(),
             in_flight,
             served: None,
             reads: Limits::HELLO,
@@ -293,13 +349,19 @@ impl ProgramSession {
                 "a hello again: the connection is open".to_owned(),
             );
         }
-        let Some((family, name)) = family_of(&method) else {
-            return fault(
-                Fault::NO_METHOD,
-                format!("{method:?} names no family: a method is `family/name`"),
-            );
+        // The core's own requests name no family, and are read below.
+        let subscription = method == SUBSCRIBE || method == UNSUBSCRIBE;
+        let (family, name) = match family_of(&method) {
+            _ if subscription => ("", ""),
+            Some(named) => named,
+            None => {
+                return fault(
+                    Fault::NO_METHOD,
+                    format!("{method:?} names no family: a method is `family/name`"),
+                );
+            }
         };
-        if !served.contains(family) {
+        if !subscription && !served.contains(family) {
             return fault(
                 Fault::NOT_SERVED,
                 format!("the program does not serve the family {family:?} on this connection"),
@@ -326,6 +388,18 @@ impl ProgramSession {
                     self.in_flight.bytes
                 ),
             );
+        }
+        if subscription {
+            let events = match self.events_named(served, &params) {
+                Ok(events) => events,
+                Err((code, why)) => return fault(code, why),
+            };
+            self.flying.insert(id, frame.line);
+            return Ok(if method == SUBSCRIBE {
+                FromTool::Subscribe { id, events }
+            } else {
+                FromTool::Unsubscribe { id, events }
+            });
         }
         self.flying.insert(id, frame.line);
         Ok(FromTool::Request {
@@ -380,6 +454,81 @@ impl ProgramSession {
             0,
         )?;
         Ok((line, 0))
+    }
+
+    /// The answer to the subscription, or its end, numbered `id`: `{}`, as
+    /// [`ProgramSession::answer`] writes it.
+    ///
+    /// # Errors
+    ///
+    /// As [`ProgramSession::answer`], which this answer never is.
+    pub fn subscribed(&self, id: u64) -> Result<Vec<u8>, AgentError> {
+        self.answer(id, Ok(Value::Object(serde_json::Map::new())), 0)
+            .map(|(line, _)| line)
+    }
+
+    /// The event `method`, `family/name`, holding `params`, to send: `None` when its line is larger
+    /// than the tool reads ([`Hello::limits`]), which would lose the connection's framing, so that
+    /// its carrier drops it, and says so.
+    ///
+    /// # Errors
+    ///
+    /// [`AgentError::Unwritable`] when `params` cannot be written as JSON.
+    pub fn event(&self, method: &str, params: Value) -> Result<Option<Vec<u8>>, AgentError> {
+        let line = encode(
+            &Message::Event {
+                method: method.to_owned(),
+                params,
+            },
+            0,
+        )?;
+        Ok((line.len() - 1 <= self.reads.line).then_some(line))
+    }
+
+    /// The events that a subscription's `params` name, `{"events": [...]}`, each once, in their
+    /// order; or the fault's code and why, for parameters that do not read so, a name of a family
+    /// not `served`, or one that its family does not declare.
+    fn events_named(
+        &self,
+        served: &BTreeSet<String>,
+        params: &Value,
+    ) -> Result<Vec<String>, (i64, String)> {
+        let bad = |why: String| (Fault::BAD_PARAMS, why);
+        let names = params
+            .get("events")
+            .and_then(Value::as_array)
+            .filter(|names| !names.is_empty())
+            .ok_or_else(|| {
+                bad("the parameters name no events: `{\"events\": [\"family/name\"]}`".to_owned())
+            })?;
+        let mut events: Vec<String> = Vec::new();
+        for name in names {
+            let name = name
+                .as_str()
+                .ok_or_else(|| bad(format!("{name} names no event: an event is `family/name`")))?;
+            let family = family_of(name)
+                .ok_or_else(|| {
+                    bad(format!(
+                        "{name:?} names no event: an event is `family/name`"
+                    ))
+                })?
+                .0;
+            if !served.contains(family) {
+                return Err((
+                    Fault::NOT_SERVED,
+                    format!("the program does not serve the family {family:?} on this connection"),
+                ));
+            }
+            if !self.events.contains(name) {
+                return Err(bad(format!(
+                    "the family {family:?} declares no event {name:?}"
+                )));
+            }
+            if !events.iter().any(|event| event == name) {
+                events.push(name.to_owned());
+            }
+        }
+        Ok(events)
     }
 
     /// The carrier takes the answer to the request numbered `id` to write it: the request is no
@@ -485,12 +634,22 @@ impl ProgramSession {
                 }),
             }
         }
+        let events = self
+            .events
+            .iter()
+            .filter(|event| {
+                family_of(event)
+                    .is_some_and(|(family, _)| served.iter().any(|served| served.name == family))
+            })
+            .cloned()
+            .collect();
         let welcome = Welcome {
             core: CORE_VERSION,
             program: self.program.clone(),
             served,
             refused,
             in_flight: self.in_flight,
+            events,
         };
         let reply = encode(
             &Message::Response {
@@ -533,6 +692,8 @@ pub struct ToolSession {
     served: Option<BTreeSet<String>>,
     /// How many requests the program takes in flight, as its welcome said.
     in_flight: Option<InFlight>,
+    /// The events that the program declares, as its welcome listed them.
+    events: BTreeSet<String>,
     /// Whether the hello was sent.
     greeted: bool,
 }
@@ -601,7 +762,7 @@ impl ToolSession {
     /// for a request larger alone than their bytes; [`AgentError::Unwritable`] when the
     /// parameters cannot be written. None of them uses a number.
     pub fn request(&mut self, method: &str, params: Value) -> Result<(u64, Vec<u8>), AgentError> {
-        let (Some(served), Some(in_flight)) = (&self.served, self.in_flight) else {
+        let Some(served) = &self.served else {
             return Err(AgentError::OutOfTurn(
                 "a request before the program's welcome",
             ));
@@ -610,6 +771,58 @@ impl ToolSession {
         if !served.contains(family) {
             return Err(AgentError::NotServed(family.to_owned()));
         }
+        self.in_flight(method, params)
+    }
+
+    /// The subscription to `events` ([`SUBSCRIBE`]), each `family/name`, to send: its number,
+    /// and its bytes. It is in flight until its answer is read, after which each event comes, its
+    /// current value first.
+    ///
+    /// # Errors
+    ///
+    /// As [`ToolSession::request`]; [`AgentError::NotDeclared`] for an event that the welcome does
+    /// not list, and for none.
+    pub fn subscribe(&mut self, events: &[&str]) -> Result<(u64, Vec<u8>), AgentError> {
+        self.subscription(SUBSCRIBE, events)
+    }
+
+    /// The end of the subscriptions to `events` ([`UNSUBSCRIBE`]), to send: its number, and its
+    /// bytes. None of them comes after its answer.
+    ///
+    /// # Errors
+    ///
+    /// As [`ToolSession::subscribe`].
+    pub fn unsubscribe(&mut self, events: &[&str]) -> Result<(u64, Vec<u8>), AgentError> {
+        self.subscription(UNSUBSCRIBE, events)
+    }
+
+    fn subscription(
+        &mut self,
+        method: &str,
+        events: &[&str],
+    ) -> Result<(u64, Vec<u8>), AgentError> {
+        if self.served.is_none() {
+            return Err(AgentError::OutOfTurn(
+                "a subscription before the program's welcome",
+            ));
+        }
+        if let Some(event) = events.iter().find(|event| !self.events.contains(**event)) {
+            return Err(AgentError::NotDeclared((*event).to_owned()));
+        }
+        if events.is_empty() {
+            return Err(AgentError::NotDeclared(String::new()));
+        }
+        self.in_flight(method, serde_json::json!({ "events": events }))
+    }
+
+    /// The request `method` with `params`, numbered and counted in flight, within the bounds that
+    /// the welcome stated.
+    fn in_flight(&mut self, method: &str, params: Value) -> Result<(u64, Vec<u8>), AgentError> {
+        let Some(in_flight) = self.in_flight else {
+            return Err(AgentError::OutOfTurn(
+                "a request before the program's welcome",
+            ));
+        };
         let (id, bytes) = self.numbered(method, params)?;
         // The line's end is not counted, as the program's reader counts it.
         let size = bytes.len() - 1;
@@ -714,6 +927,7 @@ impl ToolSession {
                                 .collect(),
                         );
                         self.in_flight = Some(welcome.in_flight);
+                        self.events = welcome.events.iter().cloned().collect();
                         Ok(FromProgram::Welcomed(welcome))
                     }
                     Err(fault) => Ok(FromProgram::Refused(fault.message)),
@@ -771,6 +985,7 @@ mod tests {
         ProgramSession::new(
             "a game",
             vec![Family::new("play", 1), Family::new("world", 2)],
+            vec!["play/time".to_owned(), "world/changed".to_owned()],
             InFlight::DEFAULT,
         )
     }
@@ -995,7 +1210,12 @@ mod tests {
     /// The program's end taking `in_flight`, opened by a tool that asks for `play`.
     fn opened(in_flight: InFlight) -> (ToolSession, ProgramSession, Welcome) {
         let mut tool = ToolSession::new();
-        let mut program = ProgramSession::new("a game", vec![Family::new("play", 1)], in_flight);
+        let mut program = ProgramSession::new(
+            "a game",
+            vec![Family::new("play", 1)],
+            vec!["play/time".to_owned()],
+            in_flight,
+        );
         let welcome = open(&mut tool, &mut program, &[("play", 1)]);
         (tool, program, welcome)
     }
@@ -1219,5 +1439,189 @@ mod tests {
         let shown = format!("{:?}", hello(&[]));
         assert!(!shown.contains("sesame"), "{shown}");
         assert!(shown.contains("hidden"), "{shown}");
+    }
+
+    #[test]
+    fn the_welcome_lists_the_events_of_the_families_served_and_reads_without_them() {
+        let (mut tool, mut program) = (ToolSession::new(), program());
+        let welcome = open(&mut tool, &mut program, &[("play", 1), ("world", 1)]);
+        assert_eq!(
+            welcome.events,
+            ["play/time"],
+            "world is refused: its events are not listed"
+        );
+        let mut written = serde_json::to_value(&welcome).expect("written");
+        written.as_object_mut().expect("an object").remove("events");
+        let read: Welcome = serde_json::from_value(written).expect("a welcome of before reads");
+        assert!(read.events.is_empty());
+    }
+
+    #[test]
+    #[should_panic(expected = "\"music/beat\" is not `family/name` of a family")]
+    fn a_program_declares_events_only_of_its_families() {
+        let _ = ProgramSession::new(
+            "a game",
+            vec![Family::new("play", 1)],
+            vec!["music/beat".to_owned()],
+            InFlight::DEFAULT,
+        );
+    }
+
+    /// The line of the core's request `method` numbered `id`, with `params`, as a tool that checks
+    /// nothing would write it.
+    fn core_request(id: u64, method: &str, params: Value) -> Vec<u8> {
+        encode(
+            &Message::Request {
+                id,
+                method: method.to_owned(),
+                params,
+            },
+            0,
+        )
+        .expect("written")
+    }
+
+    #[test]
+    fn a_subscription_names_declared_events_of_families_served_and_is_in_flight() {
+        let (mut tool, mut program) = (ToolSession::new(), program());
+        open(&mut tool, &mut program, &[("play", 1)]);
+        let (id, sent) = tool
+            .subscribe(&["play/time", "play/time"])
+            .expect("declared");
+        let FromTool::Subscribe { id: asked, events } =
+            program.receive(frame(&sent), the_secret).expect("read")
+        else {
+            panic!("a subscription for the carrier");
+        };
+        assert_eq!((asked, events), (id, vec!["play/time".to_owned()]));
+        let again = core_request(id, SUBSCRIBE, json!({ "events": ["play/time"] }));
+        let FromTool::Answered { reply } =
+            program.receive(frame(&again), the_secret).expect("read")
+        else {
+            panic!("answered by the session");
+        };
+        let Message::Response { outcome, .. } = frame(&reply).message else {
+            panic!("an answer");
+        };
+        assert_eq!(
+            outcome.map_err(|fault| fault.code),
+            Err(Fault::INVALID),
+            "in flight"
+        );
+        let answer = program.subscribed(id).expect("written");
+        program.written(id);
+        assert_eq!(
+            tool.receive(frame(&answer)).expect("read"),
+            FromProgram::Response {
+                id,
+                outcome: Ok(json!({})),
+                bytes: Vec::new()
+            }
+        );
+        let (id, sent) = tool.unsubscribe(&["play/time"]).expect("declared");
+        assert!(matches!(
+            program.receive(frame(&sent), the_secret).expect("read"),
+            FromTool::Unsubscribe { id: asked, events } if asked == id && events == ["play/time"]
+        ));
+    }
+
+    #[test]
+    fn a_subscription_to_what_is_not_declared_or_not_served_is_refused_whole() {
+        let (mut tool, mut program) = (ToolSession::new(), program());
+        open(&mut tool, &mut program, &[("play", 1)]);
+        for (params, code) in [
+            (
+                json!({ "events": ["play/time", "play/score"] }),
+                Fault::BAD_PARAMS,
+            ),
+            (json!({ "events": ["world/changed"] }), Fault::NOT_SERVED),
+            (json!({ "events": ["time"] }), Fault::BAD_PARAMS),
+            (json!({ "events": [3] }), Fault::BAD_PARAMS),
+            (json!({ "events": [] }), Fault::BAD_PARAMS),
+            (json!(["play/time"]), Fault::BAD_PARAMS),
+        ] {
+            for method in [SUBSCRIBE, UNSUBSCRIBE] {
+                let sent = core_request(7, method, params.clone());
+                let FromTool::Answered { reply } =
+                    program.receive(frame(&sent), the_secret).expect("read")
+                else {
+                    panic!("{method} {params}: answered by the session");
+                };
+                let Message::Response { outcome, .. } = frame(&reply).message else {
+                    panic!("an answer");
+                };
+                assert_eq!(
+                    outcome.map_err(|fault| fault.code),
+                    Err(code),
+                    "{method} {params}"
+                );
+            }
+        }
+        // None was in flight: the number serves again.
+        let sent = core_request(7, SUBSCRIBE, json!({ "events": ["play/time"] }));
+        assert!(matches!(
+            program.receive(frame(&sent), the_secret).expect("read"),
+            FromTool::Subscribe { id: 7, .. }
+        ));
+        assert!(matches!(
+            tool.subscribe(&["play/score"]),
+            Err(AgentError::NotDeclared(event)) if event == "play/score"
+        ));
+        assert!(matches!(
+            tool.subscribe(&[]),
+            Err(AgentError::NotDeclared(_))
+        ));
+        assert!(matches!(
+            ToolSession::new().subscribe(&["play/time"]),
+            Err(AgentError::OutOfTurn(_))
+        ));
+    }
+
+    #[test]
+    fn a_subscription_counts_among_the_requests_in_flight() {
+        let (mut tool, mut program, _) = opened(InFlight {
+            requests: 1,
+            bytes: 1 << 20,
+        });
+        let (id, sent) = tool.subscribe(&["play/time"]).expect("declared");
+        assert!(matches!(
+            tool.subscribe(&["play/time"]),
+            Err(AgentError::Full)
+        ));
+        program.receive(frame(&sent), the_secret).expect("read");
+        let busy = core_request(id + 1, UNSUBSCRIBE, json!({ "events": ["play/time"] }));
+        let FromTool::Answered { reply } = program.receive(frame(&busy), the_secret).expect("read")
+        else {
+            panic!("answered by the session");
+        };
+        let Message::Response { outcome, .. } = frame(&reply).message else {
+            panic!("an answer");
+        };
+        assert_eq!(outcome.map_err(|fault| fault.code), Err(Fault::BUSY));
+    }
+
+    #[test]
+    fn an_event_larger_than_the_tool_reads_is_not_written() {
+        let mut tool = ToolSession::new();
+        let mut program = program();
+        let mut asked = hello(&[("play", 1)]);
+        asked.limits.line = 200;
+        let sent = tool.hello(&asked).expect("written");
+        program.receive(frame(&sent), the_secret).expect("welcomed");
+        let event = program
+            .event("play/time", json!({ "paused": true }))
+            .expect("written")
+            .expect("within what the tool reads");
+        assert_eq!(
+            frame(&event).message,
+            Message::Event {
+                method: "play/time".to_owned(),
+                params: json!({ "paused": true })
+            }
+        );
+        let long = program
+            .event("play/time", json!("x".repeat(200)))
+            .expect("written");
+        assert!(long.is_none(), "past the tool's line");
     }
 }

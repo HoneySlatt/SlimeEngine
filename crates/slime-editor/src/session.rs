@@ -1029,6 +1029,8 @@ impl Session {
                     }
                 }
                 Event::Time { paused, speed } => {
+                    let state = if paused { "paused" } else { "runs" };
+                    tracing::info!("Play: game time {state}, at the speed {speed}");
                     self.shared.borrow_mut().play = Playing::Running { paused, speed };
                 }
                 Event::Log(lines) => {

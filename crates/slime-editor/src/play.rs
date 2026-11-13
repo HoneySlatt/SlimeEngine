@@ -11,13 +11,14 @@ use std::fs;
 use std::io::{self, BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime};
 
 use slime_app::Waker;
-use slime_channel::{Client, Named, Reply, Request, launch_unless};
+use slime_channel::{ChannelError, Client, GameTime, Named, Notice, Reply, Request, launch_unless};
 
 use crate::program::{Build, Played};
 
@@ -27,16 +28,9 @@ const START_TIMEOUT: Duration = Duration::from_secs(120);
 /// How long the game may take to end once it is asked to stop, before it is killed.
 pub(crate) const STOP_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// How often the thread looks whether the game ended, and asks how its time stands, while nothing
-/// is asked.
-const POLL: Duration = Duration::from_millis(200);
-
-/// How long the thread waits for a control between two questions of how the game's time stands,
-/// while it measures the time to control: the game answering at the start of its frames, it asks
-/// once a frame.
-const MEASURE: Duration = Duration::from_millis(5);
-
-/// How often the thread looks whether the game's sources changed, while the game runs.
+/// How often the thread wakes while the game runs and nothing comes: it looks whether the game's
+/// sources changed, and whether the game ended, which its connection's end tells at once but for
+/// a game that runs on without it.
 const WATCH: Duration = Duration::from_secs(1);
 
 /// What the editor asks of the game that it plays.
@@ -76,17 +70,18 @@ pub(crate) enum Event {
     /// The game listens, and answers: where, and its token, which a tool connects to it with.
     Started { address: String, token: String },
     /// The game gave control, its game time no longer held, as when its zone loaded and drew, for
-    /// the first time since it started, as the thread found it, to within a frame of the game's:
-    /// `after` Play was asked, `writing` of it the editor writing the level and `building` cargo
-    /// building the game; or `again`, `after` its build again ended, as the thread found it ended,
-    /// to within [`POLL`], `building` before it (`docs/adr/0166-building-the-game-again.md`).
+    /// the first time since it started, as the game told it at the end of that frame and the
+    /// client read it: `after` Play was asked, `writing` of it the editor writing the level and
+    /// `building` cargo building the game; or `again`, `after` its build again ended, as cargo's
+    /// output closed, `building` before it (`docs/adr/0166-building-the-game-again.md`).
     Controlled {
         after: Duration,
         writing: Duration,
         building: Duration,
         again: bool,
     },
-    /// Game time as the game says it stands, after a control and once another tool changed it:
+    /// Game time as the game tells it, each time it changes, whoever changed it; and again, as last
+    /// told, after a control that the game refused or did not answer, which changed nothing:
     /// paused or not, and its speed.
     Time { paused: bool, speed: f64 },
     /// Lines of the game's log, the oldest first, as it wrote them to its standard error.
@@ -121,7 +116,7 @@ type Process = Arc<Mutex<Option<Child>>>;
 /// it still runs, and removes Play's directory.
 #[derive(Debug)]
 pub(crate) struct Player {
-    controls: Sender<Control>,
+    controls: Sender<Input>,
     events: Receiver<Event>,
     process: Process,
     directory: PathBuf,
@@ -137,7 +132,7 @@ impl Player {
     ///
     /// If the system refuses a new thread.
     pub(crate) fn start(game: Game, directory: PathBuf, waker: Waker) -> Self {
-        let (controls, asked) = mpsc::channel();
+        let (controls, queue) = mpsc::channel();
         let (told, events) = mpsc::channel();
         let process: Process = Arc::new(Mutex::new(None));
         let tell = move |event: Event| {
@@ -147,9 +142,10 @@ impl Player {
         };
         let shared = Arc::clone(&process);
         let played = directory.clone();
+        let sender = controls.clone();
         thread::Builder::new()
             .name("play".to_owned())
-            .spawn(move || drive(&game, &played, &asked, &shared, &tell))
+            .spawn(move || drive(&game, &played, &queue, &sender, &shared, &tell))
             .expect("a thread can be started");
         Self {
             controls,
@@ -164,7 +160,7 @@ impl Player {
     /// waits on.
     pub(crate) fn control(&self, control: Control) {
         let stop = control == Control::Stop;
-        let _ = self.controls.send(control);
+        let _ = self.controls.send(Input::Control(control));
         if stop {
             let process = Arc::clone(&self.process);
             let _ = thread::Builder::new()
@@ -189,8 +185,10 @@ impl Player {
 
 impl Drop for Player {
     /// The game killed, if it still runs, as the editor that plays it quits, and Play's directory
-    /// removed.
+    /// removed. Its thread is told first: the queue that it waits on has other senders, so that
+    /// the editor's going is not its end.
     fn drop(&mut self) {
+        let _ = self.controls.send(Input::Gone);
         kill(&self.process);
         let _ = fs::remove_dir_all(&self.directory);
     }
@@ -216,14 +214,58 @@ fn status(process: &Process) -> Option<std::process::ExitStatus> {
         .and_then(|child| child.try_wait().ok().flatten())
 }
 
+/// What Play's thread waits for, all on one queue, so that it waits for nothing else: the
+/// controls, what the game's connection tells, a build's end and the editor's
+/// (`docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md`).
+#[derive(Debug)]
+enum Input {
+    /// A control that the editor asked.
+    Control(Control),
+    /// How game time stands, as the game of the `start`-th start told it, read `at`.
+    Time {
+        start: u32,
+        time: GameTime,
+        at: Instant,
+    },
+    /// The connection to the game of the `start`-th start closed.
+    Closed { start: u32 },
+    /// The `build`-th build's output closed, `at`: cargo ends.
+    Built { build: u32, at: Instant },
+    /// The editor let go of its player, which kills the game.
+    Gone,
+}
+
+impl Input {
+    /// Whether it comes of what runs now: the `starts`-th start of the game, and the build that
+    /// runs, if any; an input of a start or a build before is dropped, as an old connection that
+    /// closes after the new game started.
+    fn current(&self, starts: u32, building: Option<u32>) -> bool {
+        match self {
+            Input::Time { start, .. } | Input::Closed { start } => *start == starts,
+            Input::Built { build, .. } => building == Some(*build),
+            Input::Control(_) | Input::Gone => true,
+        }
+    }
+}
+
+/// Whether `input` ends Play: a stop asked, or the editor gone.
+fn ends(input: &Input) -> bool {
+    matches!(input, Input::Control(Control::Stop) | Input::Gone)
+}
+
+/// The time to control under measure: since when, its parts writing the level and building the
+/// game, and whether the game was built again.
+type Measure = (Instant, Duration, Duration, bool);
+
 /// Builds `game`, starts it on Play's `directory`, then drives it until it ends, building it again
-/// and starting it again as its code changes: `asked` gives the controls, `tell` tells the events,
-/// `process` holds the game once it listens. The editor gone, which drops the controls' sender,
-/// ends the build, the start or the drive, the player's drop killing the game.
+/// and starting it again as its code changes: `queue` gives the controls and what the threads tell,
+/// which `sender` posts, `tell` tells the events, `process` holds the game once it listens. The
+/// editor gone ends the build, the start or the drive, the player's drop killing the game.
 fn drive(
     game: &Game,
     directory: &Path,
-    asked: &Receiver<Control>,
+    queue: &Receiver<Input>,
+    sender: &Sender<Input>,
     process: &Process,
     tell: &(impl Fn(Event) + Clone + Send + 'static),
 ) {
@@ -232,12 +274,21 @@ fn drive(
     let pending = RefCell::new(VecDeque::new());
     // The level written, as the thread starts.
     let thread_started = Instant::now();
-    // A stop asked, or the editor gone, while the game builds or starts gives it up.
+    // A stop asked, or the editor gone, while the game builds or starts gives it up; what the
+    // threads tell meanwhile is of no game that runs.
     let stopped = || {
+        // One kept for later, as after a control refused.
+        if pending.borrow().iter().any(ends) {
+            return true;
+        }
         loop {
-            match asked.try_recv() {
-                Ok(Control::Stop) | Err(TryRecvError::Disconnected) => return true,
-                Ok(control) => pending.borrow_mut().push_back(control),
+            match queue.try_recv() {
+                Ok(Input::Control(Control::Stop) | Input::Gone)
+                | Err(TryRecvError::Disconnected) => return true,
+                Ok(Input::Control(control)) => {
+                    pending.borrow_mut().push_back(Input::Control(control))
+                }
+                Ok(_) => {}
                 Err(TryRecvError::Empty) => return false,
             }
         }
@@ -246,9 +297,11 @@ fn drive(
     let mut built = None;
     let mut built_at = None;
     let mut sources = None;
+    let mut builds = 0;
     if let Some(build) = &game.build {
         tell(Event::Building);
-        let mut cargo = match Cargo::start(build) {
+        builds += 1;
+        let mut cargo = match Cargo::start(build, builds, sender) {
             Ok(cargo) => cargo,
             Err(error) => {
                 tell(Event::BuildFailed(vec![format!(
@@ -261,25 +314,34 @@ fn drive(
                 return;
             }
         };
-        let outcome = loop {
-            if let Some(outcome) = cargo.finished() {
-                break outcome;
+        // Its end posted as its outputs close, and when; a stop asked, or the editor gone,
+        // meanwhile gives it up.
+        let (outcome, ended) = loop {
+            match queue.recv() {
+                Ok(Input::Built { build, at }) if build == cargo.build => {
+                    if let Some(outcome) = cargo.wait() {
+                        break (outcome, at);
+                    }
+                }
+                Ok(Input::Control(Control::Stop) | Input::Gone) | Err(_) => {
+                    tell(Event::Ended {
+                        how: "Play was stopped while the game was built".to_owned(),
+                        cleanly: true,
+                    });
+                    return;
+                }
+                Ok(Input::Control(control)) => {
+                    pending.borrow_mut().push_back(Input::Control(control));
+                }
+                Ok(_) => {}
             }
-            if stopped() {
-                tell(Event::Ended {
-                    how: "Play was stopped while the game was built".to_owned(),
-                    cleanly: true,
-                });
-                return;
-            }
-            thread::sleep(Duration::from_millis(20));
         };
         match outcome {
             Ok(program) => {
                 tell(Event::Built);
                 sources = Some(Sources::of(&program, cargo.since));
                 built = Some(program);
-                built_at = Some(Instant::now());
+                built_at = Some(ended);
             }
             Err(lines) => {
                 tell(Event::BuildFailed(lines));
@@ -301,6 +363,7 @@ fn drive(
         starts,
         false,
         &stopped,
+        sender,
         process,
         tell,
     );
@@ -311,9 +374,7 @@ fn drive(
             return;
         }
     };
-    // The time to control under measure: since when, its parts writing the level and building the
-    // game, and whether the game was built again.
-    let mut measuring = Some((
+    let mut measuring: Option<Measure> = Some((
         game.asked,
         thread_started.duration_since(game.asked),
         built_at
@@ -321,129 +382,67 @@ fn drive(
             .duration_since(thread_started),
         false,
     ));
-    // Game time as last told: running at its speed, as the game starts.
-    let mut time = (false, 1.0);
+    // Game time as last told to the editor, paused or not and its speed: running at its speed, as
+    // the game starts.
+    let mut told = (false, 1.0);
+    // How game time stands, as told: what the toolbar reads, and when the game gives control.
+    let follow =
+        |time: GameTime, at: Instant, told: &mut (bool, f64), measuring: &mut Option<Measure>| {
+            if *told != (time.paused, time.speed) {
+                *told = (time.paused, time.speed);
+                tell(Event::Time {
+                    paused: time.paused,
+                    speed: time.speed,
+                });
+            }
+            // The first time that the game no longer holds gives control, whether the user paused it
+            // or not.
+            if !time.held
+                && let Some((since, writing, building, again)) = measuring.take()
+            {
+                tell(Event::Controlled {
+                    after: at.saturating_duration_since(since),
+                    writing,
+                    building,
+                    again,
+                });
+            }
+        };
     // The build under way, and when the sources were last looked at.
     let mut cargo: Option<Cargo> = None;
     let mut looked = Instant::now();
     loop {
         let waiting = pending.borrow_mut().pop_front();
-        // While the time to control is measured, the game is asked how its time stands often.
-        let poll = if measuring.is_some() { MEASURE } else { POLL };
-        let control = match waiting.map_or_else(|| asked.recv_timeout(poll), Ok) {
-            Ok(control) => Some(control),
+        // Play wakes each second, for the sources and to see whether the game ended.
+        let input = match waiting.map_or_else(
+            || queue.recv_timeout(WATCH.saturating_sub(looked.elapsed())),
+            Ok,
+        ) {
+            Ok(input) => Some(input),
             Err(RecvTimeoutError::Timeout) => None,
             // The build under way, dropped, is stopped.
             Err(RecvTimeoutError::Disconnected) => return,
         };
-        let requests = match &control {
-            None | Some(Control::Written) => Vec::new(),
-            Some(Control::Apply(steps)) => steps
-                .iter()
-                .map(|commands| Request::Apply {
-                    commands: commands.clone(),
-                })
-                .collect(),
-            Some(Control::Pause(true)) => vec![Request::Pause],
-            Some(Control::Pause(false)) => vec![Request::Resume],
-            Some(Control::Step) => vec![Request::Pause, Request::Step { steps: 1 }],
-            Some(Control::Speed(speed)) => vec![Request::Speed { speed: *speed }],
-            Some(Control::Stop) => vec![Request::Stop],
-        };
-        for request in &requests {
-            match client.request(request) {
-                Ok((Reply::Failed { message }, _)) => tell(Event::Refused(message)),
-                Ok(_) => {}
-                Err(error) => tell(Event::Refused(format!("the game does not answer: {error}"))),
-            }
-        }
-        if control == Some(Control::Stop) {
-            drop(cargo.take());
-            // Ended by itself, or killed by the stop's watch.
-            let wait = STOP_TIMEOUT + Duration::from_secs(1);
-            tell(end(process, "stopped", wait, || Event::Ended {
-                how: "the game did not stop: it was killed".to_owned(),
-                cleanly: false,
-            }));
-            return;
-        }
-        // The build under way, once it ended: a program other than the one that runs starts again
-        // on a save of the run; a build that failed leaves the game playing.
-        if let Some(outcome) = cargo.as_mut().and_then(Cargo::finished) {
-            let ended = Instant::now();
-            let (since, building) = cargo.take().map_or_else(
-                || (SystemTime::now(), Duration::ZERO),
-                |cargo| (cargo.since, ended.duration_since(cargo.started)),
-            );
-            match outcome {
-                Ok(program) => {
-                    tell(Event::Built);
-                    sources = Some(Sources::of(&program, since));
-                    let again = modified(&program) != running || Some(&program) != built.as_ref();
-                    if again {
-                        built = Some(program);
-                        let unsaved = save(&client, directory).err();
-                        tell(Event::Restarting {
-                            unsaved: unsaved.clone(),
-                        });
-                        let _ = client.request(&Request::Stop);
-                        let wait = STOP_TIMEOUT + Duration::from_secs(1);
-                        let _ = end(process, "stopped", wait, || Event::Refused(String::new()));
-                        let _ = fs::remove_dir_all(copies(directory, starts));
-                        // A new run starts on the level as the editor holds it, which the editor
-                        // writes again, the steps sent meanwhile in it.
-                        if unsaved.is_some() && !written(asked, &pending) {
-                            tell(Event::Ended {
-                                how: "Play was stopped while the game was built again".to_owned(),
-                                cleanly: true,
-                            });
-                            return;
-                        }
-                        starts += 1;
-                        running = built.as_deref().and_then(modified);
-                        let resume = unsaved.is_none();
-                        let started = start(
-                            game,
-                            directory,
-                            built.as_deref(),
-                            starts,
-                            resume,
-                            &stopped,
-                            process,
-                            tell,
-                        );
-                        client = match started {
-                            Ok(client) => client,
-                            Err(ended) => {
-                                tell(ended);
-                                return;
-                            }
-                        };
-                        measuring = Some((ended, Duration::ZERO, building, true));
-                        // Game time as it stood, which the new game is told, and the toolbar
-                        // once the game answers how it stands.
-                        if time.0 {
-                            let _ = client.request(&Request::Pause);
-                        }
-                        if time.1 != 1.0 {
-                            let _ = client.request(&Request::Speed { speed: time.1 });
-                        }
-                        time = (false, 1.0);
-                    }
-                }
-                Err(lines) => {
-                    if let Some(sources) = &mut sources {
-                        sources.since = since;
-                    }
-                    tell(Event::BuildFailed(lines));
-                }
-            }
-        } else if cargo.is_none() && looked.elapsed() >= WATCH {
+        let building = cargo.as_ref().map(|cargo| cargo.build);
+        // The build under way, once it ended, and when.
+        let mut ended = None;
+        // Each second, whatever came meanwhile, so that a stream of controls holds up neither the
+        // look at the sources nor at the game's end; not as Play ends.
+        if looked.elapsed() >= WATCH && !input.as_ref().is_some_and(ends) {
             looked = Instant::now();
-            if let (Some(build), Some(watched)) = (&game.build, &mut sources)
+            if let Some(status) = status(process) {
+                tell(Event::Ended {
+                    how: format!("the game ended: {status}"),
+                    cleanly: status.success(),
+                });
+                return;
+            }
+            if cargo.is_none()
+                && let (Some(build), Some(watched)) = (&game.build, &mut sources)
                 && watched.changed()
             {
-                match Cargo::start(build) {
+                builds += 1;
+                match Cargo::start(build, builds, sender) {
                     Ok(started) => {
                         tell(Event::Building);
                         cargo = Some(started);
@@ -457,52 +456,184 @@ fn drive(
                 }
             }
         }
-        // Game time as the game says it stands: after a control, which the game may have
-        // refused, and as another tool changes it.
-        if let Ok((Reply::State { state }, _)) = client.request(&Request::State) {
-            if control.is_some() || time != (state.paused, state.speed) {
-                time = (state.paused, state.speed);
-                tell(Event::Time {
-                    paused: state.paused,
-                    speed: state.speed,
-                });
+        match input {
+            None => {}
+            Some(input) if !input.current(starts, building) => {}
+            Some(Input::Gone) => return,
+            Some(Input::Time { time, at, .. }) => follow(time, at, &mut told, &mut measuring),
+            Some(Input::Closed { .. }) => {
+                // The connection closes as the game's process ends; the game may also run on
+                // without it, which the second's wake then sees end.
+                let until = Instant::now() + Duration::from_secs(1);
+                while Instant::now() < until {
+                    if let Some(status) = status(process) {
+                        tell(Event::Ended {
+                            how: format!("the game ended: {status}"),
+                            cleanly: status.success(),
+                        });
+                        return;
+                    }
+                    thread::sleep(Duration::from_millis(20));
+                }
             }
-            // The first state whose time the game no longer holds gives control, whether the
-            // user paused it or not.
-            if !state.held
-                && let Some((since, writing, building, again)) = measuring.take()
-            {
-                tell(Event::Controlled {
-                    after: since.elapsed(),
-                    writing,
-                    building,
-                    again,
-                });
+            Some(Input::Built { at, .. }) => {
+                ended = cargo
+                    .as_mut()
+                    .and_then(Cargo::wait)
+                    .map(|outcome| (outcome, at));
+            }
+            Some(Input::Control(control)) => {
+                let requests = match &control {
+                    Control::Written => Vec::new(),
+                    Control::Apply(steps) => steps
+                        .iter()
+                        .map(|commands| Request::Apply {
+                            commands: commands.clone(),
+                        })
+                        .collect(),
+                    Control::Pause(true) => vec![Request::Pause],
+                    Control::Pause(false) => vec![Request::Resume],
+                    Control::Step => vec![Request::Pause, Request::Step { steps: 1 }],
+                    Control::Speed(speed) => vec![Request::Speed { speed: *speed }],
+                    Control::Stop => vec![Request::Stop],
+                };
+                let mut refused = false;
+                for request in &requests {
+                    match client.request(request) {
+                        Ok((Reply::Failed { message }, _)) => {
+                            refused = true;
+                            tell(Event::Refused(message));
+                        }
+                        Ok(_) => {}
+                        Err(error) => {
+                            refused = true;
+                            tell(Event::Refused(format!("the game does not answer: {error}")));
+                        }
+                    }
+                }
+                if control == Control::Stop {
+                    drop(cargo.take());
+                    // Ended by itself, or killed by the stop's watch.
+                    let wait = STOP_TIMEOUT + Duration::from_secs(1);
+                    tell(end(process, "stopped", wait, || Event::Ended {
+                        how: "the game did not stop: it was killed".to_owned(),
+                        cleanly: false,
+                    }));
+                    return;
+                }
+                // A control refused changed nothing, so no event comes, and the toolbar shows
+                // what was asked: it is told how game time stands as last told, once the events
+                // that came meanwhile are followed.
+                if refused {
+                    while let Ok(input) = queue.try_recv() {
+                        match input {
+                            Input::Time { start, time, at } if start == starts => {
+                                follow(time, at, &mut told, &mut measuring);
+                            }
+                            other => pending.borrow_mut().push_back(other),
+                        }
+                    }
+                    tell(Event::Time {
+                        paused: told.0,
+                        speed: told.1,
+                    });
+                }
             }
         }
-        if let Some(status) = status(process) {
-            tell(Event::Ended {
-                how: format!("the game ended: {status}"),
-                cleanly: status.success(),
-            });
-            return;
+        // A build that ended: a program other than the one that runs starts again on a save of
+        // the run; a build that failed leaves the game playing.
+        let Some((outcome, ended)) = ended else {
+            continue;
+        };
+        let (since, building) = cargo.take().map_or_else(
+            || (SystemTime::now(), Duration::ZERO),
+            |cargo| (cargo.since, ended.duration_since(cargo.started)),
+        );
+        match outcome {
+            Ok(program) => {
+                tell(Event::Built);
+                sources = Some(Sources::of(&program, since));
+                let again = modified(&program) != running || Some(&program) != built.as_ref();
+                if again {
+                    built = Some(program);
+                    let unsaved = save(&client, directory).err();
+                    tell(Event::Restarting {
+                        unsaved: unsaved.clone(),
+                    });
+                    let _ = client.request(&Request::Stop);
+                    let wait = STOP_TIMEOUT + Duration::from_secs(1);
+                    let _ = end(process, "stopped", wait, || Event::Refused(String::new()));
+                    let _ = fs::remove_dir_all(copies(directory, starts));
+                    // A new run starts on the level as the editor holds it, which the editor
+                    // writes again, the steps sent meanwhile in it.
+                    if unsaved.is_some() && !written(queue, &pending) {
+                        tell(Event::Ended {
+                            how: "Play was stopped while the game was built again".to_owned(),
+                            cleanly: true,
+                        });
+                        return;
+                    }
+                    starts += 1;
+                    running = built.as_deref().and_then(modified);
+                    let resume = unsaved.is_none();
+                    let started = start(
+                        game,
+                        directory,
+                        built.as_deref(),
+                        starts,
+                        resume,
+                        &stopped,
+                        sender,
+                        process,
+                        tell,
+                    );
+                    client = match started {
+                        Ok(client) => client,
+                        Err(ended) => {
+                            tell(ended);
+                            return;
+                        }
+                    };
+                    measuring = Some((ended, Duration::ZERO, building, true));
+                    // Game time as it stood, which the new game is told, and the toolbar once
+                    // the game tells how it stands.
+                    if told.0 {
+                        let _ = client.request(&Request::Pause);
+                    }
+                    if told.1 != 1.0 {
+                        let _ = client.request(&Request::Speed { speed: told.1 });
+                    }
+                    told = (false, 1.0);
+                }
+            }
+            Err(lines) => {
+                if let Some(sources) = &mut sources {
+                    sources.since = since;
+                }
+                tell(Event::BuildFailed(lines));
+            }
         }
     }
 }
 
 /// Waits until the editor wrote the level again, [`Control::Written`]: `false` once Stop is asked,
 /// or the editor is gone. The steps sent before, which the level written holds, are dropped; the
-/// other controls are kept in `pending`.
-fn written(asked: &Receiver<Control>, pending: &RefCell<VecDeque<Control>>) -> bool {
+/// other controls are kept in `pending`; what the threads tell meanwhile is of the game that
+/// stopped, and dropped.
+fn written(queue: &Receiver<Input>, pending: &RefCell<VecDeque<Input>>) -> bool {
+    if pending.borrow().iter().any(ends) {
+        return false;
+    }
     pending
         .borrow_mut()
-        .retain(|control| !matches!(control, Control::Apply(_)));
+        .retain(|input| !matches!(input, Input::Control(Control::Apply(_))));
     loop {
-        match asked.recv() {
-            Ok(Control::Written) => return true,
-            Ok(Control::Stop) | Err(_) => return false,
-            Ok(Control::Apply(_)) => {}
-            Ok(control) => pending.borrow_mut().push_back(control),
+        match queue.recv() {
+            Ok(Input::Control(Control::Written)) => return true,
+            Ok(Input::Control(Control::Stop) | Input::Gone) | Err(_) => return false,
+            Ok(Input::Control(Control::Apply(_))) => {}
+            Ok(Input::Control(control)) => pending.borrow_mut().push_back(Input::Control(control)),
+            Ok(_) => {}
         }
     }
 }
@@ -533,7 +664,8 @@ fn save(client: &Client, directory: &Path) -> Result<(), String> {
 /// Starts `game` on Play's `directory`, the `starts`-th time, its program the one that cargo
 /// built, `built`, if any, resuming Play's save or not, as `slime_channel::launch_unless` does,
 /// given up once `stopped` says so; its log read on a thread of its own, the process kept in
-/// `process`. Gives a client connected to it, or the event of its end.
+/// `process`. Gives a client connected to it and subscribed to how its time stands, which it posts
+/// with its connection's end to `sender`, marked with `starts`; or the event of its end.
 #[expect(
     clippy::too_many_arguments,
     reason = "what a start needs, from the one function that starts the game"
@@ -545,6 +677,7 @@ fn start(
     starts: u32,
     resume: bool,
     stopped: &impl Fn() -> bool,
+    sender: &Sender<Input>,
     process: &Process,
     tell: &(impl Fn(Event) + Clone + Send + 'static),
 ) -> Result<Client, Event> {
@@ -583,13 +716,44 @@ fn start(
     *process.lock().unwrap_or_else(PoisonError::into_inner) = Some(launched.child);
     // The editor drives the game that it plays as its own agent.
     let editor = Named::new(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
-    let client = Client::connect(address, &token, &editor, &editor).map_err(|error| {
-        // A game that crashed as it started, or one that does not answer.
+    let posted = sender.clone();
+    let notify = move |notice| {
+        let at = Instant::now();
+        let _ = posted.send(match notice {
+            Notice::Event(slime_channel::Event::Time(time)) => Input::Time {
+                start: starts,
+                time,
+                at,
+            },
+            Notice::Closed(_) => Input::Closed { start: starts },
+        });
+    };
+    // A game that crashed as it started, or one that does not answer.
+    let unanswered = |error: ChannelError| {
         end(process, "ended", Duration::from_secs(1), || Event::Ended {
             how: format!("the game does not answer: {error}"),
             cleanly: false,
         })
-    })?;
+    };
+    let client =
+        Client::connect_with(address, &token, &editor, &editor, notify).map_err(unanswered)?;
+    if !client
+        .events()
+        .iter()
+        .any(|event| event == slime_channel::Event::TIME)
+    {
+        kill(process);
+        return Err(Event::Ended {
+            how: format!(
+                "the game does not tell how its time stands, `{}`: its engine is not the editor's",
+                slime_channel::Event::TIME
+            ),
+            cleanly: false,
+        });
+    }
+    client
+        .subscribe(&[slime_channel::Event::TIME])
+        .map_err(unanswered)?;
     tell(Event::Started {
         address: address.to_string(),
         token: token.to_string(),
@@ -684,6 +848,8 @@ fn read_log(stderr: impl std::io::Read + Send + 'static, tell: &impl Fn(Event)) 
 /// ends, and the threads that read what it writes.
 struct Cargo {
     child: Child,
+    /// Its number among the builds of this Play, which its end is posted with.
+    build: u32,
     /// When it started: a source changed since, while it built, is built again.
     since: SystemTime,
     /// When it started, as the time that it builds is counted.
@@ -695,13 +861,14 @@ struct Cargo {
 }
 
 impl Cargo {
-    /// Starts cargo on `build`, in the profile that the editor's own program was built in, its
-    /// messages in JSON.
+    /// Starts cargo on `build`, the `number`-th build of this Play, in the profile that the
+    /// editor's own program was built in, its messages in JSON; posts [`Input::Built`] to `sender`
+    /// once its outputs closed, as cargo ends.
     ///
     /// # Errors
     ///
     /// When cargo cannot be started.
-    fn start(build: &Build) -> io::Result<Self> {
+    fn start(build: &Build, number: u32, sender: &Sender<Input>) -> io::Result<Self> {
         let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
         let mut command = Command::new(cargo);
         command
@@ -721,25 +888,56 @@ impl Cargo {
         let mut child = command.spawn()?;
         let stdout = child.stdout.take().map(BufReader::new);
         let stderr = child.stderr.take().map(BufReader::new);
-        let program = thread::spawn(move || {
-            stdout?
-                .lines()
-                .map_while(Result::ok)
-                .filter_map(|line| executable(&line))
-                .last()
-        });
-        let errors = thread::spawn(move || {
-            stderr.map_or_else(Vec::new, |stderr| {
-                stderr.lines().map_while(Result::ok).collect()
+        // The build's end is posted once both outputs closed, by the reader that sees the last
+        // close, so that waiting for the readers then never blocks Play's thread.
+        let open = Arc::new(AtomicUsize::new(2));
+        let closed = move |sender: &Sender<Input>, open: &AtomicUsize| {
+            if open.fetch_sub(1, Ordering::AcqRel) == 1 {
+                let _ = sender.send(Input::Built {
+                    build: number,
+                    at: Instant::now(),
+                });
+            }
+        };
+        let program = {
+            let (sender, open) = (sender.clone(), Arc::clone(&open));
+            thread::spawn(move || {
+                let program = stdout.and_then(|stdout| {
+                    stdout
+                        .lines()
+                        .map_while(Result::ok)
+                        .filter_map(|line| executable(&line))
+                        .last()
+                });
+                closed(&sender, &open);
+                program
             })
-        });
+        };
+        let errors = {
+            let sender = sender.clone();
+            thread::spawn(move || {
+                let errors = stderr.map_or_else(Vec::new, |stderr| {
+                    stderr.lines().map_while(Result::ok).collect()
+                });
+                closed(&sender, &open);
+                errors
+            })
+        };
         Ok(Self {
             child,
+            build: number,
             since,
             started,
             program: Some(program),
             errors: Some(errors),
         })
+    }
+
+    /// What the build gave once its outputs closed, as cargo ends, waiting for cargo to end: as
+    /// [`Cargo::finished`].
+    fn wait(&mut self) -> Option<Result<PathBuf, Vec<String>>> {
+        let _ = self.child.wait();
+        self.finished()
     }
 
     /// What the build gave once cargo ended, none while it runs: the program built, or the lines
@@ -883,6 +1081,50 @@ fn listed(text: &str) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_stop_kept_for_later_ends_the_wait_for_the_level_written_again() {
+        let (sender, queue) = mpsc::channel();
+        sender
+            .send(Input::Control(Control::Written))
+            .expect("queued");
+        // As after a control refused, the stop asked meanwhile kept with the steps.
+        let pending = RefCell::new(VecDeque::from([
+            Input::Control(Control::Apply(vec![vec!["a step".to_owned()]])),
+            Input::Control(Control::Stop),
+        ]));
+        assert!(!written(&queue, &pending), "stopped, not written");
+        let pending = RefCell::new(VecDeque::from([Input::Control(Control::Apply(Vec::new()))]));
+        assert!(written(&queue, &pending), "written");
+        assert!(
+            pending.borrow().is_empty(),
+            "the steps that the level holds dropped"
+        );
+    }
+
+    #[test]
+    fn what_a_start_or_a_build_before_tells_is_dropped() {
+        let time = GameTime {
+            paused: false,
+            speed: 1.0,
+            held: false,
+        };
+        let at = Instant::now();
+        let told = |start| Input::Time { start, time, at };
+        assert!(told(2).current(2, None));
+        assert!(!told(1).current(2, None), "of the game before");
+        assert!(
+            !Input::Closed { start: 1 }.current(2, None),
+            "the old connection's end"
+        );
+        assert!(Input::Closed { start: 2 }.current(2, Some(1)));
+        let built = |build| Input::Built { build, at };
+        assert!(built(3).current(1, Some(3)));
+        assert!(!built(2).current(1, Some(3)), "a build dropped");
+        assert!(!built(3).current(1, None), "a build already seen to end");
+        assert!(Input::Gone.current(5, None));
+        assert!(Input::Control(Control::Stop).current(5, None));
+    }
 
     #[test]
     fn the_files_of_dependencies_are_read_as_cargo_writes_them() {

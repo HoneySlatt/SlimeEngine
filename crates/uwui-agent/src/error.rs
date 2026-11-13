@@ -30,6 +30,10 @@ pub enum AgentError {
     /// tool's end before it is sent.
     #[error("the program does not serve the family {0} on this connection")]
     NotServed(String),
+    /// A subscription to an event that the program's welcome does not list, the event named, or
+    /// to none, refused by the tool's end before it is sent.
+    #[error("the program declares no event {0:?} on this connection")]
+    NotDeclared(String),
     /// A request before the program's welcome, or a second hello.
     #[error("{0}")]
     OutOfTurn(&'static str),

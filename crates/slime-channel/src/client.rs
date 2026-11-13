@@ -15,7 +15,7 @@ use uwui_agent::{
 
 use crate::error::ChannelError;
 use crate::locked;
-use crate::message::{Reply, Request};
+use crate::message::{Event, Reply, Request};
 use crate::token::Token;
 use crate::wire::{MAX_BYTES, MAX_LINE, receive, send, why};
 use crate::{ANNOUNCEMENT, TOKEN_ENV_VAR};
@@ -27,6 +27,23 @@ const ANSWER_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// What a request's answer is: the reply, and the bytes that follow it.
 type Answer = Result<(Reply, Vec<u8>), ChannelError>;
+
+/// An answer as the core's session read it: its outcome, and the bytes that follow it.
+type Raw = Result<(Result<Value, Fault>, Vec<u8>), ChannelError>;
+
+/// What a client tells its owner, on the thread that reads the connection
+/// ([`Client::connect_with`]).
+#[derive(Debug)]
+pub enum Notice {
+    /// An event that the game sent, of a subscription ([`Client::subscribe`]).
+    Event(Event),
+    /// The connection closed or broke, and why: told once, the last notice, as when the game
+    /// ended or the client was dropped.
+    Closed(ChannelError),
+}
+
+/// What a client's reader calls with each notice.
+type Notify = Box<dyn Fn(Notice) + Send + Sync>;
 
 /// A connection to a game's development channel, open once the game welcomed its hello: it carries
 /// the tool's end of the session of uwui's core for agents (`uwui_agent::ToolSession`).
@@ -42,6 +59,8 @@ pub struct Client {
     stream: TcpStream,
     reader: Option<JoinHandle<()>>,
     program: String,
+    /// The events that the game declares, as its welcome listed them.
+    events: Vec<String>,
 }
 
 /// What the client's callers and its reader share.
@@ -58,7 +77,7 @@ struct State {
     session: ToolSession,
     /// Where each request in flight waits for its answer, by number; a request given up is no
     /// longer here, and its answer, which still comes, is dropped.
-    waiting: HashMap<u64, mpsc::Sender<Answer>>,
+    waiting: HashMap<u64, mpsc::Sender<Raw>>,
     /// Why the connection broke, once it did.
     broken: Option<Broken>,
 }
@@ -85,7 +104,7 @@ impl Broken {
 /// A request in flight, whose answer comes later ([`Pending::wait`]).
 pub struct Pending {
     id: u64,
-    answer: mpsc::Receiver<Answer>,
+    answer: mpsc::Receiver<Raw>,
     shared: Arc<Shared>,
 }
 
@@ -106,8 +125,32 @@ impl Client {
         agent: &Named,
         client: &Named,
     ) -> Result<Self, ChannelError> {
-        Self::connect_speaking(address, token, agent, client, crate::families())
-            .map(|(connection, _)| connection)
+        Self::connect_with(address, token, agent, client, |_| {})
+    }
+
+    /// Connects as [`Client::connect`] does, and tells `notify` each event that the game sends and
+    /// the connection's end ([`Notice`]), on the thread that reads the connection: `notify` must
+    /// not wait, as for an answer of this client, which that thread would read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Client::connect`].
+    pub fn connect_with(
+        address: SocketAddr,
+        token: &Token,
+        agent: &Named,
+        client: &Named,
+        notify: impl Fn(Notice) + Send + Sync + 'static,
+    ) -> Result<Self, ChannelError> {
+        Self::connect_speaking(
+            address,
+            token,
+            agent,
+            client,
+            crate::families(),
+            Box::new(notify),
+        )
+        .map(|(connection, _)| connection)
     }
 
     /// Connects as [`Client::connect`] does, speaking `families`: the client, and the game's
@@ -118,6 +161,7 @@ impl Client {
         agent: &Named,
         client: &Named,
         families: Vec<Family>,
+        notify: Notify,
     ) -> Result<(Self, Welcome), ChannelError> {
         let mut stream = TcpStream::connect(address)?;
         // Each message goes out at once, rather than waiting for the acknowledgement of the last.
@@ -165,15 +209,17 @@ impl Client {
             let shared = Arc::clone(&shared);
             thread::Builder::new()
                 .name("slime dev channel client".to_owned())
-                .spawn(move || read_answers(reading, reader, &shared))?
+                .spawn(move || read_answers(reading, reader, &shared, &notify))?
         };
         let program = welcome.program.clone();
+        let events = welcome.events.clone();
         Ok((
             Self {
                 shared,
                 stream,
                 reader: Some(reader),
                 program,
+                events,
             },
             welcome,
         ))
@@ -182,6 +228,40 @@ impl Client {
     /// The name of the game's program.
     pub fn program(&self) -> &str {
         &self.program
+    }
+
+    /// The events that the game declares, which [`Client::subscribe`] may name: `play/time`; none
+    /// for a game of before them.
+    pub fn events(&self) -> &[String] {
+        &self.events
+    }
+
+    /// Subscribes to `events`, each `family/name`, and waits for the answer, within the time that a
+    /// request has: then each event comes, its current value first, to the notices given at
+    /// [`Client::connect_with`].
+    ///
+    /// # Errors
+    ///
+    /// [`ChannelError::Session`] for an event that the game does not declare, which sends
+    /// nothing; [`ChannelError::Refused`] when the game refuses it, as once it stopped; and as
+    /// [`Client::send`] and [`Pending::wait`].
+    pub fn subscribe(&self, events: &[&str]) -> Result<(), ChannelError> {
+        subscribed(
+            self.send_with(|session| session.subscribe(events))?
+                .wait_raw(ANSWER_TIMEOUT),
+        )
+    }
+
+    /// Ends the subscriptions to `events`, and waits for the answer: none of them comes after it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Client::subscribe`].
+    pub fn unsubscribe(&self, events: &[&str]) -> Result<(), ChannelError> {
+        subscribed(
+            self.send_with(|session| session.unsubscribe(events))?
+                .wait_raw(ANSWER_TIMEOUT),
+        )
     }
 
     /// Whether the connection is given up: it broke, or the game sent what is not a message of
@@ -216,13 +296,22 @@ impl Client {
     /// [`ChannelError::Io`] when it breaks now.
     pub fn send(&self, request: &Request) -> Result<Pending, ChannelError> {
         let (method, params) = request.call()?;
+        self.send_with(|session| session.request(&method, params.clone()))
+    }
+
+    /// Sends the request that `numbered` makes of the session, once a place in flight is free, as
+    /// [`Client::send`] says.
+    fn send_with(
+        &self,
+        mut numbered: impl FnMut(&mut ToolSession) -> Result<(u64, Vec<u8>), AgentError>,
+    ) -> Result<Pending, ChannelError> {
         let until = Instant::now() + ANSWER_TIMEOUT;
         let mut state = locked(&self.shared.state);
         let (id, line) = loop {
             if state.broken.is_some() {
                 return Err(ChannelError::Broken);
             }
-            match state.session.request(&method, params.clone()) {
+            match numbered(&mut state.session) {
                 Err(AgentError::Full) => {
                     let left = until.saturating_duration_since(Instant::now());
                     if left.is_zero() {
@@ -294,6 +383,12 @@ impl Pending {
     ///
     /// As [`Pending::wait`].
     pub fn wait_for(self, timeout: Duration) -> Answer {
+        self.wait_raw(timeout)
+            .and_then(|(outcome, bytes)| read_reply(outcome).map(|reply| (reply, bytes)))
+    }
+
+    /// Waits for the answer as the core's session read it, as [`Pending::wait_for`] does.
+    fn wait_raw(self, timeout: Duration) -> Raw {
         match self.answer.recv_timeout(timeout) {
             Ok(answer) => answer,
             Err(mpsc::RecvTimeoutError::Timeout) => {
@@ -341,8 +436,9 @@ impl Pending {
 }
 
 /// Reads the game's answers until the connection closes or breaks, and hands each to the request
-/// that waits for it. It never takes the writer's lock.
-fn read_answers(mut stream: TcpStream, mut reader: Reader, shared: &Shared) {
+/// that waits for it, and each event to `notify`, then the connection's end. It never takes the
+/// writer's lock, nor calls `notify` while it holds the client's.
+fn read_answers(mut stream: TcpStream, mut reader: Reader, shared: &Shared, notify: &Notify) {
     let broken = loop {
         let frame = match receive(&mut stream, &mut reader) {
             Ok(frame) => frame,
@@ -351,11 +447,15 @@ fn read_answers(mut stream: TcpStream, mut reader: Reader, shared: &Shared) {
         };
         let mut state = locked(&shared.state);
         let (id, answer) = match state.session.receive(frame) {
-            Ok(FromProgram::Response { id, outcome, bytes }) => {
-                (id, read_reply(outcome).map(|reply| (reply, bytes)))
+            Ok(FromProgram::Response { id, outcome, bytes }) => (id, Ok((outcome, bytes))),
+            Ok(FromProgram::Event { method, params, .. }) => {
+                drop(state);
+                // An event of a later version of its family is not one of this client's.
+                if let Ok(event) = Event::read(&method, params) {
+                    notify(Notice::Event(event));
+                }
+                continue;
             }
-            // The channel's families send no event yet.
-            Ok(FromProgram::Event { .. }) => continue,
             Ok(FromProgram::Unreadable(fault)) => break Broken::Malformed(fault.message),
             Ok(other) => break Broken::Malformed(format!("the game answered {other:?}")),
             Err(error) => break Broken::Malformed(why(&error)),
@@ -365,12 +465,24 @@ fn read_answers(mut stream: TcpStream, mut reader: Reader, shared: &Shared) {
         }
         shared.answered.notify_all();
     };
-    let mut state = locked(&shared.state);
-    for (_, waiting) in state.waiting.drain() {
-        let _ = waiting.send(Err(broken.error()));
+    {
+        let mut state = locked(&shared.state);
+        for (_, waiting) in state.waiting.drain() {
+            let _ = waiting.send(Err(broken.error()));
+        }
+        state.broken = Some(broken.clone());
+        shared.answered.notify_all();
     }
-    state.broken = Some(broken);
-    shared.answered.notify_all();
+    notify(Notice::Closed(broken.error()));
+}
+
+/// The outcome of a subscription's answer, or of its end's.
+fn subscribed(answer: Raw) -> Result<(), ChannelError> {
+    match answer?.0 {
+        Ok(_) => Ok(()),
+        Err(fault) if fault.code == Fault::CANCELLED => Err(ChannelError::Cancelled),
+        Err(fault) => Err(ChannelError::Refused(fault.message)),
+    }
 }
 
 /// The reply of an answer's outcome: a request cancelled before the game did it is

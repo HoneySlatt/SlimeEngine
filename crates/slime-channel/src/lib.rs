@@ -7,12 +7,12 @@ mod message;
 mod token;
 mod wire;
 
-pub use client::{Client, Launched, Pending, launch, launch_unless};
+pub use client::{Client, Launched, Notice, Pending, launch, launch_unless};
 pub use error::ChannelError;
 pub use listener::{Incoming, Listener};
 pub use message::{
-    ComponentText, Edit, EditorHistory, ElementSummary, EntitySummary, GameState, InterfaceAction,
-    LogLine, OperationSummary, Reply, Request, ViewSummary,
+    ComponentText, Edit, EditorHistory, ElementSummary, EntitySummary, Event, GameState, GameTime,
+    InterfaceAction, LogLine, OperationSummary, Reply, Request, ViewSummary,
 };
 pub use token::Token;
 pub use uwui_agent::Named;
@@ -35,18 +35,31 @@ pub(crate) fn waited<'a, T>(
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// The families of requests that the channel carries, each at its version: a tool and a game that
-/// speak another version of one refuse that family alone, and the rest is served
+/// The families of requests that the channel carries, each at its version, with the names of the
+/// events that it declares ([`Event`]): a tool and a game that speak another version of one refuse
+/// that family alone, and the rest is served
 /// (`docs/adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md`). The
 /// version of the core's session is `uwui_agent::CORE_VERSION`.
-pub const FAMILIES: [(&str, u32); 4] =
-    [("play", 1), ("world", 1), ("editing", 1), ("interface", 1)];
+pub const FAMILIES: [(&str, u32, &[&str]); 4] = [
+    ("play", 1, &["time"]),
+    ("world", 1, &[]),
+    ("editing", 1, &[]),
+    ("interface", 1, &[]),
+];
 
 /// [`FAMILIES`], as the core's session names them.
 pub(crate) fn families() -> Vec<uwui_agent::Family> {
     FAMILIES
         .iter()
-        .map(|&(name, version)| uwui_agent::Family::new(name, version))
+        .map(|&(name, version, _)| uwui_agent::Family::new(name, version))
+        .collect()
+}
+
+/// The events that [`FAMILIES`] declare, as the core's session names them: `play/time`.
+pub(crate) fn events() -> Vec<String> {
+    FAMILIES
+        .iter()
+        .flat_map(|&(family, _, events)| events.iter().map(move |name| format!("{family}/{name}")))
         .collect()
 }
 
@@ -86,6 +99,7 @@ mod threads {
         send_and_sync::<Token>();
         send_and_sync::<Request>();
         send_and_sync::<Reply>();
+        send_and_sync::<Event>();
         send_and_sync::<ChannelError>();
         send_and_sync::<Listener>();
         send_and_sync::<Incoming>();

@@ -17,8 +17,8 @@ use std::time::Duration;
 
 use slime_app::{AppConfig, AppError, Simulation, SimulationContext, run};
 use slime_channel::{
-    ANNOUNCEMENT, ChannelError, Client, Named, Pending, Reply, Request, TOKEN_ENV_VAR, Token,
-    launch,
+    ANNOUNCEMENT, ChannelError, Client, Event, GameTime, Named, Notice, Pending, Reply, Request,
+    TOKEN_ENV_VAR, Token, launch,
 };
 use slime_color::LinearColor;
 use slime_platform::KeyCode;
@@ -664,6 +664,136 @@ fn frames_with_agents_at_the_bounds() {
          the median, {longest} ms the longest"
     );
     assert_eq!(ask(&clients[0], Request::Stop), Reply::Done);
+    let status = launched.child.wait().expect("the run ends");
+    assert!(status.success(), "{status}");
+}
+
+/// Connects to the run that `launched` started, telling each event that it sends through the
+/// receiver given back.
+fn listening(launched: &slime_channel::Launched) -> (Client, std::sync::mpsc::Receiver<GameTime>) {
+    let (told, events) = std::sync::mpsc::channel();
+    let told = std::sync::Mutex::new(told);
+    let client = Client::connect_with(
+        launched.address,
+        &launched.token,
+        &tester(),
+        &tester(),
+        move |notice| {
+            if let Notice::Event(Event::Time(time)) = notice {
+                let _ = told.lock().expect("not poisoned").send(time);
+            }
+        },
+    )
+    .expect("accepted");
+    (client, events)
+}
+
+/// How many times each thread of the channel of the process `pid` left its wait, by its id, as
+/// Linux counts them (`/proc/<pid>/task/<tid>/status`); none elsewhere. Reading them wakes none.
+fn channel_switches(pid: u32) -> Vec<(String, u64)> {
+    let Ok(tasks) = std::fs::read_dir(format!("/proc/{pid}/task")) else {
+        return Vec::new();
+    };
+    let mut switches: Vec<(String, u64)> = tasks
+        .flatten()
+        .filter(|task| {
+            std::fs::read_to_string(task.path().join("comm"))
+                .is_ok_and(|name| name.starts_with("slime dev chann"))
+        })
+        .filter_map(|task| {
+            let status = std::fs::read_to_string(task.path().join("status")).ok()?;
+            let count = status
+                .lines()
+                .find_map(|line| line.strip_prefix("voluntary_ctxt_switches:"))?
+                .trim()
+                .parse()
+                .ok()?;
+            Some((task.file_name().to_string_lossy().into_owned(), count))
+        })
+        .collect();
+    switches.sort();
+    switches
+}
+
+/// The frame that the run that `client` drives says that it is at.
+fn frame(client: &Client) -> u64 {
+    let Reply::State { state } = ask(client, Request::State) else {
+        panic!("a state");
+    };
+    state.frame
+}
+
+/// A run whose frames run on demand tells each connection subscribed to `play/time` how game time
+/// stands, once it subscribed, then as a tool changes it, at the end of the frame that changed it,
+/// without a frame more; a second connection is told the current value, and a run at rest runs no
+/// frame for its subscriptions
+/// (`docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md`).
+#[test]
+fn a_run_on_demand_tells_its_subscribers_how_game_time_stands() {
+    if std::env::var_os(CHILD_ENV).is_some() {
+        let config = AppConfig {
+            on_demand: true,
+            ..AppConfig::default()
+        };
+        run(&mut Lantern, &mut (), &config).expect("the run starts");
+        return;
+    }
+    let mut launched = launch(
+        &mut command("a_run_on_demand_tells_its_subscribers_how_game_time_stands"),
+        Duration::from_secs(60),
+    )
+    .expect("the run listens");
+    let wait = Duration::from_secs(10);
+    let (client, events) = listening(&launched);
+    assert_eq!(client.events(), ["play/time"]);
+    let at = |paused, speed| GameTime {
+        paused,
+        speed,
+        held: false,
+    };
+    client.subscribe(&["play/time"]).expect("subscribed");
+    assert_eq!(events.recv_timeout(wait).expect("told"), at(false, 1.0));
+    assert_eq!(ask(&client, Request::Pause), Reply::Done);
+    assert_eq!(events.recv_timeout(wait).expect("told"), at(true, 1.0));
+    assert_eq!(ask(&client, Request::Speed { speed: 0.5 }), Reply::Done);
+    assert_eq!(events.recv_timeout(wait).expect("told"), at(true, 0.5));
+    // A second connection is told the current value, the first nothing.
+    let (other, others) = listening(&launched);
+    other.subscribe(&["play/time"]).expect("subscribed");
+    assert_eq!(others.recv_timeout(wait).expect("told"), at(true, 0.5));
+    // At rest, subscribed, once the frames that the subscriptions asked for ran, the run runs no
+    // frame: two reads apart are a frame apart.
+    thread::sleep(Duration::from_millis(300));
+    let before = frame(&client);
+    // Read until two reads agree: the writer of the last answer notifies once more before it
+    // waits.
+    let mut switches = channel_switches(launched.child.id());
+    // At most a second: a thread that never settles fails the assertion below.
+    for _ in 0..20 {
+        thread::sleep(Duration::from_millis(50));
+        let again = channel_switches(launched.child.id());
+        if again == switches {
+            break;
+        }
+        switches = again;
+    }
+    if cfg!(target_os = "linux") {
+        // Its listener, the watch of its input, and a reader and a writer for each of the two
+        // connections.
+        assert_eq!(switches.len(), 6, "{switches:?}");
+    }
+    thread::sleep(Duration::from_secs(1));
+    assert_eq!(
+        channel_switches(launched.child.id()),
+        switches,
+        "the channel's threads woke at rest"
+    );
+    assert_eq!(frame(&client), before + 1, "no frame at rest");
+    assert!(
+        events.try_recv().is_err(),
+        "nothing told while nothing changed"
+    );
+    assert_eq!(ask(&client, Request::Stop), Reply::Done);
     let status = launched.child.wait().expect("the run ends");
     assert!(status.success(), "{status}");
 }

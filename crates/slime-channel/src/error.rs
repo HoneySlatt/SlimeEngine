@@ -7,8 +7,9 @@ pub enum ChannelError {
     /// Reading from or writing to the connection, or starting the game, failed.
     #[error("the development channel failed")]
     Io(#[from] std::io::Error),
-    /// The game refused the connection: another token, or another version of the core.
-    #[error("the game refused the connection: {0}")]
+    /// The game refused the connection, another token or another version of the core, or a
+    /// subscription, as once it stopped.
+    #[error("the game refused: {0}")]
     Refused(String),
     /// An answer that the protocol does not hold: a reply of the channel that does not read, an
     /// event or answer where none is awaited, or the game's word that it could not read what the

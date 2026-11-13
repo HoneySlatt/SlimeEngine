@@ -1,6 +1,6 @@
 //! The game's end: it listens, checks each connection, and hands the requests to its host.
 
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::io::{self, Read};
 use std::net::{Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -8,10 +8,10 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use uwui_agent::{Fault, FromTool, InFlight, Limits, ProgramSession, Reader};
+use uwui_agent::{Fault, FromTool, InFlight, Limits, ProgramSession, Reader, Value};
 
 use crate::error::ChannelError;
-use crate::message::{Reply, Request};
+use crate::message::{Event, Reply, Request};
 use crate::token::Token;
 use crate::wire::{MAX_REQUEST, receive, send, why};
 use crate::{locked, waited};
@@ -74,9 +74,15 @@ struct Shared {
     welcomed: Arc<AtomicUsize>,
     /// The bytes unwritten, every connection together.
     unwritten: AtomicU64,
-    /// Wakes the game: a request came or was cancelled, a connection closed, or one whose writer
-    /// fell behind caught up.
+    /// Wakes the game: a request came or was cancelled, a connection closed, one whose writer
+    /// fell behind caught up, or a subscription started, whose first value the game publishes.
     wake: Box<dyn Fn() + Send + Sync>,
+    /// How many connections subscribed to each event that the families declare, counted as each
+    /// subscription starts and ends ([`Listener::wants`]).
+    subscribers: BTreeMap<String, AtomicUsize>,
+    /// Raised after a subscription started and its count was raised, with `Release`
+    /// ([`Listener::subscriptions`]).
+    subscriptions: AtomicU64,
 }
 
 /// A connection welcomed: its session, the requests that wait for the game, the answers that wait
@@ -108,6 +114,19 @@ struct State {
     /// left, nothing more is posted, and the writer writes what it was left, the reason last, then
     /// ends.
     finishing: bool,
+    /// The events subscribed to, by name, each with its cell: started as the writer takes the
+    /// answer to their subscription, ended as it takes the answer to its end
+    /// (`docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md`).
+    subscribed: BTreeMap<String, Cell>,
+}
+
+/// An event subscribed to on a connection: the value that the game published last and the writer
+/// has not taken, which a newer one replaces, and the value that the writer wrote last, which a
+/// value taken is compared with as it is taken, so that a value equal to it is not written again.
+#[derive(Default)]
+struct Cell {
+    waiting: Option<Arc<Value>>,
+    written: Option<Arc<Value>>,
 }
 
 /// What a connection's writer writes.
@@ -122,7 +141,16 @@ enum Outgoing {
         payload: Arc<Vec<u8>>,
         size: u64,
     },
+    /// The subscription numbered `id` to `events`, started as the writer takes it, then answered,
+    /// unless it was cancelled.
+    Subscribe { id: u64, events: Vec<String> },
+    /// The end, numbered `id`, of the subscriptions to `events`, ended as the writer takes it,
+    /// then answered, unless it was cancelled.
+    Unsubscribe { id: u64, events: Vec<String> },
 }
+
+/// What a subscription's answer, `{}`, holds unwritten.
+const SUBSCRIPTION_SIZE: u64 = 2;
 
 impl Outgoing {
     /// The answer to the request `id`: `outcome` and `payload`, counted as the bytes of the JSON
@@ -146,6 +174,7 @@ impl Outgoing {
         match self {
             Outgoing::Line(line) => line.len() as u64,
             Outgoing::Answer { size, .. } => *size,
+            Outgoing::Subscribe { .. } | Outgoing::Unsubscribe { .. } => SUBSCRIPTION_SIZE,
         }
     }
 }
@@ -179,8 +208,9 @@ impl Listener {
     /// connection that closes cancels its requests in flight.
     ///
     /// `wake` is called, on a thread of the connection, each time a request is queued or
-    /// cancelled, when a connection closes, and when a connection whose writer fell behind
-    /// catches up: a game that waits for something to do runs a frame then, which takes it.
+    /// cancelled, when a connection closes, when a connection whose writer fell behind catches
+    /// up, and when a subscription starts: a game that waits for something to do runs a frame
+    /// then, which takes the request or publishes the subscription's first value.
     ///
     /// # Errors
     ///
@@ -198,6 +228,11 @@ impl Listener {
             welcomed: Arc::new(AtomicUsize::new(0)),
             unwritten: AtomicU64::new(0),
             wake: Box::new(wake),
+            subscribers: crate::events()
+                .into_iter()
+                .map(|event| (event, AtomicUsize::new(0)))
+                .collect(),
+            subscriptions: AtomicU64::new(0),
         });
         let program = program.to_owned();
         let waiting = Arc::new(AtomicUsize::new(0));
@@ -253,6 +288,48 @@ impl Listener {
     /// so, and not given.
     pub fn round(&self) -> Vec<Incoming> {
         self.take(usize::MAX)
+    }
+
+    /// Whether a connection subscribed to `event`, `play/time`: a game builds an event only while
+    /// one did.
+    pub fn wants(&self, event: &str) -> bool {
+        self.shared
+            .subscribers
+            .get(event)
+            .is_some_and(|count| count.load(Ordering::Relaxed) > 0)
+    }
+
+    /// A count raised each time a subscription starts, whose first value the game publishes then,
+    /// changed or not: a game that saw it change publishes each event that it builds
+    /// ([`Listener::publish`]). Read before [`Listener::wants`]: a subscription counted in it is
+    /// counted in what `wants` reads after.
+    pub fn subscriptions(&self) -> u64 {
+        self.shared.subscriptions.load(Ordering::Acquire)
+    }
+
+    /// Leaves `event` for each connection subscribed to it, in place of a value of the same event
+    /// that its writer has not taken: a tool that reads slowly holds one value of each event, the
+    /// newest. A connection's writer writes it unless it equals the last value that it wrote of
+    /// that event. Leaves nothing while no connection subscribed to it; a game asks
+    /// [`Listener::wants`] first, so as to build none then.
+    pub fn publish(&self, event: &Event) {
+        let (name, value) = match event.call() {
+            Ok((name, params)) => (name, Arc::new(params)),
+            Err(error) => {
+                tracing::warn!(error = %why(&error), "an event of the development channel is not written");
+                return;
+            }
+        };
+        if !self.wants(&name) {
+            return;
+        }
+        for connection in locked(&self.shared.connections).iter() {
+            let mut state = locked(&connection.state);
+            if let Some(cell) = state.subscribed.get_mut(&name) {
+                cell.waiting = Some(Arc::clone(&value));
+                connection.changed.notify_all();
+            }
+        }
     }
 
     /// Whether a request waits for the game to take it, of a connection that gives one now.
@@ -312,6 +389,43 @@ impl Listener {
 }
 
 impl Shared {
+    /// Starts the subscriptions of `state`'s connection to `events`, each with an empty cell, so
+    /// that a second subscription writes the current value again; then raises the count of
+    /// subscriptions started, after the counts of subscribers, with `Release`, so that a game that
+    /// reads it with `Acquire` finds them counted. The caller wakes the game once it let go of
+    /// `state`, for it to publish the first values.
+    fn subscribe(&self, state: &mut State, events: &[String]) {
+        for event in events {
+            if state
+                .subscribed
+                .insert(event.clone(), Cell::default())
+                .is_none()
+                && let Some(count) = self.subscribers.get(event)
+            {
+                count.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        self.subscriptions.fetch_add(1, Ordering::Release);
+    }
+
+    /// Ends the subscriptions of `state`'s connection to `events`, their cells dropped: nothing
+    /// of theirs is written after.
+    fn unsubscribe<'a>(&self, state: &mut State, events: impl IntoIterator<Item = &'a String>) {
+        for event in events {
+            if state.subscribed.remove(event).is_some()
+                && let Some(count) = self.subscribers.get(event)
+            {
+                count.fetch_sub(1, Ordering::Relaxed);
+            }
+        }
+    }
+
+    /// Ends every subscription of `state`'s connection, as it closes or its reader finished.
+    fn unsubscribe_all(&self, state: &mut State) {
+        let events: Vec<String> = state.subscribed.keys().cloned().collect();
+        self.unsubscribe(state, &events);
+    }
+
     /// Whether `connection`'s writer is too far behind for the game to take its requests.
     fn behind(&self, connection: &Connection) -> bool {
         let own = connection.unwritten.load(Ordering::Relaxed);
@@ -465,7 +579,12 @@ impl Read for Until<'_> {
 /// the game, while a writer of its own writes the answers, until the connection or the game ends.
 /// `waits` counts it among the connections that wait for their first message, until it came.
 fn serve(stream: TcpStream, waits: Counted, token: &Token, program: &str, shared: &Arc<Shared>) {
-    let mut session = ProgramSession::new(program, crate::families(), InFlight::DEFAULT);
+    let mut session = ProgramSession::new(
+        program,
+        crate::families(),
+        crate::events(),
+        InFlight::DEFAULT,
+    );
     let mut reader = Reader::new(Limits::HELLO);
     let mut stream = stream;
     let first = receive(
@@ -540,6 +659,7 @@ fn serve(stream: TcpStream, waits: Counted, token: &Token, program: &str, shared
     let (inbox, outbox) = {
         let mut state = locked(&connection.state);
         state.closed = true;
+        shared.unsubscribe_all(&mut state);
         connection.changed.notify_all();
         (
             std::mem::take(&mut state.inbox),
@@ -636,6 +756,8 @@ fn read_requests(
                     post(connection, shared, &mut state, Outgoing::Line(line));
                 }
                 state.finishing = true;
+                // The reason is the last line written: no event follows it.
+                shared.unsubscribe_all(&mut state);
                 connection.changed.notify_all();
                 return;
             }
@@ -670,6 +792,25 @@ fn read_requests(
                     }
                 }
             }
+            // Started, or answered that the game stopped, as the writer takes it.
+            Ok(FromTool::Subscribe { id, events }) => {
+                let mut state = locked(&connection.state);
+                post(
+                    connection,
+                    shared,
+                    &mut state,
+                    Outgoing::Subscribe { id, events },
+                );
+            }
+            Ok(FromTool::Unsubscribe { id, events }) => {
+                let mut state = locked(&connection.state);
+                post(
+                    connection,
+                    shared,
+                    &mut state,
+                    Outgoing::Unsubscribe { id, events },
+                );
+            }
             Ok(FromTool::Answered { reply }) => {
                 let mut state = locked(&connection.state);
                 post(connection, shared, &mut state, Outgoing::Line(reply));
@@ -697,22 +838,79 @@ fn wait_for_room(connection: &Connection) -> bool {
     !state.closed
 }
 
+/// What a connection's writer writes next.
+enum Next {
+    /// An item of the outbox, which it took, and the bytes that it was counted as holding.
+    Item(Outgoing, u64),
+    /// The values of the events that waited in their cells, each differing from the last that it
+    /// wrote of its event.
+    Events(Vec<(String, Arc<Value>)>),
+}
+
 /// Writes the connection's answers in the order they were left, each answer's line then its
-/// bytes, until the connection closes, a write fails, or the reader finished and nothing is left;
-/// frees each request's place once it takes its answer.
+/// bytes, and between two of them the events that wait, each once, until the connection closes, a
+/// write fails, or the reader finished and nothing is left; frees each request's place once it
+/// takes its answer, and starts or ends a subscription as it takes its answer, so that its first
+/// value follows the answer and nothing follows its end's
+/// (`docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md`).
 fn write_answers(mut stream: TcpStream, connection: &Connection, shared: &Shared) {
+    // Whether the events that wait go before the outbox's next item: once after each item, so
+    // that an event waits behind one message at most, and an event that changes as often as it is
+    // written holds up no answer.
+    let mut events_first = false;
     loop {
-        let outgoing = {
+        let mut subscribed = false;
+        let next = {
             let mut state = locked(&connection.state);
             loop {
                 if state.closed {
                     return;
                 }
-                if let Some(outgoing) = state.outbox.pop_front() {
-                    if let Outgoing::Answer { id, .. } = &outgoing {
-                        state.cancelled.remove(id);
+                if events_first {
+                    events_first = false;
+                    let due = due_events(&mut state);
+                    if !due.is_empty() {
+                        break Next::Events(due);
                     }
-                    break outgoing;
+                }
+                if let Some(mut outgoing) = state.outbox.pop_front() {
+                    events_first = true;
+                    let size = outgoing.size();
+                    match &outgoing {
+                        Outgoing::Answer { id, .. } => {
+                            state.cancelled.remove(id);
+                        }
+                        Outgoing::Subscribe { id, .. } | Outgoing::Unsubscribe { id, .. }
+                            if state.cancelled.remove(id) =>
+                        {
+                            // Cancelled before it changed anything: answered so, and not done.
+                            outgoing = Outgoing::answer(*id, Err(cancelled()), Arc::default());
+                        }
+                        // A game that stopped meanwhile publishes nothing: no first value
+                        // would follow the answer.
+                        Outgoing::Subscribe { id, .. }
+                            if shared.stopped.load(Ordering::Relaxed) =>
+                        {
+                            outgoing = Outgoing::answer(*id, Ok(stopped()), Arc::default());
+                        }
+                        // Once the reader finished, the reason is the last line: a subscription
+                        // that waited is answered, and starts nothing.
+                        Outgoing::Subscribe { events, .. } => {
+                            if !state.finishing {
+                                shared.subscribe(&mut state, events);
+                                subscribed = true;
+                            }
+                        }
+                        Outgoing::Unsubscribe { events, .. } => {
+                            shared.unsubscribe(&mut state, events);
+                        }
+                        Outgoing::Line(_) => {}
+                    }
+                    break Next::Item(outgoing, size);
+                }
+                let due = due_events(&mut state);
+                if !due.is_empty() {
+                    break Next::Events(due);
                 }
                 if state.finishing {
                     return;
@@ -720,33 +918,17 @@ fn write_answers(mut stream: TcpStream, connection: &Connection, shared: &Shared
                 state = waited(&connection.changed, state);
             }
         };
-        let size = outgoing.size();
-        let written = match outgoing {
-            Outgoing::Line(line) => send(&mut stream, &line, &[]),
-            Outgoing::Answer {
-                id,
-                outcome,
-                payload,
-                ..
-            } => {
-                let outcome = match outcome.map(|reply| reply.outcome()) {
-                    Ok(Ok(outcome)) => outcome,
-                    Ok(Err(error)) => Err(Fault::new(Fault::REFUSED, why(&error))),
-                    Err(fault) => Err(fault),
-                };
-                // Its place freed before the tool can read the answer, so that a tool that sends
-                // again as soon as it read one is never refused.
-                let answer = {
-                    let mut session = locked(&connection.session);
-                    session.written(id);
-                    session.answer(id, outcome, payload.len())
-                };
-                answer
-                    .map_err(io::Error::other)
-                    .and_then(|(line, follow)| send(&mut stream, &line, &payload[..follow]))
-            }
+        if subscribed {
+            // The game publishes the first values at its next frame.
+            (shared.wake)();
+        }
+        let (size, written) = match next {
+            Next::Item(outgoing, size) => (size, write_item(&mut stream, connection, outgoing)),
+            Next::Events(events) => (0, write_events(&mut stream, connection, events)),
         };
-        shared.release(connection, size);
+        if size > 0 {
+            shared.release(connection, size);
+        }
         {
             let mut state = locked(&connection.state);
             if written.is_err() {
@@ -760,6 +942,87 @@ fn write_answers(mut stream: TcpStream, connection: &Connection, shared: &Shared
             return;
         }
     }
+}
+
+/// Takes the value that waits in each cell of `state`, and gives those that differ from the last
+/// value written of their event, which they become.
+fn due_events(state: &mut State) -> Vec<(String, Arc<Value>)> {
+    let mut due = Vec::new();
+    for (event, cell) in &mut state.subscribed {
+        if let Some(value) = cell.waiting.take()
+            && cell.written.as_deref() != Some(&*value)
+        {
+            cell.written = Some(Arc::clone(&value));
+            due.push((event.clone(), value));
+        }
+    }
+    due
+}
+
+/// Writes `outgoing`, an item of the connection's outbox, taken from it: a line, an answer and the
+/// bytes that follow it, or the answer to a subscription or its end.
+fn write_item(
+    stream: &mut TcpStream,
+    connection: &Connection,
+    outgoing: Outgoing,
+) -> io::Result<()> {
+    match outgoing {
+        Outgoing::Line(line) => send(stream, &line, &[]),
+        Outgoing::Answer {
+            id,
+            outcome,
+            payload,
+            ..
+        } => {
+            let outcome = match outcome.map(|reply| reply.outcome()) {
+                Ok(Ok(outcome)) => outcome,
+                Ok(Err(error)) => Err(Fault::new(Fault::REFUSED, why(&error))),
+                Err(fault) => Err(fault),
+            };
+            // Its place freed before the tool can read the answer, so that a tool that sends
+            // again as soon as it read one is never refused.
+            let answer = {
+                let mut session = locked(&connection.session);
+                session.written(id);
+                session.answer(id, outcome, payload.len())
+            };
+            answer
+                .map_err(io::Error::other)
+                .and_then(|(line, follow)| send(stream, &line, &payload[..follow]))
+        }
+        Outgoing::Subscribe { id, .. } | Outgoing::Unsubscribe { id, .. } => {
+            let answer = {
+                let mut session = locked(&connection.session);
+                session.written(id);
+                session.subscribed(id)
+            };
+            answer
+                .map_err(io::Error::other)
+                .and_then(|line| send(stream, &line, &[]))
+        }
+    }
+}
+
+/// Writes `events`, each as the core's event of its name, but one larger than the tool reads,
+/// which is dropped, and logged.
+fn write_events(
+    stream: &mut TcpStream,
+    connection: &Connection,
+    events: Vec<(String, Arc<Value>)>,
+) -> io::Result<()> {
+    for (event, value) in events {
+        let line = locked(&connection.session).event(&event, Value::clone(&value));
+        match line {
+            Ok(Some(line)) => send(stream, &line, &[])?,
+            Ok(None) => {
+                tracing::warn!(%event, "an event of the development channel is larger than its tool reads, and dropped");
+            }
+            Err(error) => {
+                tracing::warn!(%event, error = %why(&error), "an event of the development channel is not written");
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Tells the tool why its connection is closed, as an answer to no request.
@@ -781,8 +1044,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::Client;
+    use crate::client::Notice;
     use crate::wire::{MAX_BYTES, MAX_LINE};
+    use crate::{Client, Event};
 
     fn agent() -> Named {
         Named::new("a test", "1")
@@ -876,9 +1140,15 @@ mod tests {
                 family.version += 1;
             }
         }
-        let (client, welcome) =
-            Client::connect_speaking(listener.address(), &token, &agent(), &client(), families)
-                .expect("welcomed");
+        let (client, welcome) = Client::connect_speaking(
+            listener.address(),
+            &token,
+            &agent(),
+            &client(),
+            families,
+            Box::new(|_| {}),
+        )
+        .expect("welcomed");
         assert_eq!(welcome.refused.len(), 1, "{welcome:?}");
         assert_eq!(welcome.refused[0].family.name, "editing");
         assert_eq!(welcome.served.len(), crate::FAMILIES.len() - 1);
@@ -1761,5 +2031,698 @@ mod tests {
         }
         assert!(!listener.waiting(), "the eighth is held back");
         let _ = stream.shutdown(Shutdown::Both);
+    }
+
+    /// A tool's end written by hand, welcomed, that reads only when told to.
+    struct Subscriber {
+        stream: TcpStream,
+        session: ToolSession,
+        reader: Reader,
+    }
+
+    impl Subscriber {
+        fn open(listener: &Listener, token: &Token) -> Self {
+            let mut stream = TcpStream::connect(listener.address()).expect("listening");
+            // A message that never comes fails the test rather than holds it.
+            stream
+                .set_read_timeout(Some(Duration::from_secs(30)))
+                .expect("a timeout");
+            let mut session = ToolSession::new();
+            stream
+                .write_all(&session.hello(&hello(token)).expect("written"))
+                .expect("sent");
+            let mut opened = Self {
+                stream,
+                session,
+                reader: Reader::new(Limits {
+                    line: MAX_LINE,
+                    bytes: MAX_BYTES,
+                }),
+            };
+            assert!(matches!(opened.next(), FromProgram::Welcomed(_)));
+            opened
+        }
+
+        /// The next message, as the tool's session reads it.
+        fn next(&mut self) -> FromProgram {
+            let frame = receive(&mut self.stream, &mut self.reader).expect("a message");
+            self.session
+                .receive(frame)
+                .expect("a message of the session")
+        }
+
+        /// Sends the request that `numbered` makes: its number.
+        fn send(
+            &mut self,
+            numbered: impl FnOnce(&mut ToolSession) -> Result<(u64, Vec<u8>), uwui_agent::AgentError>,
+        ) -> u64 {
+            let (id, line) = numbered(&mut self.session).expect("written");
+            self.stream.write_all(&line).expect("sent");
+            id
+        }
+
+        fn subscribe(&mut self) -> u64 {
+            self.send(|session| session.subscribe(&["play/time"]))
+        }
+
+        fn unsubscribe(&mut self) -> u64 {
+            self.send(|session| session.unsubscribe(&["play/time"]))
+        }
+
+        fn state(&mut self) -> u64 {
+            self.send(|session| session.request("play/state", Value::Null))
+        }
+
+        /// Sends a request that `listener` answers with `payload` after it, which blocks the
+        /// connection's writer while the tool reads nothing: its number.
+        fn block(&mut self, listener: &Listener, payload: &Arc<Vec<u8>>) -> u64 {
+            let id = self.state();
+            taken(listener).answer_with(Reply::Done, Arc::clone(payload));
+            id
+        }
+
+        /// Reads the answer to the request `id`, which must come next.
+        fn answer(&mut self, id: u64) -> Result<Value, Fault> {
+            match self.next() {
+                FromProgram::Response {
+                    id: answered,
+                    outcome,
+                    ..
+                } if answered == id => outcome,
+                other => panic!("the answer to {id}, not {other:?}"),
+            }
+        }
+
+        /// Reads the event that must come next: the speed that it tells.
+        fn event(&mut self) -> f64 {
+            match self.next() {
+                FromProgram::Event { method, params, .. } => {
+                    let Ok(Event::Time(time)) = Event::read(&method, params) else {
+                        panic!("{method} reads as play/time");
+                    };
+                    time.speed
+                }
+                other => panic!("an event, not {other:?}"),
+            }
+        }
+    }
+
+    /// The result of an answer [`Reply::Done`].
+    fn done() -> Value {
+        uwui_agent::write(&Reply::Done).expect("written")
+    }
+
+    /// The result of a subscription's answer, `{}`.
+    fn empty() -> Value {
+        Value::Object(Default::default())
+    }
+
+    /// Game time running at `speed`.
+    fn at(speed: f64) -> Event {
+        Event::Time(crate::GameTime {
+            paused: false,
+            speed,
+            held: false,
+        })
+    }
+
+    /// An answer's bytes large enough that a writer blocks on them while its tool reads nothing.
+    fn blocking() -> Arc<Vec<u8>> {
+        Arc::new(vec![0_u8; 32 << 20])
+    }
+
+    /// Waits until `listener` counts a subscription started after `before`, then publishes
+    /// `event`, as a game does at the end of its frame.
+    fn publish_once_subscribed(listener: &Listener, before: u64, event: &Event) {
+        eventually("the subscription started", || {
+            listener.subscriptions() > before && listener.wants("play/time")
+        });
+        listener.publish(event);
+    }
+
+    #[test]
+    fn a_subscription_s_first_value_follows_its_answer_then_each_change_once() {
+        let (listener, token) = opened();
+        let mut tool = Subscriber::open(&listener, &token);
+        assert!(!listener.wants("play/time"), "nobody subscribed");
+        // The writer blocked behind an answer, the subscription waits behind it: a value published
+        // meanwhile is the game's of before the subscription, and is not written.
+        let payload = blocking();
+        let blocked = tool.block(&listener, &payload);
+        let before = listener.subscriptions();
+        let subscribed = tool.subscribe();
+        let connection = Arc::clone(&locked(&listener.shared.connections)[0]);
+        eventually("the subscription waits for the writer", || {
+            locked(&connection.state)
+                .outbox
+                .iter()
+                .any(|outgoing| matches!(outgoing, Outgoing::Subscribe { .. }))
+        });
+        listener.publish(&at(0.25));
+        assert_eq!(tool.answer(blocked), Ok(done()));
+        assert_eq!(tool.answer(subscribed), Ok(empty()));
+        publish_once_subscribed(&listener, before, &at(1.0));
+        assert_eq!(tool.event(), 1.0, "the current value, first");
+        // An equal value is not written again; a change is.
+        listener.publish(&at(1.0));
+        listener.publish(&at(2.0));
+        assert_eq!(tool.event(), 2.0);
+    }
+
+    #[test]
+    fn a_newer_value_replaces_one_not_written_and_one_equal_to_the_last_written_is_dropped() {
+        let (listener, token) = opened();
+        let mut tool = Subscriber::open(&listener, &token);
+        let before = listener.subscriptions();
+        let subscribed = tool.subscribe();
+        assert_eq!(tool.answer(subscribed), Ok(empty()));
+        publish_once_subscribed(&listener, before, &at(1.0));
+        assert_eq!(tool.event(), 1.0);
+        // A tool that reads nothing holds one value of the event, the newest.
+        let payload = blocking();
+        let blocked = tool.block(&listener, &payload);
+        for step in 1..=1000 {
+            listener.publish(&at(f64::from(step)));
+        }
+        assert_eq!(tool.answer(blocked), Ok(done()));
+        assert_eq!(tool.event(), 1000.0, "the newest alone");
+        // A change and its return before the writer takes either: nothing is written, the tool
+        // being at the value again.
+        let blocked = tool.block(&listener, &payload);
+        listener.publish(&at(3.0));
+        listener.publish(&at(1000.0));
+        assert_eq!(tool.answer(blocked), Ok(done()));
+        let asked = tool.state();
+        taken(&listener).answer(Reply::Done);
+        assert_eq!(tool.answer(asked), Ok(done()), "no event between");
+    }
+
+    #[test]
+    fn nothing_comes_after_the_answer_to_unsubscribe() {
+        let (listener, token) = opened();
+        let listener = Arc::new(listener);
+        let mut tool = Subscriber::open(&listener, &token);
+        let subscribed = tool.subscribe();
+        assert_eq!(tool.answer(subscribed), Ok(empty()));
+        eventually("the subscription started", || listener.wants("play/time"));
+        let stop = Arc::new(AtomicBool::new(false));
+        let game = {
+            let (listener, stop) = (Arc::clone(&listener), Arc::clone(&stop));
+            thread::spawn(move || {
+                let mut speed = 1.0;
+                while !stop.load(Ordering::Relaxed) {
+                    speed += 1.0;
+                    listener.publish(&at(speed));
+                    thread::yield_now();
+                }
+            })
+        };
+        let unsubscribed = tool.unsubscribe();
+        loop {
+            match tool.next() {
+                FromProgram::Event { .. } => {}
+                FromProgram::Response { id, outcome, .. } if id == unsubscribed => {
+                    assert_eq!(outcome, Ok(empty()));
+                    break;
+                }
+                other => panic!("an event or the answer, not {other:?}"),
+            }
+        }
+        thread::sleep(Duration::from_millis(50));
+        let asked = tool.state();
+        taken(&listener).answer(Reply::Done);
+        assert_eq!(tool.answer(asked), Ok(done()), "no event after");
+        stop.store(true, Ordering::Relaxed);
+        game.join().expect("the game ends");
+        assert!(!listener.wants("play/time"), "its count fell");
+    }
+
+    #[test]
+    fn a_second_subscription_writes_the_current_value_again() {
+        let (listener, token) = opened();
+        let mut tool = Subscriber::open(&listener, &token);
+        for _ in 0..2 {
+            let before = listener.subscriptions();
+            let subscribed = tool.subscribe();
+            assert_eq!(tool.answer(subscribed), Ok(empty()));
+            publish_once_subscribed(&listener, before, &at(1.0));
+            assert_eq!(tool.event(), 1.0);
+        }
+    }
+
+    #[test]
+    fn a_subscription_cancelled_before_its_answer_is_answered_so_and_starts_nothing() {
+        let (listener, token) = opened();
+        let mut tool = Subscriber::open(&listener, &token);
+        let payload = blocking();
+        let blocked = tool.block(&listener, &payload);
+        let subscribed = tool.subscribe();
+        let cancel = tool
+            .session
+            .cancel(subscribed)
+            .expect("written")
+            .expect("in flight");
+        tool.stream.write_all(&cancel).expect("sent");
+        let connection = Arc::clone(&locked(&listener.shared.connections)[0]);
+        eventually("the cancel was read", || {
+            locked(&connection.state).cancelled.contains(&subscribed)
+        });
+        assert_eq!(tool.answer(blocked), Ok(done()));
+        assert_eq!(
+            tool.answer(subscribed).map_err(|fault| fault.code),
+            Err(Fault::CANCELLED)
+        );
+        assert!(!listener.wants("play/time"), "nothing started");
+        // The same of an end of subscriptions: they go on.
+        let subscribed = tool.subscribe();
+        assert_eq!(tool.answer(subscribed), Ok(empty()));
+        let blocked = tool.block(&listener, &payload);
+        let unsubscribed = tool.unsubscribe();
+        let cancel = tool
+            .session
+            .cancel(unsubscribed)
+            .expect("written")
+            .expect("in flight");
+        tool.stream.write_all(&cancel).expect("sent");
+        eventually("the cancel was read", || {
+            locked(&connection.state).cancelled.contains(&unsubscribed)
+        });
+        assert_eq!(tool.answer(blocked), Ok(done()));
+        assert_eq!(
+            tool.answer(unsubscribed).map_err(|fault| fault.code),
+            Err(Fault::CANCELLED)
+        );
+        assert!(listener.wants("play/time"), "still subscribed");
+    }
+
+    #[test]
+    fn a_connection_that_closes_or_finishes_ends_its_subscriptions() {
+        let (listener, token) = opened();
+        let mut tool = Subscriber::open(&listener, &token);
+        let subscribed = tool.subscribe();
+        assert_eq!(tool.answer(subscribed), Ok(empty()));
+        eventually("the subscription started", || listener.wants("play/time"));
+        drop(tool);
+        eventually("its count fell as it closed", || {
+            !listener.wants("play/time")
+        });
+        // A line that is not a message, its writer blocked: the subscriptions end as the reader
+        // finishes, so that no value published meanwhile is written, and the reason is the last
+        // line.
+        let mut tool = Subscriber::open(&listener, &token);
+        let subscribed = tool.subscribe();
+        assert_eq!(tool.answer(subscribed), Ok(empty()));
+        eventually("the subscription started", || listener.wants("play/time"));
+        let payload = blocking();
+        let blocked = tool.block(&listener, &payload);
+        tool.stream.write_all(b"not json\n").expect("sent");
+        // The last welcomed, the first one closed perhaps still listed.
+        let connection = Arc::clone(
+            locked(&listener.shared.connections)
+                .last()
+                .expect("a connection"),
+        );
+        eventually("the reader finished", || {
+            locked(&connection.state).finishing
+        });
+        assert!(
+            !listener.wants("play/time"),
+            "its count fell as its reader finished"
+        );
+        listener.publish(&at(5.0));
+        assert_eq!(tool.answer(blocked), Ok(done()));
+        assert!(matches!(tool.next(), FromProgram::Unreadable(_)));
+        let mut rest = Vec::new();
+        let _ = tool.stream.read_to_end(&mut rest);
+        assert!(rest.is_empty(), "nothing after the reason");
+    }
+
+    #[test]
+    fn events_that_change_as_fast_as_they_are_written_hold_up_no_answer() {
+        let (listener, token) = opened();
+        let listener = Arc::new(listener);
+        let mut tool = Subscriber::open(&listener, &token);
+        let subscribed = tool.subscribe();
+        assert_eq!(tool.answer(subscribed), Ok(empty()));
+        eventually("the subscription started", || listener.wants("play/time"));
+        // Answers left for a writer blocked behind the first, while the game publishes without
+        // a pause.
+        let payload = blocking();
+        let blocked = tool.block(&listener, &payload);
+        let asked: Vec<u64> = (0..14).map(|_| tool.state()).collect();
+        for _ in &asked {
+            taken(&listener).answer(Reply::Done);
+        }
+        let stop = Arc::new(AtomicBool::new(false));
+        let game = {
+            let (listener, stop) = (Arc::clone(&listener), Arc::clone(&stop));
+            thread::spawn(move || {
+                let mut speed = 1.0;
+                while !stop.load(Ordering::Relaxed) {
+                    speed += 1.0;
+                    listener.publish(&at(speed));
+                }
+            })
+        };
+        assert_eq!(tool.answer(blocked), Ok(done()));
+        // Between two answers, one event at most: the one that waited as the writer took the
+        // next answer.
+        let mut events = 0;
+        let mut answered = Vec::new();
+        while answered.len() < asked.len() {
+            match tool.next() {
+                FromProgram::Event { .. } => {
+                    events += 1;
+                    assert!(events <= 1, "{events} events between two answers");
+                }
+                FromProgram::Response { id, .. } => {
+                    answered.push(id);
+                    events = 0;
+                }
+                other => panic!("an event or an answer, not {other:?}"),
+            }
+        }
+        assert_eq!(answered, asked);
+        stop.store(true, Ordering::Relaxed);
+        game.join().expect("the game ends");
+    }
+
+    #[test]
+    fn a_subscription_to_a_game_that_stopped_is_answered_so() {
+        let (listener, token) = opened();
+        let mut tool = Subscriber::open(&listener, &token);
+        drop(listener);
+        let subscribed = tool.subscribe();
+        assert_eq!(
+            tool.answer(subscribed).map_err(|fault| fault.message),
+            Err("the game has stopped".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_client_tells_its_owner_each_event_then_its_end_once() {
+        let (listener, token) = opened();
+        let (told, notices) = std::sync::mpsc::channel();
+        let told = Mutex::new(told);
+        let client = Client::connect_with(
+            listener.address(),
+            &token,
+            &agent(),
+            &client(),
+            move |notice| {
+                let _ = locked(&told).send(notice);
+            },
+        )
+        .expect("accepted");
+        assert_eq!(client.events(), ["play/time"]);
+        assert!(matches!(
+            client.subscribe(&["play/score"]),
+            Err(ChannelError::Session(uwui_agent::AgentError::NotDeclared(
+                _
+            )))
+        ));
+        let before = listener.subscriptions();
+        client.subscribe(&["play/time"]).expect("subscribed");
+        publish_once_subscribed(&listener, before, &at(0.5));
+        let wait = Duration::from_secs(10);
+        assert!(matches!(
+            notices.recv_timeout(wait).expect("told"),
+            Notice::Event(Event::Time(time)) if time.speed == 0.5
+        ));
+        client.unsubscribe(&["play/time"]).expect("unsubscribed");
+        drop(client);
+        assert!(matches!(
+            notices.recv_timeout(wait).expect("told"),
+            Notice::Closed(_)
+        ));
+        assert!(
+            notices.recv_timeout(Duration::from_millis(100)).is_err(),
+            "told once, and nothing after"
+        );
+    }
+
+    /// A subscription that the reader queued before a line that is not a message must not start
+    /// once the reader finished (ADR-0254: "a connection that closes, or whose reader finished,
+    /// drops its subscriptions with it"; listener.rs: "The reason is the last line written: no
+    /// event follows it").
+    #[test]
+    fn a_subscription_queued_before_the_reader_finishes_starts_nothing() {
+        let (listener, token) = opened();
+        let mut tool = Subscriber::open(&listener, &token);
+        // Holds the writer while the reader reads the subscription, a request and the bad line.
+        let first = Arc::new(vec![0_u8; 8 << 20]);
+        let blocked = tool.block(&listener, &first);
+        let subscribed = tool.subscribe();
+        // Holds the writer again once it wrote the subscription's answer: larger than what the
+        // socket's buffers can grow to, and both together below the connection's bound.
+        let second = Arc::new(vec![0_u8; 48 << 20]);
+        let held = tool.block(&listener, &second);
+        tool.stream.write_all(b"not json\n").expect("sent");
+        let connection = Arc::clone(
+            locked(&listener.shared.connections)
+                .last()
+                .expect("a connection"),
+        );
+        eventually("the reader finished", || {
+            locked(&connection.state).finishing
+        });
+        assert!(
+            !listener.wants("play/time"),
+            "nothing subscribed as the reader finished"
+        );
+        assert_eq!(tool.answer(blocked), Ok(done()));
+        assert_eq!(tool.answer(subscribed), Ok(empty()));
+        // The writer is held by the second answer's bytes now.
+        let wanted = listener.wants("play/time");
+        listener.publish(&at(7.0));
+        assert_eq!(tool.answer(held), Ok(done()));
+        let next = tool.next();
+        assert!(
+            !wanted && matches!(next, FromProgram::Unreadable(_)),
+            "the reader had finished; the game was told the event is wanted: {wanted}; the next \
+             message: {next:?}"
+        );
+    }
+
+    /// Two subscriptions of one connection to an event count once: one unsubscribe ends it.
+    #[test]
+    fn two_subscriptions_of_a_connection_count_once() {
+        let (listener, token) = opened();
+        let mut tool = Subscriber::open(&listener, &token);
+        for _ in 0..2 {
+            let subscribed = tool.subscribe();
+            assert_eq!(tool.answer(subscribed), Ok(empty()));
+        }
+        let unsubscribed = tool.unsubscribe();
+        assert_eq!(tool.answer(unsubscribed), Ok(empty()));
+        assert!(!listener.wants("play/time"), "one unsubscribe ends both");
+    }
+
+    /// An unsubscribe of an event that its connection did not subscribe to changes no count.
+    #[test]
+    fn an_unsubscribe_of_what_is_not_subscribed_changes_no_count() {
+        let (listener, token) = opened();
+        let mut first = Subscriber::open(&listener, &token);
+        let mut second = Subscriber::open(&listener, &token);
+        let subscribed = first.subscribe();
+        assert_eq!(first.answer(subscribed), Ok(empty()));
+        let unsubscribed = second.unsubscribe();
+        assert_eq!(second.answer(unsubscribed), Ok(empty()));
+        assert!(listener.wants("play/time"), "the first is still subscribed");
+    }
+
+    /// A subscription read just before the game stopped, still queued for the writer, is answered
+    /// as a request queued for the game is then: that the game has stopped, since no value will
+    /// follow (ADR-0254: "After the game stopped, a `subscribe` is answered as any request is
+    /// then").
+    #[test]
+    fn a_subscription_queued_as_the_game_stops_is_answered_so() {
+        let (listener, token) = opened();
+        let mut tool = Subscriber::open(&listener, &token);
+        let payload = blocking();
+        let blocked = tool.block(&listener, &payload);
+        let subscribed = tool.subscribe();
+        let connection = Arc::clone(&locked(&listener.shared.connections)[0]);
+        eventually("the subscription waits for the writer", || {
+            locked(&connection.state)
+                .outbox
+                .iter()
+                .any(|outgoing| matches!(outgoing, Outgoing::Subscribe { .. }))
+        });
+        drop(listener);
+        assert_eq!(tool.answer(blocked), Ok(done()));
+        assert_eq!(
+            tool.answer(subscribed).map_err(|fault| fault.message),
+            Err("the game has stopped".to_owned())
+        );
+    }
+
+    /// No event follows the reason, the last line written (listener.rs: "The reason is the last
+    /// line written: no event follows it"), while a game publishes as the connection finishes.
+    #[test]
+    fn no_event_follows_the_reason() {
+        let (listener, token) = opened();
+        let listener = Arc::new(listener);
+        let mut tool = Subscriber::open(&listener, &token);
+        let first = Arc::new(vec![0_u8; 8 << 20]);
+        let blocked = tool.block(&listener, &first);
+        let subscribed = tool.subscribe();
+        tool.stream.write_all(b"not json\n").expect("sent");
+        let connection = Arc::clone(
+            locked(&listener.shared.connections)
+                .last()
+                .expect("a connection"),
+        );
+        eventually("the reader finished", || {
+            locked(&connection.state).finishing
+        });
+        let stop = Arc::new(AtomicBool::new(false));
+        let game = {
+            let (listener, stop) = (Arc::clone(&listener), Arc::clone(&stop));
+            thread::spawn(move || {
+                let mut speed = 1.0;
+                while !stop.load(Ordering::Relaxed) {
+                    speed += 1.0;
+                    listener.publish(&at(speed));
+                    thread::yield_now();
+                }
+            })
+        };
+        assert_eq!(tool.answer(blocked), Ok(done()));
+        assert_eq!(tool.answer(subscribed), Ok(empty()));
+        loop {
+            match tool.next() {
+                FromProgram::Unreadable(_) => break,
+                FromProgram::Event { .. } => {}
+                other => panic!("an event or the reason, not {other:?}"),
+            }
+        }
+        tool.stream
+            .set_read_timeout(Some(Duration::from_millis(500)))
+            .expect("a timeout");
+        let mut after = 0;
+        while after < 3 && receive(&mut tool.stream, &mut tool.reader).is_ok() {
+            after += 1;
+        }
+        stop.store(true, Ordering::Relaxed);
+        game.join().expect("the game ends");
+        assert_eq!(after, 0, "messages after the reason");
+    }
+
+    #[test]
+    fn a_client_s_notices_may_call_the_client_and_a_refused_subscription_says_why() {
+        let (listener, token) = opened();
+        let slot: Arc<std::sync::OnceLock<Arc<Client>>> = Arc::default();
+        let (told, notices) = std::sync::mpsc::channel();
+        let told = Mutex::new(told);
+        let client = {
+            let slot = Arc::clone(&slot);
+            Arc::new(
+                Client::connect_with(
+                    listener.address(),
+                    &token,
+                    &agent(),
+                    &client(),
+                    move |notice| {
+                        // Called outside the client's lock: the client answers.
+                        let broken = slot.get().map(|client| client.is_broken());
+                        let _ = locked(&told).send((notice, broken));
+                    },
+                )
+                .expect("accepted"),
+            )
+        };
+        let _ = slot.set(Arc::clone(&client));
+        let before = listener.subscriptions();
+        client.subscribe(&["play/time"]).expect("subscribed");
+        publish_once_subscribed(&listener, before, &at(2.0));
+        let (notice, broken) = notices
+            .recv_timeout(Duration::from_secs(10))
+            .expect("told, the client answering");
+        assert!(matches!(notice, Notice::Event(_)) && broken == Some(false));
+        drop(listener);
+        assert!(matches!(
+            client.subscribe(&["play/time"]),
+            Err(ChannelError::Refused(why)) if why == "the game has stopped"
+        ));
+    }
+
+    /// The times from 21 publications of `play/time` to their events' arrival at a client's
+    /// notices, each read on the client's thread, sorted; `capture` sends a request answered with
+    /// that many bytes just before each publication, so that the event waits behind them.
+    fn event_times(capture: usize) -> Vec<Duration> {
+        let (listener, token) = opened();
+        let (told, arrivals) = std::sync::mpsc::channel();
+        let told = Mutex::new(told);
+        let client = Client::connect_with(
+            listener.address(),
+            &token,
+            &agent(),
+            &client(),
+            move |notice| {
+                if let Notice::Event(_) = notice {
+                    let _ = locked(&told).send(Instant::now());
+                }
+            },
+        )
+        .expect("accepted");
+        let before = listener.subscriptions();
+        client.subscribe(&[Event::TIME]).expect("subscribed");
+        publish_once_subscribed(&listener, before, &at(0.0));
+        let wait = Duration::from_secs(30);
+        arrivals.recv_timeout(wait).expect("the first value");
+        let payload = Arc::new(vec![0_u8; capture]);
+        let mut times: Vec<Duration> = (1..=21)
+            .map(|step| {
+                let pending = (capture > 0).then(|| {
+                    let pending = client.send(&Request::State).expect("sent");
+                    taken(&listener).answer_with(Reply::Done, Arc::clone(&payload));
+                    pending
+                });
+                let published = Instant::now();
+                listener.publish(&at(f64::from(step)));
+                let arrived = arrivals.recv_timeout(wait).expect("the event");
+                if let Some(pending) = pending {
+                    pending.wait_for(wait).expect("the capture's answer");
+                }
+                arrived.saturating_duration_since(published)
+            })
+            .collect();
+        times.sort();
+        times
+    }
+
+    #[test]
+    fn an_event_reaches_its_tool_in_well_under_the_delay_of_an_acknowledgement() {
+        // Each just after a small answer, as on Play's connection: a writer that waited for the
+        // acknowledgement of the answer before it wrote the event would take 40 ms or more.
+        let times = event_times(64);
+        let median = times[times.len() / 2];
+        println!(
+            "an event told in {median:?}, the median of {}, the slowest {:?}",
+            times.len(),
+            times[times.len() - 1]
+        );
+        // As a request's answer: a message written in pieces, on a socket that waits for the
+        // acknowledgement of the last piece, takes 40 ms or more.
+        assert!(median < Duration::from_millis(20), "{median:?}");
+    }
+
+    /// The time from a publication to its event behind a 4K capture's answer, 3840 × 2160 pixels
+    /// of four bytes, which the writer writes first: a measure, timed only at rest, in a release
+    /// build (`cargo test --release -p slime-channel --lib an_event_behind -- --ignored
+    /// --nocapture`).
+    #[test]
+    #[ignore = "a measure, run by hand at rest"]
+    fn an_event_behind_a_capture() {
+        for (what, capture) in [("alone", 0), ("behind a 4K capture", 3840 * 2160 * 4)] {
+            let times = event_times(capture);
+            println!(
+                "an event {what}: {:?} the median of {}, {:?} the slowest",
+                times[times.len() / 2],
+                times.len(),
+                times[times.len() - 1]
+            );
+        }
     }
 }

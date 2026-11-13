@@ -463,6 +463,15 @@ fn main() {
         }
     }
     assert_eq!(answered, [reading, stepping], "the read passes the step");
+    // The editor's toolbar follows the pause that the game's tools made, told by the game: its
+    // Pause then lets game time run again, which the game tells too
+    // (`docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md`).
+    session.tool("drive_played_game", json!({ "played": false }));
+    played(&mut session, "Play: game time paused, at the speed 1");
+    let (said, _) = session.tool("run_operation", json!({ "name": "play.pause" }));
+    assert_eq!(said, ["done"]);
+    played(&mut session, "Play: game time runs, at the speed 1");
+    session.tool("drive_played_game", json!({ "played": true }));
     session.tool("resume", json!({}));
     let (said, _) = session.tool("drive_played_game", json!({ "played": false }));
     assert_eq!(said, ["the game's tools drive the editor again"]);

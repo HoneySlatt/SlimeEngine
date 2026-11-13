@@ -10,10 +10,12 @@ Its name is provisional: the names of uwui's crates are settled at M6d.10
 
 ## Status
 
-M6d.9a1b1: the session and its messages, both ends, several requests in flight, answered in any
+M6d.9a1b2: the session and its messages, both ends, several requests in flight, answered in any
 order, bounded and cancellable
-([ADR-0250](../../docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)).
-Events that a program sends, long lists read by pages, attaching to a program already running,
+([ADR-0250](../../docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)),
+and events by subscription
+([ADR-0254](../../docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).
+Long lists read by pages, attaching to a program already running,
 consent, rights and previews come with M6d.9a's later parts
 ([`stage-6d.md`](../../docs/stage-6d.md#m6d9a--one-core-for-agents-and-its-mcp-server)).
 
@@ -49,6 +51,15 @@ consent, rights and previews come with M6d.9a's later parts
 - The tool cancels a request in flight with the core's event `cancel`. The program still answers
   it once: with its result if it had changed something, `CANCELLED` if it had not, and then never
   does it. An answer larger than the tool reads becomes the fault `TOO_LARGE`, without its bytes.
+- A family declares its *events*, each `family/name`, `play/time`, which the program gives its
+  session, and the welcome lists for the families served. The core's requests `subscribe` and
+  `unsubscribe` name some of them, and are refused whole for one not declared, `BAD_PARAMS`, or of
+  a family not served, `NOT_SERVED`. An event tells a state: its current value comes after the
+  answer to `subscribe`, then each change, a newer value replacing one that the carrier has not
+  yet handed to the connection; none comes after the answer to `unsubscribe`. The session checks
+  the names, and its carrier keeps the subscriptions and starts them as it takes their answers
+  ([`slime-channel`](../slime-channel/README.md)). An event larger than the tool reads is not
+  written.
 
 ## Entry points
 
@@ -66,7 +77,12 @@ fn read(bytes: &[u8]) -> uwui_agent::Frame {
     reader.message().expect("a message").expect("whole")
 }
 
-let mut program = ProgramSession::new("my game", vec![Family::new("play", 1)], InFlight::DEFAULT);
+let mut program = ProgramSession::new(
+    "my game",
+    vec![Family::new("play", 1)],
+    vec!["play/time".to_owned()],
+    InFlight::DEFAULT,
+);
 let mut tool = ToolSession::new();
 let hello = tool
     .hello(&Hello {

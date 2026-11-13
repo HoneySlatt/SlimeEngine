@@ -11,7 +11,7 @@ pub use message::{Fault, Frame, Limits, MAX_EXACT_INTEGER, Message, Reader, enco
 pub use serde_json::Value;
 pub use session::{
     CANCEL, Family, FromProgram, FromTool, HELLO, Hello, InFlight, Named, ProgramSession, Refusal,
-    ToolSession, Welcome,
+    SUBSCRIBE, ToolSession, UNSUBSCRIBE, Welcome,
 };
 pub use typed::{call, json_size, read, read_call, write};
 
