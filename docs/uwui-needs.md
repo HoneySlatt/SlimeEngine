@@ -129,16 +129,29 @@ The editor and games change their interfaces in two ways that applications rarel
 Not the engine's: since [ADR-0266](adr/0266-uwui-targets-the-owners-shell-its-lock-and-login-screens-and-what-yuna-draws.md),
 uwui draws the owner's shell, Hollow, its lock and login screens, and the interfaces that the
 compositor Yuna draws itself. Kept here, beside the engine's, as uwui's general needs of hosts;
-Yuna's side is its ADR-0063.
+Yuna's side is its ADR-0063, Hollow's its own list, `docs/needs.md`. Hollow is one process, its
+bar, popups, notifications, launcher, on-screen displays, tray, dock, widgets, on-screen keyboard,
+lock screen and polkit agent; the greeter is a program of its own. Hollow writes no code before
+uwui's first stage, the owner's choice: none of its needs comes before uwui's plan (Yuna's
+ADR-0003).
 
 | Need | Its use | Mark | In uwui's requirements |
 |---|---|---|---|
 | A surface of Wayland's layer shell as a target: its layer, its anchors, its exclusive zone, its keyboard's interactivity | Hollow's bar and panels | Indispensable: Hollow | New |
 | A surface of the session lock as a target, one for each output, its input alone while locked | Hollow's lock screen | Indispensable: Hollow | New |
 | A host that lends a Vulkan device of its own, its queue and its targets, rather than a wgpu device | Yuna's own interfaces drawn on its Vulkan device | Indispensable: Yuna | New: `uwui-render` takes a wgpu device today |
-| A failure of uwui inside a host caught and recovered from: the interface dropped and built again, the host going on | Yuna, which a fault of its interfaces must never take down | Indispensable: Yuna | New |
+| A failure of uwui inside a host caught and recovered from: the interface dropped and built again, the host going on | Yuna, which a fault of its interfaces must never take down; Hollow's surfaces too | Indispensable: Yuna | New |
 | uwui's time in each frame of a host counted and checked in CI | Yuna's frame budget | Indispensable: Yuna | Precision: the counters exist ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)); a host's frame budget is to say |
 | Nothing drawn, nor asked of the GPU, while the host shows a game in full screen and no interface is open | Yuna over a game | Indispensable: Yuna | Precision: rest at zero is uwui's; a host that holds it whole is to say |
+| The host's loop takes the application's file descriptors and timers, and runs a foreign runtime's tasks, its I/O sources, sleeps and spawns, as zbus 6's `Runtime` asks, with no thread of uwui's own | Hollow's services on its host's loop, without tokio: D-Bus, PipeWire's loop, inotify | Indispensable: Hollow | New |
+| An input method's client, for an on-screen keyboard (input-method-v2); a lock surface with an on-screen keyboard of its own and no input method | Hollow's on-screen keyboard and its lock screen | Indispensable: Hollow | New |
+| Popups anchored to a layer shell's surface (`xdg_popup` on a layer surface) | Hollow's menus and popups from its bar | Indispensable: Hollow | New |
+| Surfaces made when they are needed, which give their GPU memory back while hidden | Hollow's popups, launcher and notifications; the owner's current shell needed a patch for it | Indispensable: Hollow | New |
+| One surface for each output, as outputs come and go | Hollow's bar and lock screen on every display | Indispensable: Hollow | New |
+| uwui's CPU renderer measured against a wgpu device for a still bar, on the owner's lowest machine (Athlon Silver 3050U, Vega, 4 GiB) | Which renderer Hollow's bar takes there | Wished: before Hollow's first code | New |
+
+Hollow's budget of memory follows uwui's rule of the lead: its own cost above a blank layer
+surface of uwui's, its PSS and its GPU memory, at most a third of the best rival of its class.
 
 ## SlimeEngine's own
 
