@@ -171,8 +171,9 @@ in git.
   [M6d.5d1](#m6d5d1--each-reader-its-changes-each-target-its-tree) and
   [M6d.5d2](#m6d5d2--the-translation-in-uwui-accesskit), on 2026-11-14, M6d.5d whole; then
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone), cut in two on 2026-11-14 ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)): done,
-  [M6d.5e1](#m6d5e1--the-lifecycle), on 2026-11-14; in progress,
-  [M6d.5e2](PLAN.md#m6d5e2--each-targets-size-and-scale-from-its-host).
+  [M6d.5e1](#m6d5e1--the-lifecycle) and
+  [M6d.5e2](#m6d5e2--each-targets-size-and-scale-from-its-host), on 2026-11-14, M6d.5e whole, and
+  with it M6d.5, the host's API.
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2187,7 +2188,45 @@ The first half of M6d.5e ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-
 
 ### M6d.5e2 — Each target's size and scale from its host
 
-In progress, its card in [`PLAN.md`](PLAN.md#m6d5e2--each-targets-size-and-scale-from-its-host).
+The second half of M6d.5e ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Each root takes its size and scale from its target, which its host gives; the
+  presentations no longer read the window for their interface.
+- **Crates.** `uwui`, `slime-app`; `slime-editor`, `slime-devui`, *Hunna Wood*, the examples and
+  the benchmarks; track A's `uwui/src/agents.rs` and `slime-app/src/channel.rs`, with the owner's go.
+- **Delivers.** A target's size and scale given by its host; `RootSettings` without a size nor a
+  scale; a layer's place kept apart; the rule for roots stacked on one target; a size of zero and
+  one larger than the image defined; the editor, the dev overlay, *Hunna Wood*, the examples and
+  the benchmarks sized by their target; designed at its start, its shape put to the owner. Its ADR
+  corrects two cells of the engine's column that ADR-0264 left: the scale, which the run reads,
+  and a covered window on X11 under a compositing manager, which holds nothing.
+- **Done when.** No presentation reads the window's size or scale for its interface; the editor's
+  and the game's sessions are unchanged; a still frame allocates as before; CI is green; M6d.5 is
+  whole.
+- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **Measured.** The editor's start; a still frame's counters.
+- **Result.** Done on 2026-11-14, CI green ([ADR-0268](adr/0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md)):
+  - `uwui::host::TargetSize`, a target's image's pixels and its scale, which refuses a side of
+    zero and a scale that is not a number above zero, given by `Ui::set_target_size`; every root
+    on the target fills it, a layer lies within it, keeping its place on its own record. The size
+    given is laid out at the target's next frame; until then what reads the boxes reads the scale
+    they were laid out at (`Ui::laid_out_size`). `RootSettings` holds a root's direction, whether
+    it is modal and its target alone (`RootSettings::on`).
+  - A root over another takes the pointer where it acts, a press, the wheel or a drop, and lets it
+    through to the roots below elsewhere, the owner's choices. A size of zero gives nothing, its
+    target keeping its layout; the engine gives its images' size, smaller than the window past the
+    device's largest side (`Surface::size`).
+  - `slime-app` gives the window's at each frame; the editor, the dev overlay, *Hunna Wood*, the
+    examples and the benchmarks read their target's or give it as hosts; `Overlay::set_window` is
+    gone. Track A's two files changed only as the API asked, with the owner's go.
+  - The starts as before, a still frame allocating less
+    ([`measurements.md`](measurements.md#m6d5e2-each-targets-size-and-scale-from-its-host)).
+  - The design's challenge found a button that draws nothing losing its press under the first rule,
+    and the scale read as given; the closing review found a layer moved to another scale left at
+    the old one, the editor and a palette reading the wrong one of the two sizes, and the wheel and
+    drops left to the root below; each fixed under a test that failed first. A layer scrolled from
+    right to left shifted out of itself, fixed first.
 
 ### M6d.6 — A series of headless compositors
 

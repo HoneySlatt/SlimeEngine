@@ -24,10 +24,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
     done, M6d.9a1a to [M6d.9a1b3b2](stage-6d.md#m6d9a1b3b2--the-editors-journal), M6d.9a1
     whole; next, [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families).
-  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5a to M6d.5e1, done, M6d.5c and M6d.5d whole;
-    in progress, [M6d.5e2](#m6d5e2--each-targets-size-and-scale-from-its-host), its code once
-    track A is between milestones.
-  - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249.
+  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 whole, done, the last
+    [M6d.5e2](stage-6d.md#m6d5e2--each-targets-size-and-scale-from-its-host).
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: deleting the branches `m6d1b-bench`, `m6d4a-prototype` and
@@ -42,8 +40,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 |---|---|
 | [M6d.0a to M6d.3c3, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.4a to M6d.4b2 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
-| [M6d.5a to M6d.5e1 — The host's API, its first parts](stage-6d.md#m6d5--the-hosts-api) | Done |
-| [M6d.5e2 — Each target's size and scale from its host](#m6d5e2--each-targets-size-and-scale-from-its-host) | In progress |
+| [M6d.5a to M6d.5e2 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Done |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
@@ -54,18 +51,6 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.5e2 — Each target's size and scale from its host
-
-Started on 2026-11-14 ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
-
-- **Goal.** Each root takes its size and scale from its target, which its host gives.
-- **Crates.** `uwui`, `slime-app` and their callers.
-- **Delivers.** `RootSettings` without size or scale; a layer's place apart; stacked roots' rule;
-  zero and oversize defined; two engine cells fixed.
-- **Done when.** No presentation reads the window for its interface; sessions unchanged; a
-  still frame allocates as before; CI is green; M6d.5 is whole.
-- **Measured.** The editor's start; a still frame's counters.
 
 ## Ideas waiting for their milestone
 
@@ -173,6 +158,9 @@ owner's save alone. After Stage 6e's first milestone, a check that names *Hunna 
 - **A covered window at rest** (M6d.5c3b): *Hunna Wood* paused, its dev overlay open, the pointer
   leaving its window as another covers it, in the Windows virtual machine, the macOS one and on
   bare X11 (M6d.5e1): the game asking no frame while covered, and drawing again once shown.
+- **Each window's size and scale** (M6d.5e2): the editor in the Windows virtual machine, moved
+  between two screens of different scales and its scale changed in the system's settings while it
+  runs, laid out again at once and sharp; minimized and restored, as it was.
 - **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
   left by Alt and Tab, Alt held or mid-drag: no bar in focus, nothing dropped; *Hunna Wood*'s
   button that loses the surface, on Direct3D 12: drawn again.

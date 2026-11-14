@@ -4241,3 +4241,23 @@ benchmarks' counters, written again by `--write-counters`:
 | `editor.window.entities`, 10k and 100k | 71, 70 | not counted |
 
 The host giving the same size at every frame costs a comparison.
+
+How long CI's jobs took on `83e2e87`, the commits of the targets' sizes, on 2026-11-14:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 7 s |
+| `check (headless)` | 12 min 36 s |
+| `check (windowed)` | 8 min 44 s |
+| `check (game)` | 13 min 32 s |
+| `check (gles)` | 3 min 7 s |
+| `windows (tests)` | 16 min 3 s |
+| `windows (render)` | 7 min 19 s |
+| `windows (game)` | 6 min 14 s |
+| `windows-release` | 10 min 4 s |
+| `compositors (weston)` | 10 min 22 s |
+| `compositors (sway)` | 11 min 33 s |
+| `compositors (kwin)` | 14 min 27 s |
+| `compositors (mutter)` | 13 min 18 s |
+| `compositors (x11)` | 14 min 44 s |
+| Docs' `links` | 19 s |
