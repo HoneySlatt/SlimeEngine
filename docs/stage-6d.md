@@ -158,8 +158,8 @@ in git.
   ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)): done,
   [M6d.5c1](#m6d5c1--events-and-outputs-on-one-target) and
   [M6d.5c2](#m6d5c2--the-clipboard-and-the-hosts-questions), on 2026-11-13; then
-  [M6d.5c3](#m6d5c3--the-targets), cut in two on 2026-11-14 ([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)): in progress,
-  [M6d.5c3a](#m6d5c3a--input-and-outputs-per-target); then
+  [M6d.5c3](#m6d5c3--the-targets), cut in two on 2026-11-14 ([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)): done,
+  [M6d.5c3a](#m6d5c3a--input-and-outputs-per-target), on 2026-11-14; then
   [M6d.5c3b](#m6d5c3b--frames-and-times-per-target); then
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui) and
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
@@ -1990,8 +1990,38 @@ The last third of M6d.5c
 
 ### M6d.5c3a — Input and outputs per target
 
-The first half of M6d.5c3; in progress, its card in
-[`PLAN.md`](PLAN.md#m6d5c3a--input-and-outputs-per-target).
+The first half of M6d.5c3 ([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** A host draws uwui's roots on several targets, each with its own input and outputs.
+- **Crates.** `uwui`, `slime-app`, `slime-editor`, `slime-devui`; two lines of `channel.rs`, by
+  the owner's leave.
+- **Delivers.** `RootSettings::target`, a layer on the target of the root it opens over, a root
+  moved letting go of what it held; each target's pointer, hover, capture, focus, modal roots,
+  modifiers, rest, layers and outputs, kept explicitly; the active target; `element_at`,
+  `meaning_at` and `covers` by target; a field's clipboard on its target, the program's on the
+  active one; `Ui::display_list(target)`.
+- **Done when.** Two targets with a button at the same place, a hit test and a display list for
+  each, a layer over another target's root, a modal root on one target alone, pass in uwui's
+  tests; the editor's and the game's input unchanged, checked end to end in a headless sway; CI is
+  green.
+- **Measured.** A pointer's move over the editor's hierarchy.
+- **Result.** Done on 2026-11-14, CI green ([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md), its five questions decided by the
+  owner; [ADR-0257](adr/0257-targets-known-from-their-first-root-a-moved-root-below-its-new-targets-modal-root.md), the rules that building it corrected):
+  - Each root names its target, a layer standing on its root's; each target keeps its own input,
+    held explicitly, and its own outputs, hit test and display list; a modal root blocks its own
+    target alone, the owner's choice.
+  - The active target, that of the last key or button, serves what names no element
+    (`Ui::active_target`); a field's clipboard stays on its target, the program's goes to the
+    active one, the owner's choice.
+  - A target is known from its first root, `TargetId::MAIN` from the start; a root or a layer moved
+    to another target lets go of what the old one held, and stands below the new one's modal root.
+  - A pointer's move costs the same, 1.6 µs over the hierarchy, without allocating; a frame
+    standing still allocates as before
+    ([`measurements.md`](measurements.md#m6d5c3a-input-and-outputs-per-target)).
+  - The engine keeps one window and one held move, the owner's choice; its input checked end to
+    end in a headless sway on lavapipe. One frame draws every target until M6d.5c3b
+    ([`debt.md`](debt.md)).
 
 ### M6d.5c3b — Frames and times per target
 

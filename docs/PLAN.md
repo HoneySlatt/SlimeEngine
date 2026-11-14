@@ -34,10 +34,12 @@ documentation was updated and reread. Every milestone is also checked on Windows
     2026-11-13 ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)):
     done, [M6d.9a1b1](stage-6d.md#m6d9a1b1--requests-in-flight), requests in flight, and
     [M6d.9a1b2](stage-6d.md#m6d9a1b2--events), events; next,
-    [M6d.9a1b3](stage-6d.md#m6d9a1b3--long-lists-and-the-interfaces-family), once M6d.5c3a is done.
+    [M6d.9a1b3](stage-6d.md#m6d9a1b3--long-lists-and-the-interfaces-family), which may start:
+    M6d.5c3a is done.
   - Track B, in a worktree: M6d.6 and M6d.4, done; then
     [M6d.5](stage-6d.md#m6d5--the-hosts-api), cut in five (ADR-0248): done, M6d.5a to
-    M6d.5c2; in progress, [M6d.5c3a](#m6d5c3a--input-and-outputs-per-target).
+    [M6d.5c3a](stage-6d.md#m6d5c3a--input-and-outputs-per-target); next,
+    [M6d.5c3b](stage-6d.md#m6d5c3b--frames-and-times-per-target).
   - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249;
     M6d.9a1b3 follows M6d.5c3a (ADR-0256).
   - M6d.10 to M6d.12 run alone.
@@ -55,8 +57,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 |---|---|
 | [M6d.0a to M6d.3c3, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.4a to M6d.4b2 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
-| [M6d.5a to M6d.5c2 — The host's API, its first parts](stage-6d.md#m6d5--the-hosts-api) | Done |
-| [M6d.5c3a — Input and outputs per target](#m6d5c3a--input-and-outputs-per-target) | In progress |
+| [M6d.5a to M6d.5c3a — The host's API, its first parts](stage-6d.md#m6d5--the-hosts-api) | Done |
 | [M6d.5c3b to M6d.5e — The rest of M6d.5](stage-6d.md#m6d5c3b--frames-and-times-per-target) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
@@ -69,25 +70,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.5c3a — Input and outputs per target
-
-Started on 2026-11-14, the first half of M6d.5c3, cut in two at its start
-([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)).
-
-- **Goal.** A host draws uwui's roots on several targets, each with its own input and outputs.
-- **Crates.** `uwui`, `slime-app`, `slime-editor`, `slime-devui`; two lines of `channel.rs`, by
-  the owner's leave.
-- **Delivers.** `RootSettings::target`, a layer on the target of the root it opens over, a root
-  moved letting go of what it held; each target's pointer, hover, capture, focus, modal roots,
-  modifiers, rest, layers and outputs, kept explicitly; the active target; `element_at`,
-  `meaning_at` and `covers` by target; a field's clipboard on its target, the program's on the
-  active one; `Ui::display_list(target)`.
-- **Done when.** Two targets with a button at the same place, a hit test and a display list for
-  each, a layer over another target's root, a modal root on one target alone, pass in uwui's tests; the editor's and the game's input unchanged, checked end to end in a
-  headless sway; CI is green.
-- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
-- **Measured.** A pointer's move over the editor's hierarchy.
 
 ## Ideas waiting for their milestone
 

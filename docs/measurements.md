@@ -3799,3 +3799,27 @@ waits for the GPU. The editor gave 147 images after 200 inputs apart, clicks, th
 moves, a median of 11.9 ms and a 99th percentile of 18.3 ms; and 436 after 1,000 moves in a row,
 12.4 ms and 17.0 ms, near M6d.5c1's. *Hunna Wood* drew a frame every few seconds on lavapipe, too
 few to give any; both ended well.
+
+How long CI's jobs took on `fdd5d74`, the commit that gave each of uwui's roots its target, on
+2026-11-14:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 42 s |
+| `check (headless)` | 13 min 54 s |
+| `check (windowed)` | 11 min 25 s |
+| `check (game)` | 12 min 55 s |
+| `check (gles)` | 3 min 53 s |
+| `windows (tests)` | 15 min 26 s |
+| `windows (render)` | 6 min 54 s |
+| `windows (game)` | 6 min 40 s |
+| `windows-release` | 15 min 55 s |
+| `compositors (weston)` | 13 min 14 s |
+| `compositors (sway)` | 12 min 38 s |
+| `compositors (kwin)` | 10 min 37 s |
+| `compositors (mutter)` | 13 min 19 s |
+| `compositors (x11)` | 10 min 31 s |
+| Docs' `links` | 15 s |
+
+Every job stays within its limit of 20 minutes. `windows-release` is the longest, with 4 min 5 s of
+margin, and `windows (tests)` keeps 4 min 34 s. The part adds one test file of uwui, of 19 tests.
