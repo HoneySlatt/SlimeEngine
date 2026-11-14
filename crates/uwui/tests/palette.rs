@@ -281,6 +281,39 @@ fn the_palette_scrolls_past_its_height_and_keeps_the_chosen_command_in_sight() {
 }
 
 #[test]
+fn a_layer_laid_out_from_right_to_left_keeps_its_rows_within_it_as_it_scrolls() {
+    let (mut ui, root) = interface();
+    let rtl = RootSettings {
+        direction: LayoutDirection::RightToLeft,
+        ..ui.root_settings(root).expect("a root")
+    };
+    ui.set_root(root, rtl);
+    let many: Vec<PaletteCommand> = (0..60)
+        .map(|number| PaletteCommand {
+            name: format!("Command number {number}"),
+            command: format!("command-{number}"),
+        })
+        .collect();
+    ui.open_palette("Type a command", many);
+    ui.frame(TargetId::MAIN);
+    let palette = ui.element_by_path("palette").expect("the palette's layer");
+    let list = ui
+        .element_by_path("palette/palette/commands")
+        .expect("its rows");
+    // Scrolled alone, its rows placed again without the layer laid out again.
+    ui.scroll_to(list, [0.0, 200.0]);
+    ui.frame(TargetId::MAIN);
+    let layer = ui.rect(palette).expect("laid out");
+    for &row in ui.children(list) {
+        let rect = ui.rect(row).expect("laid out");
+        assert!(
+            rect.x >= layer.x - 0.5 && rect.x + rect.width <= layer.x + layer.width + 0.5,
+            "a row within its layer: {rect:?} in {layer:?}"
+        );
+    }
+}
+
+#[test]
 fn the_sheet_lists_the_shortcuts_by_scope_and_escape_closes_it() {
     let (mut ui, _) = interface();
     ui.open_shortcut_sheet("Keyboard shortcuts", &commands());

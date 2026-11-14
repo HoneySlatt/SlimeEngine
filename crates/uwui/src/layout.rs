@@ -360,8 +360,7 @@ pub(crate) fn place_below(ui: &mut Ui, id: ElementId) {
     let Some(settings) = ui.root_settings(id) else {
         return;
     };
-    // A mirror across the root's box, at its place on the surface.
-    let across = 2.0 * settings.origin[0] * settings.scale + settings.size[0] * settings.scale;
+    let across = mirror(ui, id, settings);
     let Some(node) = ui.node(id) else {
         return;
     };
@@ -379,6 +378,19 @@ pub(crate) fn place_below(ui: &mut Ui, id: ElementId) {
     place(ui, start, settings);
 }
 
+/// The line across which the root of `id`, of `settings`, mirrors what it lays out from right to
+/// left, in pixels of its surface: twice its place plus its width, as wide as its surface, or as its
+/// content for a layer that takes the size of its content. Laying out and placing again after a
+/// scroll mirror across the same line.
+fn mirror(ui: &Ui, id: ElementId, settings: RootSettings) -> f32 {
+    let scale = settings.scale;
+    let width = ui
+        .root_of(id)
+        .and_then(|root| ui.node(root))
+        .map_or(settings.size[0] * scale, |root| root.layout.size.width);
+    2.0 * settings.origin[0] * scale + width
+}
+
 /// Places the element of `start`, its parent's content starting at `start`'s point and cut to its
 /// rectangle, and the elements below it: each element's box on its root, from its layout and
 /// those of its ancestors, the content of a box that scrolls and of a list moved by its scroll,
@@ -387,13 +399,7 @@ pub(crate) fn place_below(ui: &mut Ui, id: ElementId) {
 /// box or cut moves is drawn again.
 fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: RootSettings) {
     let (scale, direction) = (settings.scale, settings.direction);
-    // A mirror across the root's box, at its place on the surface: as wide as its surface, or as
-    // its content for a layer that takes the size of its content.
-    let width = ui
-        .root_of(start.0)
-        .and_then(|root| ui.node(root))
-        .map_or(settings.size[0] * scale, |root| root.layout.size.width);
-    let across = 2.0 * settings.origin[0] * scale + width;
+    let across = mirror(ui, start.0, settings);
     let mut stack = vec![start];
     // The elements that moved, or whose cut changed, which changes where they show to whoever
     // reads what the interface means; a root whose box changed, what shows of all it holds.
