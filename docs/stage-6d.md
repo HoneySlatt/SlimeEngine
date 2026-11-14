@@ -168,8 +168,8 @@ in git.
   [M6d.5c3a](#m6d5c3a--input-and-outputs-per-target) and
   [M6d.5c3b](#m6d5c3b--frames-and-times-per-target), on 2026-11-14, M6d.5c whole; then
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui), cut in two on 2026-11-14 ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)): done,
-  [M6d.5d1](#m6d5d1--each-reader-its-changes-each-target-its-tree), on 2026-11-14; then
-  [M6d.5d2](#m6d5d2--the-translation-in-uwui-accesskit) and
+  [M6d.5d1](#m6d5d1--each-reader-its-changes-each-target-its-tree), on 2026-11-14; in progress,
+  [M6d.5d2](#m6d5d2--the-translation-in-uwui-accesskit); then
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
@@ -2108,19 +2108,7 @@ The first half of M6d.5d ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes
 
 ### M6d.5d2 — The translation in uwui-accesskit
 
-The second half of M6d.5d ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)). It follows the rules of
-[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** Any host of uwui gives screen readers its tree through `uwui-accesskit`.
-- **Crates.** `uwui-accesskit`, new; `slime-app`.
-- **Delivers.** `slime-app`'s translation and its tests moved into the crate, over uwui's public
-  meaning, its readers and its targets; `accesskit` re-exported there and dropped from
-  `slime-app`, `accesskit_consumer` its tests'; the window's node and the adapter left to the host.
-- **Done when.** The translation's tests pass in the crate; `scripts/screen-reader-check.sh`
-  passes; `slime-app` holds no translation; the shipping game holds no `uwui-accesskit`; the
-  crate depends on no engine crate; CI is green.
-- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
-- **Measured.** The crate's compiling time; CI's jobs that gain its tests.
+In progress, its card in [`PLAN.md`](PLAN.md#m6d5d2--the-translation-in-uwui-accesskit).
 
 ### M6d.5e — slime-app a host through the API alone
 
