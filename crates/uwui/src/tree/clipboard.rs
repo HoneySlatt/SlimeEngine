@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 
 use super::{ElementId, Kind, Ui};
 use crate::action::{Action, ActionKind};
-use crate::host::ReadId;
+use crate::host::{ReadId, TargetId};
 
 /// How many reads of the clipboard wait for their answers at most: a host that answers none keeps
 /// no more, the oldest dropped first, a program's answered with no text.
@@ -21,12 +21,13 @@ pub(super) struct Clipboard {
     events: bool,
     /// Set by a key of copy, cut or paste that the platform handles; read by [`Ui::event`].
     pub(super) left_to_platform: bool,
-    /// The text that waits to be written.
-    write: Option<String>,
-    /// The reads asked and not yet told the host, oldest first.
-    asked: Vec<ReadId>,
-    /// The reads awaiting their answers, oldest first, each with who asked.
-    awaited: VecDeque<(ReadId, Asker)>,
+    /// The text that waits to be written, the last for each target whose outputs tell it.
+    write: Vec<(TargetId, String)>,
+    /// The reads asked and not yet told the host, oldest first, each with the target whose
+    /// outputs tell it.
+    asked: Vec<(ReadId, TargetId)>,
+    /// The reads awaiting their answers, oldest first, each with who asked, and on which target.
+    awaited: VecDeque<(ReadId, Asker, TargetId)>,
     /// The number of the last read asked.
     last: u64,
 }
@@ -41,9 +42,28 @@ enum Asker {
 }
 
 impl Clipboard {
-    /// What waits for the host: the text to write and the reads asked, taken.
-    pub(super) fn take(&mut self) -> (Option<String>, Vec<ReadId>) {
-        (self.write.take(), std::mem::take(&mut self.asked))
+    /// What waits for `target`'s host: the text to write and the reads asked, taken.
+    pub(super) fn take(&mut self, target: TargetId) -> (Option<String>, Vec<ReadId>) {
+        let write = self
+            .write
+            .iter()
+            .position(|(each, _)| *each == target)
+            .map(|at| self.write.swap_remove(at).1);
+        let mut reads = Vec::new();
+        self.asked.retain(|&(read, each)| {
+            let ours = each == target;
+            if ours {
+                reads.push(read);
+            }
+            !ours
+        });
+        (write, reads)
+    }
+
+    /// Puts `text` to be written in `target`'s outputs, in place of what waited there.
+    fn put(&mut self, target: TargetId, text: String) {
+        self.write.retain(|(each, _)| *each != target);
+        self.write.push((target, text));
     }
 }
 
@@ -61,32 +81,34 @@ impl Ui {
 
     /// Asks the host to put `text` on the clipboard, in place of what it held, as a program does
     /// that copies without a field, an editor copying what is selected
-    /// (`docs/adr/0162-creating-copying-and-arranging.md`): it waits in the outputs
-    /// ([`Outputs::clipboard_write`](crate::host::Outputs::clipboard_write)).
+    /// (`docs/adr/0162-creating-copying-and-arranging.md`): it waits in the outputs of the active
+    /// target, where the person's gesture was ([`Ui::active_target`],
+    /// [`Outputs::clipboard_write`](crate::host::Outputs::clipboard_write)).
     pub fn write_clipboard(&mut self, text: &str) {
-        self.clipboard.write = Some(text.to_owned());
+        self.clipboard.put(self.interaction.active, text.to_owned());
     }
 
     /// Asks the host to read the clipboard for the program, as an editor's paste without a field
-    /// does: the read waits in the outputs
-    /// ([`Outputs::clipboard_reads`](crate::host::Outputs::clipboard_reads)), and its answer
+    /// does: the read waits in the outputs of the active target ([`Ui::active_target`],
+    /// [`Outputs::clipboard_reads`](crate::host::Outputs::clipboard_reads)), and its answer
     /// reaches the program as [`ActionKind::ClipboardText`], with the read that this gives. A
     /// text that the program wrote before is what it reads, the host writing before it reads.
     /// A read dropped past the 16 that wait at most reaches the program with no text; one that the
     /// host never answers waits until newer reads push it out.
     pub fn read_clipboard(&mut self) -> ReadId {
-        self.ask_read(Asker::Program)
+        self.ask_read(Asker::Program, self.interaction.active)
     }
 
-    /// Asks a read for `asker`; past [`AWAITED_READS`], the oldest is dropped.
-    fn ask_read(&mut self, asker: Asker) -> ReadId {
+    /// Asks a read for `asker` in `target`'s outputs; past [`AWAITED_READS`], the oldest is
+    /// dropped.
+    fn ask_read(&mut self, asker: Asker, target: TargetId) -> ReadId {
         let clipboard = &mut self.clipboard;
         clipboard.last += 1;
         let read = ReadId(clipboard.last);
         if clipboard.awaited.len() == AWAITED_READS
-            && let Some((dropped, asker)) = clipboard.awaited.pop_front()
+            && let Some((dropped, asker, _)) = clipboard.awaited.pop_front()
         {
-            clipboard.asked.retain(|&asked| asked != dropped);
+            clipboard.asked.retain(|&(asked, _)| asked != dropped);
             if asker == Asker::Program {
                 self.interaction.actions.push(Action {
                     element: None,
@@ -98,22 +120,22 @@ impl Ui {
             }
         }
         let clipboard = &mut self.clipboard;
-        clipboard.awaited.push_back((read, asker));
-        clipboard.asked.push(read);
+        clipboard.awaited.push_back((read, asker, target));
+        clipboard.asked.push((read, target));
         read
     }
 
-    /// The focus left a field: the reads that fields asked are dropped, the person having moved
-    /// on, even if the focus comes back before their answers.
-    pub(super) fn drop_field_reads(&mut self) {
+    /// `t`'s focus left a field: the reads that fields of `t` asked are dropped, the person having
+    /// moved on, even if the focus comes back before their answers.
+    pub(super) fn drop_field_reads(&mut self, t: TargetId) {
         let clipboard = &mut self.clipboard;
         clipboard
             .awaited
-            .retain(|&(_, asker)| asker == Asker::Program);
+            .retain(|&(_, asker, target)| asker == Asker::Program || target != t);
         let awaited = &clipboard.awaited;
         clipboard
             .asked
-            .retain(|read| awaited.iter().any(|(each, _)| each == read));
+            .retain(|(read, _)| awaited.iter().any(|(each, _, _)| each == read));
     }
 
     /// A key of copy, cut or paste, `c`, `x` or `v`, reached the field `id`, which takes it:
@@ -123,7 +145,7 @@ impl Ui {
         if self.clipboard.events {
             self.clipboard.left_to_platform = true;
         } else if letter == "v" {
-            let _ = self.ask_read(Asker::Field(id));
+            let _ = self.ask_read(Asker::Field(id), self.input_target(id));
         } else {
             self.copy_from(id, letter == "x");
         }
@@ -131,8 +153,8 @@ impl Ui {
 
     /// The platform's copy or cut ([`Input::Copy`](crate::host::Input::Copy)): gives whether a
     /// field held the focus, which copied.
-    pub(super) fn copy_input(&mut self, cut: bool) -> bool {
-        let Some(id) = self.focused_field() else {
+    pub(super) fn copy_input(&mut self, t: TargetId, cut: bool) -> bool {
+        let Some(id) = self.focused_field(t) else {
             return false;
         };
         self.copy_from(id, cut);
@@ -149,7 +171,7 @@ impl Ui {
         if selected.is_empty() {
             return;
         }
-        self.clipboard.write = Some(selected);
+        self.clipboard.put(self.input_target(id), selected);
         if cut {
             self.delete_selection(id);
         }
@@ -157,8 +179,8 @@ impl Ui {
 
     /// The platform's paste ([`Input::Paste`](crate::host::Input::Paste)): gives whether a field
     /// held the focus, which pasted.
-    pub(super) fn paste_input(&mut self, text: &str) -> bool {
-        let Some(id) = self.focused_field() else {
+    pub(super) fn paste_input(&mut self, t: TargetId, text: &str) -> bool {
+        let Some(id) = self.focused_field(t) else {
             return false;
         };
         self.paste_into(id, text);
@@ -170,20 +192,25 @@ impl Ui {
     /// awaited.
     pub(super) fn clipboard_answer(&mut self, read: ReadId, text: Option<&str>) -> bool {
         let clipboard = &mut self.clipboard;
-        let Some(at) = clipboard.awaited.iter().position(|&(each, _)| each == read) else {
+        let Some(at) = clipboard
+            .awaited
+            .iter()
+            .position(|&(each, _, _)| each == read)
+        else {
             return false;
         };
-        let (_, asker) = clipboard
-            .awaited
-            .remove(at)
-            .unwrap_or((read, Asker::Program));
-        clipboard.asked.retain(|&asked| asked != read);
+        let (_, asker, target) =
+            clipboard
+                .awaited
+                .remove(at)
+                .unwrap_or((read, Asker::Program, TargetId::MAIN));
+        clipboard.asked.retain(|&(asked, _)| asked != read);
         match asker {
             // The reads of a field whose focus left were dropped; one taken out of the tree took
-            // the focus with it.
+            // the focus with it. The answer pastes whatever target it came on.
             Asker::Field(id) => {
                 if let Some(text) = text
-                    && self.focused_field() == Some(id)
+                    && self.focused_field(target) == Some(id)
                 {
                     self.paste_into(id, text);
                 }

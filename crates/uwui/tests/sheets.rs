@@ -49,6 +49,7 @@ fn styled(sheet: &str) -> Result<(Ui, ElementId, ElementId), DocumentErrors> {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let (mut boxed, mut second) = (None, None);

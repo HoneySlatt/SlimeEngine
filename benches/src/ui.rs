@@ -612,6 +612,7 @@ const SCREEN: RootSettings = RootSettings {
     direction: LayoutDirection::LeftToRight,
     origin: [0.0; 2],
     modal: false,
+    target: uwui::host::TargetId::MAIN,
 };
 
 /// The editor's style sheet: its labels, buttons and panels, the inspector's names apart.

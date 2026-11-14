@@ -20,9 +20,16 @@
 //!   ([`Ui::set_waker`](crate::tree::Ui::set_waker)).
 //!
 //! A *target* is where roots draw and where input comes from: a window, a region of the host's
-//! image, a texture. Every event and output names its target. Today every root draws on
-//! [`TargetId::MAIN`]: an event for another target is answered [`Answer::NotTaken`] and changes
-//! nothing, and another target's outputs are empty.
+//! image, a texture. Every event and output names its target, and each root its own
+//! ([`RootSettings::target`](crate::tree::RootSettings::target)). Each target keeps its own
+//! pointer, hover, focus, modal roots and layers, and its own outputs; the *active target*, that
+//! of the last key or button, serves what names no element
+//! ([`Ui::active_target`](crate::tree::Ui::active_target),
+//! `docs/adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md`).
+//! An event for a target that the interface does not know, one that never had a root, is answered
+//! [`Answer::NotTaken`] and changes nothing, but an answer of the clipboard, taken on any target;
+//! [`TargetId::MAIN`] is known from the start
+//! (`docs/adr/0257-targets-known-from-their-first-root-a-moved-root-below-its-new-targets-modal-root.md`).
 //!
 //! Positions are in the target's physical pixels, from its top left corner, as the platform's
 //! pointer gives them; a host whose platform counts in logical pixels multiplies by the scale.
@@ -46,7 +53,10 @@ use crate::time::EventTime;
 pub struct TargetId(pub u32);
 
 impl TargetId {
-    /// The target that every root draws on.
+    /// The main target, which the interface knows from the start: the only one of a host of one
+    /// window, and the one that a host of several names its main window. Notifications stand on
+    /// its roots, and what names no element goes to it until a key or a button names another
+    /// ([`Ui::active_target`](crate::tree::Ui::active_target)).
     pub const MAIN: Self = Self(0);
 }
 

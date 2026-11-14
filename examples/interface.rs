@@ -303,6 +303,7 @@ impl Interface {
             direction,
             origin: [0.0; 2],
             modal: false,
+            target: uwui::host::TargetId::MAIN,
         };
         let root = ui.add_root("main", settings, column);
         let mut interface = Self {
@@ -469,6 +470,7 @@ impl Interface {
             direction: self.direction,
             origin: [0.0; 2],
             modal: true,
+            target: uwui::host::TargetId::MAIN,
         };
         let root = self.ui.add_root("dialog", settings, column);
         let mut close = None;
@@ -537,6 +539,7 @@ impl Interface {
             direction: self.direction,
             origin: [0.0; 2],
             modal: false,
+            target: uwui::host::TargetId::MAIN,
         };
         self.ui.set_root(self.root, settings);
         if let Some((dialog, _)) = self.dialog {

@@ -14,6 +14,7 @@ use slime_color::LinearColor;
 use crate::DocumentErrors;
 use crate::Rect;
 use crate::display::{DisplayList, ImageKey, ImageKind, Primitive};
+use crate::host::TargetId;
 use crate::layout;
 use crate::paint;
 use crate::preferences::Preferences;
@@ -1087,10 +1088,15 @@ pub struct RootSettings {
     /// Where its top left corner lies on its surface, in logical pixels: `[0.0, 0.0]` for a root
     /// that fills a window, a popup's place otherwise.
     pub origin: [f32; 2],
-    /// Whether it is modal, as the root is added: while it is there, the roots below it take no
-    /// input, and the focus stays among its elements, given back to the element that held it when
-    /// it is removed.
+    /// Whether it is modal, as the root is added: while it is there, the roots below it on its
+    /// target take no input, and the focus of its target stays among its elements, given back to
+    /// the element that held it when it is removed. The roots of other targets go on as before.
     pub modal: bool,
+    /// The target that it draws on, and whose input reaches it: a window, a region of the host's
+    /// image, a texture ([`TargetId::MAIN`] for a host of one). A layer draws on the target of the
+    /// root that it opens over, whatever this says
+    /// (`docs/adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md`).
+    pub target: TargetId,
 }
 
 /// What changed in an element since it was last laid out and drawn.
@@ -1124,7 +1130,8 @@ pub struct FrameStats {
     /// The elements in the tree.
     pub elements: usize,
     /// The elements that the frame's walks reached: each element of the roots, to find what to
-    /// draw again, and each one shown, to gather the display list, even when nothing changed. What
+    /// draw again, and each one shown of the main target's roots, to gather its display list, even
+    /// when nothing changed. What
     /// a frame costs grows with it; an element hidden is reached, what it holds is not.
     pub visited: usize,
     /// Whether a transition goes on after this frame, the pointer rests where a tooltip will show
@@ -1232,6 +1239,7 @@ struct Slot {
 ///     direction: LayoutDirection::RightToLeft,
 ///     origin: [0.0; 2],
 ///     modal: false,
+///     target: uwui::host::TargetId::MAIN,
 /// };
 /// let root = ui.add_root("main", settings, |s| s);
 /// let panel_box = Element::container().style(|s| {
@@ -1336,8 +1344,6 @@ pub struct Ui {
     shown: motion::ShownStyles,
     /// Whether Tab enters the interface while no focus takes the keys ([`Ui::set_tab_enters`]).
     tab_enters: bool,
-    /// What the host was last told of the outputs ([`Ui::outputs`]).
-    told: host::Told,
 }
 
 impl Ui {
@@ -1385,7 +1391,6 @@ impl Ui {
             moving: Vec::new(),
             shown: motion::ShownStyles::default(),
             tab_enters: true,
-            told: host::Told::default(),
         };
         ui.make_bases();
         ui
@@ -1435,6 +1440,8 @@ impl Ui {
         node.root = Some(settings);
         let id = self.insert(node);
         self.roots.push(id);
+        // A target's input is kept from its first root, so that what its host was told outlives it.
+        self.interaction.of_mut(settings.target);
         self.restyled.push(id);
         self.top_changed = true;
         if settings.modal {
@@ -1463,8 +1470,16 @@ impl Ui {
             .expect("a variant is free past every root")
     }
 
-    /// Changes a root's size, scale or direction: it is laid out again, and, for another scale or
-    /// direction, drawn again whole.
+    /// Changes a root's size, scale, direction or target: it is laid out again, and, for another
+    /// scale or direction, drawn again whole.
+    ///
+    /// Another target moves it there with the layers that stand over it, at once. What the old
+    /// target's input held in them lets go, as if that input had left: a held control commits, a
+    /// surface is told its buttons were let go, a field that held the focus commits and its input
+    /// ends, the hover leaves them; a modal root gives back the focus it took there, and takes the
+    /// new target's. Without a modal root of its own, it stands below the new target's lowest
+    /// modal root, which keeps its window. A layer keeps its target, whatever the settings say: it
+    /// follows the root that it opens over.
     ///
     /// # Panics
     ///
@@ -1472,11 +1487,30 @@ impl Ui {
     /// above 0.
     pub fn set_root(&mut self, root: ElementId, settings: RootSettings) {
         assert_scale(settings.scale);
+        let from = self
+            .node(root)
+            .and_then(|node| node.root)
+            .expect("a root of this interface")
+            .target;
+        let is_layer = self.node(root).is_some_and(|node| node.layer.is_some());
+        let settings = if is_layer {
+            RootSettings {
+                target: from,
+                ..settings
+            }
+        } else {
+            settings
+        };
+        if from != settings.target {
+            let group = self.with_layers_over(root);
+            self.move_to_target(&group, from, settings.target);
+        }
         let node = self.node_mut(root).expect("a root of this interface");
-        let before = node
+        let mut before = node
             .root
             .replace(settings)
             .expect("a root of this interface");
+        before.target = settings.target;
         if before.scale != settings.scale || before.direction != settings.direction {
             // Every length that taffy holds, and every primitive, is in pixels of the screen, and
             // every corner and shadow mirrored by the direction.
@@ -1886,7 +1920,8 @@ impl Ui {
     }
 
     /// Lays out the roots where something changed, draws again what changed, and gives what the
-    /// interface draws, its roots in the order they were added, and what it did.
+    /// roots of [`TargetId::MAIN`] draw, in the order they were added, and what it did. The roots
+    /// of every target are laid out and drawn; [`Ui::display_list`] gives another target's.
     pub fn frame(&mut self) -> (DisplayList, FrameStats) {
         let mut stats = FrameStats {
             built: std::mem::take(&mut self.built),
@@ -1959,11 +1994,29 @@ impl Ui {
             stats.visited += visited;
         }
         let mut list = DisplayList::new();
-        for root in &self.roots {
-            stats.visited += paint::gather(self, *root, &mut list);
-        }
+        stats.visited += self.gather(TargetId::MAIN, &mut list);
         stats.animating = self.animating() || self.next_frame_due().is_some();
         (list, stats)
+    }
+
+    /// What the roots of `target` draw, in the order they were added, as the last [`Ui::frame`]
+    /// drew them: a host of several targets draws each one's. [`Ui::frame`] gives
+    /// [`TargetId::MAIN`]'s; until each target has a frame of its own, it lays out and draws every
+    /// target's roots
+    /// (`docs/adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md`).
+    pub fn display_list(&self, target: TargetId) -> DisplayList {
+        let mut list = DisplayList::new();
+        self.gather(target, &mut list);
+        list
+    }
+
+    /// Gathers into `list` what the roots of `target` draw; gives the elements that it reached.
+    fn gather(&self, target: TargetId, list: &mut DisplayList) -> usize {
+        self.roots
+            .iter()
+            .filter(|&&root| self.root_target(root) == target)
+            .map(|&root| paint::gather(self, root, list))
+            .sum()
     }
 
     /// Whether the interface moves on its own and needs every frame though nothing else changes: a
@@ -2534,6 +2587,33 @@ impl Ui {
                 None => return Some(at),
             }
         }
+    }
+
+    /// The target that `id` draws on, its root's; none for an element that is in no root.
+    pub(crate) fn target_of(&self, id: ElementId) -> Option<TargetId> {
+        Some(self.node(self.root_of(id)?)?.root?.target)
+    }
+
+    /// The target whose input `id` follows: its own, or the active target for an element that is
+    /// in no root, whose input changes nothing.
+    pub(crate) fn input_target(&self, id: ElementId) -> TargetId {
+        self.target_of(id).unwrap_or(self.interaction.active)
+    }
+
+    /// The target that the root `root` draws on; [`TargetId::MAIN`] for an id that names no root.
+    pub(crate) fn root_target(&self, root: ElementId) -> TargetId {
+        self.node(root)
+            .and_then(|node| node.root)
+            .map_or(TargetId::MAIN, |settings| settings.target)
+    }
+
+    /// The roots that draw on `target`, from the bottom.
+    pub(crate) fn roots_on(&self, target: TargetId) -> Vec<ElementId> {
+        self.roots
+            .iter()
+            .copied()
+            .filter(|&root| self.root_target(root) == target)
+            .collect()
     }
 }
 

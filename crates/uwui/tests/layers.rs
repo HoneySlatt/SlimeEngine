@@ -22,6 +22,7 @@ fn interface(direction: LayoutDirection, top: f32) -> (Ui, ElementId, ElementId)
         direction,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| {
         s.direction(FlexDirection::Column).padding_top(top)
@@ -441,6 +442,7 @@ fn a_layer_over_a_root_placed_within_the_window_stays_within_the_window() {
             direction: LayoutDirection::LeftToRight,
             origin: [100.0, 40.0],
             modal: false,
+            target: uwui::host::TargetId::MAIN,
         },
         |s| s.direction(FlexDirection::Column).padding_top(70.0),
     );

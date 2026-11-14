@@ -15,6 +15,7 @@ impl Ui {
     /// A press of the list to choose from `id`: its list opens below it, or closes unchanged when
     /// it is open.
     pub(super) fn press_choice(&mut self, id: ElementId) {
+        let t = self.input_target(id);
         if let Some(list) = self.owned_layer(id) {
             self.close_layer(list, true);
             return;
@@ -26,7 +27,7 @@ impl Ui {
         let options = options.clone();
         let chosen = self.chosen(id).unwrap_or(0);
         let width = self.node(id).map_or(0.0, |node| node.rect.width) / self.scale_of(id);
-        let by_pointer = self.interaction.by_pointer;
+        let by_pointer = self.interaction.of(t).by_pointer;
         let place = Place::Beside {
             element: id,
             side: Side::Below,
@@ -70,7 +71,7 @@ impl Ui {
             && let Some(place) = nearest_enabled(&options, chosen)
             && let Some(&item) = items.get(place)
         {
-            self.focus_on(Some(item));
+            self.focus_on(t, Some(item));
         }
     }
 
@@ -96,6 +97,7 @@ impl Ui {
     /// arrows up and down give the focus to the chosen option, or to the nearest one that is not
     /// disabled. Gives whether it took the key.
     pub(super) fn choice_key(&mut self, id: ElementId, event: &KeyEvent) -> bool {
+        let t = self.input_target(id);
         let Key::Named(named) = event.logical else {
             return false;
         };
@@ -115,11 +117,11 @@ impl Ui {
             if let (Some(place), Some(items)) = (place, items)
                 && let Some(&item) = items.get(place)
             {
-                self.focus_on(Some(item));
+                self.focus_on(t, Some(item));
             }
             return true;
         }
-        let alt = self.interaction.modifiers.alt;
+        let alt = self.interaction.of(t).modifiers.alt;
         let place = match named {
             NamedKey::ArrowDown if alt => {
                 self.press_choice(id);

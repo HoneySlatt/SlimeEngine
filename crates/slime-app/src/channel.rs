@@ -491,7 +491,7 @@ impl DevChannel {
                 // The middle of the pixel, as the pointer would be there.
                 Some(ui) => Reply::Elements {
                     elements: ui
-                        .meaning_at(*x as f32 + 0.5, *y as f32 + 0.5)
+                        .meaning_at(uwui::host::TargetId::MAIN, *x as f32 + 0.5, *y as f32 + 0.5)
                         .into_iter()
                         .map(element_summary)
                         .collect(),
@@ -1394,6 +1394,7 @@ mod tests {
                 direction: LayoutDirection::LeftToRight,
                 origin: [0.0; 2],
                 modal: false,
+                target: uwui::host::TargetId::MAIN,
             };
             let root = ui.add_root("main", settings, |s| s);
             fn sized(s: StyleBuilder) -> StyleBuilder {

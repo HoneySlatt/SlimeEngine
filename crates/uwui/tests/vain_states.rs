@@ -56,6 +56,7 @@ fn a_hover_written_for_a_kind_that_the_pointer_never_reaches_is_warned_of_once()
             direction: LayoutDirection::LeftToRight,
             origin: [0.0; 2],
             modal: false,
+            target: uwui::host::TargetId::MAIN,
         };
         let root = ui.add_root("main", settings, |s| s);
         ui.build(root, 0, |children| {

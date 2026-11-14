@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use super::{Along, Element, ElementId, ItemMark, Kind, Layer, Place, Role, Side, Ui};
 use crate::action::{Action, ActionKind};
+use crate::host::TargetId;
 use crate::style::FlexDirection;
 use crate::time::Instant;
 
@@ -29,13 +30,13 @@ pub(super) struct Rest {
 }
 
 impl Ui {
-    /// The pointer moved over `on`, the deepest element under it, if any: resting starts again
+    /// `t`'s pointer moved over `on`, the deepest element under it, if any: resting starts again
     /// where it changed, and the tooltip of an element that it left goes.
-    pub(super) fn rest_on(&mut self, on: Option<ElementId>) {
-        if on == self.interaction.rest.on {
+    pub(super) fn rest_on(&mut self, t: TargetId, on: Option<ElementId>) {
+        if on == self.interaction.of(t).rest.on {
             return;
         }
-        self.interaction.rest = Rest {
+        self.interaction.of_mut(t).rest = Rest {
             on,
             since: self.now,
             tip_done: false,
@@ -43,6 +44,7 @@ impl Ui {
         };
         let owner = self
             .interaction
+            .of(t)
             .tooltip
             .and_then(|tip| self.layer_place(tip))
             .map(|place| match place {
@@ -52,26 +54,35 @@ impl Ui {
         if let Some(owner) = owner
             && on.is_none_or(|on| !self.within(on, owner))
         {
-            self.hide_tooltip();
+            self.hide_tooltip(t);
         }
     }
 
-    /// The element that the pointer rests on, the deepest under it.
-    pub(super) fn resting_on(&self) -> Option<ElementId> {
-        self.interaction.rest.on
+    /// The element that `t`'s pointer rests on, the deepest under it.
+    pub(super) fn resting_on(&self, t: TargetId) -> Option<ElementId> {
+        self.interaction.of(t).rest.on
     }
 
-    /// The pointer pressed, or a key went down: the tooltip goes, and resting where the pointer is
-    /// shows it no more. Gives whether one showed.
-    pub(super) fn input_hides_tooltip(&mut self) -> bool {
-        self.interaction.rest.tip_done = true;
-        self.hide_tooltip()
+    /// The pointer pressed on `t`, or a key went down: its tooltip goes, and resting where the
+    /// pointer is shows it no more. Gives whether one showed.
+    pub(super) fn input_hides_tooltip(&mut self, t: TargetId) -> bool {
+        self.interaction.of_mut(t).rest.tip_done = true;
+        self.hide_tooltip(t)
     }
 
-    /// How long the pointer must rest still before a tooltip shows or a submenu opens where it
-    /// rests, on the host's clock; none when it rests where neither will.
+    /// How long a pointer must rest still before a tooltip shows or a submenu opens where it
+    /// rests, on the host's clock, the soonest of every target's; none when each rests where
+    /// neither will.
     pub(crate) fn rest_remaining(&self) -> Option<Duration> {
-        let rest = &self.interaction.rest;
+        self.interaction
+            .targets()
+            .filter_map(|t| self.rest_remaining_on(t))
+            .min()
+    }
+
+    /// What [`Ui::rest_remaining`] says of `t`'s pointer.
+    fn rest_remaining_on(&self, t: TargetId) -> Option<Duration> {
+        let rest = &self.interaction.of(t).rest;
         let on = rest.on?;
         let rested = self.now - rest.since;
         let menu = (!rest.menu_done && self.is_menu_item(on)).then_some(SUBMENU_REST);
@@ -82,29 +93,39 @@ impl Ui {
             .map(|rest| rest.saturating_sub(rested))
     }
 
-    /// What the pointer resting does once it has rested long enough on the host's clock: an
-    /// item of a menu opens its submenu, or closes the others' in its menu; the tooltip of the
-    /// element, or of its nearest ancestor that has one, shows. Run before a frame lays out.
+    /// What each target's pointer resting does once it has rested long enough on the host's
+    /// clock: an item of a menu opens its submenu, or closes the others' in its menu; the tooltip
+    /// of the element, or of its nearest ancestor that has one, shows. Run before a frame lays
+    /// out.
     pub(crate) fn settle_rest(&mut self) {
-        let Some(on) = self.interaction.rest.on else {
+        let mut index = 0;
+        while let Some(t) = self.interaction.target_at(index) {
+            index += 1;
+            self.settle_rest_on(t);
+        }
+    }
+
+    /// What [`Ui::settle_rest`] does on `t`.
+    fn settle_rest_on(&mut self, t: TargetId) {
+        let Some(on) = self.interaction.of(t).rest.on else {
             return;
         };
-        let rested = self.now - self.interaction.rest.since;
-        if !self.interaction.rest.menu_done && rested >= SUBMENU_REST {
-            self.interaction.rest.menu_done = true;
-            self.rest_on_item(on);
+        let rested = self.now - self.interaction.of(t).rest.since;
+        if !self.interaction.of(t).rest.menu_done && rested >= SUBMENU_REST {
+            self.interaction.of_mut(t).rest.menu_done = true;
+            self.rest_on_item(t, on);
         }
-        if !self.interaction.rest.tip_done && rested >= TOOLTIP_REST {
-            self.interaction.rest.tip_done = true;
+        if !self.interaction.of(t).rest.tip_done && rested >= TOOLTIP_REST {
+            self.interaction.of_mut(t).rest.tip_done = true;
             if let Some(owner) = self.tooltip_of(on) {
-                self.show_tooltip(owner);
+                self.show_tooltip(t, owner);
             }
         }
     }
 
     /// The pointer rested on `id`: an item of a menu, not disabled, that opens a submenu presses
     /// it, as a press of the pointer would; another closes the submenus of its menu's other items.
-    fn rest_on_item(&mut self, id: ElementId) {
+    fn rest_on_item(&mut self, t: TargetId, id: ElementId) {
         let Some(node) = self.node(id) else {
             return;
         };
@@ -116,7 +137,7 @@ impl Ui {
             return;
         }
         if mark == ItemMark::Submenu {
-            self.interaction.by_pointer = true;
+            self.interaction.of_mut(t).by_pointer = true;
             self.perform(Action {
                 element: Some(id),
                 kind: ActionKind::Press,
@@ -126,9 +147,10 @@ impl Ui {
         }
     }
 
-    /// Shows the tooltip of `owner` below it, the one that showed going.
-    pub(super) fn show_tooltip(&mut self, owner: ElementId) {
-        self.hide_tooltip();
+    /// Shows the tooltip of `owner`, an element of `t`, below it, the one that showed on `t`
+    /// going.
+    pub(super) fn show_tooltip(&mut self, t: TargetId, owner: ElementId) {
+        self.hide_tooltip(t);
         let Some(tooltip) = self
             .node(owner)
             .and_then(|node| node.element.tooltip.clone())
@@ -161,16 +183,16 @@ impl Ui {
                 tip.add("text", text, |_| {});
             });
         });
-        self.interaction.tooltip = Some(root);
+        self.interaction.of_mut(t).tooltip = Some(root);
     }
 
-    /// Hides the tooltip that shows: whether one did.
-    pub(super) fn hide_tooltip(&mut self) -> bool {
-        let Some(root) = self.interaction.tooltip else {
+    /// Hides the tooltip that shows on `t`: whether one did.
+    pub(super) fn hide_tooltip(&mut self, t: TargetId) -> bool {
+        let Some(root) = self.interaction.of(t).tooltip else {
             return false;
         };
         self.close_layer(root, false);
-        self.interaction.tooltip = None;
+        self.interaction.of_mut(t).tooltip = None;
         true
     }
 

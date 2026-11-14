@@ -6,6 +6,7 @@
 use super::{ElementId, Kind, LayoutDirection, Ui};
 use crate::Rect;
 use crate::display::{BoxPrimitive, Primitive};
+use crate::host::TargetId;
 use crate::layout;
 
 /// A scroll bar of an element: its axis, its track and its thumb, in pixels of the surface.
@@ -104,8 +105,8 @@ impl Ui {
 
     /// The scroll bar under `x` and `y`, in pixels of the surface: of the element there or of the
     /// nearest above it that scrolls, whose bar holds the point.
-    pub(crate) fn bar_at(&self, x: f32, y: f32) -> Option<(ElementId, Bar)> {
-        let mut at = self.element_at(x, y);
+    pub(crate) fn bar_at(&self, t: TargetId, x: f32, y: f32) -> Option<(ElementId, Bar)> {
+        let mut at = self.element_at(t, x, y);
         while let Some(id) = at {
             if let Some(bar) = self
                 .scroll_bars(id)
@@ -128,8 +129,11 @@ impl Ui {
         } else {
             (bar.thumb.x, bar.thumb.width)
         };
-        if at >= start && at < start + length {
-            self.interaction.bar = Some(Held {
+        if at >= start
+            && at < start + length
+            && let Some(t) = self.target_of(id)
+        {
+            self.interaction.of_mut(t).bar = Some(Held {
                 element: id,
                 axis: bar.axis,
                 grip: at - start,

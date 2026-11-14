@@ -6,7 +6,8 @@
   and "Input method's state": what waits for its reader) and
   [0251](0251-the-engines-host-clock-and-its-times.md) (an event's time carried by the event);
   amended by [0255](0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md) (the answer's third state carries no text)
-  and [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) (M6d.5c3 cut in two; an event for a target without roots; the engine's one move)
+  and [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) (M6d.5c3 cut in two; an event for another target; the engine's one move) and
+  [0257](0257-targets-known-from-their-first-root-a-moved-root-below-its-new-targets-modal-root.md) (an event for a target that the interface does not know)
 - Date: 2026-11-13
 
 ## Context

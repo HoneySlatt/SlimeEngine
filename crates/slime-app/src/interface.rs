@@ -211,6 +211,7 @@ mod tests {
             direction: LayoutDirection::LeftToRight,
             origin: [0.0; 2],
             modal: false,
+            target: TargetId::MAIN,
         };
         let root = ui.add_root("main", settings, |s| {
             s.direction(uwui::style::FlexDirection::Column)
@@ -290,6 +291,7 @@ mod tests {
             direction: LayoutDirection::LeftToRight,
             origin: [0.0; 2],
             modal: false,
+            target: TargetId::MAIN,
         };
         let root = ui.add_root("main", settings, |s| s);
         ui.build(root, 0, |children| {

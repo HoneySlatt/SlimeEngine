@@ -40,6 +40,7 @@ fn interface(direction: LayoutDirection, element: Element) -> (Ui, ElementId, El
         direction,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let mut id = None;
@@ -342,6 +343,7 @@ fn section(open: bool) -> (Ui, ElementId, ElementId, ElementId) {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let (mut folding, mut button) = (None, None);
@@ -455,6 +457,7 @@ fn a_tab_chosen_by_the_pointer_or_the_keys_shows_its_panel() {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let bar = build_tabs(&mut ui, root, 0, 0);
@@ -504,6 +507,7 @@ fn a_split_shares_its_length_and_its_handle_is_dragged_and_moved_by_the_keys() {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     ui.build(root, 0, |children| {
@@ -564,6 +568,7 @@ fn a_box_whose_content_does_not_fit_shows_a_scroll_bar_that_scrolls_it() {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let mut scroll = None;
@@ -613,6 +618,7 @@ fn a_third_child_of_two_panels_is_neither_drawn_nor_reached() {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     ui.build(root, 0, |children| {

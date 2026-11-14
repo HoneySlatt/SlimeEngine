@@ -71,6 +71,7 @@ fn with_elements(ui: &mut Ui, elements: usize) {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     ui.build(root, 0, |children| {
@@ -92,6 +93,7 @@ fn with_the_gap(ui: &mut Ui) {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     ui.add_root("main", settings, |s| s.padding(GAP));
     ui.frame();

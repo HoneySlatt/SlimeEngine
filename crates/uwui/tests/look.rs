@@ -112,6 +112,7 @@ fn styled_with(
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let mut ids = Vec::new();
@@ -199,6 +200,7 @@ fn every_button_shows_the_keyboards_focus_by_its_border() {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let mut buttons = Vec::new();
@@ -240,6 +242,7 @@ fn a_chosen_tab_takes_the_panels_color_and_the_others_a_quieter_text() {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let mut tabs = Vec::new();

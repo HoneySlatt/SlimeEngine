@@ -510,6 +510,7 @@ fn a_tree_of_elements_is_drawn_where_its_layout_places_it_and_mirrored_from_righ
             direction,
             origin: [0.0; 2],
             modal: false,
+            target: uwui::host::TargetId::MAIN,
         };
         let root = ui.add_root("main", settings, |s| {
             s.padding_start(10.0)

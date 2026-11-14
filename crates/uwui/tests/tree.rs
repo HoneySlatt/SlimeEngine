@@ -27,6 +27,7 @@ fn root(width: f32, height: f32, scale: f32, direction: LayoutDirection) -> Root
         direction,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     }
 }
 

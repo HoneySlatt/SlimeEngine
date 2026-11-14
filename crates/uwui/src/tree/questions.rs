@@ -16,7 +16,7 @@ impl Ui {
     /// The text around the caret of the field that holds the focus on `target`, as an input method
     /// asks it ([`TextQuery`] says what it holds and how it counts); none without such a field.
     pub fn text_around(&mut self, target: TargetId, query: TextQuery) -> Option<TextAround> {
-        let id = self.field_on(target)?;
+        let id = self.focused_field(target)?;
         let field = self.node(id)?.field.as_ref()?;
         let (anchor, focus) = field.ends();
         // Without the composition, the text as committed, the caret where the composition began.
@@ -83,7 +83,7 @@ impl Ui {
         range: std::ops::Range<usize>,
         unit: TextUnit,
     ) -> Option<RangeBox> {
-        let id = self.field_on(target)?;
+        let id = self.focused_field(target)?;
         let text = &self.node(id)?.field.as_ref()?.text;
         let start = unit.byte(text, range.start, false);
         let end = unit.byte(text, range.end, true).max(start);
@@ -118,7 +118,7 @@ impl Ui {
         y: f32,
         unit: TextUnit,
     ) -> Option<usize> {
-        let id = self.field_on(target)?;
+        let id = self.focused_field(target)?;
         if !inside(self.node(id)?.content_box(), x, y) {
             return None;
         }
@@ -130,20 +130,14 @@ impl Ui {
 
     /// Whether the point `x` and `y` of `target`, in its physical pixels, is the interface's, by
     /// the rule by which a press there is taken: what it draws there, what takes the pointer
-    /// there, a button, a field or a surface, or any point while a modal root is open. A host
+    /// there, a button, a field or a surface, or any point while a modal root of `target` is open;
+    /// none of a target that the interface does not know. A host
     /// lets the rest through, a click to what lies beneath a window that lets it, or a drop. It
     /// tells no kind of region: the parts of a window's bar that uwui draws, its caption, edges
     /// and buttons, wait for the decorations of the desktop's host
     /// (`docs/adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md`).
     pub fn covers(&self, target: TargetId, x: f32, y: f32) -> bool {
-        target == TargetId::MAIN && self.takes_press_at(x, y)
-    }
-
-    /// The field that holds the focus, on `target`.
-    fn field_on(&self, target: TargetId) -> Option<ElementId> {
-        (target == TargetId::MAIN)
-            .then(|| self.focused_field())
-            .flatten()
+        self.interaction.knows(target) && self.takes_press_at(target, x, y)
     }
 
     /// The layout of the field `id` and its origin, its caret placed and its text scrolled first,

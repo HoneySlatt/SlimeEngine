@@ -31,6 +31,7 @@ fn interface() -> (Ui, ElementId, ElementId) {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s.direction(FlexDirection::Column));
     let (mut field, mut surface) = (None, None);
@@ -210,6 +211,7 @@ fn alt_pressed_while_a_surface_holds_the_pointer_opens_no_menu() {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0, 300.0],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("bar", settings, |s| s);
     ui.build(root, 0, |children| {

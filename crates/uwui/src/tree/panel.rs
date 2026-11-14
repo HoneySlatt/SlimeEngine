@@ -13,7 +13,7 @@ const LEAST_SIZE: [f32; 2] = [8.0, 4.0];
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Grab {
     /// The panel's layer.
-    root: ElementId,
+    pub(super) root: ElementId,
     /// Whether the pointer holds its corner, which sizes it, rather than its bar, which moves it.
     sizing: bool,
     /// Where the pointer pressed, in pixels of the screen.
@@ -84,7 +84,7 @@ impl Ui {
             Place::Floating { over, origin, size }
         } else {
             // Kept within the window, as it is placed.
-            let window = self.surface_size();
+            let window = self.surface_size(self.root_target(grab.root));
             let height = self
                 .node(grab.root)
                 .map_or(grab.size[1], |node| node.rect.height / scale);

@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use super::{Element, ElementId, Layer, Place, Role, Ui};
 use crate::action::{Action, ActionKind};
+use crate::host::TargetId;
 use crate::style::{Align, FlexDirection};
 use crate::time::Instant;
 
@@ -90,7 +91,8 @@ pub(super) struct Notices {
 }
 
 impl Ui {
-    /// Shows `notification` at the window's bottom end, over the notifications that show, and gives
+    /// Shows `notification` at the bottom end of the main target's window ([`TargetId::MAIN`]),
+    /// over the notifications that show, and gives
     /// its number, which [`Ui::update_notification`] and [`Ui::close_notification`] take. It goes
     /// after the time that its kind sets on the host's clock ([`Ui::set_frame_shown`]), counted again
     /// while the pointer rests on it; one with a bar of progress, or an error, stays until it is
@@ -138,7 +140,9 @@ impl Ui {
     /// when none waits for its end. The one under the pointer counts its time again at each frame,
     /// so that it ends only once the pointer leaves it, which a frame follows.
     pub(crate) fn notice_remaining(&self) -> Option<Duration> {
-        let rested = self.resting_on().and_then(|on| self.notice_of(on));
+        let rested = self
+            .resting_on(TargetId::MAIN)
+            .and_then(|on| self.notice_of(on));
         self.notices
             .shown
             .iter()
@@ -156,7 +160,9 @@ impl Ui {
     pub(crate) fn settle_notices(&mut self) {
         let now = self.now;
         // The notification under the pointer starts its time again.
-        let rested = self.resting_on().and_then(|on| self.notice_of(on));
+        let rested = self
+            .resting_on(TargetId::MAIN)
+            .and_then(|on| self.notice_of(on));
         let before = self.notices.shown.len();
         self.notices.shown.retain_mut(|(id, notification, since)| {
             if Some(*id) == rested {
@@ -193,7 +199,7 @@ impl Ui {
             Some(root) => root,
             None => {
                 // Without a window's root yet, the stack is built once there is one.
-                let Some(over) = self.window_root() else {
+                let Some(over) = self.window_root(TargetId::MAIN) else {
                     self.notices.changed = true;
                     return;
                 };
@@ -266,10 +272,10 @@ impl Ui {
     /// Keeps the stack at the window's bottom end, its margin from its edges: a point at that
     /// corner, from which a layer at a point turns up and towards the start.
     fn place_notices(&mut self) {
-        let (Some(root), Some(over)) = (self.notices.root, self.window_root()) else {
+        let (Some(root), Some(over)) = (self.notices.root, self.window_root(TargetId::MAIN)) else {
             return;
         };
-        let surface = self.surface_size();
+        let surface = self.surface_size(TargetId::MAIN);
         let rtl = self.root_settings(over).map(|root| root.direction)
             == Some(super::LayoutDirection::RightToLeft);
         let x = if rtl { MARGIN } else { surface[0] - MARGIN };

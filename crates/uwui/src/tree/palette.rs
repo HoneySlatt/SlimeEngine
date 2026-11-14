@@ -7,6 +7,7 @@ use slime_input::{Key, KeyEvent, NamedKey};
 
 use super::{ElementId, ItemMark, Kind, Layer, Place, Role, Ui};
 use crate::action::{Action, ActionKind};
+use crate::host::TargetId;
 use crate::style::{Dimension, FlexDirection, StyleBuilder};
 
 /// How wide the palette and the sheet are, in logical pixels, and how far below the window's top
@@ -55,12 +56,13 @@ impl Ui {
     /// height, the chosen one kept in sight.
     pub fn open_palette(&mut self, hint: &str, commands: Vec<PaletteCommand>) {
         self.close_palette();
-        let Some(root) = self.own_layer("palette") else {
+        let t = self.interaction.active;
+        let Some(root) = self.own_layer(t, "palette") else {
             return;
         };
         let (mut field, mut list) = (None, None);
         let hint = hint.to_owned();
-        let surface = self.surface_size();
+        let surface = self.surface_size(t);
         self.build(root, 0, |children| {
             let palette = super::Element::container()
                 .style(|s| column(s).width(Dimension::Pixels(WIDTH)))
@@ -91,8 +93,8 @@ impl Ui {
             query: String::new(),
         });
         self.show_found();
-        self.interaction.by_pointer = false;
-        self.focus_on(Some(field));
+        self.interaction.of_mut(t).by_pointer = false;
+        self.focus_on(t, Some(field));
     }
 
     /// Closes the palette of commands, if it is open, telling the program nothing.
@@ -125,7 +127,8 @@ impl Ui {
     /// scrolls within the window's height. Escape and a press outside close it.
     pub fn open_shortcut_sheet(&mut self, title: &str, commands: &[PaletteCommand]) {
         self.close_shortcut_sheet();
-        let Some(root) = self.own_layer("shortcuts") else {
+        let t = self.interaction.active;
+        let Some(root) = self.own_layer(t, "shortcuts") else {
             return;
         };
         let scopes = self.shortcuts();
@@ -136,7 +139,7 @@ impl Ui {
                 .map_or_else(|| command.to_owned(), |each| each.name.clone())
         };
         let title = title.to_owned();
-        let surface = self.surface_size();
+        let surface = self.surface_size(t);
         self.build(root, 0, |children| {
             let sheet = super::Element::container()
                 .style(|s| column(s).width(Dimension::Pixels(WIDTH)))
@@ -196,8 +199,8 @@ impl Ui {
     /// Adds a layer that the interface opens for itself, below the window's top, in its middle,
     /// that closes as the user leaves it and tells no one as it closes; none without a window's
     /// root to open it over.
-    fn own_layer(&mut self, key: &str) -> Option<ElementId> {
-        let place = self.own_place()?;
+    fn own_layer(&mut self, t: TargetId, key: &str) -> Option<ElementId> {
+        let place = self.own_place(t)?;
         let layer = Layer {
             place,
             modal: false,
@@ -206,11 +209,11 @@ impl Ui {
         Some(self.add_quiet_layer(key, layer, |s| s))
     }
 
-    /// Where the palette and the sheet stand: their top start corner below the window's top, so
-    /// that they lie in its middle; none without a window's root.
-    fn own_place(&self) -> Option<Place> {
-        let over = self.window_root()?;
-        let surface = self.surface_size();
+    /// Where the palette and the sheet stand on `t`: their top start corner below the window's
+    /// top, so that they lie in its middle; none without a window's root.
+    fn own_place(&self, t: TargetId) -> Option<Place> {
+        let over = self.window_root(t)?;
+        let surface = self.surface_size(t);
         // Its top start corner, its left or, from right to left, its right.
         let rtl = self.root_settings(over).map(|root| root.direction)
             == Some(super::LayoutDirection::RightToLeft);
@@ -225,18 +228,21 @@ impl Ui {
         })
     }
 
-    /// The first root that is no layer: the window's.
-    pub(super) fn window_root(&self) -> Option<ElementId> {
-        self.roots
-            .iter()
-            .copied()
-            .find(|&root| self.node(root).is_some_and(|node| node.layer.is_none()))
+    /// The first root of `t` that is no layer: the window's.
+    pub(super) fn window_root(&self, t: TargetId) -> Option<ElementId> {
+        self.roots.iter().copied().find(|&root| {
+            self.node(root).is_some_and(|node| {
+                node.layer.is_none() && node.root.is_some_and(|r| r.target == t)
+            })
+        })
     }
 
     /// Forgets the layer `root` that the interface opened for itself and that closed.
     pub(super) fn forget_own_layer(&mut self, root: ElementId) {
-        if self.interaction.tooltip == Some(root) {
-            self.interaction.tooltip = None;
+        for (_, input) in self.interaction.each_mut() {
+            if input.tooltip == Some(root) {
+                input.tooltip = None;
+            }
         }
         if self
             .palette
@@ -253,10 +259,11 @@ impl Ui {
         self.forget_notices(root);
     }
 
-    /// A key reached the palette's field, which holds the focus: the arrows up and down choose
+    /// A key reached `t`, whose focus the palette's field holds: the arrows up and down choose
     /// among the commands found, around, and Enter gives the chosen one. Gives whether it took the
-    /// key; another key edits the field, as any field's.
-    pub(super) fn palette_key(&mut self, event: &KeyEvent) -> bool {
+    /// key; another key edits the field, as any field's, and a key of another target is not the
+    /// palette's.
+    pub(super) fn palette_key(&mut self, t: TargetId, event: &KeyEvent) -> bool {
         let Some(field) = self.palette.as_ref().map(|palette| palette.field) else {
             return false;
         };
@@ -265,7 +272,7 @@ impl Ui {
             .node(field)
             .and_then(|node| node.field.as_ref())
             .is_some_and(|field| field.compose.is_some());
-        if self.interaction.focus != Some(field) || composing {
+        if self.interaction.of(t).focus != Some(field) || composing {
             return false;
         }
         // What was typed since the last frame finds its commands before Enter gives one.
@@ -305,16 +312,17 @@ impl Ui {
     /// changed its size, and finds the commands again where the palette's field changed, however
     /// it changed: typed in, composed, pasted or given by an agent. Run before a frame lays out.
     pub(crate) fn settle_palette(&mut self) {
-        // The palette and the sheet stay in the middle of a window that changes its size.
-        if let Some(place) = self.own_place() {
-            let roots = [
-                self.palette.as_ref().map(|palette| palette.root),
-                self.sheet,
-            ];
-            for root in roots.into_iter().flatten() {
-                if self.layer_place(root) != Some(place) {
-                    self.set_layer_place(root, place);
-                }
+        // The palette and the sheet stay in the middle of a window that changes its size, each
+        // on the target that it opened on.
+        let roots = [
+            self.palette.as_ref().map(|palette| palette.root),
+            self.sheet,
+        ];
+        for root in roots.into_iter().flatten() {
+            if let Some(place) = self.own_place(self.root_target(root))
+                && self.layer_place(root) != Some(place)
+            {
+                self.set_layer_place(root, place);
             }
         }
         let Some(palette) = self.palette.as_ref() else {

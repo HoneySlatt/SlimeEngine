@@ -315,6 +315,7 @@ fn the_sheet_of_shortcuts_lists_two_chords_that_show_alike() {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     ui.add_root("main", settings, |s| s);
     ui.open_shortcut_sheet("Shortcuts", &[]);

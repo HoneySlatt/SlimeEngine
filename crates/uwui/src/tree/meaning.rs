@@ -5,6 +5,7 @@
 
 use super::{ElementId, ElementState, ItemMark, Key, Kind, Node, Ui};
 use crate::Rect;
+use crate::host::TargetId;
 use crate::layout;
 use crate::style::Display;
 
@@ -377,11 +378,11 @@ impl Ui {
         self.meaning_with(id, path)
     }
 
-    /// What the element that the pointer would reach at `x` and `y`, in pixels of the surface,
-    /// means: that element, or the nearest above it that means something
+    /// What the element that the pointer would reach at `x` and `y` of `target`, in pixels of the
+    /// target, means: that element, or the nearest above it that means something
     /// ([`Ui::element_at`]).
-    pub fn meaning_at(&self, x: f32, y: f32) -> Option<Meaning> {
-        let mut at = self.element_at(x, y);
+    pub fn meaning_at(&self, target: TargetId, x: f32, y: f32) -> Option<Meaning> {
+        let mut at = self.element_at(target, x, y);
         while let Some(id) = at {
             if let Some(meaning) = self.meaning_of(id) {
                 return Some(meaning);
@@ -686,9 +687,10 @@ impl Ui {
                 .filter_map(|id| self.node(id).map(|node| node.number))
                 .collect()
         });
+        // One tree serves every target until each window has its own: its focus is the active
+        // target's.
         let focus = self
-            .interaction
-            .focus
+            .focus()
             .filter(|&focus| self.meaning_of(focus).is_some())
             .and_then(|focus| self.node(focus).map(|node| node.number));
         MeaningChanges {

@@ -1895,6 +1895,7 @@ fn settings(size: [f32; 2], scale: f32) -> RootSettings {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     }
 }
 

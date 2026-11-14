@@ -193,6 +193,7 @@ impl Ui {
     /// closing, and its square taking the focus where the keyboard pressed it; or closes when it is
     /// open.
     pub(super) fn press_well(&mut self, id: ElementId) {
+        let t = self.input_target(id);
         if let Some(picker) = self.owned_layer(id) {
             self.close_layer(picker, true);
             return;
@@ -205,7 +206,7 @@ impl Ui {
         {
             self.close_layer(open, true);
         }
-        let by_pointer = self.interaction.by_pointer;
+        let by_pointer = self.interaction.of(t).by_pointer;
         let layer = Layer {
             place: Place::Beside {
                 element: id,
@@ -228,7 +229,7 @@ impl Ui {
         self.change_state(id, |state| state.expanded = true);
         // The keyboard finds the square under the focus.
         if !by_pointer && let Some(&square) = self.picker.as_ref().and_then(|p| p.parts.first()) {
-            self.focus_on(Some(square));
+            self.focus_on(t, Some(square));
         }
     }
 
@@ -450,6 +451,7 @@ impl Ui {
     /// hundredth of its length, ten with Shift, the square's up and down its value, Home and End a
     /// strip to its ends, each committed. Gives whether it took the key.
     pub(super) fn part_key(&mut self, id: ElementId, event: &KeyEvent) -> bool {
+        let t = self.input_target(id);
         let Key::Named(named) = &event.logical else {
             return false;
         };
@@ -459,7 +461,7 @@ impl Ui {
         let Some(mut hsva) = self.well_hsva(well) else {
             return false;
         };
-        let step = if self.interaction.modifiers.shift {
+        let step = if self.interaction.of(t).modifiers.shift {
             KEY_STEP * 10.0
         } else {
             KEY_STEP
@@ -545,21 +547,22 @@ impl Ui {
     /// commits, the part that the pointer drags commits its color, and what they did becomes the
     /// well's before the picker is forgotten.
     pub(super) fn picker_closing(&mut self, root: ElementId) {
+        let t = self.input_target(root);
         let Some(well) = self.picker.as_ref().map(|picker| picker.well) else {
             return;
         };
         if self.owned_layer(well) != Some(root) {
             return;
         }
-        if let Some(field) = self.focused_field()
+        if let Some(field) = self.focused_field(t)
             && self.root_of(field) == Some(root)
         {
             self.commit(field);
         }
-        if let Some(captured) = self.interaction.captured
+        if let Some(captured) = self.interaction.of(t).captured
             && self.part_of(captured).is_some()
         {
-            self.interaction.captured = None;
+            self.interaction.of_mut(t).captured = None;
             self.part_release(captured);
         }
         self.settle_picker_actions();

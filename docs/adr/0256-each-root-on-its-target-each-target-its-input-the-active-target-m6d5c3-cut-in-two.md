@@ -7,7 +7,8 @@
   [0253](0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md) (an event for
   a target without roots; the engine's one move) and
   [0255](0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md) (the program's
-  clipboard on the active target)
+  clipboard on the active target); amended by
+  [0257](0257-targets-known-from-their-first-root-a-moved-root-below-its-new-targets-modal-root.md) (targets known from their first root; a root and a layer moved)
 - Date: 2026-11-14
 
 ## Context

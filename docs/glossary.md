@@ -1757,7 +1757,11 @@ are stored (`MeshData::tangents`, glTF's convention).
 
 **Target (uwui).** Where a root of *uwui* draws: a window, a region of the *host*'s image, or a
 texture. Every event and output of the host's API names its target
-([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
+([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)), and each
+target keeps its own input: its pointer, its focus, its modal roots, its layers. The *active
+target* is the one of the last key or button, which serves what names no element
+(`Ui::active_target`,
+[ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)).
 
 **Task pool.** Threads that run small pieces of work, *tasks*, as they come, each on the first
 thread free. The engine has one, `slime-tasks`, the machine's logical cores but one, whose tasks

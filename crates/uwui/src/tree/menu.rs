@@ -5,6 +5,7 @@ use slime_input::{Key, KeyEvent, NamedKey};
 
 use super::{ElementId, ItemMark, Kind, LayoutDirection, Place, Ui};
 use crate::action::{Action, ActionKind};
+use crate::host::TargetId;
 
 impl Ui {
     /// A press of the item of a menu `id`: an option of a list to choose from is chosen; an item
@@ -12,6 +13,7 @@ impl Ui {
     /// its menu closing, or gives the submenu open the focus, to the keyboard; another reaches the
     /// program and closes the menus that led to it.
     pub(super) fn press_menu_item(&mut self, id: ElementId) {
+        let t = self.input_target(id);
         if self.palette_row(id) {
             self.press_palette_row(id);
             return;
@@ -33,12 +35,12 @@ impl Ui {
         }
         if let Some(submenu) = self.submenu_of(id) {
             // The pointer closes the menu of a bar's item.
-            if self.interaction.by_pointer && self.in_menu_bar(id) {
+            if self.interaction.of(t).by_pointer && self.in_menu_bar(id) {
                 self.close_layer(submenu, true);
-            } else if !self.interaction.by_pointer
+            } else if !self.interaction.of(t).by_pointer
                 && let Some(first) = self.first_focusable(submenu)
             {
-                self.focus_on(Some(first));
+                self.focus_on(t, Some(first));
             }
             return;
         }
@@ -69,6 +71,7 @@ impl Ui {
     /// its start closes the submenu that holds the item, which an item opened, the focus going back
     /// to that item. Gives whether it took the key.
     pub(super) fn menu_key(&mut self, id: ElementId, event: &KeyEvent) -> bool {
+        let t = self.input_target(id);
         let Key::Named(named) = event.logical else {
             return false;
         };
@@ -128,13 +131,14 @@ impl Ui {
             NamedKey::End => count - 1,
             _ => return false,
         };
-        self.focus_on(Some(items[next]));
+        self.focus_on(t, Some(items[next]));
         true
     }
 
     /// Closes the menus that led to the item `id`: the layer that holds it, and those that hold
     /// the items that opened it, down to the first, with the layers over them.
     fn close_menus(&mut self, id: ElementId) {
+        let t = self.input_target(id);
         let mut first = None;
         let mut at = self.root_of(id);
         while let Some(root) = at.filter(|&root| self.layer_place(root).is_some()) {
@@ -151,8 +155,8 @@ impl Ui {
             self.close_layer(first, true);
             // A command of a bar's menu gives the focus back to what held it before the keys
             // reached the bar.
-            if from_bar && let Some(back) = self.interaction.bar_before.take() {
-                self.focus_on(Some(back));
+            if from_bar && let Some(back) = self.interaction.of_mut(t).bar_before.take() {
+                self.focus_on(t, Some(back));
             }
         }
     }
@@ -169,6 +173,7 @@ impl Ui {
         forward: NamedKey,
         backward: NamedKey,
     ) -> bool {
+        let t = self.input_target(id);
         let open = self
             .bar_items(id)
             .iter()
@@ -183,15 +188,15 @@ impl Ui {
                 } else {
                     items.last()
                 };
-                self.focus_on(item.copied());
+                self.focus_on(t, item.copied());
             }
             NamedKey::ArrowDown | NamedKey::ArrowUp => self.perform(Action {
                 element: Some(id),
                 kind: ActionKind::Press,
             }),
             NamedKey::Escape => {
-                let back = self.interaction.bar_before.take();
-                self.focus_on(back);
+                let back = self.interaction.of_mut(t).bar_before.take();
+                self.focus_on(t, back);
             }
             _ => return false,
         }
@@ -201,6 +206,7 @@ impl Ui {
     /// Moves the focus from the item of a bar of menus `item` to the one `step` places along,
     /// around, closing the menu that `item` opened and opening the other's, for `open`.
     pub(super) fn bar_step(&mut self, item: ElementId, step: isize, open: bool) {
+        let t = self.input_target(item);
         let items = self.bar_items(item);
         let Some(at) = items.iter().position(|&each| each == item) else {
             return;
@@ -209,7 +215,7 @@ impl Ui {
         if let Some(menu) = self.submenu_of(item) {
             self.close_layer(menu, true);
         }
-        self.focus_on(Some(next));
+        self.focus_on(t, Some(next));
         if open {
             self.perform(Action {
                 element: Some(next),
@@ -220,13 +226,13 @@ impl Ui {
 
     /// The pointer came over the item of a bar of menus `id`: while another item's menu is open,
     /// its own opens.
-    pub(super) fn hover_bar_item(&mut self, id: ElementId) {
+    pub(super) fn hover_bar_item(&mut self, t: TargetId, id: ElementId) {
         let open = self
             .bar_items(id)
             .into_iter()
             .any(|item| item != id && self.submenu_of(item).is_some());
         if open && self.submenu_of(id).is_none() {
-            self.interaction.by_pointer = true;
+            self.interaction.of_mut(t).by_pointer = true;
             self.perform(Action {
                 element: Some(id),
                 kind: ActionKind::Press,
@@ -237,16 +243,17 @@ impl Ui {
     /// Gives the first item of the first bar of menus drawn, from the top root, the layers left
     /// out, the focus, keeping what held it; or, where an item of a bar holds it or one of its
     /// menus is open, closes that menu and gives the focus back. Gives whether there was a bar.
-    pub(super) fn toggle_menu_bar(&mut self) -> bool {
+    pub(super) fn toggle_menu_bar(&mut self, t: TargetId) -> bool {
         // The keys reach the bar: its focus shows, whatever the last press was.
-        self.interaction.by_pointer = false;
+        self.interaction.of_mut(t).by_pointer = false;
         // On the bar, or in one of its menus: the menus close, and the focus goes back.
         let open = self
             .layers()
             .into_iter()
-            .find(|&layer| self.bar_item_of(layer).is_some());
+            .find(|&layer| self.root_target(layer) == t && self.bar_item_of(layer).is_some());
         let on_bar = self
             .interaction
+            .of(t)
             .focus
             .is_some_and(|focus| self.in_menu_bar(focus));
         if on_bar || open.is_some() {
@@ -255,13 +262,13 @@ impl Ui {
             }
             // What held the focus before the keys reached the bar takes it back; a menu that the
             // pointer opened gave it back as it closed.
-            let back = self.interaction.bar_before.take();
+            let back = self.interaction.of_mut(t).bar_before.take();
             if back.is_some() || on_bar {
-                self.focus_on(back);
+                self.focus_on(t, back);
             }
             return true;
         }
-        let bar = self.roots.iter().rev().find_map(|&root| {
+        let bar = self.roots_on(t).into_iter().rev().find_map(|root| {
             if self.layer_place(root).is_some() {
                 return None;
             }
@@ -286,8 +293,8 @@ impl Ui {
         }) else {
             return false;
         };
-        self.interaction.bar_before = self.interaction.focus;
-        self.focus_on(Some(first));
+        self.interaction.of_mut(t).bar_before = self.interaction.of(t).focus;
+        self.focus_on(t, Some(first));
         true
     }
 

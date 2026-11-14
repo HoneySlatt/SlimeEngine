@@ -16,8 +16,8 @@ use crate::host::{Answer, Event, Input, InputMethod, Outputs, TargetId};
 #[cfg(feature = "test-input")]
 use crate::time::EventTime;
 
-/// What the host was last told of the main target's outputs ([`Ui::outputs`]), against which the
-/// next reading tells what changed.
+/// What the host was last told of a target's outputs ([`Ui::outputs`]), against which the next
+/// reading tells what changed.
 #[derive(Debug, Default)]
 pub(super) struct Told {
     cursor: CursorShape,
@@ -41,69 +41,84 @@ impl Ui {
     /// Gives the interface an input event that came to `event.target` at `event.time`, and answers
     /// at once whether it took it, which a game then leaves ([`Input`] says what each does). The
     /// interface's time moves to the event's, never back, so that what it starts, the pointer's
-    /// rest before a tooltip shows or a submenu opens, starts then. An event for a target other
-    /// than [`TargetId::MAIN`], on which no root draws, is not taken and changes nothing but the
-    /// time.
+    /// rest before a tooltip shows or a submenu opens, starts then. A key or a button makes its
+    /// target the active one ([`Ui::active_target`]).
+    ///
+    /// An event reaches the roots of its own target alone. The interface knows a target from its
+    /// first root, [`TargetId::MAIN`] from the start: an event for a target that it does not know
+    /// is not taken and changes nothing but the time. A known target whose roots are gone keeps
+    /// its input: its events reach no element, a release whose press it took is taken, and a key
+    /// reaches the shortcuts that need no focus. An answer of the clipboard, which names its read,
+    /// is taken on any target
+    /// (`docs/adr/0257-targets-known-from-their-first-root-a-moved-root-below-its-new-targets-modal-root.md`).
     pub fn event(&mut self, event: Event<'_>) -> Answer {
         self.now = self.now.max(event.time.at);
-        if event.target != TargetId::MAIN {
+        let t = event.target;
+        if let Input::ClipboardText { read, text } = event.input {
+            return Answer::of(self.clipboard_answer(read, text));
+        }
+        if !self.interaction.knows(t) {
             return Answer::NotTaken;
+        }
+        if matches!(event.input, Input::Key(_) | Input::PointerButton { .. }) {
+            self.interaction.active = t;
         }
         let taken = match event.input {
             Input::PointerMoved { x, y } => {
-                self.pointer_moved_input(x, y);
+                self.pointer_moved_input(t, x, y);
                 false
             }
             Input::PointerLeft => {
-                self.pointer_left_input();
+                self.pointer_left_input(t);
                 false
             }
-            Input::PointerButton { button, state } => self.pointer_button_input(button, state),
-            Input::Wheel(delta) => self.wheel_input(delta),
+            Input::PointerButton { button, state } => self.pointer_button_input(t, button, state),
+            Input::Wheel(delta) => self.wheel_input(t, delta),
             Input::Modifiers(modifiers) => {
-                self.interaction.modifiers = modifiers;
+                self.interaction.of_mut(t).modifiers = modifiers;
                 false
             }
             Input::Key(key) => {
                 self.clipboard.left_to_platform = false;
-                let taken = self.key_input(key);
+                let taken = self.key_input(t, key);
                 if std::mem::take(&mut self.clipboard.left_to_platform) {
                     return Answer::TakenLeftToPlatform;
                 }
                 taken
             }
-            Input::InputMethod(ime) => self.ime_input(ime),
+            Input::InputMethod(ime) => self.ime_input(t, ime),
             Input::DeleteAround {
                 before,
                 after,
                 unit,
-            } => self.delete_around(before, after, unit),
-            Input::Copy => self.copy_input(false),
-            Input::Cut => self.copy_input(true),
-            Input::Paste(text) => self.paste_input(text),
-            Input::ClipboardText { read, text } => self.clipboard_answer(read, text),
+            } => self.delete_around(t, before, after, unit),
+            Input::Copy => self.copy_input(t, false),
+            Input::Cut => self.copy_input(t, true),
+            Input::Paste(text) => self.paste_input(t, text),
+            Input::ClipboardText { .. } => unreachable!("answered above"),
         };
         Answer::of(taken)
     }
 
     /// What `target` shows of the interface and changed since the host last read it: the
-    /// pointer's shape where the pointer is; the input method, on as a field's input starts, off
-    /// once no field holds the focus; the caret's box of the field that takes text; the text to
-    /// write on the clipboard and the reads asked of it. The host reads them after each frame, and
-    /// after an event whose effect it shows at once, a key of paste, whose read a platform that
-    /// asks the person before a program reads lets through only in answer to the key; a target
-    /// other than [`TargetId::MAIN`] has none. They are the host's alone: what another reader
-    /// takes, the host is not told.
+    /// pointer's shape where its pointer is; the input method, on as a field's input starts, off
+    /// once no field holds its focus; the caret's box of its field that takes text; the text to
+    /// write on the clipboard and the reads asked of it, a field's on its own target and the
+    /// program's on the active one. The host reads them after each frame, and after an event
+    /// whose effect it shows at once, a key of paste, whose read a platform that asks the person
+    /// before a program reads lets through only in answer to the key; a target that the interface
+    /// does not know has none. They are the host's alone: what another reader takes, the host is not
+    /// told.
     pub fn outputs(&mut self, target: TargetId) -> Outputs {
-        if target != TargetId::MAIN {
+        if !self.interaction.knows(target) {
             return Outputs::default();
         }
-        let cursor = self.cursor();
-        let field = self.focused_field();
+        let cursor = self.cursor(target);
+        let field = self.focused_field(target);
         let area = field
             .and_then(|field| self.node(field)?.field.as_ref())
             .map(|field| field.caret);
-        let told = &mut self.told;
+        let told = &mut self.interaction.of_mut(target).told;
         let input_method = match field {
             Some(_) if field != told.field || told.ended => Some(InputMethod::On),
             None if told.field.is_some() => Some(InputMethod::Off),
@@ -121,7 +136,7 @@ impl Ui {
             told.cursor = cursor;
             cursor
         });
-        let (clipboard_write, clipboard_reads) = self.clipboard.take();
+        let (clipboard_write, clipboard_reads) = self.clipboard.take(target);
         Outputs {
             cursor,
             input_method,

@@ -136,6 +136,7 @@ fn own_styles_that_differ_by_a_signed_zero_share_no_style() {
             direction: super::LayoutDirection::LeftToRight,
             origin: [0.0; 2],
             modal: false,
+            target: crate::host::TargetId::MAIN,
         },
         |s| s,
     );

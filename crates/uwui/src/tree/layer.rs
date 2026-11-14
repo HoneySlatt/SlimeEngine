@@ -6,6 +6,7 @@
 use super::{Element, ElementId, Key, Kind, RootSettings, Ui};
 use crate::Rect;
 use crate::action::{Action, ActionKind};
+use crate::host::TargetId;
 use crate::style::StyleBuilder;
 
 /// The room left between a layer and the element that it stands beside, in logical pixels.
@@ -145,6 +146,8 @@ impl Ui {
 
     /// Adds the root of a layer, as [`Ui::open_layer`] says, without telling what it stands beside.
     pub(crate) fn add_layer(&mut self, key: Key, layer: Layer, element: Element) -> ElementId {
+        // A layer stands on the target of the root that it opens over, with its scale and
+        // direction.
         let settings = self
             .root_of(layer.place.anchor())
             .and_then(|root| self.node(root)?.root)
@@ -154,15 +157,17 @@ impl Ui {
                 direction: super::LayoutDirection::LeftToRight,
                 origin: [0.0; 2],
                 modal: false,
+                target: self.interaction.active,
             });
-        let before = self.interaction.focus;
+        let t = settings.target;
+        let before = self.interaction.of(t).focus;
         // A floating panel stands beside the work rather than over it: F6 reaches it.
         let focus_first =
-            !self.interaction.by_pointer && !matches!(layer.place, Place::Floating { .. });
+            !self.interaction.of(t).by_pointer && !matches!(layer.place, Place::Floating { .. });
         let root = self.add_root_element(
             key,
             RootSettings {
-                size: self.surface_size(),
+                size: self.surface_size(t),
                 origin: [0.0; 2],
                 modal: layer.modal,
                 ..settings
@@ -263,12 +268,13 @@ impl Ui {
         self.mark_layout(root);
     }
 
-    /// The size of the window's surface, in logical pixels: as far as the roots that are no layers
+    /// The size of `target`'s surface, in logical pixels: as far as its roots that are no layers
     /// reach, from its top left corner, a dialog placed within the window's root included.
-    pub(crate) fn surface_size(&self) -> [f32; 2] {
+    pub(crate) fn surface_size(&self, target: TargetId) -> [f32; 2] {
         self.roots
             .iter()
             .filter_map(|&root| self.node(root).filter(|node| node.layer.is_none())?.root)
+            .filter(|settings| settings.target == target)
             .fold([1.0_f32; 2], |size, root| {
                 [
                     size[0].max(root.origin[0] + root.size[0]),
@@ -280,6 +286,22 @@ impl Ui {
     /// Where the layer `root` stands now; none for a root that is no layer.
     pub fn layer_place(&self, root: ElementId) -> Option<Place> {
         Some(self.node(root)?.layer.as_ref()?.layer.place)
+    }
+
+    /// `root` and the layers that stand over what it holds, and over what those hold, from the
+    /// bottom.
+    pub(crate) fn with_layers_over(&self, root: ElementId) -> Vec<ElementId> {
+        let mut found = vec![root];
+        for layer in self.layers() {
+            let base = self
+                .node(layer)
+                .and_then(|node| node.layer.as_ref())
+                .and_then(|held| self.root_of(held.layer.place.anchor()));
+            if base.is_some_and(|base| base != layer && found.contains(&base)) {
+                found.push(layer);
+            }
+        }
+        found
     }
 
     /// The layers, from the bottom: the roots that the interface places.
@@ -298,8 +320,9 @@ impl Ui {
             .is_some_and(|held| !matches!(held.layer.place, Place::Floating { .. }))
     }
 
-    /// Gives each layer the scale and the direction of the root that it stands over, and the size
-    /// of the window's surface, and closes those whose anchor is gone. Run before a frame lays out.
+    /// Gives each layer the target, the scale and the direction of the root that it stands over,
+    /// and the size of that target's surface, and closes those whose anchor is gone. Run before a
+    /// frame lays out.
     pub(crate) fn settle_layers(&mut self) {
         for root in self.layers() {
             let Some(held) = self.node(root).and_then(|node| node.layer.as_ref()) else {
@@ -317,8 +340,16 @@ impl Ui {
             let Some(settings) = self.node(root).and_then(|node| node.root) else {
                 continue;
             };
+            // A layer placed over another target's root moves there, with what stands over it.
+            if base.target != settings.target {
+                let group = self.with_layers_over(root);
+                self.move_to_target(&group, settings.target, base.target);
+            }
+            let Some(settings) = self.node(root).and_then(|node| node.root) else {
+                continue;
+            };
             let wanted = RootSettings {
-                size: self.surface_size(),
+                size: self.surface_size(base.target),
                 origin: settings.origin,
                 modal: settings.modal,
                 ..base
@@ -401,16 +432,17 @@ impl Ui {
         Some(settings)
     }
 
-    /// Closes the dismissable layers above the root that a press at `x` and `y` falls in, but those
-    /// beside the element that it falls in, down to the first modal root, which keeps the press:
-    /// they close as the user leaves them.
-    pub(crate) fn dismiss_outside(&mut self, x: f32, y: f32) {
-        let hit = self.element_at(x, y);
+    /// Closes the dismissable layers of `t` above the root that a press at `x` and `y` of `t` falls
+    /// in, but those beside the element that it falls in, down to the first modal root, which
+    /// keeps the press: they close as the user leaves them. The layers of other targets stay.
+    pub(crate) fn dismiss_outside(&mut self, t: TargetId, x: f32, y: f32) {
+        let hit = self.element_at(t, x, y);
         let hit_root = hit.and_then(|id| self.root_of(id));
+        let roots = self.roots_on(t);
         let below = hit_root
-            .and_then(|root| self.roots.iter().position(|&each| each == root))
+            .and_then(|root| roots.iter().position(|&each| each == root))
             .unwrap_or(0);
-        let above: Vec<ElementId> = self.roots.iter().skip(below + 1).copied().collect();
+        let above: Vec<ElementId> = roots.iter().skip(below + 1).copied().collect();
         for root in above.into_iter().rev() {
             // A modal root keeps the press: neither it nor what lies below closes.
             if self
@@ -437,11 +469,11 @@ impl Ui {
         }
     }
 
-    /// Closes the top layer that closes as the user leaves it, for Escape, while the focus is in
-    /// it, on what opened it, or nowhere: whether one did.
-    pub(crate) fn dismiss_top(&mut self) -> bool {
-        let focus = self.interaction.focus;
-        for root in self.roots.clone().into_iter().rev() {
+    /// Closes `t`'s top layer that closes as the user leaves it, for Escape, while `t`'s focus is
+    /// in it, on what opened it, or nowhere: whether one did.
+    pub(crate) fn dismiss_top(&mut self, t: TargetId) -> bool {
+        let focus = self.interaction.of(t).focus;
+        for root in self.roots_on(t).into_iter().rev() {
             let Some(held) = self.node(root).and_then(|node| node.layer.as_ref()) else {
                 if self
                     .node(root)
@@ -487,8 +519,10 @@ impl Ui {
                 self.close_layer(other, dismissed);
             }
         }
+        let t = self.root_target(root);
         let focused_inside = self
             .interaction
+            .of(t)
             .focus
             .is_some_and(|focus| self.root_of(focus) == Some(root));
         self.remove(root);
@@ -501,7 +535,7 @@ impl Ui {
                     .filter(|&before| self.focusable(before))
                     .or_else(|| Some(held.layer.place.anchor()).filter(|&a| self.focusable(a))),
             };
-            self.focus_on(back);
+            self.focus_on(t, back);
         }
         if held.quiet {
             self.forget_own_layer(root);
@@ -538,7 +572,7 @@ impl Ui {
                 held.focus_first = false;
             }
             if let Some(first) = self.first_focusable(root) {
-                self.focus_on(Some(first));
+                self.focus_on(self.root_target(root), Some(first));
             }
         }
     }

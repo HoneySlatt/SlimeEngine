@@ -43,6 +43,7 @@ impl Menu {
             direction,
             origin: [0.0; 2],
             modal: false,
+            target: uwui::host::TargetId::MAIN,
         };
         let root = ui.add_root("main", settings, column);
         let mut button = None;

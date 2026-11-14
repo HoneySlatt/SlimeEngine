@@ -187,6 +187,7 @@ fn drawn(
             direction,
             origin: [0.0; 2],
             modal: false,
+            target: crate::host::TargetId::MAIN,
         },
         |s| s,
     );
@@ -398,6 +399,7 @@ fn kinds_of_other_bases_share_no_style() {
                 direction: super::LayoutDirection::LeftToRight,
                 origin: [0.0; 2],
                 modal: false,
+                target: crate::host::TargetId::MAIN,
             },
             |s| s,
         );

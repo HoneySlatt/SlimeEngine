@@ -1773,6 +1773,15 @@ A popup or a dialog is a root of its own at a place on the window's surface; a m
 pointer from the roots below and the focus among its elements, and gives the focus back when it is
 removed.
 
+Each root draws on a *target*, a window, a region of the host's image or a texture, which its
+settings name; a layer draws on the target of the root that it opens over. An event reaches the
+roots of its own target alone, and each target keeps its own pointer, hover, focus, modal roots
+and outputs: a modal root blocks its own target. What names no element follows the *active
+target*, that of the last key or button, as `Ui::active_target`'s documentation lists. The engine
+has one window, and gives everything on `TargetId::MAIN`
+([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md),
+[ADR-0257](adr/0257-targets-known-from-their-first-root-a-moved-root-below-its-new-targets-modal-root.md)).
+
 What opens over a panel is a *layer*, a root that the interface places
 ([ADR-0150](adr/0150-layers.md)): the program opens it beside an element, at a point or floating,
 and builds it as any root; a list to choose from and a tooltip open theirs alone. Each frame, the

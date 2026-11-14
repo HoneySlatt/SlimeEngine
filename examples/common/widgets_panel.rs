@@ -1215,6 +1215,7 @@ fn settings(size: [f32; 2], scale: f32, direction: LayoutDirection) -> RootSetti
         direction,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     }
 }
 

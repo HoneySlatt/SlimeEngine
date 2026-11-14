@@ -1256,6 +1256,7 @@ fn draw(
             direction,
             origin: [0.0; 2],
             modal: false,
+            target: crate::host::TargetId::MAIN,
         },
         |s| s,
     );

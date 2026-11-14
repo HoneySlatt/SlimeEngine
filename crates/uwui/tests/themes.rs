@@ -29,6 +29,7 @@ fn styled(themes: &[(&str, &str)], fill: bool) -> Result<(Ui, ElementId), Docume
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| {
         s.padding_top(GAP)
@@ -351,6 +352,7 @@ fn a_whole_number_of_a_theme_sets_a_field_of_whole_numbers_and_a_fraction_is_ref
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     ui.build(root, 0, |children| {

@@ -57,6 +57,7 @@ pub fn world_panel(context: &mut Context) -> Result<Vec<Row>, String> {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s.direction(FlexDirection::Column));
     let mut panel = WorldPanel::default();

@@ -7,6 +7,7 @@
 use slime_input::{ButtonState, MouseButton};
 use uwui::action::{Action, ActionKind};
 use uwui::host::Person;
+use uwui::host::TargetId;
 use uwui::style::{Dimension, Style};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementId, Layer, LayoutDirection, Place, Role, RootSettings, Ui};
@@ -25,6 +26,7 @@ fn interface(direction: LayoutDirection) -> (Ui, ElementId) {
         direction,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     ui.frame();
@@ -169,7 +171,7 @@ fn a_press_raises_a_panel_above_another() {
     // Whether the element at `at` lies in `id`: its path starts with `id`'s.
     let within = |ui: &Ui, id: ElementId, at: (f32, f32)| {
         let path = ui.path_text(id).expect("there");
-        ui.element_at(at.0, at.1)
+        ui.element_at(TargetId::MAIN, at.0, at.1)
             .and_then(|hit| ui.path_text(hit))
             .is_some_and(|hit| hit.starts_with(&path))
     };
@@ -243,7 +245,7 @@ fn a_raised_panel_keeps_the_menu_that_it_opened_above_it() {
     let inside_menu = (menu_rect.x + 5.0, menu_rect.y + 5.0);
     let path = ui.path_text(menu).expect("there");
     let hit = ui
-        .element_at(inside_menu.0, inside_menu.1)
+        .element_at(TargetId::MAIN, inside_menu.0, inside_menu.1)
         .and_then(|hit| ui.path_text(hit))
         .expect("an element");
     assert!(hit.starts_with(&path), "{hit} under {path}");

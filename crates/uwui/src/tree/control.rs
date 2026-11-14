@@ -498,6 +498,7 @@ impl Ui {
     /// start, Home and End choose the tab there, which takes the focus. Gives whether it took the
     /// key.
     pub(crate) fn tab_key(&mut self, tab: ElementId, event: &KeyEvent) -> bool {
+        let t = self.input_target(tab);
         let Key::Named(named) = &event.logical else {
             return false;
         };
@@ -520,7 +521,7 @@ impl Ui {
         };
         self.choose_tab(bar, target);
         if let Some(&chosen) = self.children(bar).get(target) {
-            self.focus_on(Some(chosen));
+            self.focus_on(t, Some(chosen));
         }
         true
     }
@@ -698,6 +699,7 @@ impl Ui {
     /// that the program gave, and [`ActionKind::Committed`] after it for `commit`. Gives whether
     /// `id` is a splitter.
     pub(crate) fn set_splitter(&mut self, id: ElementId, share: f32, commit: bool) -> bool {
+        let t = self.input_target(id);
         let Some(&Kind::Splitter { share: given, .. }) =
             self.node(id).map(|node| &node.element.kind)
         else {
@@ -706,14 +708,14 @@ impl Ui {
         let share = self.splitter_kept(id, share);
         let value = FieldValue::Number(f64::from(share));
         if share != given {
-            self.interaction.splitting = Some(share);
+            self.interaction.of_mut(t).splitting = Some(share);
             self.interaction.actions.push(Action {
                 element: Some(id),
                 kind: ActionKind::Changed(value.clone()),
             });
         }
         if commit {
-            self.interaction.splitting = None;
+            self.interaction.of_mut(t).splitting = None;
             self.interaction.actions.push(Action {
                 element: Some(id),
                 kind: ActionKind::Committed(value),
@@ -755,13 +757,14 @@ impl Ui {
     /// The pointer let go of the splitter `id`: the share that its drag gave last is committed;
     /// nothing, if it did not move it. Gives whether `id` is a splitter.
     pub(crate) fn splitter_release(&mut self, id: ElementId) -> bool {
+        let t = self.input_target(id);
         if !matches!(
             self.node(id).map(|node| &node.element.kind),
             Some(Kind::Splitter { .. })
         ) {
             return false;
         }
-        if let Some(share) = self.interaction.splitting.take() {
+        if let Some(share) = self.interaction.of_mut(t).splitting.take() {
             self.set_splitter(id, share, true);
         }
         true

@@ -43,6 +43,7 @@ fn styled(themes: &[Theme], elements: Vec<Element>) -> (Ui, Vec<ElementId>) {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let mut ids = Vec::new();
@@ -246,6 +247,7 @@ fn a_value_of_another_kind_not_finite_or_a_negative_duration_refuses_the_themes(
             direction: LayoutDirection::LeftToRight,
             origin: [0.0; 2],
             modal: false,
+            target: uwui::host::TargetId::MAIN,
         };
         let root = ui.add_root("main", settings, |s| s.padding(GAP));
         ui.frame();
@@ -307,6 +309,7 @@ fn a_name_declared_by_two_lists_is_refused_and_one_token_declared_again_is_one()
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = fresh.add_root("main", settings, |s| s.padding(GAP));
     fresh.frame();
@@ -381,6 +384,7 @@ fn an_element_built_again_naming_another_token_takes_its_value() {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let mut id = None;
@@ -442,6 +446,7 @@ fn a_list_whose_static_tokens_fall_back_in_a_cycle_is_refused() {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let mut id = None;

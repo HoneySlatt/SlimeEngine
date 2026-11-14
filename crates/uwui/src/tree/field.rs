@@ -16,7 +16,7 @@ use super::meaning::{FieldText, RUN_CHARACTERS, RunCharacter, TextRun};
 use super::{ElementId, Kind, Ui};
 use crate::Rect;
 use crate::action::{Action, ActionKind, FieldValue};
-use crate::host::TextUnit;
+use crate::host::{TargetId, TextUnit};
 use crate::shortcuts::{self, Platform};
 use crate::text::{Affinity, Alignment, TextBounds, TextLayout, TextPosition};
 
@@ -480,8 +480,8 @@ impl Ui {
     /// The shape that the pointer takes where it is: the I-beam over a field of text and over a
     /// field of numbers that holds the focus, the arrows of a drag over one that does not, or
     /// while one is dragged; the arrow elsewhere.
-    pub(super) fn cursor(&self) -> CursorShape {
-        if let Some(captured) = self.interaction.captured
+    pub(super) fn cursor(&self, t: TargetId) -> CursorShape {
+        if let Some(captured) = self.interaction.of(t).captured
             && self
                 .node(captured)
                 .and_then(|node| node.field.as_ref())
@@ -491,8 +491,10 @@ impl Ui {
         }
         // Over the handle between two panels or a splitter, or while it is dragged: the arrows
         // along it.
-        let split = self.interaction.captured.or_else(|| {
-            self.pointer_target(|kind| matches!(kind, Kind::Split { .. } | Kind::Splitter { .. }))
+        let split = self.interaction.of(t).captured.or_else(|| {
+            self.pointer_target(t, |kind| {
+                matches!(kind, Kind::Split { .. } | Kind::Splitter { .. })
+            })
         });
         if let Some(Kind::Split { side_by_side, .. } | Kind::Splitter { side_by_side, .. }) = split
             .and_then(|id| self.node(id))
@@ -504,14 +506,14 @@ impl Ui {
                 CursorShape::ResizeVertical
             };
         }
-        let over = self.pointer_target(|kind| {
+        let over = self.pointer_target(t, |kind| {
             matches!(kind, Kind::TextField { .. } | Kind::NumberField { .. })
         });
         match over.and_then(|id| Some((id, self.node(id)?))) {
             Some((_, node)) if matches!(node.element.kind, Kind::TextField { .. }) => {
                 CursorShape::Text
             }
-            Some((id, _)) if self.interaction.focus == Some(id) => CursorShape::Text,
+            Some((id, _)) if self.interaction.of(t).focus == Some(id) => CursorShape::Text,
             Some(_) => CursorShape::ResizeHorizontal,
             None => CursorShape::Default,
         }
@@ -519,8 +521,8 @@ impl Ui {
 
     /// What [`Input::InputMethod`](crate::host::Input::InputMethod) does; gives whether a field
     /// took it.
-    pub(super) fn ime_input(&mut self, ime: &Ime) -> bool {
-        let Some(focus) = self.focused_field() else {
+    pub(super) fn ime_input(&mut self, t: TargetId, ime: &Ime) -> bool {
+        let Some(focus) = self.focused_field(t) else {
             return false;
         };
         self.edit_text(focus, |field, _| match ime {
@@ -562,8 +564,14 @@ impl Ui {
 
     /// What [`Input::DeleteAround`](crate::host::Input::DeleteAround) does; gives whether a field
     /// held the focus, which took it.
-    pub(super) fn delete_around(&mut self, before: usize, after: usize, unit: TextUnit) -> bool {
-        let Some(focus) = self.focused_field() else {
+    pub(super) fn delete_around(
+        &mut self,
+        t: TargetId,
+        before: usize,
+        after: usize,
+        unit: TextUnit,
+    ) -> bool {
+        let Some(focus) = self.focused_field(t) else {
             return false;
         };
         self.edit_text(focus, |field, _| {
@@ -662,6 +670,7 @@ impl Ui {
     /// an input method composes, the keys that reach the field are the input method's: it takes
     /// them all, and edits with none.
     pub(crate) fn field_key(&mut self, id: ElementId, event: &KeyEvent) -> bool {
+        let t = self.input_target(id);
         let Some(node) = self.node(id) else {
             return false;
         };
@@ -679,7 +688,7 @@ impl Ui {
                 ..
             }
         );
-        let modifiers = self.interaction.modifiers;
+        let modifiers = self.interaction.of(t).modifiers;
         let platform = self.interaction.platform;
         let shift = modifiers.shift;
         // The platform's modifier of shortcuts, Ctrl or ⌘, which copies, pastes and undoes, and its
@@ -804,6 +813,7 @@ impl Ui {
     /// it, or whose prefix the press falls on while no input method composes in it, waits to see
     /// whether the press drags its number.
     pub(crate) fn field_press(&mut self, id: ElementId, x: f32, y: f32, shift: bool) {
+        let t = self.input_target(id);
         let number = self
             .node(id)
             .is_some_and(|node| matches!(node.element.kind, Kind::NumberField { .. }));
@@ -817,7 +827,7 @@ impl Ui {
             && self
                 .prefix_area(id)
                 .is_some_and(|area| super::interact::inside(area, x, y));
-        if number && (self.interaction.focus != Some(id) || on_prefix) {
+        if number && (self.interaction.of(t).focus != Some(id) || on_prefix) {
             let value = self.field_number(id);
             if let Some(field) = self.node_mut(id).and_then(|node| node.field.as_mut()) {
                 field.drag = Some(Drag {
@@ -830,13 +840,14 @@ impl Ui {
             }
             return;
         }
-        self.focus_on(Some(id));
+        self.focus_on(t, Some(id));
         self.place_caret(id, x, y, shift);
     }
 
     /// The pointer moved to `x` and `y` while the field `id` holds it: a drag selects, or, on a
     /// field of numbers past the threshold, changes the number by its step for each logical pixel.
     pub(crate) fn field_drag(&mut self, id: ElementId, x: f32, y: f32) {
+        let t = self.input_target(id);
         let scale = self.scale_of(id);
         let Some(node) = self.node_mut(id) else {
             return;
@@ -857,7 +868,7 @@ impl Ui {
         }
         drag.moved = true;
         // Finer with Shift, coarser with Control.
-        let modifiers = self.interaction.modifiers;
+        let modifiers = self.interaction.of(t).modifiers;
         let step = if modifiers.shift {
             step / 10.0
         } else if modifiers.control {
@@ -901,10 +912,11 @@ impl Ui {
     /// its number; a press that did not drag gives the field the focus, its caret where it was,
     /// when the pointer is let go over the field, and nothing elsewhere, as a button.
     pub(crate) fn field_release(&mut self, id: ElementId, x: f32, y: f32) {
+        let t = self.input_target(id);
         match self.field_let_go(id) {
             Some(drag) if drag.moved => self.commit(id),
-            Some(_) if self.pointer_target(Kind::takes_pointer) == Some(id) => {
-                self.focus_on(Some(id));
+            Some(_) if self.pointer_target(t, Kind::takes_pointer) == Some(id) => {
+                self.focus_on(t, Some(id));
                 self.place_caret(id, x, y, false);
             }
             _ => {}
@@ -944,9 +956,9 @@ impl Ui {
         });
     }
 
-    /// The field that holds the focus, if one does.
-    pub(crate) fn focused_field(&self) -> Option<ElementId> {
-        let focus = self.interaction.focus?;
+    /// The field that holds `t`'s focus, if one does.
+    pub(crate) fn focused_field(&self, t: TargetId) -> Option<ElementId> {
+        let focus = self.interaction.of(t).focus?;
         self.node(focus)?.field.as_ref().map(|_| focus)
     }
 
@@ -984,7 +996,8 @@ impl Ui {
     /// it.
     pub(super) fn leave_composition(&mut self, id: ElementId) {
         if self.end_composition(id) {
-            self.told.field_left();
+            let t = self.input_target(id);
+            self.interaction.of_mut(t).told.field_left();
         }
     }
 
@@ -1113,8 +1126,9 @@ impl Ui {
     /// scrolls its text to keep the caret in view, from the field's box as last laid out; a field
     /// that does not hold the focus shows the start of its text.
     pub(crate) fn settle_field(&mut self, id: ElementId) {
+        let t = self.input_target(id);
         let scale = self.scale_of(id);
-        let focused = self.interaction.focus == Some(id);
+        let focused = self.interaction.of(t).focus == Some(id);
         let Some((layout, origin)) = self.field_layout(id) else {
             return;
         };
@@ -1195,9 +1209,10 @@ impl Ui {
     /// input method composes and, while it holds the focus, its caret, each cut to its content
     /// box.
     pub(crate) fn field_primitives(&mut self, id: ElementId) -> Vec<crate::display::Primitive> {
+        let t = self.input_target(id);
         use crate::display::{BoxPrimitive, Primitive, TextPrimitive};
 
-        let focused = self.interaction.focus == Some(id);
+        let focused = self.interaction.of(t).focus == Some(id);
         let scale = self.scale_of(id);
         let Some((layout, origin)) = self.field_layout(id) else {
             return Vec::new();

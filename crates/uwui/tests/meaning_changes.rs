@@ -35,6 +35,7 @@ fn settings(modal: bool) -> RootSettings {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal,
+        target: uwui::host::TargetId::MAIN,
     }
 }
 

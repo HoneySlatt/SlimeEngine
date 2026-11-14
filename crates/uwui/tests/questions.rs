@@ -47,6 +47,7 @@ fn fields(texts: &[&str]) -> (Ui, Vec<ElementId>) {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let mut ids = Vec::new();
@@ -247,6 +248,7 @@ fn a_range_over_two_lines_gives_its_first_lines_box_and_where_it_ends() {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let mut area = None;
@@ -653,6 +655,7 @@ fn a_point_is_the_interfaces_under_a_button_that_draws_nothing_and_anywhere_unde
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     ui.build(root, 0, |children| {

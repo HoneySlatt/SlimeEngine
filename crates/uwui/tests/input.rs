@@ -7,7 +7,7 @@ use slime_input::{
     ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey, ScrollDelta,
 };
 use uwui::action::{Action, ActionKind, Intent};
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::style::{Dimension, Display, FlexDirection, StyleBuilder, Track};
 use uwui::text::{Alignment, Fonts};
@@ -22,6 +22,7 @@ fn settings(width: f32, height: f32, origin: [f32; 2], modal: bool) -> RootSetti
         direction: LayoutDirection::LeftToRight,
         origin,
         modal,
+        target: TargetId::MAIN,
     }
 }
 
@@ -102,7 +103,7 @@ fn a_button_pressed_and_let_go_over_it_gives_a_press_and_holds_the_pointer_meanw
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
     ui.act(press_action(buttons[0]));
     assert!(ui.take_actions().is_empty());
-    assert_eq!(ui.element_at(50.0, 20.0), Some(buttons[0]));
+    assert_eq!(ui.element_at(TargetId::MAIN, 50.0, 20.0), Some(buttons[0]));
 }
 
 #[test]
@@ -427,8 +428,8 @@ fn a_modal_root_takes_the_pointer_and_the_focus_and_gives_the_focus_back_when_it
     assert_eq!(ui.focus(), Some(inside[0]));
     assert_eq!(ui.rect(inside[1]).map(|rect| rect.x), Some(200.0));
     // The roots below take no pointer, and the focus stays inside.
-    assert_eq!(ui.element_at(50.0, 20.0), None);
-    assert_eq!(ui.element_at(150.0, 120.0), Some(inside[0]));
+    assert_eq!(ui.element_at(TargetId::MAIN, 50.0, 20.0), None);
+    assert_eq!(ui.element_at(TargetId::MAIN, 150.0, 120.0), Some(inside[0]));
     ui.set_focus(Some(buttons[2]));
     assert_eq!(ui.focus(), Some(inside[0]));
     ui.key(&named(NamedKey::Tab));
@@ -449,7 +450,7 @@ fn a_modal_root_takes_the_pointer_and_the_focus_and_gives_the_focus_back_when_it
     );
     ui.remove(modal);
     assert_eq!(ui.focus(), Some(buttons[1]));
-    assert_eq!(ui.element_at(50.0, 20.0), Some(buttons[0]));
+    assert_eq!(ui.element_at(TargetId::MAIN, 50.0, 20.0), Some(buttons[0]));
 }
 
 #[test]
@@ -824,12 +825,12 @@ fn the_pointer_and_the_wheel_find_their_way_in_a_root_from_right_to_left() {
     });
     ui.frame();
     // The root starts at its origin, and its first child at its right.
-    assert_eq!(ui.element_at(350.0, 70.0), first);
+    assert_eq!(ui.element_at(TargetId::MAIN, 350.0, 70.0), first);
     // The scroll box lies left of the button, from 150 to 300; its first item at its right, and
     // the second cut by its clip at 150.
-    assert_eq!(ui.element_at(250.0, 70.0), Some(items[0]));
-    assert_eq!(ui.element_at(170.0, 70.0), Some(items[1]));
-    assert_eq!(ui.element_at(120.0, 70.0), Some(root));
+    assert_eq!(ui.element_at(TargetId::MAIN, 250.0, 70.0), Some(items[0]));
+    assert_eq!(ui.element_at(TargetId::MAIN, 170.0, 70.0), Some(items[1]));
+    assert_eq!(ui.element_at(TargetId::MAIN, 120.0, 70.0), Some(root));
     // A wheel that moves the content right shows what lies left: from right to left, its end.
     ui.pointer_moved(250.0, 70.0);
     ui.wheel(ScrollDelta::Lines { x: 1.0, y: 0.0 });

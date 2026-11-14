@@ -62,6 +62,7 @@ fn interface(element: Element) -> (Ui, ElementId, ElementId, ElementId) {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let (mut field, mut button) = (None, None);

@@ -552,6 +552,7 @@ mod tests {
             direction: LayoutDirection::LeftToRight,
             origin: [0.0; 2],
             modal: false,
+            target: uwui::host::TargetId::MAIN,
         };
         let root = ui.add_root("main", settings, |s| s);
         (ui, root)
@@ -817,6 +818,7 @@ mod tests {
             direction: LayoutDirection::LeftToRight,
             origin: [100.0, 100.0],
             modal: true,
+            target: uwui::host::TargetId::MAIN,
         };
         let dialog = ui.add_root("dialog", settings, |s| s);
         ui.build(dialog, 0, |children| {
@@ -891,6 +893,7 @@ mod tests {
             direction: LayoutDirection::RightToLeft,
             origin: [0.0; 2],
             modal: false,
+            target: uwui::host::TargetId::MAIN,
         };
         let root = ui.add_root("main", settings, |s| s);
         let (mut area, mut scroll) = (None, None);

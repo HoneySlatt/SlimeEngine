@@ -47,6 +47,7 @@ fn interface() -> (Ui, ElementId) {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     (ui, root)
@@ -387,6 +388,7 @@ fn from_right_to_left_a_fields_prefix_and_marks_stand_at_its_right_and_left() {
         direction: LayoutDirection::RightToLeft,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let mut ids = Vec::new();
@@ -574,6 +576,7 @@ fn a_sections_header_holds_its_box_at_its_end_whose_presses_do_not_fold_it() {
             direction,
             origin: [0.0; 2],
             modal: false,
+            target: uwui::host::TargetId::MAIN,
         };
         let root = ui.add_root("main", settings, |s| s);
         let mut ids = (None, None);
@@ -683,6 +686,7 @@ fn a_sections_title_keeps_beside_its_mark_and_leaves_the_room_of_its_headers_box
             direction,
             origin: [0.0; 2],
             modal: false,
+            target: uwui::host::TargetId::MAIN,
         };
         let root = ui.add_root("main", settings, |s| s);
         let build = |ui: &mut Ui, revision: u64, button: Option<f32>| {

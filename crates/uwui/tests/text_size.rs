@@ -37,6 +37,7 @@ fn settings(width: f32, height: f32, scale: f32) -> RootSettings {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: uwui::host::TargetId::MAIN,
     }
 }
 

@@ -233,6 +233,7 @@ fn docked_in(direction: LayoutDirection, layout: Layout) -> (Ui, Dock, ElementId
         direction,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
     let mut slot = None;

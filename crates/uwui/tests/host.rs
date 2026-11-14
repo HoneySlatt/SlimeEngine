@@ -38,6 +38,7 @@ fn interface() -> (Ui, [ElementId; 5]) {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s.direction(FlexDirection::Column));
     let mut ids = Vec::new();

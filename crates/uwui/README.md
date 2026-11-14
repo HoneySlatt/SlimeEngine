@@ -30,7 +30,7 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   when the revision that it reads moved, and matches the elements it adds with those before by their
   keys, so that their state and scroll survive; `Ui::frame` styles again the elements that changed,
   lays out by flexbox and grid the roots where something changed, mirrored for a root laid out from
-  right to left, draws again what changed or moved, and gives the display list, with what it did
+  right to left, draws again what changed or moved, and gives the main target's display list, with what it did
   (`FrameStats`): among it, the elements that its walks visited, which a frame costs even when
   nothing changed (`docs/adr/0186-counters-and-ratios-in-ci.md`). Its elements
   (`tree::Element`) are boxes, labels, parts of images, buttons, boxes that scroll, lists that build
@@ -108,8 +108,12 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   answered from the live state, in the unit that it counts in (`host::TextUnit`): the text around
   the caret (`Ui::text_around`), a range's box (`Ui::range_box`), the character at a point
   (`Ui::character_at`), and whether a point is the interface's (`Ui::covers`)
-  (`docs/adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md`). Every root
-  draws on one target today, `host::TargetId::MAIN`. With the feature `test-input`, which tests
+  (`docs/adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md`). Each root
+  draws on its target (`RootSettings::target`), a layer on its root's; each target keeps its own
+  input and outputs, and gives its own display list (`Ui::display_list`); what names no element
+  follows the active target, that of the last key or button (`Ui::active_target`)
+  (`docs/adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md`).
+  One frame lays out and draws every target until M6d.5c3b. With the feature `test-input`, which tests
   and benchmarks turn on, `host::Person` gives a person's input at no time of its own. `Ui` turns
   the input into `action::Action`s: a button pressed, an intent of navigation, the
   command of a shortcut. The program reads them from a queue (`Ui::take_actions`); an agent sends
@@ -120,7 +124,7 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   focus that a press of the pointer gave to anything but a field leaves the keys to the program, and
   a game keeps Tab until its interface holds a focus (`Ui::set_tab_enters`,
   [ADR-0153](../../docs/adr/0153-tab-and-f6-in-a-games-interface.md)); a root may be a popup at a
-  place of its own, or modal, keeping the input and the focus while it is open. An element's
+  place of its own, or modal, keeping its target's input and focus while it is open. An element's
   description, its tooltip, and whether a press opens a layer beside it, are part of what it means.
 - `shortcuts::Shortcuts` is a table of shortcuts, a document of KDL: chords of the keys' meaning
   that name commands, in scopes, the classes of the elements around the focus; `Ui::set_shortcuts`

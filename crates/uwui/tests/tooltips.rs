@@ -43,6 +43,7 @@ fn interface() -> (Ui, ElementId, [ElementId; 2]) {
         direction: LayoutDirection::LeftToRight,
         origin: [0.0; 2],
         modal: false,
+        target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| {
         style(s, None).direction(FlexDirection::Column)
@@ -142,7 +143,8 @@ fn a_tooltip_shows_below_its_element_once_the_pointer_has_rested_on_it() {
     // The pointer passes through it.
     let (x, y) = (below.x + below.width / 2.0, below.y + below.height / 2.0);
     assert_ne!(
-        ui.element_at(x, y).and_then(|id| ui.path_text(id)),
+        ui.element_at(TargetId::MAIN, x, y)
+            .and_then(|id| ui.path_text(id)),
         ui.path_text(tip)
     );
 }

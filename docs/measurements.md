@@ -3770,3 +3770,32 @@ How long CI's jobs took on `5bb456e`, the commit that gave uwui's clipboard to i
 Every job stays within its limit of 20 minutes. `windows-release` is the longest, with 4 min 6 s of
 margin, and `windows (tests)` keeps 4 min 19 s; `check (headless)` took 5 min 5 s less than at
 M6d.5c1, on another runner. The compositors' series found the clipboard as its table says on each.
+
+## M6d.5c3a, input and outputs per target
+
+A pointer's move, on 2026-11-14, by `editor.hierarchy.100k` in a release build on an AMD Ryzen 7
+5800X, the machine not at rest (another project's tests building, a load near 15): the move from a
+row of the hierarchy over 100,000 entities to the next and back, given before any frame, as a host
+gives it; the code before, `bdd1ddd`, built apart, and after, each target's input kept apart, run
+in turn, twice.
+
+| Series | A move, median of 15 | Allocations | A frame standing still, median of 15 |
+|---|---|---|---|
+| After, first | 1.7 µs | 0 | 8.0 µs |
+| Before, first | 1.6 µs | 0 | 8.2 µs |
+| After, second | 1.6 µs | 0 | 8.3 µs |
+| Before, second | 1.7 µs | 0 | 8.0 µs |
+
+What it says: keeping each target's input apart, and finding a root's target at each walk of the
+roots, costs nothing that this series can tell, under its noise of 0.1 µs; a move still allocates
+nothing, and a frame standing still visits the same 638 elements. The lowest machine of the quality
+bar is not measured: none is set up yet. Input to present waits for M6d.5c3b and the owner's go on
+the GPU.
+
+The window's input through the engine, on the same day, by `scripts/input-to-present.sh` on
+lavapipe in a headless sway at 240 Hz, the machine not at rest: an end-to-end check that the
+engine's input still reaches the interface on `TargetId::MAIN`, not a measure of the budget, which
+waits for the GPU. The editor gave 147 images after 200 inputs apart, clicks, the wheel, keys and
+moves, a median of 11.9 ms and a 99th percentile of 18.3 ms; and 436 after 1,000 moves in a row,
+12.4 ms and 17.0 ms, near M6d.5c1's. *Hunna Wood* drew a frame every few seconds on lavapipe, too
+few to give any; both ended well.

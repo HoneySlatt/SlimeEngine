@@ -4,6 +4,7 @@
 //! which draws nothing again.
 
 use uwui::Rect;
+use uwui::host::TargetId;
 use uwui::style::{Dimension, Display, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
@@ -29,6 +30,7 @@ fn settings(width: f32, height: f32, origin: [f32; 2], modal: bool) -> RootSetti
         direction: LayoutDirection::LeftToRight,
         origin,
         modal,
+        target: TargetId::MAIN,
     }
 }
 
@@ -265,12 +267,13 @@ fn an_element_is_found_by_its_path_and_at_a_pixel() {
         .element_by_path("main/page/bar/open")
         .expect("the button");
     assert_eq!(
-        ui.meaning_at(50.0, 20.0).map(|meaning| meaning.id),
+        ui.meaning_at(TargetId::MAIN, 50.0, 20.0)
+            .map(|meaning| meaning.id),
         Some(open)
     );
     // In the box that lays the panel out, beside the panel: the box means nothing, nor do the page
     // and the root above it.
-    assert_eq!(ui.meaning_at(300.0, 80.0), None);
+    assert_eq!(ui.meaning_at(TargetId::MAIN, 300.0, 80.0), None);
     // Under a modal root, the elements below take no action, and the pointer finds the dialog.
     let modal = ui.add_root(
         "confirm",
@@ -303,7 +306,9 @@ fn an_element_is_found_by_its_path_and_at_a_pixel() {
     assert_eq!(ui.path_text(no).as_deref(), Some("confirm/dialog/#no"));
     let below = ui.meaning_of(open).expect("drawn");
     assert!(below.actions.is_empty(), "{below:?}");
-    let dialog = ui.meaning_at(250.0, 180.0).expect("the dialog");
+    let dialog = ui
+        .meaning_at(TargetId::MAIN, 250.0, 180.0)
+        .expect("the dialog");
     assert_eq!(
         (dialog.path.as_str(), dialog.role),
         ("confirm/dialog", Role::Dialog)

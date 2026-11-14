@@ -26,9 +26,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   (`uwui::host::TextUnit`), as an input method asks them (ADR-0255): the text around the caret
   (`Ui::text_around`), a range's box (`Ui::range_box`), the character at a point
   (`Ui::character_at`), and whether a point is the interface's (`Ui::covers`).
+- uwui's roots draw on several targets (ADR-0256): `RootSettings::target` names each root's, a
+  layer standing on its root's. Each target keeps its own pointer, hover, focus, modal roots and
+  outputs, and gives its own display list (`Ui::display_list`); a modal root blocks its own target
+  alone. The active target, that of the last key or button (`Ui::active_target`), holds the focus
+  that `Ui::focus` reads, and takes the program's clipboard, the palette of commands and an action
+  without an element; `Ui::focus_in` reads any target's focus. `Ui::set_root` moves a root to
+  another target, letting go of what the old one held.
 
 ### Changed
 
+- `Ui::element_at` and `Ui::meaning_at` take the target whose roots they reach (ADR-0256), and
+  `Ui::frame` gives `TargetId::MAIN`'s display list.
 - uwui takes input as the host's events (ADR-0253): `Ui::event(Event)`, each `uwui::host::Event`
   with its target, its time and its input, the pointer, the wheel, the modifiers, a key or an input
   method, answered at once, `Answer::Taken` or `NotTaken`. `Ui::pointer_moved`, `pointer_left`,
