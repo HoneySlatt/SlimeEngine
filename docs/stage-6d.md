@@ -159,7 +159,7 @@ in git.
   [M6d.5c1](#m6d5c1--events-and-outputs-on-one-target) and
   [M6d.5c2](#m6d5c2--the-clipboard-and-the-hosts-questions), on 2026-11-13; then
   [M6d.5c3](#m6d5c3--the-targets), cut in two on 2026-11-14 ([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)): done,
-  [M6d.5c3a](#m6d5c3a--input-and-outputs-per-target), on 2026-11-14; then
+  [M6d.5c3a](#m6d5c3a--input-and-outputs-per-target), on 2026-11-14; in progress,
   [M6d.5c3b](#m6d5c3b--frames-and-times-per-target); then
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui) and
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
@@ -2025,23 +2025,8 @@ The first half of M6d.5c3 ([ADR-0256](adr/0256-each-root-on-its-target-each-targ
 
 ### M6d.5c3b — Frames and times per target
 
-The second half of M6d.5c3 ([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)). It follows the rules of
-[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** Each target draws its own frames, at its own time.
-- **Crates.** `uwui`, `slime-app`, `slime-editor`, `slime-devui`; two lines of track A's
-  `channel.rs`, by the owner's leave, after a `git fetch`.
-- **Delivers.** `Ui::frame` for one target, which lays out, draws and settles that target's roots
-  alone; each target's frame's time, which its motions and its spinners read
-  ([ADR-0227](adr/0227-the-time-that-motion-reads.md)), the host's latest time kept for deadlines;
-  each target's next frame due and whether it needs a frame; the lists, scrolls, builders asked
-  and motions that wait narrowed to their target; `Ui::display_list` gone.
-- **Done when.** A frame of one target leaves another's changes, motions and spinners for its own
-  frame; two targets at two frame times step their motions each by its own; the editor's and the
-  game's rest and input unchanged; CI is green.
-- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
-- **Measured.** Input to present, the editor and the game, with the owner's go on the GPU; the
-  frame of a change of look, against M6d.5c3a's.
+The second half of M6d.5c3; in progress, its card in
+[`PLAN.md`](PLAN.md#m6d5c3b--frames-and-times-per-target).
 
 ### M6d.5d — AccessKit's translation in uwui
 

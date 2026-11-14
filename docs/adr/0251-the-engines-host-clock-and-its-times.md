@@ -4,7 +4,8 @@
   that draws nothing come with uwui's executor; a layer follows the clock of the root that it opens
   over) and [0249](0249-the-hosts-api-its-items-and-their-table.md) (the rows "Wake" and "Frame and
   wake"); amended by [0253](0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md) (an event's time carried
-  by the event)
+  by the event) and [0258](0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md)
+  (each target's frame's time)
 - Date: 2026-11-13
 
 ## Context

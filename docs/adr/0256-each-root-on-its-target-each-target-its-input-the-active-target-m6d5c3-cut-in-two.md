@@ -8,7 +8,9 @@
   a target without roots; the engine's one move) and
   [0255](0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md) (the program's
   clipboard on the active target); amended by
-  [0257](0257-targets-known-from-their-first-root-a-moved-root-below-its-new-targets-modal-root.md) (targets known from their first root; a root and a layer moved)
+  [0257](0257-targets-known-from-their-first-root-a-moved-root-below-its-new-targets-modal-root.md) (targets known from their first root; a root and a layer moved) and
+  [0258](0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md) (each
+  target's own frame)
 - Date: 2026-11-14
 
 ## Context

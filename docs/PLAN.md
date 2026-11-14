@@ -36,10 +36,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
     [M6d.9a1b2](stage-6d.md#m6d9a1b2--events), events; next,
     [M6d.9a1b3](stage-6d.md#m6d9a1b3--long-lists-and-the-interfaces-family), which may start:
     M6d.5c3a is done.
-  - Track B, in a worktree: M6d.6 and M6d.4, done; then
-    [M6d.5](stage-6d.md#m6d5--the-hosts-api), cut in five (ADR-0248): done, M6d.5a to
-    [M6d.5c3a](stage-6d.md#m6d5c3a--input-and-outputs-per-target); next,
-    [M6d.5c3b](stage-6d.md#m6d5c3b--frames-and-times-per-target).
+  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5a to M6d.5c3a, done; in progress,
+    [M6d.5c3b](#m6d5c3b--frames-and-times-per-target).
   - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249;
     M6d.9a1b3 follows M6d.5c3a (ADR-0256).
   - M6d.10 to M6d.12 run alone.
@@ -58,18 +56,38 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.0a to M6d.3c3, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.4a to M6d.4b2 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
 | [M6d.5a to M6d.5c3a — The host's API, its first parts](stage-6d.md#m6d5--the-hosts-api) | Done |
-| [M6d.5c3b to M6d.5e — The rest of M6d.5](stage-6d.md#m6d5c3b--frames-and-times-per-target) | Planned |
+| [M6d.5c3b — Frames and times per target](#m6d5c3b--frames-and-times-per-target) | In progress |
+| [M6d.5d to M6d.5e — The rest of M6d.5](stage-6d.md#m6d5d--accesskits-translation-in-uwui) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
-| [M6d.9a1a — The new wire, under today's meaning](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
-| [M6d.9a1b1 — Requests in flight](stage-6d.md#m6d9a1b1--requests-in-flight) | Done |
-| [M6d.9a1b2 — Events](stage-6d.md#m6d9a1b2--events) | Done |
+| [M6d.9a1a to M6d.9a1b2 — The new wire, requests in flight, events](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a1b3 to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a1b3--long-lists-and-the-interfaces-family) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
+
+## M6d.5c3b — Frames and times per target
+
+Started on 2026-11-14, the second half of M6d.5c3
+([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)),
+designed in [ADR-0258](adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md).
+
+- **Goal.** Each target draws its own frames, at its own time.
+- **Crates.** `uwui`, `slime-app`, `slime-editor`, `slime-devui`; two lines of track A's
+  `channel.rs`, by the owner's leave, after a `git fetch`.
+- **Delivers.** `Ui::frame` for one target, which lays out, draws and settles that target's roots
+  alone; each target's frame's time, which its motions and its spinners read
+  ([ADR-0227](adr/0227-the-time-that-motion-reads.md)), the host's latest time kept for deadlines;
+  each target's next frame due and whether it needs a frame; the lists, scrolls, builders asked
+  and motions that wait narrowed to their target; `Ui::display_list` gone.
+- **Done when.** A frame of one target leaves another's changes, motions and spinners for its own
+  frame; two targets at two frame times step their motions each by its own; the editor's and the
+  game's rest and input unchanged; CI is green.
+- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **Measured.** Input to present, the editor and the game, with the owner's go on the GPU; the
+  frame of a change of look, against M6d.5c3a's.
 
 ## Ideas waiting for their milestone
 
