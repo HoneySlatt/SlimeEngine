@@ -182,10 +182,12 @@ owner's save alone. After Stage 6e's first milestone, a check that names *Hunna 
   following a pause made from the dev overlay, and Stop, the game's end seen at once.
 - **A screen reader's request on its window** (M6d.5d1): Narrator in the Windows virtual machine
   pressing a button and setting a field of the `interface` example.
-- **Focus** (M6d.5e1): the editor, on Linux and in the Windows virtual machine, left by Alt and
-  Tab, Alt held or mid-drag: no bar in focus, nothing dropped.
-- **Focus** (M6d.5e1): the editor, on Linux and in the Windows virtual machine, left by Alt and
-  Tab, Alt held or mid-drag: no bar in focus, nothing dropped.
+- **A covered window at rest** (M6d.5c3b): *Hunna Wood* paused, its dev overlay open, the pointer
+  leaving its window as another covers it, in the Windows virtual machine, the macOS one and on
+  bare X11 (M6d.5e1): the game asking no frame while covered, and drawing again once shown.
+- **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
+  left by Alt and Tab, Alt held or mid-drag: no bar in focus, nothing dropped; *Hunna Wood*'s
+  button that loses the surface, on Direct3D 12: drawn again.
 
 ## Known debt
 

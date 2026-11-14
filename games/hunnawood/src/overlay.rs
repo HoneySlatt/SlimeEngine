@@ -38,6 +38,7 @@ pub struct DevOverlay {
 struct Built {
     speed: ElementId,
     lose: ElementId,
+    lose_surface: ElementId,
 }
 
 /// The speed of the game's time, as the overlay shows it.
@@ -55,6 +56,10 @@ pub struct Asked {
     /// Whether its button asks to lose the GPU device, which the game then does once the frame is
     /// drawn, to check by hand that it goes on with a new one.
     pub lose_device: bool,
+    /// Whether its button asks to give the window's surface up, which the game then does once the
+    /// frame is drawn, to check by hand that the run makes it again
+    /// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+    pub lose_surface: bool,
     /// The world panel's changes, which the game sends to its host, to apply at the next frame's
     /// start.
     pub commands: Vec<Command>,
@@ -155,6 +160,9 @@ impl DevOverlay {
                 (ActionKind::Press, Some(element)) if element == built.lose => {
                     asked.lose_device = true;
                 }
+                (ActionKind::Press, Some(element)) if element == built.lose_surface => {
+                    asked.lose_surface = true;
+                }
                 _ => {}
             }
         }
@@ -198,8 +206,14 @@ impl DevOverlay {
                 children.add("hint", Element::label(hint), |_| {});
                 let lose = Element::button("Lose the GPU device");
                 let lose = children.add("lose", lose, |_| {});
+                let lose_surface = Element::button("Lose the window's surface");
+                let lose_surface = children.add("lose surface", lose_surface, |_| {});
                 children.add("hides", Element::label("F1 hides this"), |_| {});
-                built = Some(Built { speed, lose });
+                built = Some(Built {
+                    speed,
+                    lose,
+                    lose_surface,
+                });
             });
         self.built = built.or(self.built);
         if let Some(view) = view {
@@ -273,6 +287,7 @@ mod tests {
                 assert_eq!(asked.commands, [], "nothing is touched");
                 assert_eq!(asked.speed, None);
                 assert!(!asked.lose_device);
+                assert!(!asked.lose_surface);
             }
         }
         assert_eq!(settings, ViewSettings::default());

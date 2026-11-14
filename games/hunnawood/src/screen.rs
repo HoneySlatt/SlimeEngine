@@ -59,6 +59,9 @@ pub struct Screen {
     lose_device_at: Option<u64>,
     /// Whether the overlay's button asked to lose the GPU device, which the frame being drawn does.
     lose_asked: bool,
+    /// Whether the overlay's button asked to give the window's surface up, which the frame being
+    /// drawn does.
+    lose_surface_asked: bool,
     /// The frames drawn while the zone loads; `None` once they are logged.
     loading: Option<Loading>,
     /// With `--watch`, what tells when the cooked data changes, which the view loads again.
@@ -135,6 +138,7 @@ impl Screen {
             frame_limit,
             lose_device_at,
             lose_asked: false,
+            lose_surface_asked: false,
             loading: Some(Loading::default()),
         }
     }
@@ -231,6 +235,7 @@ impl Screen {
             world,
         );
         self.lose_asked |= asked.lose_device;
+        self.lose_surface_asked |= asked.lose_surface;
         if let Some(speed) = asked.speed {
             ctx.set_speed(speed);
         }
@@ -383,6 +388,11 @@ impl Presentation for Screen {
             // before the next frame, and calls `gpu_restored`.
             tracing::warn!("the GPU device is lost on purpose");
             gpu.lose();
+        }
+        if std::mem::take(&mut self.lose_surface_asked) {
+            // At the frame's end: the run holds its frames, then makes the surface again.
+            tracing::warn!("the window's surface is given up on purpose");
+            ctx.lose_surface();
         }
         if view.zone_shown() && self.frame_limit.is_some_and(|limit| self.drawn >= limit) {
             ctx.request_exit();
