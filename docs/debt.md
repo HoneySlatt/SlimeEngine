@@ -842,6 +842,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A key's name that holds `/`, or that `#` and digits make, cannot be read back from a path.
   A row of a list is found by its number; the names of its texts are not gathered into its own, unless its builder names it, as the editor's hierarchy names its items.
   Games link `uwui` through `slime-app`, whether they have an interface or not.
+  `slime-mcp` names an element's target only when it is not the window's, and reads `element_at` on the window's target; no test gives it an element of another target, the engine drawing one ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)); followed at [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families), whose MCP library serves uwui's programs.
 - **The dev overlay** ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md), [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)).
   A frame after an entity is spawned or despawned makes the world panel's list again, every name read and filtered: past the budget of a list's frame at 100 000 entities.
   A frame after a rename reads again the names that changed and filters the list: under a millisecond there ([measurements](measurements.md#m6c5a-ryzen-7-5800x)).

@@ -24,9 +24,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - Two tracks at most, the owner's choice of 2026-11-11, each milestone in its own session:
   - Track A, uwui's core, in the main checkout: M6d.9a, cut in five
     ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
-    done, M6d.9a1a to [M6d.9a1b2](stage-6d.md#m6d9a1b2--events); in progress,
-    [M6d.9a1b3a](#m6d9a1b3a--the-interfaces-family-in-uwui), half of M6d.9a1b3
-    ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)).
+    done, M6d.9a1a to [M6d.9a1b3a](stage-6d.md#m6d9a1b3a--the-interfaces-family-in-uwui), half of
+    M6d.9a1b3 ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)); next,
+    [M6d.9a1b3b](stage-6d.md#m6d9a1b3b--long-lists), long lists.
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5a to M6d.5c3a, done; in progress,
     [M6d.5c3b](#m6d5c3b--frames-and-times-per-target).
   - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249.
@@ -52,7 +52,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b2 — The new wire, requests in flight, events](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
-| [M6d.9a1b3a — The interface's family in uwui](#m6d9a1b3a--the-interfaces-family-in-uwui) | In progress |
+| [M6d.9a1b3a — The interface's family in uwui](stage-6d.md#m6d9a1b3a--the-interfaces-family-in-uwui) | Done |
 | [M6d.9a1b3b to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a1b3b--long-lists) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
@@ -79,19 +79,6 @@ designed in [ADR-0258](adr/0258-each-target-its-frame-and-its-time-a-change-asks
 - **How to test.** `cargo test --workspace`; `scripts/check.sh`.
 - **Measured.** Input to present, the editor and the game, with the owner's go on the GPU; the
   frame of a change of look, against M6d.5c3a's.
-
-## M6d.9a1b3a — The interface's family in uwui
-
-Designed on 2026-11-14 in
-[ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md).
-
-- **Goal.** uwui serves the interface's family.
-- **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `slime-mcp`; `scripts/check.sh`.
-- **Delivers.** The family's messages in `uwui-agent`, version 2, each element with its target;
-  `uwui::agents` answering them; `interface/style`; the shipping check refusing `agents`, shown to
-  fail at every run.
-- **Done when.** The interface's MCP session tests pass through uwui's family; CI is green.
-- **Measured.** Nothing timed.
 
 ## Ideas waiting for their milestone
 

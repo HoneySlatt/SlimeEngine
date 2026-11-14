@@ -3823,3 +3823,49 @@ How long CI's jobs took on `fdd5d74`, the commit that gave each of uwui's roots 
 
 Every job stays within its limit of 20 minutes. `windows-release` is the longest, with 4 min 5 s of
 margin, and `windows (tests)` keeps 4 min 34 s. The part adds one test file of uwui, of 19 tests.
+
+## M6d.9a1b3a, the interface's family in uwui
+
+The check that the game built for shipping holds neither the development channel nor uwui's answers
+to agents, shown to fail, on 2026-11-14: the step of `scripts/check.sh` run alone, on *Hunna Wood*
+built with its default features first, each mutation undone and its files checked by their sha256.
+
+| Mutation | The step |
+|---|---|
+| None | passes |
+| `slime-app`'s manifest gives `uwui` its feature `agents` in every build | fails: the crate `uwui-agent` and uwui's feature `agents` |
+| uwui's features read in the tree that is not inverted, as before | fails: the default build shows no `agents` there |
+| `cargo tree` given a kind of edge that does not exist | fails: cargo's error |
+| The game's binary missing, under a target directory of its own | fails: the binary is missing |
+| A text that the binary does not hold, `interface/elementz` | fails: the default build lacks it |
+
+What it says: the step reads `agents` where a feature that another turns on shows, which the tree
+that it read before never showed; a text of `uwui::agents` that no call reaches is dropped by the
+linker, and the trees find its crate and its feature then.
+
+How long CI's jobs took on `52e5fe1`, the commit that moved the interface's family into uwui, on
+2026-11-14; `check (headless)`, the `windows` jobs of tests and release, and `compositors
+(mutter)` from their second run, a push of track B's having cancelled the first:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 31 s |
+| `check (headless)` | 12 min 48 s |
+| `check (windowed)` | 11 min 22 s |
+| `check (game)` | 10 min 28 s |
+| `check (gles)` | 4 min 11 s |
+| `windows (tests)` | 16 min 17 s |
+| `windows (render)` | 6 min 47 s |
+| `windows (game)` | 8 min 4 s |
+| `windows-release` | 15 min 57 s |
+| `compositors (weston)` | 9 min 41 s |
+| `compositors (sway)` | 11 min 12 s |
+| `compositors (kwin)` | 10 min 24 s |
+| `compositors (mutter)` | 13 min 3 s |
+| `compositors (x11)` | 12 min 3 s |
+| Docs' `links` | 18 s |
+
+Every job stays within its limit of 20 minutes. `windows (tests)` is the longest, with 3 min 43 s of
+margin, and `windows-release` keeps 4 min 3 s. The part adds 8 tests, 3 of them uwui's, one of
+which takes the place of a test of `slime-app`'s.
+

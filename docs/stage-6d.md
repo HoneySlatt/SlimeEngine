@@ -139,7 +139,7 @@ in git.
   [M6d.9a1b2](#m6d9a1b2--events), events; then
   [M6d.9a1b3](#m6d9a1b3--long-lists-and-the-interfaces-family), cut in two on 2026-11-14
   ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)):
-  in progress, [M6d.9a1b3a](#m6d9a1b3a--the-interfaces-family-in-uwui); then
+  done, [M6d.9a1b3a](#m6d9a1b3a--the-interfaces-family-in-uwui), on the same day; then
   [M6d.9a1b3b](#m6d9a1b3b--long-lists); then
   [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
@@ -2344,8 +2344,43 @@ the family moved first, then long lists, so that the elements' cursor is written
 
 ### M6d.9a1b3a — The interface's family in uwui
 
-The first half of M6d.9a1b3; in progress, its card in
-[`PLAN.md`](PLAN.md#m6d9a1b3a--the-interfaces-family-in-uwui).
+The first half of M6d.9a1b3, started on 2026-11-14
+([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)),
+under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** uwui serves the interface's family.
+- **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `slime-mcp`; the shipping step
+  of `scripts/check.sh`, by the owner's leave.
+- **Delivers.** The family's messages in `uwui-agent`, version 2, each element with its target;
+  `uwui::agents` answering them; `interface/style`; the shipping check refusing `agents`, shown to
+  fail at every run.
+- **Done when.** The interface's MCP session tests pass through uwui's family; CI is green.
+- **Measured.** Nothing timed.
+- **Result.** Done on 2026-11-14, CI green on `52e5fe1`
+  ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md),
+  its five questions decided by the owner):
+  - `uwui-agent`'s module `interface`, version 2: the family's messages, plain types. Each element
+    names its target; a pixel is read on the target named, or on the active target;
+    `interface/style` gives the places of the calls that wrote an element's own style.
+  - `uwui`'s module `agents`, behind its feature `agents`, answers them: the first reader of
+    `OwnStyle::places`, each declaration with its field as a style sheet writes it,
+    `layout.padding.start`, its state and the theme's token that it names.
+  - `slime-channel` carries the family as it carries `editing`, reads an answer of the interface
+    as the family's own, and counts it against the bounds as the family writes it.
+    `slime-app` cuts a capture from the window's image, and refuses an element of another target.
+    `slime-mcp` gains `element_style`, and reads `element_at` on the window's target.
+  - The shipping step of `scripts/check.sh` refuses `uwui-agent` and `agents`. It reads uwui's
+    features in its inverted tree, where `agents` shows: the tree that it read before never
+    showed it. It fails when cargo fails or the binary is missing. Each detector first finds what
+    it looks for in the game's default build. A manifest that gives the shipping build
+    `uwui/agents` makes it fail, as four other mutations of the check do
+    ([`measurements.md`](measurements.md#m6d9a1b3a-the-interfaces-family-in-uwui)).
+  - One closing review, after which one defect was fixed: the interface's answers counted no byte
+    against the channel's bounds. Of 14 mutations of the new tests, 13 fail them; the last,
+    the game's image answered for the interface's, writes the same JSON.
+  - Left for later ([`debt.md`](debt.md)): a family's codes of faults dropped by the channel,
+    followed at M6d.9a1b3b; the target that the MCP server shows untested, the engine drawing one
+    target.
 
 ### M6d.9a1b3b — Long lists
 
