@@ -17,34 +17,24 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 ## Current
 
-- Stage 6d, uwui leaving the engine, released with 0.7: its whole plan in
-  [`stage-6d.md`](stage-6d.md).
-- Done: M6d.0a to M6d.2b2b3, closing M6d.1, how an application is written, and M6d.2, typed
-  styles ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
-- Done: M6d.3, every document of uwui in KDL, closed on 2026-11-12
-  ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)):
-  [M6d.3a to M6d.3c3](stage-6d.md#m6d3a--uwuis-reader-of-kdl).
-- In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
-  session.
-  - Track A, uwui's core, in the main checkout: M6d.3a to M6d.3c3, done; then M6d.9a, cut in
-    five on 2026-11-12
+- Stage 6d, uwui leaving the engine, for 0.7: [`stage-6d.md`](stage-6d.md), its whole plan.
+- Done: M6d.0a to M6d.3c3, closing M6d.1, how an application is written; M6d.2, typed styles
+  ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)); and M6d.3, every
+  document of uwui in KDL ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+- Two tracks at most, the owner's choice of 2026-11-11, each milestone in its own session:
+  - Track A, uwui's core, in the main checkout: M6d.9a, cut in five
     ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
-    done, [M6d.9a1a](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning), the new wire;
-    then [M6d.9a1b](stage-6d.md#m6d9a1b--requests-in-flight-and-events), cut in three on
-    2026-11-13 ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)):
-    done, [M6d.9a1b1](stage-6d.md#m6d9a1b1--requests-in-flight), requests in flight, and
-    [M6d.9a1b2](stage-6d.md#m6d9a1b2--events), events; next,
-    [M6d.9a1b3](stage-6d.md#m6d9a1b3--long-lists-and-the-interfaces-family), which may start:
-    M6d.5c3a is done.
+    done, M6d.9a1a to [M6d.9a1b2](stage-6d.md#m6d9a1b2--events); in progress,
+    [M6d.9a1b3a](#m6d9a1b3a--the-interfaces-family-in-uwui), half of M6d.9a1b3
+    ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5a to M6d.5c3a, done; in progress,
     [M6d.5c3b](#m6d5c3b--frames-and-times-per-target).
-  - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249;
-    M6d.9a1b3 follows M6d.5c3a (ADR-0256).
+  - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249.
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
-- Waiting for the owner: the deletion of the branches `m6d1b-bench`, `m6d4a-prototype` and
-  `m6d5a-prototype`, the last two kept while measurements link to their code; the mirror of the game's assets, a private repository, which `scripts/fetch-assets.sh`
-  cannot reach, CI living on its cache; and the
+- Waiting for the owner: deleting the branches `m6d1b-bench`, `m6d4a-prototype` and
+  `m6d5a-prototype`, the last two linked by measurements; the private mirror of the game's assets,
+  beyond `scripts/fetch-assets.sh`'s reach, CI living on its cache; the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
   then Stage 7 ([`ROADMAP.md`](ROADMAP.md#stage-7--runtime-systems--08)).
@@ -62,7 +52,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b2 — The new wire, requests in flight, events](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
-| [M6d.9a1b3 to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a1b3--long-lists-and-the-interfaces-family) | Planned |
+| [M6d.9a1b3a — The interface's family in uwui](#m6d9a1b3a--the-interfaces-family-in-uwui) | In progress |
+| [M6d.9a1b3b to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a1b3b--long-lists) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
@@ -75,8 +66,8 @@ Started on 2026-11-14, the second half of M6d.5c3
 designed in [ADR-0258](adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md).
 
 - **Goal.** Each target draws its own frames, at its own time.
-- **Crates.** `uwui`, `slime-app`, `slime-editor`, `slime-devui`; two lines of track A's
-  `channel.rs`, by the owner's leave, after a `git fetch`.
+- **Crates.** `uwui`, `slime-app`, `slime-editor`, `slime-devui`; track A's interface tests'
+  frames, after a `git fetch`, by the owner's leave (ADR-0259).
 - **Delivers.** `Ui::frame` for one target, which lays out, draws and settles that target's roots
   alone; each target's frame's time, which its motions and its spinners read
   ([ADR-0227](adr/0227-the-time-that-motion-reads.md)), the host's latest time kept for deadlines;
@@ -88,6 +79,19 @@ designed in [ADR-0258](adr/0258-each-target-its-frame-and-its-time-a-change-asks
 - **How to test.** `cargo test --workspace`; `scripts/check.sh`.
 - **Measured.** Input to present, the editor and the game, with the owner's go on the GPU; the
   frame of a change of look, against M6d.5c3a's.
+
+## M6d.9a1b3a — The interface's family in uwui
+
+Designed on 2026-11-14 in
+[ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md).
+
+- **Goal.** uwui serves the interface's family.
+- **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `slime-mcp`; `scripts/check.sh`.
+- **Delivers.** The family's messages in `uwui-agent`, version 2, each element with its target;
+  `uwui::agents` answering them; `interface/style`; the shipping check refusing `agents`, shown to
+  fail at every run.
+- **Done when.** The interface's MCP session tests pass through uwui's family; CI is green.
+- **Measured.** Nothing timed.
 
 ## Ideas waiting for their milestone
 
@@ -108,12 +112,11 @@ From two outside reviews, kept by the owner on 2026-11-10; each joins its milest
 
 ## Checks by hand waiting for the owner
 
-The owner decided on 2026-10-20 to make the checks by hand later, together. Each milestone adds its
-own here when it is done. A check leaves the list once made, its result written in its milestone
-while the stage is in progress, then in the stage's entry of [`history.md`](history.md). The game
-is run with `--new --save <a file of its own>`, so that the owner's save is left alone. A check
-made after Stage 6e's first milestone runs on `games/open-world` where it names *Hunna Wood*
-([ADR-0219](adr/0219-test-games-in-place-of-hunna-wood.md)).
+The owner makes them later, together, as decided on 2026-10-20. Each milestone adds its own once
+done; a check made leaves the list, its result written in its milestone, then in
+[`history.md`](history.md). The game runs with `--new --save <a file of its own>`, leaving the
+owner's save alone. After Stage 6e's first milestone, a check that names *Hunna Wood* runs on
+`games/open-world` ([ADR-0219](adr/0219-test-games-in-place-of-hunna-wood.md)).
 
 - **The very modest laptop** (M6d.0c): its inventory, given on 2026-11-06 from `lshw -short` and
   `inxi -CGmSz`, lacks its display's size and rate, its storage and its Vulkan driver, which

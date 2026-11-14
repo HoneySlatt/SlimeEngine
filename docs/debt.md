@@ -889,7 +889,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The frame after a change of theme has its targets ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)), but `ui.tree.look` holds a dozen styles, far below the cap: no benchmark measures a tree past it.
   Followed at uwui's first stage, which benchmarks its own cascade.
   Selectors hold no combinators but an ancestor's kind or class.
-  The place of each call that wrote an element's own style is kept (`OwnStyle::places`), but nothing reads it yet; followed at [M6d.9a1b3](stage-6d.md#m6d9a1b3--long-lists-and-the-interfaces-family), which gives it to agents with the interface's family.
+  The place of each call that wrote an element's own style is kept (`OwnStyle::places`), but nothing reads it yet; followed at [M6d.9a1b3a](PLAN.md#m6d9a1b3a--the-interfaces-family-in-uwui), which gives it to agents with the interface's family.
   A rule of a style sheet that names `Hovered` or `Pressed` may set what lays out the element, which a hover or a press written in code cannot ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)); no rule of the repository does; followed at uwui's first stage, which types rules for each state.
 - **uwui's own layers take no defaults, and selected text no color of its own** ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)).
   The tooltip, the palette of commands, the notifications and the colour picker are containers that the look styles by their classes: without a look they draw no box, and their colors are their elements' kinds' alone.
@@ -907,7 +907,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **An editor's journal grows across recoveries** ([ADR-0135](adr/0135-the-editors-program.md)).
   Each recovery goes on with the journal that it recovered; only a start with nothing unwritten begins it anew.
   The history of steps outlives a stop only when something is unwritten.
-  `editor_journal` fails once the journal is larger than the channel's largest answer, now with the fault that says so; followed at [M6d.9a1b3](stage-6d.md#m6d9a1b3--long-lists-and-the-interfaces-family), whose lists that may be long give a cursor to the rest.
+  `editor_journal` fails once the journal is larger than the channel's largest answer, now with the fault that says so; followed at [M6d.9a1b3b](stage-6d.md#m6d9a1b3b--long-lists), whose lists that may be long give a cursor to the rest.
 - **A selection made just before a crash is lost** ([ADR-0134](adr/0134-the-editors-core.md)).
   The journal writes a selection made apart from a step with the entry that follows it.
 - **A journal whose last entry a crash of the system tore is not recovered, nor one that a crash cut just after the level was written** ([ADR-0135](adr/0135-the-editors-program.md)).

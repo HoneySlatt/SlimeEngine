@@ -9,8 +9,10 @@
   [0252](0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md) (where the
   bounds are kept),
   [0254](0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)
-  (`play/time` holds `held`; events declared in the welcome) and
-  [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) (M6d.9a1b3 follows M6d.5c3a)
+  (`play/time` holds `held`; events declared in the welcome),
+  [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) (M6d.9a1b3 follows M6d.5c3a) and
+  [0259](0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)
+  (M6d.9a1b3 cut in two; why the families' versions rise)
 - Date: 2026-11-13
 
 ## Context

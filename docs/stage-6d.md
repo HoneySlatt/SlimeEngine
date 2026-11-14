@@ -135,9 +135,12 @@ in git.
   [M6d.9a1a](#m6d9a1a--the-new-wire-under-todays-meaning), the new wire, on the same day; then
   [M6d.9a1b](#m6d9a1b--requests-in-flight-and-events), cut in three on 2026-11-13
   ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)):
-  done, [M6d.9a1b1](#m6d9a1b1--requests-in-flight), requests in flight, on the same day; then
-  [M6d.9a1b2](#m6d9a1b2--events) and [M6d.9a1b3](#m6d9a1b3--long-lists-and-the-interfaces-family);
-  then
+  done, [M6d.9a1b1](#m6d9a1b1--requests-in-flight), requests in flight, on the same day, and
+  [M6d.9a1b2](#m6d9a1b2--events), events; then
+  [M6d.9a1b3](#m6d9a1b3--long-lists-and-the-interfaces-family), cut in two on 2026-11-14
+  ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)):
+  in progress, [M6d.9a1b3a](#m6d9a1b3a--the-interfaces-family-in-uwui); then
+  [M6d.9a1b3b](#m6d9a1b3b--long-lists); then
   [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
@@ -2333,20 +2336,36 @@ under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
 
 The last third of M6d.9a1b
 ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)),
-once M6d.5c3a changed `Ui`'s methods of input, which an agent's action calls
-([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)); where the family's
-messages live and how the places are given are put to the owner at its start.
+started once M6d.5c3a changed `Ui`'s methods of input, which an agent's action calls
+([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)).
+Cut in two at its start, on 2026-11-14
+([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)):
+the family moved first, then long lists, so that the elements' cursor is written once, in `uwui`.
 
-- **Goal.** A long list read by pages, and the interface's family served by uwui.
-- **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `slime-editor`, `slime-mcp`.
-- **Delivers.** The cursor: entities, elements, the editor's journal paged with a generation; the
-  families' versions raised; the interface's family moved into `uwui` behind its feature `agents`,
-  with the places of the code that wrote an element's own style
-  ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)); the build for shipping checked
-  free of the feature, the check itself shown to fail.
-- **Done when.** A journal past the tool's largest line is read whole by pages; the interface's
-  session tests pass through uwui's family; CI is green.
-- **Measured.** A page of a thousand elements, against the list of today.
+### M6d.9a1b3a — The interface's family in uwui
+
+The first half of M6d.9a1b3; in progress, its card in
+[`PLAN.md`](PLAN.md#m6d9a1b3a--the-interfaces-family-in-uwui).
+
+### M6d.9a1b3b — Long lists
+
+The second half of M6d.9a1b3
+([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)),
+under [the stage's rules](#stage-6d--uwui-leaves-the-engine). Its questions go to the owner at its
+start, with the findings of the attack on M6d.9a1b3's design
+([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md),
+"Context").
+
+- **Goal.** A long list read by pages.
+- **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `slime-editor`, `slime-mcp`;
+  `slime-world`, for entities resumed where a page ended, with the owner's go.
+- **Delivers.** The cursor: entities, elements and the editor's journal paged, the journal with a
+  generation; the log's pages bounded in bytes; a family's codes of faults carried both ways
+  across the channel; the MCP server's tools paged; `interface` 3, `world` 2 and `editing` 2.
+- **Done when.** A journal past the tool's largest line is read whole by pages; a list goes past
+  an element larger than the tool's line; CI is green.
+- **Measured.** At rest, with the owner's go: a page of a thousand elements, against the list of
+  today; frames with seven agents listing, against M6d.9a1b1's.
 
 ### M6d.9a2 — uwui's MCP library and families
 

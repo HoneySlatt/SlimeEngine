@@ -5,9 +5,11 @@
   value comes with the first element that holds one) and [0140](0140-the-tree-of-elements.md) (each
   element carries the mark of its meaning from the milestone that builds the screen readers'
   adapter, not from this one); amended by [0146](0146-screen-readers.md) (an element's value, an
-  agent's action that sets it, and the changes of the meaning, which the marks give) and
+  agent's action that sets it, and the changes of the meaning, which the marks give),
   [0156](0156-the-editors-window-and-its-operations.md) (a root named in paths by its key, not its
-  number)
+  number) and
+  [0259](0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)
+  (each element named with its target; an element's own style read by agents)
 - Date: 2026-10-25
 
 ## Context
