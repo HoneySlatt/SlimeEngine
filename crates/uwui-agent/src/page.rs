@@ -124,6 +124,13 @@ impl<'a> Pager<'a> {
         true
     }
 
+    /// Whether the page's time has passed, its clock read now, once it made [`MIN_VISITS`];
+    /// before them, never: what a page that reads its items in pieces asks before each piece
+    /// but its first.
+    pub fn time_passed(&mut self) -> bool {
+        self.visits >= MIN_VISITS && (self.time_up)()
+    }
+
     /// Takes `item` into the page if it fits, its count and its bytes of JSON: whether it did. One
     /// that does not fit fills the page, and is left for the next. The first item of a page is
     /// always taken, as its texts are cut to fit.
@@ -254,11 +261,7 @@ pub fn cut(text: &mut String, bytes: usize) -> bool {
     let mut written = 2;
     let mut end = 0;
     for (at, character) in text.char_indices() {
-        let size = match character {
-            '"' | '\\' | '\n' | '\r' | '\t' | '\u{8}' | '\u{c}' => 2,
-            control if control < ' ' => 6,
-            other => other.len_utf8(),
-        };
+        let size = json_char_size(character);
         if written + size > bytes {
             break;
         }
@@ -267,6 +270,17 @@ pub fn cut(text: &mut String, bytes: usize) -> bool {
     }
     text.truncate(end);
     true
+}
+
+/// The bytes that `character` writes inside a JSON text, as JSON escapes it: two for a quote, a
+/// backslash and the controls that have a short escape, six for the other controls, else its
+/// UTF-8 length. A text's JSON is the sum of its characters' and two quotes.
+pub const fn json_char_size(character: char) -> usize {
+    match character {
+        '"' | '\\' | '\n' | '\r' | '\t' | '\u{8}' | '\u{c}' => 2,
+        control if control < ' ' => 6,
+        other => other.len_utf8(),
+    }
 }
 
 #[cfg(test)]
@@ -397,6 +411,25 @@ mod tests {
             visits += 1;
         }
         assert_eq!(visits, MIN_VISITS + 3 * CLOCK_EVERY);
+
+        let mut pager = Pager::new(page, || true);
+        assert!(!pager.time_passed(), "never before its floor");
+        while pager.visit() {}
+        assert!(pager.time_passed());
+    }
+
+    #[test]
+    fn a_character_s_json_size_is_what_serde_writes() {
+        for character in (0..0x800)
+            .chain([0xfffd, 0x1_f600])
+            .filter_map(char::from_u32)
+        {
+            assert_eq!(
+                json_char_size(character),
+                json_size(&character.to_string()) - 2,
+                "{character:?}"
+            );
+        }
     }
 
     #[test]
