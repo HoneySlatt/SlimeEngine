@@ -32,7 +32,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Followed at [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families), which builds the server on uwui's MCP library.
 - **The budget of a frame's start for the tools' requests is not measured from input to present** ([ADR-0252](adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md)).
   It is measured by a headless run's frames with agents at the channel's bounds; `scripts/input-to-present.sh` starts its programs without a channel, and gives no agent.
-  A frame's start takes one request of each connection whatever the budget: seven agents listing a thousand entities each make frames of about 4 ms ([`measurements.md`](measurements.md#m6d9a1b1-requests-in-flight)), near a frame at 240 Hz.
+  A frame's start takes one request of each connection whatever the budget; a page of a list takes its share of it past a floor of visits, so that seven agents listing make frames of about 1.7 ms, 1 ms of it the measure's rest ([`measurements.md`](measurements.md#m6d9a1b3b1-lists)), where they made frames of about 4 ms before; a request of another kind that costs much, as a capture, still takes what it costs.
   Followed at uwui's first stage, whose measures of input to present run on uwui's own host, with its agents.
 - **Three helpers write an error and its causes on one line** ([ADR-0008](adr/0008-errors-logging-and-assertions.md)).
   `slime_app::error_chain`, `slime-mcp`'s `causes` and `slime-channel`'s `why` write the same; neither crate links another's, `slime-channel` lying below `slime-app` and linking no logging.
@@ -849,6 +849,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A path holds while the roots below its own stay.
   A key's name that holds `/`, or that `#` and digits make, cannot be read back from a path.
   A row of a list is found by its number; the names of its texts are not gathered into its own, unless its builder names it, as the editor's hierarchy names its items.
+  Followed at uwui's first stage, whose lists key their rows by what they show, and whose paths read back every key.
   Games link `uwui` through `slime-app`, whether they have an interface or not.
   `slime-mcp` names an element's target only when it is not the window's, and reads `element_at` on the window's target; no test gives it an element of another target, the engine drawing one ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)); followed at [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families), whose MCP library serves uwui's programs.
 - **The dev overlay** ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md), [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)).
