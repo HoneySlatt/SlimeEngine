@@ -171,8 +171,6 @@ pub(crate) enum Request {
     Redo,
     /// The level, the history and the selection.
     History,
-    /// The text of the journal.
-    Journal,
     /// What is selected, which is not a step.
     Select(Vec<PersistentId>),
     /// An entity hidden or shown again, which is not a step

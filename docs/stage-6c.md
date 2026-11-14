@@ -264,6 +264,8 @@ After Stage 6c's pause, once uwui's desktop host follows the rule
   rest against the rivals' editors.
 - **By hand.** Variable refresh rates on the owner's displays; the editor's rate on Windows, in the
   virtual machine.
+- **Debt settled.** A page of the editor's journal read on the editor's thread, which a slow disk
+  may let take a frame ([`debt.md`](debt.md)).
 
 ### M6c.Q3 — The hierarchy's search over frames
 
@@ -301,6 +303,8 @@ After Stage 6c's pause, once uwui's desktop host follows the rule
 - **How to test.** `nix develop .#fuzz -c cargo fuzz run <target>`; `cargo test --workspace`.
 - **Measured.** The weekly run's jobs; the hours of use without a crash, against the quality bar's
   budget.
+- **Debt settled.** An editor's journal that grows across recoveries, and read whole as a level
+  opens ([`debt.md`](debt.md)).
 
 ### M6c.5f — The inspector
 

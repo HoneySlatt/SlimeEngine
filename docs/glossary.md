@@ -1161,8 +1161,9 @@ reports ([ADR-0175](adr/0175-the-quality-bar.md), [ADR-0185](adr/0185-rest-check
 
 **Owner.** The person who validates the project's direction and its architecture decisions.
 
-**Page (of a list).** The part of a long list that one answer gives, bounded by a count, by
-bytes of JSON within the tool's line, and by a share of the frame's time past a floor of visits: it
+**Page (of a list).** The part of a long list that one answer gives, bounded by bytes of JSON
+within the tool's line, by a share of the frame's time past a floor of visits, and, for a list of
+items, by their count, which the editor's journal, a text, has not: it
 may be short, or empty, and still give the *cursor* to the rest. Its *maker* is what the list is
 read from, a world, an interface or a journal, each with a number that tells it from one that took
 its place (`uwui_agent::page`, [ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).

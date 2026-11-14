@@ -34,7 +34,9 @@ editor's other panels come with Stage 6c's next milestones.
   level as it is before any step; `Editor::recover` opens the level from the journal and plays it
   again: what recovers an editor that crashed, with its history and its selection, and what
   replays a session of tests or of an agent. `Editor::keep_journal`'s documentation describes a
-  journal's entries.
+  journal's entries. A tool reads the journal by pages through the development channel
+  (`slime_channel::Edit::Journal`), each read by seek on the editor's thread
+  (`docs/adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md`).
 - `Editor::unwritten`: how many steps the level's file does not hold, which the window's title
   and status bar show.
 - `Editor::gesture`, `end_gesture` and `cancel_gesture`: the *open step* of a person's gesture,
@@ -165,4 +167,5 @@ as Play builds the game; `thiserror`, which derives `EditError`, and `tracing`, 
 - Use a GPU or a window in its core, which a test runs without either: only its window's drawing
   does, and its window's model, its menus and requests, runs without a GPU in the tests.
 - Let the window change the level but through the core's requests: one handler answers a person
-  and an agent alike.
+  and an agent alike, but for a page of the journal, a read that changes nothing
+  (`docs/adr/0267-a-page-of-the-journal-apart-from-the-one-handler-a-cut-journals-start-refused-a-floor-of-4-kib.md`).

@@ -859,6 +859,11 @@ impl Editor {
         self.written.unwritten()
     }
 
+    /// The journal that the editor keeps, if it keeps one ([`Editor::keep_journal`]).
+    pub(crate) fn kept_journal(&self) -> Option<&Journal> {
+        self.journal.as_ref()
+    }
+
     /// How many entries of a journal the editor played again as it was recovered
     /// ([`Editor::recover`]); 0 for an editor opened from its level's file.
     pub fn recovered(&self) -> usize {

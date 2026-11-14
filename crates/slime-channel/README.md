@@ -18,7 +18,7 @@ of its views read and changed (`docs/adr/0127-the-settings-of-a-view.md`), its r
 (`docs/adr/0128-asset-requests.md`), the entity at a pixel of a view picked
 (`docs/adr/0130-picking.md`), the interface's family, scripted keys, the game's state, log and frame times, its run
 saved to a file and loaded from one (`docs/adr/0125-saves-per-scene.md`), and an editor's requests
-(`Request::Edit`): steps of commands as text, undo and redo, its history, its journal, its selection
+(`Request::Edit`): steps of commands as text, undo and redo, its history, its journal by pages, its selection
 and its level written back (`docs/adr/0135-the-editors-program.md`), its operations listed and run
 by name (`docs/adr/0156-the-editors-window-and-its-operations.md`), and where the game that it plays
 listens, with its token (`docs/adr/0165-editing-while-playing.md`). The interface's family is

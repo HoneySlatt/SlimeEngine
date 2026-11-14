@@ -106,6 +106,7 @@ scripts/resources.sh [--gpu] [--heaptrack] [--undos <count>] [--plays <count>]  
 scripts/canvas-cost.sh [--gpu] [--runs <count>]           # measure what the renderer costs an interface against the canvas alone (ADR-0180)
 cargo test --release -p uwui-agent --test request_memory -- --nocapture  # measure what a request's line costs in memory as it is read (ADR-0250)
 cargo test --release -p slime-app --features development --test channel -- --ignored frames_with_agents --nocapture  # measure a run's frames with agents at the channel's bounds (ADR-0250)
+cargo test --release -p slime-editor --lib journal_pages_timed -- --ignored --nocapture  # measure a page of the editor's journal on the editor's thread, on Linux (ADR-0265)
 scripts/uwui-program.sh [--features <list>]               # measure what a program on uwui compiles: crates, build times, binary (ADR-0180)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)

@@ -3000,6 +3000,20 @@ mod tests {
             yard
         }
 
+        /// What the session answers to `edit`, as a tool asks it through the development channel,
+        /// a page within the most and without a clock.
+        fn ask(
+            &mut self,
+            edit: &slime_channel::Edit,
+        ) -> Result<slime_channel::Reply, slime_app::AppError> {
+            self.session.edit(
+                self.host.world_mut(),
+                edit,
+                slime_channel::page::Page::new(1, usize::MAX),
+                &mut || false,
+            )
+        }
+
         /// A frame of the program: the core answers what the window asked, then the window acts
         /// and lays out; then the host serves the clipboard that the frame asked, as `slime-app`
         /// does after each frame.
@@ -5289,15 +5303,11 @@ mod tests {
         }
         assert_eq!(yard.history().0.len(), 3);
         // By its name, as an agent runs it through the development channel.
-        yard.session
-            .edit(
-                yard.host.world_mut(),
-                &slime_channel::Edit::Run {
-                    name: "edit.undo".to_owned(),
-                    arguments: Vec::new(),
-                },
-            )
-            .expect("undone");
+        yard.ask(&slime_channel::Edit::Run {
+            name: "edit.undo".to_owned(),
+            arguments: Vec::new(),
+        })
+        .expect("undone");
         yard.frame();
         assert_eq!(yard.history().1, ["Name the well c"]);
         // By its shortcut, Ctrl+Z.
@@ -5441,10 +5451,7 @@ mod tests {
                 .starts_with("yard.scene — 1 step not written — editor")
         );
         // Written through the development channel, as an agent writes it: the title follows.
-        let reply = yard
-            .session
-            .edit(yard.host.world_mut(), &slime_channel::Edit::Write)
-            .expect("written");
+        let reply = yard.ask(&slime_channel::Edit::Write).expect("written");
         assert!(
             matches!(reply, slime_channel::Reply::Written { .. }),
             "{reply:?}"
@@ -5489,8 +5496,7 @@ mod tests {
         yard.shared.borrow_mut().requests.push_back(reopen);
         yard.frame();
         let reply = yard
-            .session
-            .edit(yard.host.world_mut(), &slime_channel::Edit::History)
+            .ask(&slime_channel::Edit::History)
             .expect("the history");
         let slime_channel::Reply::History { history } = reply else {
             panic!("{reply:?}");
@@ -5566,15 +5572,11 @@ mod tests {
         let mut yard = Yard::new("driven");
         yard.shared.borrow_mut().dialogs = false;
         // Run by its name through the development channel, as an agent runs it.
-        yard.session
-            .edit(
-                yard.host.world_mut(),
-                &slime_channel::Edit::Run {
-                    name: "file.choose".to_owned(),
-                    arguments: Vec::new(),
-                },
-            )
-            .expect("run");
+        yard.ask(&slime_channel::Edit::Run {
+            name: "file.choose".to_owned(),
+            arguments: Vec::new(),
+        })
+        .expect("run");
         yard.frame();
         assert!(
             yard.model.dialog_wanted().is_none(),

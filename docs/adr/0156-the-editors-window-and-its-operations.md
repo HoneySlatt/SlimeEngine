@@ -7,6 +7,8 @@
   waits for requests), [0021](0021-frame-pacing.md) (a program may run its frames on demand) and
   [0143](0143-what-agents-see-of-the-interface.md) (roots are named in paths by their keys);
   amended by [0185](0185-rest-checked-in-ci.md) (a program sets its frames on demand while it runs)
+  and [0267](0267-a-page-of-the-journal-apart-from-the-one-handler-a-cut-journals-start-refused-a-floor-of-4-kib.md) (a page of
+  the journal answered apart from the one handler)
 - Date: 2026-10-28
 
 ## Context

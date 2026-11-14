@@ -157,6 +157,20 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `find_elements` give pages of some 32 KiB, `next` first, and `read_logs` says first which line to
   read after when more follow. A tool of before cannot
   list on a game of after, nor the reverse.
+- The editor's journal is read by pages (ADR-0265, ADR-0267): `editing/journal` (`editing` 2)
+  takes its `params`, `{}` for the journal's start, with an optional `cursor` and `bytes`, and
+  `Reply::Journal` gives `next` while the journal goes on and `lossy` when bytes that are not
+  UTF-8 were replaced. A page holds whole lines, read by seek on the editor's thread within the
+  entries that the journal wrote whole, and ends after its last line's end, else at a
+  character's boundary, as within the level's text; it gives one character at least, and reads
+  4 KiB at least whatever its time. A cursor of a journal made anew, as a level opened, or whose
+  file was cut apart from the editor, is stale; a cut journal's start is refused.
+  `Simulation::edit` takes the request's page and its clock. The MCP server's `editor_journal`
+  takes `cursor` and `bytes`, gives pages of some 32 KiB, or of the fewer bytes that the agent
+  asks, `next` first, and never the whole journal. `uwui_agent::page::json_char_size` gives a
+  character's JSON, `Pager::time_passed` reads a page's clock between the pieces of a text, and
+  `Reply` is made from a `Fault`. A tool of before cannot speak the `editing` family to an editor
+  of after, nor the reverse.
 - The interface's canvas moves from the renderer into uwui, on wgpu (ADR-0244):
   `Renderer::draw_canvas`, the canvas's types, `Canvas`, `CanvasBox`, `CanvasGradient`,
   `CanvasShadow`, `CanvasStats`, `ImageQuad`, `ImageId`, `PixelRect`, `Radii` and

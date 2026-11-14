@@ -1,7 +1,8 @@
 //! The editor's core as the simulation of its program: the editor of the level that is open, its
-//! journal, and the one handler of what the window and the development channel ask
-//! (`docs/adr/0135-the-editors-program.md`,
-//! `docs/adr/0156-the-editors-window-and-its-operations.md`).
+//! journal, and the one handler of what the window and the development channel ask but a page
+//! of the journal, which changes nothing (`docs/adr/0135-the-editors-program.md`,
+//! `docs/adr/0156-the-editors-window-and-its-operations.md`,
+//! `docs/adr/0267-a-page-of-the-journal-apart-from-the-one-handler-a-cut-journals-start-refused-a-floor-of-4-kib.md`).
 
 use std::collections::HashSet;
 use std::fs;
@@ -10,6 +11,7 @@ use std::path::{Path, PathBuf};
 
 use slime_app::{AppError, HeldFile, Simulation, SimulationContext, Waker};
 use slime_assets::{AssetId, AssetKind, CookedAssets};
+use slime_channel::page::Page;
 use slime_channel::{Edit, EditorHistory, OperationSummary, Reply};
 use slime_reflect::Reflect;
 use slime_render::glam::DVec3;
@@ -316,7 +318,8 @@ impl Session {
     }
 
     /// Answers `request`, whether the window or the development channel made it: the one handler
-    /// of the core (`docs/adr/0156-the-editors-window-and-its-operations.md`). A journal that
+    /// of the core (`docs/adr/0156-the-editors-window-and-its-operations.md`), but for a page of
+    /// the journal, which [`Simulation::edit`] reads apart, as it changes nothing. A journal that
     /// cannot be written once the change is made stops the program, as [`Session::broke`] says.
     ///
     /// # Errors
@@ -400,10 +403,6 @@ impl Session {
                     },
                 })
             }
-            Request::Journal => Ok(Reply::Journal {
-                text: fs::read_to_string(&journal)
-                    .map_err(|error| format!("{}: {error}", journal.display()))?,
-            }),
             Request::Select(selection) => {
                 self.editor()?.select(selection);
                 Ok(Reply::Done)
@@ -1308,7 +1307,9 @@ fn request_of(edit: &Edit) -> Result<Request, AppError> {
         Edit::Undo => Request::Undo,
         Edit::Redo => Request::Redo,
         Edit::History => Request::History,
-        Edit::Journal => Request::Journal,
+        Edit::Journal { .. } => {
+            return Err("a page of the journal is read apart from the editor's requests".into());
+        }
         Edit::Select { selection } => Request::Select(identities(selection)?),
         Edit::Write => Request::Write,
         Edit::Operations => Request::Operations,
@@ -1427,7 +1428,28 @@ impl Simulation for Session {
                 .any(|request| matches!(request, Request::Gesture(_)))
     }
 
-    fn edit(&mut self, world: &mut World, edit: &Edit) -> Result<Reply, AppError> {
+    fn edit(
+        &mut self,
+        world: &mut World,
+        edit: &Edit,
+        page: Page,
+        time_up: &mut dyn FnMut() -> bool,
+    ) -> Result<Reply, AppError> {
+        // A page of the journal changes nothing that the window shows: it is read without
+        // publishing to it.
+        if let Edit::Journal { cursor, bytes } = edit {
+            let journal = self
+                .editor()?
+                .kept_journal()
+                .ok_or("the editor keeps no journal")?;
+            return Ok(journal
+                .page(cursor.as_deref(), page.within(None, *bytes), time_up)
+                .map_or_else(Reply::from, |page| Reply::Journal {
+                    text: page.text,
+                    next: page.next,
+                    lossy: page.lossy,
+                }));
+        }
         let request = request_of(edit)?;
         self.handle(world, request)
     }
@@ -1598,20 +1620,27 @@ mod tests {
         }
     }
 
+    /// What `session` answers to `edit` from a tool, a page within the most and without a clock.
+    fn edit(host: &mut Host, session: &mut Session, edit: &Edit) -> Result<Reply, AppError> {
+        session.edit(
+            host.world_mut(),
+            edit,
+            Page::new(1, usize::MAX),
+            &mut || false,
+        )
+    }
+
     fn step(host: &mut Host, session: &mut Session, label: &str, command: &str) {
-        let edit = Edit::Step {
+        let made = Edit::Step {
             label: label.to_owned(),
             commands: vec![command.to_owned()],
             selection: None,
         };
-        session.edit(host.world_mut(), &edit).expect("made");
+        edit(host, session, &made).expect("made");
     }
 
     fn done(host: &mut Host, session: &mut Session) -> (Vec<String>, u64) {
-        match session
-            .edit(host.world_mut(), &Edit::History)
-            .expect("the history")
-        {
+        match edit(host, session, &Edit::History).expect("the history") {
             Reply::History { history } => (history.done, history.recovered),
             reply => panic!("{reply:?}"),
         }
@@ -1635,9 +1664,7 @@ mod tests {
             done(&mut host, &mut session),
             (vec!["Rename".to_owned()], 1)
         );
-        session
-            .edit(host.world_mut(), &Edit::Write)
-            .expect("written");
+        edit(&mut host, &mut session, &Edit::Write).expect("written");
         assert!(
             fs::read_to_string(yard.directory.join("yard.scene"))
                 .expect("the yard")
@@ -1743,6 +1770,371 @@ mod tests {
             panic!("another level's journal taken");
         };
         assert!(why.contains("is the journal of"), "{why}");
+    }
+
+    /// The page of the journal from `cursor` that `session` answers, bounded by `page`.
+    fn journal_page(
+        host: &mut Host,
+        session: &mut Session,
+        cursor: Option<String>,
+        page: Page,
+    ) -> Reply {
+        session
+            .edit(
+                host.world_mut(),
+                &Edit::Journal {
+                    cursor,
+                    bytes: None,
+                },
+                page,
+                &mut || false,
+            )
+            .expect("answered")
+    }
+
+    /// The pages of the journal that `session` answers from `cursor` to the journal's end,
+    /// joined, and how many there were.
+    fn journal_from(
+        host: &mut Host,
+        session: &mut Session,
+        mut cursor: Option<String>,
+        page: Page,
+    ) -> (Vec<u8>, usize) {
+        let (mut joined, mut pages) = (Vec::new(), 0);
+        loop {
+            let Reply::Journal { text, next, lossy } =
+                journal_page(host, session, cursor.take(), page)
+            else {
+                panic!("a page of the journal");
+            };
+            assert!(!lossy);
+            joined.extend_from_slice(text.as_bytes());
+            pages += 1;
+            match next {
+                Some(next) => cursor = Some(next),
+                None => return (joined, pages),
+            }
+        }
+    }
+
+    /// The editor's journal, past the tool's largest line, whose level's entry is larger than a
+    /// page, read whole by pages, byte for byte
+    /// (`docs/adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md`).
+    #[test]
+    fn a_journal_past_the_tool_s_line_is_read_whole_by_pages_byte_for_byte() {
+        let yard = Yard::new("journal-pages");
+        // A comment that the level's entry holds on its one line, some 10 MiB: as large as a
+        // document may be is 16 MiB.
+        let line = 16 << 20;
+        fs::write(
+            yard.directory.join("yard.scene"),
+            format!(
+                "# {}\n\n[entities]\nwell = {{ components = {{ Name = \"well\" }} }}\n",
+                "a \"quoted\" \\ yard ".repeat((10 << 20) / 20)
+            ),
+        )
+        .expect("a large yard");
+        let (mut host, mut session) = yard.start(&[]).expect("started");
+        // Steps of long names past the tool's line.
+        for at in 0..8 {
+            step(
+                &mut host,
+                &mut session,
+                "Rename",
+                &format!(
+                    "[SetProperty]\nentity = \"yard/well\"\ncomponent = \"Name\"\npath = \"0\"\n\
+                     value = \"{at}{}\"\n",
+                    "w".repeat(1 << 20)
+                ),
+            );
+        }
+        let file = fs::read(yard.journal()).expect("the journal");
+        assert!(file.len() > line);
+        let page = Page::new(7, line);
+        let longest = file.split(|&byte| byte == b'\n').map(<[u8]>::len).max();
+        assert!(
+            longest > Some(page.bytes),
+            "the level's line larger than a page"
+        );
+        let (joined, pages) = journal_from(&mut host, &mut session, None, page);
+        assert!(joined == file, "the pages joined are the journal");
+        assert!(pages > file.len() / page.bytes, "{pages} pages");
+    }
+
+    /// A level opened between two pages makes the journal's cursor stale; the level that is open,
+    /// opened again, or a level that cannot be opened, keeps it.
+    #[test]
+    fn a_level_opened_between_pages_makes_the_journal_s_cursor_stale() {
+        let yard = Yard::new("journal-stale");
+        fs::write(
+            yard.directory.join("court.scene"),
+            "[entities]\nbench = { components = { Name = \"bench\" } }\n",
+        )
+        .expect("the court");
+        fs::write(
+            yard.directory.join("court.scene.meta"),
+            "id = \"00000000-0000-0000-0000-000000000002\"\n",
+        )
+        .expect("its metadata");
+        let (mut host, mut session) = yard.start(&[]).expect("started");
+        let small = Page::new(1, usize::MAX).within(None, Some(16));
+        let first =
+            |host: &mut Host, session: &mut Session| match journal_page(host, session, None, small)
+            {
+                Reply::Journal {
+                    next: Some(cursor), ..
+                } => cursor,
+                reply => panic!("a first page: {reply:?}"),
+            };
+        let from = |host: &mut Host, session: &mut Session, cursor: &str| {
+            journal_page(host, session, Some(cursor.to_owned()), small)
+        };
+        let open = |host: &mut Host, session: &mut Session, level: &str| {
+            edit(
+                host,
+                session,
+                &Edit::Run {
+                    name: "file.open".to_owned(),
+                    arguments: vec![yard.directory.join(level).display().to_string()],
+                },
+            )
+        };
+        let stale = |reply: &Reply| {
+            matches!(reply, Reply::Failed { code, message }
+                if *code == slime_channel::Fault::STALE && message.contains("journal"))
+        };
+        // The level that is open, opened again, and a level that cannot be opened: the same
+        // journal.
+        let cursor = first(&mut host, &mut session);
+        open(&mut host, &mut session, "yard.scene").expect("the level open");
+        assert!(open(&mut host, &mut session, "nowhere.scene").is_err());
+        let reply = from(&mut host, &mut session, &cursor);
+        assert!(matches!(reply, Reply::Journal { .. }), "{reply:?}");
+        // A place past what the journal wrote is a bad parameter, never a panic.
+        let (kept, _) = cursor.rsplit_once(':').expect("a place");
+        let past = from(&mut host, &mut session, &format!("{kept}:ffffffff"));
+        assert!(
+            matches!(&past, Reply::Failed { code, .. } if *code == slime_channel::Fault::BAD_PARAMS),
+            "{past:?}"
+        );
+        // Another level, then the first again: its journal made anew.
+        open(&mut host, &mut session, "court.scene").expect("another level");
+        open(&mut host, &mut session, "yard.scene").expect("the first again");
+        let reply = from(&mut host, &mut session, &cursor);
+        assert!(stale(&reply), "{reply:?}");
+        // A step that the level's file does not hold: opened again, the journal is resumed, each
+        // time with a number of its own.
+        step(
+            &mut host,
+            &mut session,
+            "Rename",
+            "[SetProperty]\nentity = \"yard/well\"\ncomponent = \"Name\"\npath = \"0\"\nvalue = \"old well\"\n",
+        );
+        open(&mut host, &mut session, "court.scene").expect("another level");
+        open(&mut host, &mut session, "yard.scene").expect("recovered");
+        let cursor = first(&mut host, &mut session);
+        open(&mut host, &mut session, "court.scene").expect("another level");
+        open(&mut host, &mut session, "yard.scene").expect("recovered again");
+        assert_eq!(done(&mut host, &mut session).0, ["Rename"]);
+        let reply = from(&mut host, &mut session, &cursor);
+        assert!(stale(&reply), "{reply:?}");
+    }
+
+    /// A journal's file cut apart from the editor: a cursor is stale, and the journal's start is
+    /// refused, as listing it again would not help; a page publishes nothing to the window.
+    #[test]
+    fn a_journal_cut_apart_from_the_editor_is_refused_from_its_start() {
+        let yard = Yard::new("journal-cut");
+        let (mut host, mut session) = yard.start(&[]).expect("started");
+        let small = Page::new(1, usize::MAX).within(None, Some(16));
+        let revision = session.shared.borrow().revision;
+        let Reply::Journal {
+            next: Some(cursor), ..
+        } = journal_page(&mut host, &mut session, None, small)
+        else {
+            panic!("a first page");
+        };
+        assert_eq!(
+            session.shared.borrow().revision,
+            revision,
+            "nothing published to the window"
+        );
+        fs::OpenOptions::new()
+            .write(true)
+            .open(yard.journal())
+            .and_then(|file| file.set_len(4))
+            .expect("cut");
+        let reply = journal_page(&mut host, &mut session, Some(cursor), small);
+        assert!(
+            matches!(&reply, Reply::Failed { code, .. } if *code == slime_channel::Fault::STALE),
+            "{reply:?}"
+        );
+        let refused = |reply: &Reply| {
+            matches!(reply, Reply::Failed { code, message }
+                if *code == slime_channel::Fault::REFUSED && message.contains("cut apart"))
+        };
+        let reply = journal_page(&mut host, &mut session, None, small);
+        assert!(refused(&reply), "{reply:?}");
+        // A step after the cut is added after it, not where the journal wrote last: the file
+        // stays shorter than what the journal wrote, and its start refused.
+        step(
+            &mut host,
+            &mut session,
+            "Rename",
+            "[SetProperty]\nentity = \"yard/well\"\ncomponent = \"Name\"\npath = \"0\"\nvalue = \"old well\"\n",
+        );
+        let reply = journal_page(&mut host, &mut session, None, small);
+        assert!(refused(&reply), "{reply:?}");
+    }
+
+    /// A page of the journal is read while a gesture goes on, without it; the gesture's step, once
+    /// it ends, is in the pages that follow from the same cursor.
+    #[test]
+    fn the_step_of_a_gesture_that_ends_between_pages_is_in_the_pages_after() {
+        let yard = Yard::new("journal-gesture");
+        let (mut host, mut session) = yard.start(&[]).expect("started");
+        let rename = Command::SetProperty {
+            entity: "yard/well".parse().expect("an identity"),
+            component: "Name".to_owned(),
+            path: "0".parse().expect("a path"),
+            value: slime_reflect::Value::Text("dragged".to_owned()),
+        };
+        session
+            .handle(host.world_mut(), Request::Gesture(vec![rename]))
+            .expect("under way");
+        let small = Page::new(1, usize::MAX).within(None, Some(32));
+        let Reply::Journal {
+            text,
+            next: Some(cursor),
+            ..
+        } = journal_page(&mut host, &mut session, None, small)
+        else {
+            panic!("a first page");
+        };
+        session
+            .handle(host.world_mut(), Request::EndGesture("Drag".to_owned()))
+            .expect("ended");
+        let (rest, _) = journal_from(&mut host, &mut session, Some(cursor), small);
+        let mut joined = text.into_bytes();
+        joined.extend_from_slice(&rest);
+        assert_eq!(joined, fs::read(yard.journal()).expect("the journal"));
+        assert!(String::from_utf8_lossy(&rest).contains("# do\nlabel = \"Drag\""));
+    }
+
+    /// The median of `runs` times of `read`, each after `before`, in microseconds.
+    #[cfg(target_os = "linux")]
+    fn median_micros(runs: usize, mut before: impl FnMut(), mut read: impl FnMut()) -> f64 {
+        let mut times: Vec<f64> = (0..runs)
+            .map(|_| {
+                before();
+                let started = std::time::Instant::now();
+                read();
+                started.elapsed().as_secs_f64() * 1e6
+            })
+            .collect();
+        times.sort_by(f64::total_cmp);
+        times[runs / 2]
+    }
+
+    /// The time of a page of the journal read on the editor's thread, as `Session::edit` reads it,
+    /// in a journal of 32 KiB, 1 MiB and 8 MiB: pages of 32 KiB and 1 MiB, from the journal's start
+    /// and from its middle, the file in the system's cache and out of it, which GNU `dd` drops
+    /// once the file is synced, and the answer counted again as the channel sends it. It prints
+    /// the medians; by hand, in a release build, at rest
+    /// (`docs/measurements.md`, M6d.9a1b3b2):
+    /// `cargo test --release -p slime-editor --lib journal_pages_timed -- --ignored --nocapture`.
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "a measure by hand, at rest, in a release build"]
+    fn journal_pages_timed() {
+        for size in [32 << 10, 1 << 20, 8 << 20] {
+            let yard = Yard::new(&format!("journal-timed-{size}"));
+            fs::write(
+                yard.directory.join("yard.scene"),
+                format!(
+                    "# {}\n\n[entities]\nwell = {{ components = {{ Name = \"well\" }} }}\n",
+                    "a yard of text ".repeat(size / 15)
+                ),
+            )
+            .expect("a yard");
+            let (mut host, mut session) = yard.start(&[]).expect("started");
+            let journal = yard.journal();
+            let length = fs::metadata(&journal).expect("the journal").len();
+            fs::File::open(&journal)
+                .and_then(|file| file.sync_all())
+                .expect("synced");
+            let drop_cache = || {
+                let dropped = std::process::Command::new("dd")
+                    .arg(format!("if={}", journal.display()))
+                    .args(["iflag=nocache", "count=0", "status=none"])
+                    .status()
+                    .expect("dd");
+                assert!(dropped.success());
+            };
+            for bytes in [32 << 10, 1 << 20] {
+                let page = Page::new(1, 16 << 20).within(None, Some(bytes));
+                // The middle's cursor, by pages of 1 MiB.
+                let mut middle = None;
+                let mut at = 0;
+                while at < length / 2 {
+                    let Reply::Journal { text, next, .. } =
+                        journal_page(&mut host, &mut session, middle.take(), page)
+                    else {
+                        panic!("a page");
+                    };
+                    at += text.len() as u64;
+                    middle = next;
+                }
+                // A journal of one page has no middle to read from.
+                let places = [("start", None)]
+                    .into_iter()
+                    .chain(middle.is_some().then_some(("middle", middle)));
+                for (place, cursor) in places {
+                    let mut read = || {
+                        journal_page(&mut host, &mut session, cursor.clone(), page);
+                    };
+                    let cached = median_micros(101, || {}, &mut read);
+                    let uncached = median_micros(21, drop_cache, &mut read);
+                    // Within a share of the frame's start as the channel gives it, 0.5 ms for a
+                    // page alone in its round.
+                    let mut given = 0;
+                    let mut shared = || {
+                        let until =
+                            std::time::Instant::now() + std::time::Duration::from_micros(500);
+                        let reply = session
+                            .edit(
+                                host.world_mut(),
+                                &Edit::Journal {
+                                    cursor: cursor.clone(),
+                                    bytes: None,
+                                },
+                                page,
+                                &mut || std::time::Instant::now() >= until,
+                            )
+                            .expect("a page");
+                        if let Reply::Journal { text, .. } = reply {
+                            given = text.len();
+                        }
+                    };
+                    let within_share = median_micros(101, || {}, &mut shared);
+                    // The answer counted again as the channel sends it, on the same thread.
+                    let whole = journal_page(&mut host, &mut session, cursor.clone(), page);
+                    let counted = median_micros(
+                        101,
+                        || {},
+                        || {
+                            std::hint::black_box(slime_channel::json_size(&whole));
+                        },
+                    );
+                    eprintln!(
+                        "journal {size} B ({length} B written), page {bytes} B from its {place}: \
+                         {cached:.1} µs cached, {uncached:.1} µs uncached, its answer counted \
+                         again in {counted:.1} µs; within 0.5 ms, {within_share:.1} µs for \
+                         {given} B"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

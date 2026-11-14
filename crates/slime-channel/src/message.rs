@@ -228,9 +228,33 @@ pub enum Edit {
     /// The editor's level, history and selection: [`Reply::History`].
     #[serde(rename = "editing/history")]
     History,
-    /// The text of the editor's journal: [`Reply::Journal`].
+    /// A page of the editor's journal, as text: [`Reply::Journal`], with `next` while the journal
+    /// goes on past it (`uwui_agent::page`), none at its end
+    /// (`docs/adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md`).
+    /// A page holds whole lines, read from the journal's file within the entries that the editor
+    /// wrote whole: it ends just after its last line's end, `\n`, when it holds one and the
+    /// journal goes on, else at a character's boundary, as within the level's text, one line that
+    /// may be larger than the page; it gives one character at least, whatever `bytes`. The pages
+    /// joined are the journal's bytes, but those that are not UTF-8 ([`Reply::Journal`]'s
+    /// `lossy`).
+    ///
+    /// Its `params` are given, `{}` for the journal's start. A cursor of a journal that the
+    /// editor made anew since, as it opened a level, or whose file was cut apart from the editor,
+    /// is stale; one whose place falls inside a character or past what the editor wrote faults
+    /// as a bad parameter. A journal's start is refused while its file is cut, as listing it
+    /// again would not help; every page is refused once a write of the journal failed, as the
+    /// editor then stops. A file replaced apart from the editor by one as long or longer is read
+    /// as the journal, with no fault.
     #[serde(rename = "editing/journal")]
-    Journal,
+    Journal {
+        /// Where the page starts: the `next` of the page before; none for the journal's start.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cursor: Option<String>,
+        /// The most bytes of JSON that the page's text takes, its quotes included; none for the
+        /// editor's most.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bytes: Option<u64>,
+    },
     /// Selects entities, which is not a step.
     #[serde(rename = "editing/select")]
     Select {
@@ -336,10 +360,17 @@ pub enum Reply {
         /// The history.
         history: EditorHistory,
     },
-    /// The text of an editor's journal.
+    /// A page of an editor's journal.
     Journal {
-        /// The journal, as the editor wrote it.
+        /// The page's text, as the editor wrote it.
         text: String,
+        /// The cursor to the rest, while the journal goes on; none at its end.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        next: Option<String>,
+        /// Whether bytes of the page that are not UTF-8 were each replaced, by run, with U+FFFD:
+        /// then the text is not the file's bytes.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        lossy: bool,
     },
     /// An editor's level written back to its file: what the file could not hold as the editor's
     /// world holds it, each as a sentence; none when it holds all of it.
@@ -553,6 +584,16 @@ impl Request {
 /// The family of an editor's requests, which [`Request::Edit`] carries.
 const EDITING: &str = "editing";
 
+impl From<Fault> for Reply {
+    /// The reply that says `fault`, its code kept: [`Reply::Failed`].
+    fn from(fault: Fault) -> Self {
+        Self::Failed {
+            code: fault.code,
+            message: fault.message,
+        }
+    }
+}
+
 impl Reply {
     /// A refusal of the game's, saying why: [`Reply::Failed`] of the code [`Fault::REFUSED`].
     pub fn refused(message: impl Into<String>) -> Self {
@@ -594,10 +635,7 @@ impl Reply {
                 .map(|reply| Self::Interface { reply })
                 .map_err(unreadable),
             Ok(value) => uwui_agent::read(value).map_err(unreadable),
-            Err(fault) => Ok(Self::Failed {
-                code: fault.code,
-                message: fault.message,
-            }),
+            Err(fault) => Ok(Self::from(fault)),
         }
     }
 }
@@ -701,7 +739,16 @@ mod tests {
                 edit: Edit::History,
             },
             Request::Edit {
-                edit: Edit::Journal,
+                edit: Edit::Journal {
+                    cursor: None,
+                    bytes: None,
+                },
+            },
+            Request::Edit {
+                edit: Edit::Journal {
+                    cursor: Some(text("journal:1:2:3:4")),
+                    bytes: Some(4096),
+                },
             },
             Request::Edit {
                 edit: Edit::Select {
@@ -853,6 +900,13 @@ mod tests {
             },
             Reply::Journal {
                 text: text("# do\n"),
+                next: None,
+                lossy: false,
+            },
+            Reply::Journal {
+                text: text("# level\n\u{fffd}"),
+                next: Some(text("journal:1:2:3:4")),
+                lossy: true,
             },
             Reply::Written {
                 left_out: vec![text("zone/door: a component of no known type")],

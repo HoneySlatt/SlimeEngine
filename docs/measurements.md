@@ -4137,3 +4137,50 @@ eight tests of uwui and slime-app, which take well under a second, and `check (w
 scenarios of the lifecycle test; the runners'
 times vary by minutes from one run to the next. `compositors (x11)`, 17 min 30 s at M6d.9a1b3b1,
 took 12 min 12 s.
+
+## M6d.9a1b3b2, the editor's journal
+
+On 2026-11-14, on an AMD Ryzen 7 5800X at rest before the passes (load under 1, no `cargo` nor
+`rustc` running), in release builds, the journal on the NVMe disk of `/tmp`. Before is
+`4345878`, built in a worktree of its own with its own target directory, one pass; after is this
+milestone's final code, two passes.
+
+- A page of the editor's journal read on the editor's thread, as `Session::edit` answers
+  `editing/journal`, in journals of some 32 KiB, 1 MiB and 8 MiB whose level's entry holds nearly
+  all of it on one line, as `slime-editor`'s test `journal_pages_timed` measures it
+  (`cargo test --release -p slime-editor --lib journal_pages_timed -- --ignored --nocapture`):
+  the median of 101 reads with the file in the system's cache, and of 21 with the file dropped
+  from it before each (GNU `dd iflag=nocache count=0`, once the file is synced). After, also the
+  answer counted again as the channel's listener counts it as it sends it, on the same thread
+  (`Outgoing::answer`), and the median of 101 pages within a share of 0.5 ms, the frame's start
+  for a page alone in its round, with the bytes that it gave. Before, the test written against
+  the journal of then, read whole.
+
+| Read, cached / uncached | 32 KiB journal | 1 MiB journal | 8 MiB journal |
+|---|---|---|---|
+| before: the whole journal | 5.9 / 109 µs | 47.8 / 944 µs | 348 / 5,157 µs |
+| after: a page of 32 KiB, from the start | 19.6 / 157 to 158 µs | 17.3 to 17.4 / 198 to 200 µs | 17.8 to 18.9 / 201 µs |
+| after: a page of 32 KiB, from the middle | — | 20.9 to 21.1 / 241 to 242 µs | 21.1 to 21.2 / 238 to 242 µs |
+| after: a page of 1 MiB, from the start | 18.9 to 19.1 / 158 to 167 µs | 388 / 1,089 to 1,114 µs | 388 to 394 / 1,167 to 1,191 µs |
+| after: a page of 1 MiB, from the middle | — | — | 389 to 391 / 1,233 to 1,261 µs |
+
+| After, cached | answer counted again | within 0.5 ms |
+|---|---|---|
+| a page of 32 KiB, from the middle of 8 MiB | 15.6 µs | 21.7 to 21.9 µs for 32,766 B |
+| a page of 1 MiB, from the start of 8 MiB | 0.1 µs | 388 to 390 µs for 97 B |
+| a page of 1 MiB, from the middle of 8 MiB | 449 to 460 µs | 392 to 399 µs for 1,048,574 B |
+
+  A page costs some 0.37 ns a byte, its JSON counted by blocks of 64 bytes, against some 0.05 ns
+  for the whole file read before: an agent's page of 32 KiB, the MCP server's, takes some 21 µs
+  of the frame's start, and some 16 µs more as the listener counts it, where reading a journal of
+  8 MiB whole took 0.35 ms, and 5.2 ms from the disk. A page of 1 MiB, the most, takes its share
+  of 0.5 ms, then some 0.45 ms more as the listener counts it again, outside that share
+  ([`debt.md`](debt.md)). A series of the same day, before the second closing review's fixes,
+  which change neither count, gave that second count at about half these figures, 8 to 10 µs and
+  0.23 ms, and the pages some 5 % faster; the difference was not explained. Without its share, a
+  page of 1 MiB from the disk takes 1.1 to 1.3 ms; within it, it stops once its time has passed,
+  past its first read of 4 KiB, before any further read, which was not measured from the disk.
+  The first page from the journal's start reads up to its bytes, then steps back to the last
+  line's end before the level's line, and gives its first 95 to 97 bytes alone. A first version
+  of the page, which counted each character through `Pager::visit`, took some 3.5 ns a byte, a
+  second one some 1.1 ns; neither was kept.

@@ -1,12 +1,18 @@
-//! The editor's journal: its entries written as text, and read back
-//! (`docs/adr/0134-the-editors-core.md`). [`Editor::keep_journal`](crate::Editor::keep_journal)
-//! says what each entry holds.
+//! The editor's journal: its entries written as text, read back, and read by pages
+//! (`docs/adr/0134-the-editors-core.md`,
+//! `docs/adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md`).
+//! [`Editor::keep_journal`](crate::Editor::keep_journal) says what each entry holds.
+
+mod page;
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use slime_app::HeldFile;
+use slime_channel::Fault;
+use slime_channel::page::{Listing, Page};
 use slime_reflect::{ReflectError, Value};
 use slime_serialize::{Composer, Document, Mode};
 use slime_world::{PersistentId, World};
@@ -14,22 +20,56 @@ use slime_world::{PersistentId, World};
 use crate::editor::EditError;
 use crate::level::Level;
 
+/// The list that a journal's cursors name, which has no filter.
+const LISTING: Listing<'static> = Listing {
+    list: "journal",
+    filter: "",
+};
+
+/// The number that the next journal made in this process draws.
+static NUMBERS: AtomicU64 = AtomicU64::new(1);
+
 /// A journal being written, to a file that this editor holds, so that no other writes it.
 pub(crate) struct Journal {
     file: File,
     held: HeldFile,
+    /// Its number in the process, which its cursors hold: one made anew, by
+    /// [`Journal::create`] or [`Journal::resume`], has another, which makes them stale.
+    number: u64,
+    /// The bytes of the file that it wrote in whole entries: a page reads no further.
+    written: u64,
+    /// Whether a write failed, which may have left part of an entry after `written`: it adds
+    /// nothing more, as what it would add would follow that part, and refuses its pages, as it
+    /// lacks the step that the editor made, which stops the editor at its next update.
+    torn: bool,
+}
+
+/// A page of a journal, as a tool reads it.
+pub(crate) struct JournalPage {
+    /// Its text.
+    pub(crate) text: String,
+    /// The cursor to the rest, while the journal goes on; none at its end.
+    pub(crate) next: Option<String>,
+    /// Whether bytes that are not UTF-8 were replaced in it.
+    pub(crate) lossy: bool,
 }
 
 impl Journal {
-    /// A journal written to the file `held`, which starts empty.
+    /// A journal written to the file `held`, which starts empty. It appends to its file, as a
+    /// resumed journal does, so that a file cut apart from the editor stays shorter than what
+    /// the journal wrote, rather than holding zeros up to where the journal writes next.
     pub(crate) fn create(held: HeldFile) -> Result<Self, EditError> {
-        let file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(held.path())
-            .map_err(|error| failed(held.path(), &error))?;
-        Ok(Self { file, held })
+        let path = held.path();
+        let file = File::create(path)
+            .and_then(|_| OpenOptions::new().append(true).open(path))
+            .map_err(|error| failed(path, &error))?;
+        Ok(Self {
+            file,
+            held,
+            number: NUMBERS.fetch_add(1, Ordering::Relaxed),
+            written: 0,
+            torn: false,
+        })
     }
 
     /// The journal `text` going on in the file `held`: `text` is written there first, whole or not
@@ -43,16 +83,121 @@ impl Journal {
             .append(true)
             .open(path)
             .map_err(|error| failed(path, &error))?;
-        Ok(Self { file, held })
+        Ok(Self {
+            file,
+            held,
+            number: NUMBERS.fetch_add(1, Ordering::Relaxed),
+            written: text.len() as u64,
+            torn: false,
+        })
     }
 
     /// Adds `text`, entries whole, and hands it to the system at once: what a crash of the editor
-    /// does not lose, which a crash of the system may.
+    /// does not lose, which a crash of the system may. Once a write failed, it adds nothing
+    /// more, as its file may end with part of an entry.
     pub(crate) fn add(&mut self, text: &str) -> Result<(), EditError> {
-        self.file
+        let path = self.held.path();
+        if self.torn {
+            return Err(EditError::Journal(format!(
+                "{} holds part of an entry that could not be written: nothing more is added",
+                path.display()
+            )));
+        }
+        if let Err(error) = self
+            .file
             .write_all(text.as_bytes())
             .and_then(|()| self.file.flush())
-            .map_err(|error| failed(self.held.path(), &error))
+        {
+            self.torn = true;
+            return Err(failed(path, &error));
+        }
+        self.written += text.len() as u64;
+        Ok(())
+    }
+
+    /// A page of the journal from `cursor`, none for its start, bounded by `page`'s bytes and
+    /// by `time_up`, read from its file by seek: as `slime_channel::Edit::Journal` says.
+    ///
+    /// # Errors
+    ///
+    /// [`Fault::STALE`] for a cursor of another journal or process, or given while the file is
+    /// shorter than what the journal wrote; [`Fault::BAD_PARAMS`] for a cursor that does not
+    /// read, or whose place falls inside a character or past what the journal wrote;
+    /// [`Fault::REFUSED`] when the file cannot be read, is shorter than what the journal wrote
+    /// from its start, as no list again would help, or when a write failed ([`Journal::add`]).
+    pub(crate) fn page(
+        &self,
+        cursor: Option<&str>,
+        page: Page,
+        time_up: &mut dyn FnMut() -> bool,
+    ) -> Result<JournalPage, Fault> {
+        let path = self.held.path();
+        if self.torn {
+            return Err(Fault::new(
+                Fault::REFUSED,
+                format!(
+                    "the journal {} could not be written whole, and the editor stops",
+                    path.display()
+                ),
+            ));
+        }
+        let start = match cursor {
+            None => 0,
+            Some(cursor) => self.place(cursor, page.program)?,
+        };
+        let unread = |error: io::Error| {
+            Fault::new(
+                Fault::REFUSED,
+                format!("the journal {} cannot be read: {error}", path.display()),
+            )
+        };
+        let mut file = File::open(path).map_err(unread)?;
+        let read = page::read(&mut file, start, self.written, page, time_up).map_err(|fault| {
+            match (fault.code, cursor) {
+                // Read from its start, the journal is still cut: a tool listing it again would
+                // loop.
+                (Fault::STALE, None) => Fault::new(
+                    Fault::REFUSED,
+                    format!("{}, and cannot be read by pages", fault.message),
+                ),
+                (Fault::STALE, Some(_)) => Fault::new(
+                    Fault::STALE,
+                    format!("{}: read the journal from its start", fault.message),
+                ),
+                _ => fault,
+            }
+        })?;
+        Ok(JournalPage {
+            text: read.text,
+            next: (read.end < self.written)
+                .then(|| LISTING.cursor(page.program, self.number, &[read.end])),
+            lossy: read.lossy,
+        })
+    }
+
+    /// The byte where the page that `cursor` asks starts, if it is this journal's.
+    fn place(&self, cursor: &str, program: u64) -> Result<u64, Fault> {
+        let bad = |why: &str| {
+            Fault::new(
+                Fault::BAD_PARAMS,
+                format!("a cursor of the journal {why}: list it from its start"),
+            )
+        };
+        let place = LISTING
+            .place(cursor, program, self.number)
+            .map_err(|fault| match fault.code {
+                Fault::STALE => Fault::new(
+                    Fault::STALE,
+                    "the editor made its journal anew since this cursor was given, as it opened \
+                     a level, or its program is another: read the journal from its start",
+                ),
+                _ => fault,
+            })?;
+        match place[..] {
+            [at] if at <= self.written => Ok(at),
+            [_] => Err(bad("past what the journal holds")),
+            _ => Err(bad("that does not read")),
+        }
     }
 }
 
@@ -259,6 +404,43 @@ pub(crate) fn entries<'t>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A write that fails leaves the journal torn: it adds nothing more, and refuses its pages.
+    #[test]
+    fn a_journal_whose_write_failed_adds_nothing_more_and_refuses_its_pages() {
+        let directory =
+            std::env::temp_dir().join(format!("slime-editor-torn-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir_all(&directory).expect("a directory");
+        // A journal of one entry, whose handle then refuses every write, as a full disk would:
+        // it was opened to read.
+        let path = directory.join("journal");
+        fs::write(&path, "# level\n").expect("its first entry");
+        let held = HeldFile::hold(path.clone()).expect("held");
+        let refusing = File::open(&path).expect("the journal, to read");
+        let mut journal = Journal {
+            file: refusing,
+            held,
+            number: 1,
+            written: 8,
+            torn: false,
+        };
+        assert!(journal.add("# do\n").is_err());
+        assert!(journal.torn);
+        // The disk takes writes again: still nothing more, after what may be part of an entry.
+        journal.file = OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .expect("the journal");
+        assert!(journal.add("# undo\n").is_err(), "nothing more");
+        assert_eq!(fs::read_to_string(&path).expect("read"), "# level\n");
+        let fault = journal
+            .page(None, Page::new(1, usize::MAX), &mut || false)
+            .err()
+            .expect("refused");
+        assert_eq!(fault.code, Fault::REFUSED, "{fault:?}");
+        fs::remove_dir_all(&directory).expect("removed");
+    }
 
     #[test]
     fn a_journal_holds_steps_unwritten_after_its_last_writing_or_its_start() {

@@ -224,7 +224,7 @@ the ADR linking to it.
 | [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted; amended by 0172 |
 | [0154](0154-floating-panels-and-held-keys.md) | Floating panels and held keys | Accepted |
 | [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158, 0159, 0160, 0161, 0162, 0172, 0174, 0175, 0177 and 0228 |
-| [0156](0156-the-editors-window-and-its-operations.md) | The editor's window and its operations | Accepted; amended by 0185 |
+| [0156](0156-the-editors-window-and-its-operations.md) | The editor's window and its operations | Accepted; amended by 0185 and 0267 |
 | [0157](0157-dialogs-the-cursor-held-and-the-gpus-identity.md) | Dialogs, the cursor held and the GPU's identity | Accepted |
 | [0158](0158-the-viewport.md) | The viewport | Accepted; amended by 0159, 0160 |
 | [0159](0159-picking-and-the-selection.md) | Picking and the selection | Accepted; amended by 0160 |
@@ -333,5 +333,6 @@ the ADR linking to it.
 | [0262](0262-uwui-accesskits-api-one-tree-per-window-the-hosts-node-made-when-needed.md) | uwui-accesskit's API: one tree per window, the host's node made when needed | Accepted; amends 0261 |
 | [0263](0263-the-cursor-of-elements-anchored-on-its-next-sibling-what-a-list-may-skip-the-slots-read.md) | The cursor of elements anchored on its next sibling; what a list may skip; the slots read | Accepted; amends 0260 |
 | [0264](0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md) | The lifecycle before each target's size; a lost surface made again within a budget; M6d.5e cut in two | Accepted; amends 0025, 0187, 0248, 0249 and 0256 |
-| [0265](0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md) | The editor's journal read by pages: its number drawn by the journal, pages of whole entries in bytes, read on the editor's thread, bytes not UTF-8 replaced and marked | Accepted; amends 0250 and 0260 |
+| [0265](0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md) | The editor's journal read by pages: its number drawn by the journal, pages of whole entries in bytes, read on the editor's thread, bytes not UTF-8 replaced and marked | Accepted; amends 0250 and 0260; amended by 0267 |
 | [0266](0266-uwui-targets-the-owners-shell-its-lock-and-login-screens-and-what-yuna-draws.md) | uwui targets the owner's shell, its lock and login screens, and what Yuna draws | Accepted; amends 0199 |
+| [0267](0267-a-page-of-the-journal-apart-from-the-one-handler-a-cut-journals-start-refused-a-floor-of-4-kib.md) | A page of the journal apart from the editor's one handler; a cut journal's start refused; a page's floor of 4 KiB | Accepted; amends 0156 and 0265 |

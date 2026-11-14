@@ -69,12 +69,14 @@ consent, rights and previews come with M6d.9a's later parts
   on a connection, within the tool's line, which the welcome gives the carrier
   (`FromTool::Welcomed::reads`); `Page::within` narrows it to what a request asks. `Pager` counts
   a page's visits, items and bytes, and stops it once full or, past a floor of visits, once the
-  time that its host gives it has passed: a page may be short, or empty, and still give `next`.
+  time that its host gives it has passed, which `time_passed` also reads between the pieces of a
+  text: a page may be short, or empty, and still give `next`.
   `Listing` writes and reads a cursor, bound to the process by a number that the carrier draws,
-  to the *maker* that made it, a world, an interface, by a number of its own, and to its list and
-  its filter: one of another process or maker faults `STALE`, one that does not read or of
-  another list or filter `BAD_PARAMS`. `cut` cuts a text to a number of bytes of JSON, so that no
-  item is larger than a page.
+  to the *maker* that made it, a world, an interface or a journal, by a number of its own, and to
+  its list and its filter: one of another process or maker faults `STALE`, one that does not read
+  or of another list or filter `BAD_PARAMS`. `cut` cuts a text to a number of bytes of JSON, so
+  that no item is larger than a page; `json_char_size` gives the bytes of JSON of one character,
+  which `cut` counts, and which a page of a text counts too.
 - `interface` holds the messages of the interface's family, uwui's own, version 3: an interface's
   elements listed by pages, each with its target, the element at a pixel of a target, an action done as a
   person's input would, an element's part of its target's image, and where the code that wrote an

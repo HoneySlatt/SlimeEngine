@@ -476,7 +476,7 @@ impl DevChannel {
                 incoming.page().within(*limit, *bytes),
                 within(share),
             )
-            .unwrap_or_else(fault),
+            .unwrap_or_else(Reply::from),
             Request::Entity { entity } => entity_text(host.world(), entity).unwrap_or_else(failed),
             Request::SetProperty {
                 entity,
@@ -539,7 +539,7 @@ impl DevChannel {
                     |()| Reply::Done,
                 ),
             Request::Edit { edit } => simulation
-                .edit(host.world_mut(), edit)
+                .edit(host.world_mut(), edit, incoming.page(), &mut within(share))
                 .unwrap_or_else(|error| failed(crate::error_chain(&*error))),
             Request::Apply { commands } => apply(host.world_mut(), simulation, commands),
         }
@@ -626,14 +626,6 @@ fn in_rounds<C, T>(
 /// The reply that says why the game refused a request.
 fn failed(why: impl ToString) -> Reply {
     Reply::refused(why.to_string())
-}
-
-/// The reply of `fault`, its code kept.
-fn fault(fault: Fault) -> Reply {
-    Reply::Failed {
-        code: fault.code,
-        message: fault.message,
-    }
 }
 
 /// Whether `share` of time has passed since now, as a page of a list asks.
@@ -750,7 +742,7 @@ fn answer_interface(
     match uwui::agents::answer(ui, request, page, time_up) {
         Ok(Answer::Reply(reply)) => Reply::Interface { reply },
         Ok(Answer::Capture(_)) => unreachable!("a capture waits for the frame's image"),
-        Err(error) => fault(error),
+        Err(error) => Reply::from(error),
     }
 }
 
@@ -1064,7 +1056,7 @@ fn changes_an_editor(request: &Request) -> bool {
     match request {
         Request::Edit { edit } => !matches!(
             edit,
-            Edit::History | Edit::Journal | Edit::Operations | Edit::Played
+            Edit::History | Edit::Journal { .. } | Edit::Operations | Edit::Played
         ),
         Request::SetProperty { .. } | Request::Apply { .. } => true,
         _ => false,

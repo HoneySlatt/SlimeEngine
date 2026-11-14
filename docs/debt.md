@@ -46,9 +46,16 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A cursor of elements grows with the depth of the tree: past the depth that `uwui_agent::page::MARGIN` gives, a page for a tool whose line is short may pass that line, and the list stops there.
   Followed at uwui's first stage, whose families page what can grow.
 - **A page of a list costs more than what it gives** ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
-  A page counts its items' JSON as it makes them, and the listener counts the answer again (`Outgoing::answer`).
+  A page counts its items' JSON as it makes them, and the listener counts the answer again (`Outgoing::answer`), outside the page's share of time: for a page of the editor's journal, the whole text again ([`measurements.md`](measurements.md#m6d9a1b3b2-the-editors-journal)).
   An element visited is made into its whole meaning, its value and its description copied, before the filter reads its role and name; an entity visited has its identity and name copied and lowercased.
   Followed at uwui's first stage, whose carrier of the core counts once, and which benchmarks its walks.
+- **A page of the editor's journal is read on the editor's thread** ([ADR-0265](adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md)).
+  Its work stops once its share of the frame's start has passed, past a floor of 4 KiB of text, the first of its reads, but a read from a slow or remote disk, a NAS, may still take a frame; a file out of the system's cache costs more ([`measurements.md`](measurements.md#m6d9a1b3b2-the-editors-journal)).
+  Reading it on another thread needs a `Simulation::edit` that answers later.
+  Followed at [M6c.Q2f](stage-6c.md#m6cq2f--the-editor-at-the-displays-rate), which holds the editor's frames to the display's rate.
+- **An agent follows the editor's steps by reading its journal again** ([ADR-0265](adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md)).
+  A page that reaches the journal's end gives no cursor, as every list's: an agent that waits for the next steps reads the journal again from its start, the level's entry included.
+  Followed at [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families), whose events an agent subscribes to through uwui's MCP library: an event of the editor's steps.
 - **The process's number that binds the cursors has no randomness on the web** ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
   `slime-channel` draws it with `getrandom`, falling back on `std`'s hashing keys, which are not random on `wasm32-unknown-unknown`.
   Followed at the web's carrier, which draws it from its host.
@@ -933,7 +940,8 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **An editor's journal grows across recoveries** ([ADR-0135](adr/0135-the-editors-program.md)).
   Each recovery goes on with the journal that it recovered; only a start with nothing unwritten begins it anew.
   The history of steps outlives a stop only when something is unwritten.
-  `editor_journal` fails once the journal is larger than the channel's largest answer, now with the fault that says so; followed at [M6d.9a1b3b2](stage-6d.md#m6d9a1b3b2--the-editors-journal), which reads the journal by pages.
+  A tool reads the journal by pages, but opening a level still reads its journal whole on the editor's thread, twice when it recovers it (`Session::open`, `Journal::resume`), and the search of a level's journal reads each journal of its asset ID whole (`journal_in`) ([ADR-0265](adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md)).
+  Followed at [M6c.Q4](stage-6c.md#m6cq4--fuzzing-and-crash-reports), which reshapes the journal's recovery.
 - **A selection made just before a crash is lost** ([ADR-0134](adr/0134-the-editors-core.md)).
   The journal writes a selection made apart from a step with the entry that follows it.
 - **A journal whose last entry a crash of the system tore is not recovered, nor one that a crash cut just after the level was written** ([ADR-0135](adr/0135-the-editors-program.md)).

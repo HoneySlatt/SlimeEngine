@@ -3,7 +3,7 @@
 //! `editor` example on a copy of the examples' yard, writes it back unchanged, which gives the file
 //! written by hand byte for byte, then makes a step that creates, places, changes and deletes,
 //! changes a value as it would in a game, which the editor makes a step of its own, undoes and
-//! redoes, reads the history and the journal, and writes the level; then stops the editor and
+//! redoes, reads the history and the journal, by pages, and writes the level; then stops the editor and
 //! finds again, as it recovers its journal, the step done after the writing and its history; makes
 //! a step that it does not write, and finds it again the same way; and, the level written, starts
 //! the editor once more, which opens the level from its file with nothing to recover; there, it
@@ -176,7 +176,30 @@ fn main() {
     );
     let (said, _) = session.tool("inspect_entity", json!({ "entity": "yard/lamp-k3f9" }));
     assert!(said[0].contains("named lamp-k3f9"), "{said:?}");
-    let (said, _) = session.tool("editor_journal", json!({}));
+    // The journal, by pages of 2 KiB, each that more follow giving its `next` first, read whole.
+    let (mut read, mut pages) = (String::new(), 0);
+    let mut cursor = None;
+    loop {
+        pages += 1;
+        let (said, _) = session.tool("editor_journal", json!({ "cursor": cursor, "bytes": 2048 }));
+        let (next, page) = match &said[..] {
+            [next, page] => (next.strip_prefix("next: "), page),
+            [page] => (None, page),
+            said => panic!("{said:?}"),
+        };
+        assert!(page.len() <= 2048, "{}", page.len());
+        read.push_str(page);
+        match next {
+            Some(next) => cursor = next.split_once(' ').map(|(next, _)| next.to_owned()),
+            None => break,
+        }
+    }
+    assert_eq!(
+        read,
+        fs::read_to_string(&journal).expect("the journal"),
+        "read whole by pages"
+    );
+    assert!(pages > 1, "{pages} pages");
     for entry in [
         "# level\n",
         "# do\n",
@@ -185,7 +208,7 @@ fn main() {
         "# redo\n",
         "# written\n",
     ] {
-        assert!(said[0].contains(entry), "{entry}: {said:?}");
+        assert!(read.contains(entry), "{entry}: {read:?}");
     }
     let (said, _) = session.tool("run_operation", json!({ "name": "file.save" }));
     assert_eq!(said, ["the level is written, whole"]);

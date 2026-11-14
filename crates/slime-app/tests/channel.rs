@@ -353,10 +353,12 @@ fn a_tool_with_the_token_drives_a_headless_run() {
 }
 
 /// An editor whose gesture is under way while W is held, and whose steps, named by a digit, are
-/// written after the lantern's x: 0, then 1, then 12 for the steps `1` and `2`.
+/// written after the lantern's x: 0, then 1, then 12 for the steps `1` and `2`; its journal holds
+/// the steps' digits, `12`, read once the page's clock says that its share of the frame passed.
 #[derive(Default)]
 struct Holder {
     gesture: bool,
+    journal: String,
 }
 
 impl Simulation for Holder {
@@ -373,10 +375,29 @@ impl Simulation for Holder {
         thread::sleep(Duration::from_millis(1));
     }
 
-    fn edit(&mut self, world: &mut World, edit: &slime_channel::Edit) -> Result<Reply, AppError> {
+    fn edit(
+        &mut self,
+        world: &mut World,
+        edit: &slime_channel::Edit,
+        _page: slime_channel::page::Page,
+        time_up: &mut dyn FnMut() -> bool,
+    ) -> Result<Reply, AppError> {
+        if let slime_channel::Edit::Journal { .. } = edit {
+            // A page of 2 ms is past its share of the frame's start, a part of 0.5 ms.
+            thread::sleep(Duration::from_millis(2));
+            if !time_up() {
+                return Err("the page's clock never says that its share passed".into());
+            }
+            return Ok(Reply::Journal {
+                text: self.journal.clone(),
+                next: None,
+                lossy: false,
+            });
+        }
         let slime_channel::Edit::Step { label, .. } = edit else {
-            return Err("steps alone".into());
+            return Err("steps and the journal alone".into());
         };
+        self.journal.push_str(label);
         let digit: f64 = label.parse()?;
         let lantern = lantern(world);
         let mut transform = world.get_mut::<Transform>(lantern).expect("placed");
@@ -448,6 +469,28 @@ fn a_tool_s_edits_wait_while_the_simulation_says_so() {
         edit: slime_channel::Edit::History,
     };
     assert!(matches!(ask(&reader, history), Reply::Failed { .. }));
+    // A page of the journal is a read too, answered at once, without the edits that wait
+    // (`docs/adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md`).
+    let journal = || Request::Edit {
+        edit: slime_channel::Edit::Journal {
+            cursor: None,
+            bytes: None,
+        },
+    };
+    let page = |reader: &Client| {
+        reader
+            .send(&journal())
+            .expect("sent")
+            .wait_for(Duration::from_secs(30))
+            .expect("answered while the gesture goes on")
+            .0
+    };
+    let written = |text: &str| Reply::Journal {
+        text: text.to_owned(),
+        next: None,
+        lossy: false,
+    };
+    assert_eq!(page(&reader), written("1"));
     thread::sleep(Duration::from_millis(100));
     assert_eq!(
         x(&reader),
@@ -461,6 +504,7 @@ fn a_tool_s_edits_wait_while_the_simulation_says_so() {
     }
     assert_eq!(dim.join().expect("answered"), Reply::Done);
     assert_eq!(x(&reader), 123.0, "applied in their order");
+    assert_eq!(page(&reader), written("123"), "journaled once applied");
     assert_eq!(ask(&reader, Request::Stop), Reply::Done);
     let status = launched.child.wait().expect("the run ends");
     assert!(status.success(), "{status}");

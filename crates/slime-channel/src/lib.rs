@@ -53,7 +53,7 @@ pub(crate) fn waited<'a, T>(
 pub const FAMILIES: [(&str, u32, &[&str]); 4] = [
     ("play", 1, &["time"]),
     ("world", 2, &[]),
-    ("editing", 1, &[]),
+    ("editing", 2, &[]),
     (
         uwui_agent::interface::FAMILY,
         uwui_agent::interface::VERSION,

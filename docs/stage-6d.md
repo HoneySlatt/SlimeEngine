@@ -2592,6 +2592,8 @@ In progress, its card in [`PLAN.md`](PLAN.md#m6d9a1b3b2--the-editors-journal).
   ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)).
 - **Done when.** The engine's MCP session tests pass through the library; a session test of uwui's
   server drives an example; CI is green.
+- **Debt settled.** An agent that follows the editor's steps by reading its journal again, by an
+  event of the steps, the owner's choice of 2026-11-14 ([`debt.md`](debt.md)).
 - **Measured.** The engine's answer through MCP against its figure before.
 
 ### M6d.9a3a — Attaching, and the person's consent

@@ -136,18 +136,24 @@ pub trait Simulation {
     }
 
     /// Answers what a tool asks of an editor through the development channel, at the start of a
-    /// frame (`docs/adr/0135-the-editors-program.md`).
+    /// frame (`docs/adr/0135-the-editors-program.md`). A page of a list that it gives, the
+    /// journal's, is bounded by `page`, the request's, and by `time_up`, which says whether the
+    /// page's share of the frame's start has passed (`slime_channel::page::Pager`). A fault that
+    /// keeps its code, as a stale cursor, is answered as [`Reply::Failed`](slime_channel::Reply).
     ///
     /// # Errors
     ///
-    /// Why it cannot answer: by default, that the program is not an editor.
+    /// Why it cannot answer, which a tool reads as a refusal: by default, that the program is not
+    /// an editor.
     #[cfg(feature = "development")]
     fn edit(
         &mut self,
         world: &mut World,
         edit: &slime_channel::Edit,
+        page: slime_channel::page::Page,
+        time_up: &mut dyn FnMut() -> bool,
     ) -> Result<slime_channel::Reply, AppError> {
-        let _ = (world, edit);
+        let _ = (world, edit, page, time_up);
         Err("the program is not an editor: it plays its level, and edits none".into())
     }
 
@@ -529,7 +535,13 @@ mod tests {
     #[test]
     fn a_simulation_that_is_not_an_editor_refuses_what_a_tool_asks_of_an_editor() {
         let mut world = World::new();
-        let refused = ().edit(&mut world, &slime_channel::Edit::Undo).expect_err("refused");
+        let refused = ().edit(
+            &mut world,
+            &slime_channel::Edit::Undo,
+            slime_channel::page::Page::new(1, usize::MAX),
+            &mut || false,
+        );
+        let refused = refused.expect_err("refused");
         assert_eq!(
             refused.to_string(),
             "the program is not an editor: it plays its level, and edits none"

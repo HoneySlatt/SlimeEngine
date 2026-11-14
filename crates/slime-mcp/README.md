@@ -139,7 +139,10 @@ The tools, each described to the agent by the server itself, with its parameters
   its window or without it (`--headless`): a step of commands given as text, whole or not at all,
   undone and done again, entities selected, the steps done and undone, the selection and what the
   editor recovered as it started, its journal, and the level written back, with what its file could
-  not hold (`docs/adr/0134-the-editors-core.md`).
+  not hold (`docs/adr/0134-the-editors-core.md`). `editor_journal` gives the journal by pages of
+  some 32 KiB, or of the fewer `bytes` that the agent asks, each that more follow starting with its
+  `next`, which `cursor` takes; the level's entry, one line, may take many pages
+  (`docs/adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md`).
 - `list_operations` and `run_operation`: an editor's operations, every action that its menus, its
   shortcuts and its palette run, listed with their parameters and what they change, and one run
   by its name with its arguments, as a person runs it

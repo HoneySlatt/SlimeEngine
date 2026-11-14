@@ -64,7 +64,7 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its dev
      style is. An editor, started as a game is (`cargo run --example \
      editor -- --level <a copy of a level> --journal <a file of its own>`), edits its level: \
      `edit` makes a step of commands, `undo` and `redo` undo and make it again, `select` selects \
-     entities, `editor_history` says its steps and selection, `editor_journal` gives its journal, \
+     entities, `editor_history` says its steps and selection, `editor_journal` gives its journal by pages, \
      `write_level` writes the level back to its file, `list_operations` lists every action of its \
      menus, shortcuts and palette, and `run_operation` runs one by its name, as a person does. \
      Once an editor plays its level (`run_operation` `play.start`), `drive_played_game` points \
@@ -194,6 +194,17 @@ struct ListEntities {
     cursor: Option<String>,
     /// The most entities wanted on the page; left out for as many as fit.
     limit: Option<u64>,
+}
+
+/// What `editor_journal` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct EditorJournal {
+    /// Where the page starts: the `next` that the page before gave; left out for the journal's
+    /// start.
+    cursor: Option<String>,
+    /// The most bytes of the page, as JSON writes its text; left out for as many as the server
+    /// gives, some 32 KiB.
+    bytes: Option<u64>,
 }
 
 /// What `inspect_entity` takes.
@@ -406,7 +417,7 @@ fn fault(code: i64, message: String) -> CallToolResult {
 /// The line that starts a page of a list that goes on: its cursor, first, as an agent's client
 /// may cut a long output.
 fn next_line(next: &str) -> String {
-    format!("next: {next} (give it as `cursor`, with the same filter, for the rest)")
+    format!("next: {next} (give it as `cursor`, with the same other arguments, for the rest)")
 }
 
 /// A result of text.
@@ -513,11 +524,12 @@ impl Server {
         })
     }
 
-    /// A page of a list for an agent, from `request`, a request of a list: the pages that the game
-    /// gives, each after the last, gathered until they hold about [`PAGE_BYTES`] of JSON, the list
-    /// ends or [`LIST_TIME`] passed, so that a page that the game cut short, or that found none,
-    /// does not reach the agent alone. It gives the last page's `next`.
-    async fn list(&self, first: Request) -> Result<CallToolResult, McpError> {
+    /// A page of a list for an agent, from `request`, a request of a list that asks `bytes` of
+    /// JSON at most, [`PAGE_BYTES`] or fewer: the pages that the game gives, each after the last,
+    /// gathered until they hold about `bytes` of JSON, the list ends or [`LIST_TIME`] passed, so
+    /// that a page that the game cut short, or that found none, does not reach the agent alone. It
+    /// gives the last page's `next`.
+    async fn list(&self, first: Request, bytes: u64) -> Result<CallToolResult, McpError> {
         let started = Instant::now();
         let mut request = first.clone();
         let mut gathered: Option<Reply> = None;
@@ -529,11 +541,13 @@ impl Server {
             let Some(next) = paged(&mut gathered, reply) else {
                 break;
             };
-            let (count, held) = gathered.as_ref().map_or((0, 0), page_size);
-            if held >= PAGE_BYTES / 2 || started.elapsed() >= LIST_TIME {
+            if started.elapsed() >= LIST_TIME {
                 break;
             }
-            let Some(asked) = resumed(&first, next, count, PAGE_BYTES - held) else {
+            let Some(asked) = gathered
+                .as_ref()
+                .and_then(|gathered| rest_of(&first, next, gathered, bytes))
+            else {
                 break;
             };
             request = asked;
@@ -654,9 +668,23 @@ fn paged(gathered: &mut Option<Reply>, reply: Reply) -> Option<String> {
             *next = then;
             next.clone()
         }
+        (
+            Some(Reply::Journal { text, next, lossy }),
+            Reply::Journal {
+                text: more,
+                next: then,
+                lossy: replaced,
+            },
+        ) => {
+            text.push_str(&more);
+            *next = then;
+            *lossy |= replaced;
+            next.clone()
+        }
         (_, reply) => {
             let next = match &reply {
                 Reply::Entities { next, .. }
+                | Reply::Journal { next, .. }
                 | Reply::Interface {
                     reply: interface::Reply::Elements { next, .. },
                 } => next.clone(),
@@ -668,6 +696,12 @@ fn paged(gathered: &mut Option<Reply>, reply: Reply) -> Option<String> {
     }
 }
 
+/// The bytes of JSON of a page that an agent asks `bytes` of: as many, at most [`PAGE_BYTES`];
+/// [`PAGE_BYTES`] when it asks none.
+fn page_bytes(bytes: Option<u64>) -> u64 {
+    bytes.map_or(PAGE_BYTES, |bytes| bytes.min(PAGE_BYTES))
+}
+
 /// How many items the pages gathered hold, and the bytes of JSON that they take.
 fn page_size(gathered: &Reply) -> (u64, u64) {
     let (count, size) = match gathered {
@@ -675,9 +709,22 @@ fn page_size(gathered: &Reply) -> (u64, u64) {
         Reply::Interface {
             reply: interface::Reply::Elements { elements, .. },
         } => (elements.len(), json_size(elements)),
+        Reply::Journal { text, .. } => (0, json_size(text)),
         _ => (0, 0),
     };
     (count as u64, size as u64)
+}
+
+/// The request of the next page of the list that `first` asked within `bytes` of JSON, from
+/// `next`, the last page's cursor, once the pages `gathered` hold what they hold: none once they
+/// hold half of `bytes` or more, as the next page may be cut short, nor once the list's `limit` is
+/// reached.
+fn rest_of(first: &Request, next: String, gathered: &Reply, bytes: u64) -> Option<Request> {
+    let (count, held) = page_size(gathered);
+    if held >= bytes / 2 {
+        return None;
+    }
+    resumed(first, next, count, bytes - held)
 }
 
 /// The rest of the list that `request` asked, its first page, once `count` items of it were
@@ -704,6 +751,16 @@ fn resumed(request: &Request, cursor: String, count: u64, bytes: u64) -> Option<
             if let Some(limit) = limit {
                 *limit = limit.checked_sub(count).filter(|&left| left > 0)?;
             }
+            *at = Some(cursor);
+            *most = Some(bytes);
+        }
+        Request::Edit {
+            edit:
+                Edit::Journal {
+                    cursor: at,
+                    bytes: most,
+                },
+        } => {
             *at = Some(cursor);
             *most = Some(bytes);
         }
@@ -854,7 +911,23 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
                 history.journal
             ))
         }
-        Reply::Journal { text: journal } => text(journal),
+        Reply::Journal {
+            text: journal,
+            next,
+            lossy,
+        } => {
+            // Where it goes on and how it was read first, apart from the journal's own text.
+            let mut said: Vec<String> = next.as_deref().map(next_line).into_iter().collect();
+            if lossy {
+                said.push(
+                    "bytes of this page that are not UTF-8 were each replaced, by run, with U+FFFD"
+                        .to_owned(),
+                );
+            }
+            let mut blocks: Vec<ContentBlock> = said.into_iter().map(ContentBlock::text).collect();
+            blocks.push(ContentBlock::text(journal));
+            CallToolResult::success(blocks)
+        }
         Reply::Operations { operations } => text(
             operations
                 .iter()
@@ -1139,12 +1212,15 @@ impl Server {
             limit,
         }): Parameters<ListEntities>,
     ) -> Result<CallToolResult, McpError> {
-        self.list(Request::Entities {
-            filter,
-            cursor,
-            limit,
-            bytes: Some(PAGE_BYTES),
-        })
+        self.list(
+            Request::Entities {
+                filter,
+                cursor,
+                limit,
+                bytes: Some(PAGE_BYTES),
+            },
+            PAGE_BYTES,
+        )
         .await
     }
 
@@ -1258,15 +1334,18 @@ impl Server {
             limit,
         }): Parameters<FindElements>,
     ) -> Result<CallToolResult, McpError> {
-        self.list(Request::Interface {
-            request: interface::Request::Elements {
-                role: role.unwrap_or_default(),
-                name: name.unwrap_or_default(),
-                cursor,
-                limit,
-                bytes: Some(PAGE_BYTES),
+        self.list(
+            Request::Interface {
+                request: interface::Request::Elements {
+                    role: role.unwrap_or_default(),
+                    name: name.unwrap_or_default(),
+                    cursor,
+                    limit,
+                    bytes: Some(PAGE_BYTES),
+                },
             },
-        })
+            PAGE_BYTES,
+        )
         .await
     }
 
@@ -1504,13 +1583,26 @@ impl Server {
     }
 
     #[tool(
-        description = "An editor's journal, as text: the level as the journal started, then each \
-                       step made, undone and done again, each selection and each writing."
+        description = "An editor's journal, as text, a page at a time: the level as the journal \
+                       started, on one line that may take many pages, then each step made, undone \
+                       and done again, each selection and each writing. A page that more follow \
+                       starts with `next`, which `cursor` takes for the rest; one whose bytes were \
+                       not text says so."
     )]
-    async fn editor_journal(&self) -> Result<CallToolResult, McpError> {
-        self.ask(Request::Edit {
-            edit: Edit::Journal,
-        })
+    async fn editor_journal(
+        &self,
+        Parameters(EditorJournal { cursor, bytes }): Parameters<EditorJournal>,
+    ) -> Result<CallToolResult, McpError> {
+        let bytes = page_bytes(bytes);
+        self.list(
+            Request::Edit {
+                edit: Edit::Journal {
+                    cursor,
+                    bytes: Some(bytes),
+                },
+            },
+            bytes,
+        )
         .await
     }
 
@@ -1761,5 +1853,82 @@ mod tests {
         };
         assert_eq!((cursor.as_deref(), limit), (Some("e"), None));
         assert_eq!(resumed(&Request::State, "c".to_owned(), 0, 100), None);
+    }
+
+    fn journal(text: &str, next: Option<&str>, lossy: bool) -> Reply {
+        Reply::Journal {
+            text: text.to_owned(),
+            next: next.map(str::to_owned),
+            lossy,
+        }
+    }
+
+    /// The journal's pages gathered into one text, lossy when one was, with the last `next`; the
+    /// rest asked from it within the bytes left; the agent shown `next` first, apart from the
+    /// journal's text.
+    #[test]
+    fn the_journal_s_pages_are_gathered_its_next_shown_first() {
+        let mut gathered = None;
+        assert_eq!(
+            paged(&mut gathered, journal("# level\n", Some("1"), false)),
+            Some("1".to_owned())
+        );
+        assert_eq!(
+            paged(&mut gathered, journal("\u{fffd}", Some("2"), true)),
+            Some("2".to_owned())
+        );
+        paged(&mut gathered, journal("# do\n", Some("3"), false));
+        let gathered = gathered.expect("gathered");
+        assert_eq!(
+            gathered,
+            journal("# level\n\u{fffd}# do\n", Some("3"), true)
+        );
+        assert_eq!(page_size(&gathered).1, 20);
+        let first = Request::Edit {
+            edit: Edit::Journal {
+                cursor: None,
+                bytes: Some(4096),
+            },
+        };
+        assert_eq!(
+            resumed(&first, "3".to_owned(), 0, 4000),
+            Some(Request::Edit {
+                edit: Edit::Journal {
+                    cursor: Some("3".to_owned()),
+                    bytes: Some(4000),
+                },
+            })
+        );
+        let said: Vec<String> = describe(gathered, &[])
+            .content
+            .iter()
+            .filter_map(|block| block.as_text().map(|text| text.text.clone()))
+            .collect();
+        assert_eq!(said.len(), 3, "{said:?}");
+        assert!(said[0].starts_with("next: 3 "), "{said:?}");
+        assert!(said[1].contains("not UTF-8"), "{said:?}");
+        assert_eq!(said[2], "# level\n\u{fffd}# do\n");
+        // A page short of half the agent's bytes is followed by one of the bytes left.
+        let short = journal(&"x".repeat(500), Some("4"), false);
+        assert_eq!(
+            rest_of(&first, "4".to_owned(), &short, 2048),
+            Some(Request::Edit {
+                edit: Edit::Journal {
+                    cursor: Some("4".to_owned()),
+                    bytes: Some(2048 - 502),
+                },
+            })
+        );
+        let half = journal(&"x".repeat(1022), Some("5"), false);
+        assert_eq!(rest_of(&first, "5".to_owned(), &half, 2048), None);
+        assert_eq!(
+            (
+                page_bytes(None),
+                page_bytes(Some(10)),
+                page_bytes(Some(u64::MAX))
+            ),
+            (PAGE_BYTES, 10, PAGE_BYTES),
+            "an agent asks less, never more"
+        );
     }
 }
