@@ -169,8 +169,10 @@ in git.
   [M6d.5c3b](#m6d5c3b--frames-and-times-per-target), on 2026-11-14, M6d.5c whole; then
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui), cut in two on 2026-11-14 ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)): done,
   [M6d.5d1](#m6d5d1--each-reader-its-changes-each-target-its-tree) and
-  [M6d.5d2](#m6d5d2--the-translation-in-uwui-accesskit), on 2026-11-14, M6d.5d whole; in
-  progress, [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
+  [M6d.5d2](#m6d5d2--the-translation-in-uwui-accesskit), on 2026-11-14, M6d.5d whole; then
+  [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone), cut in two on 2026-11-14 ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)): in
+  progress, [M6d.5e1](#m6d5e1--the-lifecycle); then
+  [M6d.5e2](#m6d5e2--each-targets-size-and-scale-from-its-host).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2139,7 +2141,38 @@ The second half of M6d.5d ([ADR-0261](adr/0261-each-reader-of-meaning-its-change
 
 ### M6d.5e — slime-app a host through the API alone
 
-In progress, its card in [`PLAN.md`](PLAN.md#m6d5e--slime-app-a-host-through-the-api-alone).
+The last part of M6d.5 ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)).
+
+- **Goal.** `slime-app` reaches uwui through the host's API alone, the engine's sessions unchanged.
+- **Cut in two** at its start, on 2026-11-14 ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)): the lifecycle first, then each target's size
+  and scale, whose change of `RootSettings` edits track A's files and runs when track A is between
+  milestones. A lost surface made again within a budget of time; a covered window at rest, uwui
+  told nothing; `Ui::set_preferences` the host's door for the preferences. Suspend, resume and low
+  memory, which winit gives nowhere the engine runs, and a target removed wait for their readers.
+  The owner's choices.
+
+### M6d.5e1 — The lifecycle
+
+In progress, its card in [`PLAN.md`](PLAN.md#m6d5e1--the-lifecycle).
+
+### M6d.5e2 — Each target's size and scale from its host
+
+The second half of M6d.5e ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Each root takes its size and scale from its target, which its host gives; the
+  presentations no longer read the window for their interface.
+- **Crates.** `uwui`, `slime-app`; `slime-editor`, `slime-devui`, *Hunna Wood*, the examples and
+  the benchmarks; track A's `uwui/src/agents.rs` and `slime-app/src/channel.rs`, with the owner's go.
+- **Delivers.** A target's size and scale given by its host; `RootSettings` without a size nor a
+  scale; a layer's place kept apart; the rule for roots stacked on one target; a size of zero and
+  one larger than the image defined; the editor, the dev overlay, *Hunna Wood*, the examples and
+  the benchmarks sized by their target; designed at its start, its shape put to the owner.
+- **Done when.** No presentation reads the window's size or scale for its interface; the editor's
+  and the game's sessions are unchanged; a still frame allocates as before; CI is green; M6d.5 is
+  whole.
+- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **Measured.** The editor's start; a still frame's counters.
 
 ### M6d.6 — A series of headless compositors
 

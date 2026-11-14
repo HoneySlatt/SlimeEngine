@@ -1,6 +1,7 @@
 # 0025. Giving up a window's surface that is lost for good
 
-- Status: Accepted
+- Status: Accepted; amended by
+  [0264](0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md) (a surface given up made again within a budget)
 - Date: 2026-10-12
 
 ## Context

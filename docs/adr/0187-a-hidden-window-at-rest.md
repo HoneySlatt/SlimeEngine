@@ -2,7 +2,8 @@
 
 - Status: Accepted; amends [0021](0021-frame-pacing.md) (on Wayland, frames wait for the
   compositor's signal, and the loop sets no deadline of its own while it asks for a frame); amended by
-  [0227](0227-the-time-that-motion-reads.md) (the loop wakes for its tasks, and draws nothing)
+  [0227](0227-the-time-that-motion-reads.md) (the loop wakes for its tasks, and draws nothing) and
+  [0264](0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md) (a covered window holds its frames)
 - Date: 2026-11-05
 
 ## Context

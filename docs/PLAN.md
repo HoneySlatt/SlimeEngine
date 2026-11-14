@@ -27,7 +27,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
     done, M6d.9a1a to [M6d.9a1b3b1](stage-6d.md#m6d9a1b3b1--lists); next,
     [M6d.9a1b3b2](stage-6d.md#m6d9a1b3b2--the-editors-journal), the editor's journal by pages.
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5a to M6d.5d2, done, M6d.5c and M6d.5d whole;
-    in progress, [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
+    in progress, [M6d.5e1](#m6d5e1--the-lifecycle); next, M6d.5e2, once track A is between
+    milestones.
   - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249.
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
@@ -44,7 +45,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.0a to M6d.3c3, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.4a to M6d.4b2 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
 | [M6d.5a to M6d.5d2 — The host's API, its first parts](stage-6d.md#m6d5--the-hosts-api) | Done |
-| [M6d.5e — slime-app a host through the API alone](#m6d5e--slime-app-a-host-through-the-api-alone) | In progress |
+| [M6d.5e1 — The lifecycle](#m6d5e1--the-lifecycle) | In progress |
+| [M6d.5e2 — Each target's size and scale from its host](stage-6d.md#m6d5e2--each-targets-size-and-scale-from-its-host) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
@@ -56,18 +58,21 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
 
-## M6d.5e — slime-app a host through the API alone
+## M6d.5e1 — The lifecycle
 
-Started on 2026-11-14 ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)).
+Started on 2026-11-14 ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)), the first half of
+[M6d.5e](stage-6d.md#m6d5e--slime-app-a-host-through-the-api-alone).
 
-- **Goal.** `slime-app` reaches uwui through the host's API alone.
-- **Crates.** `slime-app`, `slime-platform`; `slime-editor`, `slime-devui`, *Hunna Wood*.
-- **Delivers.** Focus, suspend, resume, occlusion and low memory given to uwui where winit gives
-  them; the text's size and less motion through the API; a lost surface made again; each root's
-  size and scale from the host; the table's engine column checked.
-- **Done when.** Through the API alone, the agents' surface apart; sessions, rest and input to
-  present unchanged; CI green.
-- **Measured.** Rest; input to present; the editor's start.
+- **Goal.** The window's lifecycle reaches uwui, or rests the engine, where winit gives it.
+- **Crates.** `uwui`, `slime-platform`, `slime-gfx`, `slime-app`.
+- **Delivers.** `Input::Focus`, the focus's loss reported before the platform's releases; a lost
+  surface made again rather than ending the run, within a budget of time; a covered window at
+  rest; `Ui::set_preferences` documented as the host's door; ADR-0249's column of the engine
+  corrected.
+- **Done when.** Alt let go after the focus left opens no bar of menus; a surface lost on purpose is
+  made again and the run goes on; the editor's and the game's sessions, rest and input to present
+  are unchanged; CI is green.
+- **Measured.** Rest; input to present.
 
 ## Ideas waiting for their milestone
 

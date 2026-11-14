@@ -93,7 +93,7 @@ the ADR linking to it.
 | [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amended by 0025, 0044, 0075 and 0103 |
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
 | [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted; extended on 2026-10-13 |
-| [0025](0025-giving-up-a-lost-surface.md) | Giving up a window's surface that is lost for good | Accepted |
+| [0025](0025-giving-up-a-lost-surface.md) | Giving up a window's surface that is lost for good | Accepted; amended by 0264 |
 | [0026](0026-resource-binding-and-depth.md) | Resource binding and depth in `slime-gfx` | Accepted; amended by 0032, 0033, 0047, 0106, 0115 and 0117 |
 | [0027](0027-the-render-crate.md) | The render crate, what it draws, and glam | Accepted; amended by 0034, 0035, 0037, 0038, 0039, 0040, 0041, 0047, 0048, 0111 and 0117 |
 | [0028](0028-image-tests-tolerate-a-few-pixels.md) | Image tests tolerate a few differing pixels | Accepted; amended by 0030 |
@@ -255,7 +255,7 @@ the ADR linking to it.
 | [0184](0184-the-engines-logo.md) | The engine's logo | Accepted |
 | [0185](0185-rest-checked-in-ci.md) | Rest, checked in CI | Accepted; amends 0021, 0156 and 0175; amended by 0195 |
 | [0186](0186-counters-and-ratios-in-ci.md) | Counters and ratios in CI | Accepted; amends 0005, 0104 and 0175; amended by 0189 |
-| [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021; amended by 0227 |
+| [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021; amended by 0227 and 0264 |
 | [0188](0188-a-light-check-for-documentation.md) | A light check for documentation | Accepted; amends 0007 |
 | [0189](0189-first-measures-of-time.md) | First measures of time | Accepted; amends 0104, 0175 and 0186; amended by 0191 and 0215 |
 | [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181; amended by 0194, 0197, 0199, 0202, 0203, 0205, 0209, 0211, 0212, 0213, 0218, 0220, 0222, 0225, 0226, 0227, 0234 and 0235 |
@@ -316,15 +316,15 @@ the ADR linking to it.
 | [0245](0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md) | The interface's GPU budget counts what it adds to the frame | Accepted; amends 0114, 0137 and 0243 |
 | [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) | One core for agents cut in five: a session without input or output, in JSON-RPC, versioned by family | Accepted; amends 0110, 0122 and 0218; amended by 0248 |
 | [0247](0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md) | The canvas tested on OpenGL ES through a feature of `uwui-render` alone | Accepted; amends 0016 and 0243 |
-| [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) | The host's API cut in five: built where it is read, three channels and a waker, AccessKit's translation in a crate of its own | Accepted; amends 0181, 0226, 0227 and 0246; amended by 0249, 0253, 0255 and 0261 |
-| [0249](0249-the-hosts-api-its-items-and-their-table.md) | The host's API: its items in three channels, and how each maps on five platforms | Accepted; amends 0248; amended by 0251, 0253, 0255, 0256 and 0261 |
+| [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) | The host's API cut in five: built where it is read, three channels and a waker, AccessKit's translation in a crate of its own | Accepted; amends 0181, 0226, 0227 and 0246; amended by 0249, 0253, 0255, 0261 and 0264 |
+| [0249](0249-the-hosts-api-its-items-and-their-table.md) | The host's API: its items in three channels, and how each maps on five platforms | Accepted; amends 0248; amended by 0251, 0253, 0255, 0256, 0261 and 0264 |
 | [0250](0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md) | Requests in flight answered in any order, cancelled with an answer, bounded in the core; events by subscription; M6d.9a1b cut in three | Accepted; amends 0122 and 0161; amended by 0252, 0254, 0256, 0259 and 0260 |
 | [0251](0251-the-engines-host-clock-and-its-times.md) | The engine's host clock and its times: rustix and windows-sys, the times given before each frame and event, the wake waiting for the executor | Accepted; amends 0227 and 0249; amended by 0253 and 0258 |
 | [0252](0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md) | The channel's bounds of memory kept by its carrier until a second carrier; a place freed as its answer leaves; the budget measured by a run's frames | Accepted; amends 0250 |
 | [0253](0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md) | Input as the host's events, answered at once, and each target's outputs: M6d.5c cut in three | Accepted; amends 0248, 0249 and 0251; amended by 0255, 0256 and 0257 |
 | [0254](0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md) | Events declared in the welcome, replaced in the carrier, published at the frame's end; Play waits on one queue | Accepted; amends 0164 and 0250 |
 | [0255](0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md) | The clipboard through the outputs, and the host's questions | Accepted; amends 0248, 0249 and 0253; amended by 0256 |
-| [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) | Each root on its target, each target its input and outputs, the active target; M6d.5c3 cut in two | Accepted; amends 0249, 0250, 0253 and 0255; amended by 0257 and 0258 |
+| [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) | Each root on its target, each target its input and outputs, the active target; M6d.5c3 cut in two | Accepted; amends 0249, 0250, 0253 and 0255; amended by 0257, 0258 and 0264 |
 | [0257](0257-targets-known-from-their-first-root-a-moved-root-below-its-new-targets-modal-root.md) | Targets known from their first root; a root moved stands below its new target's modal root | Accepted; amends 0253 and 0256 |
 | [0258](0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md) | Each target its frame and its time; a change asks for its target's frame | Accepted; amends 0251 and 0256 |
 | [0259](0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md) | The interface's family in `uwui-agent`, answered by `uwui`; an element's own style by a request of its own; M6d.9a1b3 cut in two | Accepted; amends 0143 and 0250 |
@@ -332,3 +332,4 @@ the ADR linking to it.
 | [0261](0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md) | Each reader of meaning its changes, each target its tree; no number on a screen reader's action; M6d.5d cut in two | Accepted; amends 0248 and 0249; amended by 0262 |
 | [0262](0262-uwui-accesskits-api-one-tree-per-window-the-hosts-node-made-when-needed.md) | uwui-accesskit's API: one tree per window, the host's node made when needed | Accepted; amends 0261 |
 | [0263](0263-the-cursor-of-elements-anchored-on-its-next-sibling-what-a-list-may-skip-the-slots-read.md) | The cursor of elements anchored on its next sibling; what a list may skip; the slots read | Accepted; amends 0260 |
+| [0264](0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md) | The lifecycle before each target's size; a lost surface made again within a budget; M6d.5e cut in two | Accepted; amends 0025, 0187, 0248, 0249 and 0256 |
