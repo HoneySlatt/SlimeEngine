@@ -1541,6 +1541,12 @@ resolved once into a *resolved scene*, the prefabs that it places with it, then 
 again when new cooked data changes it ([ADR-0091](adr/0091-scene-documents-and-placements.md),
 [ADR-0095](adr/0095-cooked-scene-files.md)).
 
+**Screen reader's tree.** What one window gives screen readers, translated from the part of an
+interface that its *target* draws: AccessKit's tree, whole when a screen reader asks for it, then
+what changed after each frame, below the window's node, which the host makes; a screen reader's
+requests go back through it to the interface (`uwui_accesskit::ScreenReaderTree`,
+[ADR-0262](adr/0262-uwui-accesskits-api-one-tree-per-window-the-hosts-node-made-when-needed.md)).
+
 **Series (of compositors).** The five compositors without a screen in which the editor and *Hunna
 Wood* are checked, each the reference of a family: Weston, sway, KWin, Mutter, and X11 through
 Xvfb ([ADR-0195](adr/0195-a-series-of-headless-compositors.md)). What each gives and what the

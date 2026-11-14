@@ -3060,8 +3060,6 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 name = "slime-app"
 version = "0.6.0"
 dependencies = [
- "accesskit",
- "accesskit_consumer",
  "ctrlc",
  "nu-ansi-term",
  "rustix 1.1.6",
@@ -3076,6 +3074,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uwui",
+ "uwui-accesskit",
  "uwui-render",
  "windows-sys 0.61.2",
 ]
@@ -3781,6 +3780,17 @@ dependencies = [
  "uwui-agent",
  "uwui-kdl",
  "uwui-macros",
+]
+
+[[package]]
+name = "uwui-accesskit"
+version = "0.6.0"
+dependencies = [
+ "accesskit",
+ "accesskit_consumer",
+ "slime-color",
+ "tracing",
+ "uwui",
 ]
 
 [[package]]

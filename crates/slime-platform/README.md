@@ -25,8 +25,8 @@ it opens no dialog to save a file yet.
   in its public API (`docs/adr/0011-windowing-with-winit.md`).
 - With its `accessibility` feature, holds AccessKit's adapter of the window, the only crate that
   uses it: AT-SPI on Linux, through D-Bus, and UI Automation on Windows. AccessKit's tree and the
-  actions that screen readers ask cross its API, which `slime-app` translates the interface's
-  meaning into and out of (`docs/adr/0146-screen-readers.md`).
+  actions that screen readers ask cross its API, which `uwui-accesskit` translates the interface's
+  meaning into and out of, for `slime-app` (`docs/adr/0146-screen-readers.md`).
 
 ## Entry points
 

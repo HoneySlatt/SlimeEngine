@@ -243,7 +243,7 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   that no other element is ever given, with the elements that mean something nearest below it, and
   a field's text by runs, which screen readers move through by characters, words and lines
   (`Ui::field_runs`, `Ui::select_text`); the target's top and its own focus. A modal root makes
-  its own target's changes whole. `slime-app` translates them into AccessKit's tree
+  its own target's changes whole. `uwui-accesskit` translates them into AccessKit's tree
   (`docs/adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md`).
 - `style::Style` is an element's style, typed, in logical pixels: its layout, CSS's flexbox and
   grid properties with start and end sides, its paint, a box's fill, border, corners and shadow,
@@ -300,4 +300,4 @@ program.
 - Find a font by fallback where a stack can name it: the system's fallback costs up to a hundred
   times more than a font named (`docs/adr/0133-font-files-under-the-open-font-license.md`).
 - Show parley's, fontique's, swash's or taffy's types in its API, nor depend on AccessKit:
-  `slime-app` translates the tree's meaning into AccessKit's (`docs/adr/0146-screen-readers.md`).
+  `uwui-accesskit` translates the tree's meaning into AccessKit's (`docs/adr/0146-screen-readers.md`).

@@ -340,15 +340,13 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   (`docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md`).
   Without a token, it does not listen. The `slime-channel` crate holds the protocol and its limits;
   `tests/channel.rs` drives a headless run through it.
-- The `accessibility` feature: a windowed run gives screen readers its window's tree, the window's
-  node holding what the presentation's interface means on its target, through a reader of meaning
-  of the window's own while a screen reader reads it (`uwui::tree::Ui::take_meaning_changes`),
-  translated into AccessKit's tree, whole when a screen reader asks for it and what changed after
-  each frame from then on; it gives the interface what a screen reader asks of the window's tree
-  and its target's elements, a click, the focus, a value or a selection set, a scroll, through its
-  calls, as a person's input. Its translation's tests, in `src/accessibility.rs`, run with the
-  feature (`cargo test -p slime-app --features accessibility`), which a workspace's run of the
-  tests turns on through the examples.
+- The `accessibility` feature: a windowed run gives screen readers its window's tree, whole when a
+  screen reader asks for it and what changed after each frame from then on, and gives the
+  interface what they ask of it. `uwui-accesskit` translates the interface's meaning on the
+  window's target and does what a screen reader asks
+  (`docs/adr/0262-uwui-accesskits-api-one-tree-per-window-the-hosts-node-made-when-needed.md`);
+  `src/accessibility.rs` is the window's side: its node, named by its title and of its size, made
+  only when an update holds it, and `slime-platform`'s events and updates.
 
 Engine code and games log through the `tracing` macros. The conventions for errors, log levels and
 assertions are in `docs/adr/0008-errors-logging-and-assertions.md`; why the engine owns the main
@@ -388,10 +386,9 @@ the name the graphics API gives it.
   display lists; every program built on `slime-app` compiles it.
 - `slime-channel` and `slime-serialize`, with the `development` feature only: the development
   channel, and the documents through which it reads and writes values as text.
-- `accesskit`, with the `accessibility` feature only: the tree that screen readers read, which it
-  translates the interface's meaning into; `slime-platform`'s feature of the same name holds
-  AccessKit's adapter. Its tests check the translation with `accesskit_consumer`, the tree that
-  AccessKit's adapters build.
+- `uwui-accesskit`, with the `accessibility` feature only: the interface's meaning translated into
+  the tree that screen readers read, and `accesskit` re-exported, through which it makes the
+  window's node; `slime-platform`'s feature of the same name holds AccessKit's adapter.
 - `thiserror`: derives `RunError`'s `Display` and `Error` implementations.
 - `tracing`: the logging macros and profiling spans.
 - `tracing-subscriber`: the subscriber that formats, filters and writes log events, including the

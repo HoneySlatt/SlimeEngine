@@ -126,6 +126,14 @@ if runs lint; then
         echo "uwui-render depends on the engine crates above"
         exit 1
     fi
+    # uwui-accesskit names no engine crate either, its tests none but slime-color, the color of a
+    # color well, which leaves with uwui (ADR-0261).
+    uwui_accesskit_dependencies=$(cargo tree --locked -p uwui-accesskit -e normal,dev --target all \
+        --depth 1 --prefix none)
+    if grep -E '^slime-' <<< "$uwui_accesskit_dependencies" | grep -v '^slime-color '; then
+        echo "uwui-accesskit depends on the engine crates above"
+        exit 1
+    fi
     # uwui reads its documents in KDL, without the engine's reflection: neither slime-reflect nor
     # slime-serialize is in its tree, its tests' included, on any platform and with any feature
     # (ADR-0241).
@@ -474,11 +482,27 @@ if runs headless; then
         fi
     done
 
-    step "The game holds no adapter for screen readers, which games leave out until Stage 7 (ADR-0146)"
-    if cargo tree --locked -p hunnawood -e normal | grep -E 'accesskit_winit '; then
-        echo "the game depends on AccessKit's adapter"
-        exit 1
-    fi
+    step "The game holds no adapter for screen readers nor uwui-accesskit, which games leave out until Stage 7 (ADR-0146, ADR-0261)"
+    # The examples, through their dev-dependencies, turn the `accessibility` feature on: their tree
+    # holds both crates, or the search below would pass on any build. Each tree is read first, so
+    # that a failure of cargo stops the check rather than passing it.
+    screen_reader_crates=(accesskit_winit uwui-accesskit)
+    examples_crates=$(cargo tree --locked -p slime-examples -e normal,dev --target all --prefix none)
+    for crate in "${screen_reader_crates[@]}"; do
+        if ! grep -q "^$crate " <<< "$examples_crates"; then
+            echo "the examples' tree holds no $crate: the check would pass on any build"
+            exit 1
+        fi
+    done
+    for flags in --features=default --no-default-features; do
+        game_crates=$(cargo tree --locked -p hunnawood "$flags" -e normal --target all --prefix none)
+        for crate in "${screen_reader_crates[@]}"; do
+            if grep -q "^$crate " <<< "$game_crates"; then
+                echo "the game built with $flags depends on $crate"
+                exit 1
+            fi
+        done
+    done
 fi
 
 if runs gles; then

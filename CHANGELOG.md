@@ -11,6 +11,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `uwui-agent`, uwui's core for agents, under MIT OR Apache-2.0 (ADR-0246): a session without input
   or output, JSON-RPC 2.0 a message a line, a hello that names the agent, and families of requests
   each at its version.
+- `uwui-accesskit`, under MIT OR Apache-2.0 (ADR-0261, ADR-0262): any host of uwui gives screen
+  readers a window's tree through `ScreenReaderTree`, beside its own AccessKit adapter, and
+  re-exports `accesskit`. `slime-app` translates no longer, and depends on it in place of
+  `accesskit` with its `accessibility` feature. Screen readers read the toolkit as `uwui`.
 - uwui's times (ADR-0227, ADR-0251): `uwui::time` holds `Instant`, a time of the host's clock, and
   `RootTime`, a time of a root's clock, in whole nanoseconds, which cannot be mixed. A host gives
   each frame's time and source (`Ui::set_frame_shown`, told back by `FrameStats::shown`), each

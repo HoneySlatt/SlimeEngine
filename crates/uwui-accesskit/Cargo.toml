@@ -1,0 +1,29 @@
+[package]
+name = "uwui-accesskit"
+description = "What a uwui interface means, given to screen readers as AccessKit's tree, and what they ask of it given back to the interface."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT OR Apache-2.0"
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The tree that screen readers read, re-exported, so that a host builds its window's node and
+# hands the updates to its adapter with the crate's own version (ADR-0261).
+accesskit.workspace = true
+# A warning when the interface refuses the window a reader of meaning, and each request of a screen
+# reader at the debug level (ADR-0008).
+tracing.workspace = true
+# The interface, read through its public meaning, its readers and its targets.
+uwui.workspace = true
+
+[dev-dependencies]
+# Builds AccessKit's tree from the updates, as the adapters do, and panics on an update that is
+# not one: the tests check the translation against it.
+accesskit_consumer.workspace = true
+# The color that a color well's test gives and reads: uwui names it in its API without
+# re-exporting it; it leaves with uwui.
+slime-color.workspace = true
