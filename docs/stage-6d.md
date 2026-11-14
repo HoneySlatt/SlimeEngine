@@ -169,8 +169,8 @@ in git.
   [M6d.5c3b](#m6d5c3b--frames-and-times-per-target), on 2026-11-14, M6d.5c whole; then
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui), cut in two on 2026-11-14 ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)): done,
   [M6d.5d1](#m6d5d1--each-reader-its-changes-each-target-its-tree) and
-  [M6d.5d2](#m6d5d2--the-translation-in-uwui-accesskit), on 2026-11-14, M6d.5d whole; then
-  [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
+  [M6d.5d2](#m6d5d2--the-translation-in-uwui-accesskit), on 2026-11-14, M6d.5d whole; in
+  progress, [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2139,18 +2139,7 @@ The second half of M6d.5d ([ADR-0261](adr/0261-each-reader-of-meaning-its-change
 
 ### M6d.5e — slime-app a host through the API alone
 
-- **Goal.** `slime-app` reaches uwui through the host's API alone, the engine's sessions unchanged.
-- **Crates.** `slime-app`, `slime-platform`; `slime-editor`, `slime-devui`, *Hunna Wood*.
-- **Delivers.** The lifecycle given to uwui: focus, suspend and resume, occlusion and low memory
-  where winit gives them; the text's size and less motion given through the API; the surface lost
-  and made again rather than ending the run; each root's size and scale given
-  by the host, the presentations no longer reading the window; the table's column of the engine
-  checked against its code.
-- **Done when.** `slime-app` reaches uwui through the API alone, the agents' surface apart
-  (M6d.9a); the editor's and the game's sessions, rest and input to present are unchanged; CI is
-  green.
-- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
-- **Measured.** Rest; input to present; the editor's start.
+In progress, its card in [`PLAN.md`](PLAN.md#m6d5e--slime-app-a-host-through-the-api-alone).
 
 ### M6d.6 — A series of headless compositors
 
