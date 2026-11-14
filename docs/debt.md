@@ -868,6 +868,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A caret at the end of a line that breaks within the text is placed at the start of the next, its side lost.
   Screen readers scroll by an item or by what shows, not to an offset.
   `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once AccessKit's adapter moves to zbus 6.
+  Followed at [M6d.8](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility), the desktop host's accessibility; a target's tree grafted into another's, with its first reader, a target drawn in another's image.
 - **uwui's reader of KDL** ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   Random inputs test it in `cargo test`, from a seed; no fuzzer guided by coverage runs on it: `cargo-fuzz` needs a nightly compiler, and `bolero` cannot join the workspace; followed at uwui's first stage, in its CI.
   `Document::normal_form` converts a number in binary, octal or hexadecimal in time quadratic in its length, and its output grows with the square of a node's depth (its rustdoc has the figures): a program that writes a document from outside in its normal form may hang for hours on one number; the documents that uwui writes, from typed values, hold neither.
