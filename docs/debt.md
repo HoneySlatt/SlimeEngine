@@ -804,6 +804,10 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The surrounding text is not told as an output after each change, and whether a point is uwui's tells no kind of region, a bar's caption, edges or buttons: their readers are M6d.8's input methods and M6d.7's decorations ([ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)).
   A question over a field of 4,000 bytes whose long word follows text of two directions costs about 0.2 ms, ten times as much as over one direction, the character at a point included; the cause, found neither in uwui nor yet in parley, is not known ([`measurements.md`](measurements.md#m6d5c2-the-clipboard-and-the-hosts-questions)).
   Followed at M6d.5d, each window its tree of meaning; M6d.5e, the system's focus and a target removed; M6d.7, several windows and a layer's own; the pen, inertial scrolling and the hosts of Android and the web, which read the rest.
+- **Starting many transitions at once looks each one up in the list of those under way** ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)).
+  `Ui`'s styling and a section's reveal search the list of transitions under way before adding an element to it: a change of look that starts a transition on each of the editor's 12,487 elements makes about 78 million comparisons, inside the frame of the change that `ui.tree.look` times.
+  Its share of that frame is not measured; found by M6d.5c3b's closing review, outside its change.
+  Followed at uwui's first stage, which builds the caps of motion.
 - **A wake that runs uwui's tasks without drawing waits for its executor** ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)).
   uwui asks only for its next frame due (`Ui::next_frame_due`), no wake: it has no tasks yet, and its timers, tooltips, submenus and notifications, all change the drawing, which waits for a frame.
   Each wake of the host's waker asks the engine for a frame; a hidden window holds it as [ADR-0187](adr/0187-a-hidden-window-at-rest.md) says.
