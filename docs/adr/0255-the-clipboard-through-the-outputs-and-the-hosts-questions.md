@@ -5,7 +5,8 @@
   [0249](0249-the-hosts-api-its-items-and-their-table.md) (the same; the surrounding text as an
   output and the kinds of a point wait for their readers; the row "Clipboard's rights" on macOS)
   and [0253](0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md) (the
-  answer's third state carries no text)
+  answer's third state carries no text); amended by
+  [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) (the program's clipboard on the active target)
 - Date: 2026-11-13
 
 ## Context
