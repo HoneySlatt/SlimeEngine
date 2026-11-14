@@ -269,7 +269,7 @@ mod tests {
                     (&mut settings, None),
                     &world,
                 );
-                overlay.ui_mut().frame();
+                overlay.ui_mut().frame(uwui::host::TargetId::MAIN);
                 assert_eq!(asked.commands, [], "nothing is touched");
                 assert_eq!(asked.speed, None);
                 assert!(!asked.lose_device);

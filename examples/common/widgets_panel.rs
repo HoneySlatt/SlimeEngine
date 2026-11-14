@@ -41,6 +41,7 @@
 use slime_color::{LinearColor, linear_to_srgb8};
 use uwui::action::{ActionKind, FieldValue, Intent};
 use uwui::display::DisplayList;
+use uwui::host::TargetId;
 use uwui::look::{self, Colors, Density};
 use uwui::shortcuts::Shortcuts;
 use uwui::style::{Align, Dimension, FlexDirection, Sides, StyleBuilder};
@@ -827,7 +828,7 @@ impl WidgetsPanel {
                 }
             });
         }
-        self.ui.frame().0
+        self.ui.frame(TargetId::MAIN).0
     }
 }
 

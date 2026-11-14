@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use slime_color::LinearColor;
 use uwui::DocumentErrors;
+use uwui::host::TargetId;
 use uwui::style::{Align, Dimension, Easing, Shadow, Style, Track};
 use uwui::text::Fonts;
 use uwui::theme::{StyleSheet, Theme};
@@ -69,7 +70,7 @@ fn styled(sheet: &str) -> Result<(Ui, ElementId, ElementId), DocumentErrors> {
             }
         });
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     Ok((ui, boxed.expect("built"), second.expect("built")))
 }
 

@@ -563,10 +563,10 @@ mod tests {
     fn interface() -> (Ui, ElementId) {
         let (mut ui, root) = empty();
         build(&mut ui, root, "ready");
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         let open = ui.element_by_path("main/page/bar/open").expect("built");
         ui.set_focus(Some(open));
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         (ui, root)
     }
 
@@ -655,7 +655,7 @@ mod tests {
         assert!(update.nodes.is_empty());
         // The text's words changed: that node alone.
         build(&mut ui, root, "saved at last");
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         let update = readers.translate(ui.take_meaning_changes(false), SIZE);
         assert_eq!(update.nodes.len(), 1);
         assert_eq!(update.nodes[0].1.value(), Some("saved at last"));
@@ -684,7 +684,7 @@ mod tests {
                 });
             });
         });
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         tree.update_and_process_changes(
             readers.translate(ui.take_meaning_changes(false), SIZE),
             &mut changes,
@@ -697,7 +697,7 @@ mod tests {
             .collect();
         assert_eq!(top, [Some("Open".to_owned()), Some("Save".to_owned())]);
         build(&mut ui, root, "saved at last");
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         tree.update_and_process_changes(
             readers.translate(ui.take_meaning_changes(false), SIZE),
             &mut changes,
@@ -753,7 +753,7 @@ mod tests {
         assert_eq!(ui.field_text(name), Some("Grace"));
         assert_eq!(ui.take_actions().len(), 2);
         // A selection from the second character to the end, by the run's places.
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         let text = ui.field_runs(name).expect("a field");
         let run = NodeId(text.runs[0].number);
         let selection = TextSelection {
@@ -827,7 +827,7 @@ mod tests {
                 children.add("ok", Element::button("OK"), |_| {});
             });
         });
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         let update = readers.translate(ui.take_meaning_changes(false), SIZE);
         assert!(update.tree.is_some(), "whole");
         let mut changes = Changes::default();
@@ -854,7 +854,7 @@ mod tests {
         let mut state = ui.state(save).expect("a button");
         state.disabled = true;
         ui.set_state(save, state);
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         let number = ui
             .take_meaning_changes(true)
             .nodes
@@ -917,7 +917,7 @@ mod tests {
                 children.add("content", wide, |_| {});
             }));
         });
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         let (area, scroll) = (area.expect("built"), scroll.expect("built"));
         let number = |ui: &mut Ui, id: ElementId| {
             ui.take_meaning_changes(true)
@@ -1034,7 +1034,7 @@ mod tests {
                 });
             });
         });
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         let mut readers = ScreenReaders::new("Example");
         let changes = ui.take_meaning_changes(true);
         let numbers: Vec<(ElementId, NodeId)> = changes
@@ -1161,7 +1161,7 @@ mod tests {
                 children.add("well", well, |_| {});
             });
         });
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         let mut readers = ScreenReaders::new("Example");
         let changes = ui.take_meaning_changes(true);
         let numbers: Vec<(ElementId, NodeId)> = changes
@@ -1254,7 +1254,7 @@ mod tests {
             tree = Some(children.add_slot("tree", element));
         });
         let tree = tree.expect("built");
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         let mut items = Vec::new();
         ui.build(tree, 0, |rows| {
             for row in rows.rows() {
@@ -1271,7 +1271,7 @@ mod tests {
         let mut state = ui.state(items[0]).expect("built");
         (state.expanded, state.selected) = (true, true);
         ui.set_state(items[0], state);
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         let mut readers = ScreenReaders::new("Example");
         let changes = ui.take_meaning_changes(true);
         let second = changes
@@ -1341,7 +1341,7 @@ mod tests {
                 children.add("search", search, |_| {});
             });
         });
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         let mut readers = ScreenReaders::new("Example");
         let tree = Tree::new(readers.translate(ui.take_meaning_changes(true), SIZE), true);
         let state = tree.state();
@@ -1387,7 +1387,7 @@ mod tests {
             text: "A texture is missing".to_owned(),
             ..Default::default()
         });
-        ui.frame();
+        ui.frame(uwui::host::TargetId::MAIN);
         let mut readers = ScreenReaders::new("Example");
         let tree = Tree::new(readers.translate(ui.take_meaning_changes(true), SIZE), true);
         let state = tree.state();

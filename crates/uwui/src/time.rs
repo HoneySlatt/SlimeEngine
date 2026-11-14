@@ -108,10 +108,10 @@ time_of_a_clock! {
     RootTime
 }
 
-/// The time at which a frame shows, and where that time comes from: given before each
+/// The time at which a frame shows, and where that time comes from: given before each target's
 /// [`Ui::frame`](crate::tree::Ui::frame) by
-/// [`Ui::set_frame_shown`](crate::tree::Ui::set_frame_shown). One time serves every root of a
-/// `Ui`: each window's own comes with the targets of roots.
+/// [`Ui::set_frame_shown`](crate::tree::Ui::set_frame_shown). Each target, a window, has its own,
+/// which every root drawn on it reads.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FrameShown {
     /// When the frame shows, on the host's clock.
@@ -195,7 +195,8 @@ pub enum EventSource {
 /// ([`Ui::set_root_clock`](crate::tree::Ui::set_root_clock)): its time, and its *speed*, 1 for the
 /// host's pace, 0 for a pause, less to slow it, more to hasten it.
 ///
-/// A root that is never given its clock follows the host's at speed 1. A game gives the game time
+/// A root that is never given its clock follows the host's at speed 1, read at its target's
+/// frame's time. A game gives the game time
 /// that the frame shows, interpolated between its last two steps as its world is drawn.
 ///
 /// What follows the root's clock: the transitions of its styles but those of the states `Hovered`,

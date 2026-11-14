@@ -252,7 +252,7 @@ fn frame(ui: &mut Ui, dock: &mut Dock, slot: ElementId) {
     let mut actions = ui.take_actions();
     dock.act(&mut actions);
     dock.build(ui, slot, &|panel| panel.to_uppercase());
-    ui.frame();
+    ui.frame(TargetId::MAIN);
 }
 
 /// A press of a named key, Shift held or not.

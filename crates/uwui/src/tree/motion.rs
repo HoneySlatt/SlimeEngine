@@ -14,6 +14,7 @@ use slime_color::LinearColor;
 
 use super::clock::{Clock, Moment};
 use super::{ElementId, Kind, Ui};
+use crate::host::TargetId;
 use crate::style::{Colors, Style};
 use crate::time::RootTime;
 
@@ -219,7 +220,8 @@ impl Ui {
         } else {
             self.root_clock_of(id)
         };
-        let now = self.moment(clock);
+        let target = self.target_of(id).unwrap_or(TargetId::MAIN);
+        let now = self.moment(clock, target);
         let motion = Motion {
             target: style,
             from,
@@ -273,24 +275,28 @@ impl Ui {
         }
     }
 
-    /// Moves the transitions under way on to the frame's time, each on its clock: their elements
-    /// drawn again, a section laid out again at its height, each ended once its duration has
-    /// passed. A section's growing or shrinking that waited for its first frame starts at it.
-    /// Gives whether any goes on.
-    pub(crate) fn step_motions(&mut self) -> bool {
+    /// Moves the transitions under way of `t`'s elements on to its frame's time, each on its clock:
+    /// their elements drawn again, a section laid out again at its height, each ended once its
+    /// duration has passed. A section's growing or shrinking that waited for its first frame
+    /// starts at it. Another target's wait for its own frame.
+    pub(crate) fn step_motions(&mut self, t: TargetId) {
         self.shown.clear();
         for id in std::mem::take(&mut self.moving) {
             let Some(node) = self.node(id) else {
                 continue;
             };
+            if node.drawn_on != t {
+                self.moving.push(id);
+                continue;
+            }
             let elapsed = node
                 .motion
                 .as_ref()
-                .map(|motion| self.elapsed(motion.started));
+                .map(|motion| self.elapsed(motion.started, t));
             let reveal_clock = node
                 .reveal
                 .and_then(|reveal| reveal.started.is_none().then_some(reveal.clock));
-            let reveal_start = reveal_clock.map(|clock| self.moment(clock));
+            let reveal_start = reveal_clock.map(|clock| self.moment(clock, t));
             // A motion whose clock is paused keeps what it shows, drawn and laid out as it was.
             let paused = node
                 .motion
@@ -321,7 +327,7 @@ impl Ui {
             let reveal = self.node(id).and_then(|node| node.reveal);
             let reveal_elapsed = reveal
                 .and_then(|reveal| reveal.started)
-                .map_or(Duration::ZERO, |started| self.elapsed(started));
+                .map_or(Duration::ZERO, |started| self.elapsed(started, t));
             let node = self.node_mut(id).expect("moving above");
             if let Some(reveal) = reveal {
                 let ended = reveal.to.is_some() && progress(&node.style, reveal_elapsed) >= 1.0;
@@ -338,19 +344,19 @@ impl Ui {
                 self.moving.push(id);
             }
         }
-        !self.moving.is_empty()
     }
 
     /// Ends the transition of `id` at once: its style's end shown, a section at its height.
     pub(super) fn finish_motion(&mut self, id: ElementId) {
-        if let Some(node) = self.node_mut(id) {
-            if let Some(motion) = node.motion.take() {
-                node.style = motion.target;
-                node.changed.paint = true;
-            }
-            if node.reveal.is_some() {
-                self.end_reveal(id);
-            }
+        let Some(node) = self.node_mut(id) else {
+            return;
+        };
+        if let Some(motion) = node.motion.take() {
+            node.style = motion.target;
+            self.mark_paint(id);
+        }
+        if self.node(id).is_some_and(|node| node.reveal.is_some()) {
+            self.end_reveal(id);
         }
     }
 
@@ -375,21 +381,23 @@ impl Ui {
     pub(crate) fn reveal_height(&self, id: ElementId) -> Option<f32> {
         let node = self.node(id)?;
         let reveal = node.reveal?;
-        let elapsed = reveal
-            .started
-            .map_or(Duration::ZERO, |started| self.elapsed(started));
+        let elapsed = reveal.started.map_or(Duration::ZERO, |started| {
+            self.elapsed(started, node.drawn_on)
+        });
         reveal.height(node.target(), elapsed)
     }
 
-    /// Whether a transition under way goes on at the next frame: one whose clock runs, a paused
-    /// root's holding where it is.
-    pub(crate) fn motions_go_on(&self) -> bool {
+    /// Whether a transition under way of `t`'s elements goes on at its next frame: one whose clock
+    /// runs, a paused root's holding where it is.
+    pub(crate) fn motions_go_on(&self, t: TargetId) -> bool {
         self.moving.iter().any(|&id| {
             self.node(id).is_some_and(|node| {
-                node.motion
-                    .as_ref()
-                    .is_some_and(|motion| self.runs(motion.started.clock()))
-                    || node.reveal.is_some_and(|reveal| self.runs(reveal.clock))
+                node.drawn_on == t
+                    && (node
+                        .motion
+                        .as_ref()
+                        .is_some_and(|motion| self.runs(motion.started.clock()))
+                        || node.reveal.is_some_and(|reveal| self.runs(reveal.clock)))
             })
         })
     }

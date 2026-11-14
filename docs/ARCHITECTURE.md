@@ -1681,7 +1681,9 @@ ui.build(parent, revision, |children| ...)    the builder runs when revision mov
 │                                             what changed marks it laid out or drawn again
 └── children.add_slot(key, element)           a panel whose children its own builder gives
 ui.scroll_to(id, offset)                      what lies below placed again, not laid out
-ui.frame() -> (DisplayList, FrameStats)
+ui.frame(target) -> (DisplayList, FrameStats)    that target's roots alone, at its own time
+│                                             (ui.set_frame_shown(target, shown)); another
+│                                             target's changes wait for its own frame
 ├── each root marked: styles converted at its scale, taffy run from it, labels measured by the
 │   TextCache, boxes rounded to whole pixels; each list's rows laid out alone
 ├── each element placed on its root, scrolled content moved and cut, a root from right to left
@@ -1716,8 +1718,8 @@ ui.set_style(&[sheet], &[base, dark])          the themes read by uwui-kdl, each
 │                                              last of the stacked themes that gives it, of its
 │                                              field's kind; every element marked to be styled
 │                                              again
-ui.frame()
-└── each marked element: its kind's defaults, the rules that select it, by kind, classes, key,
+ui.frame(target)
+└── each marked element of the target: its kind's defaults, the rules that select it, by kind, classes, key,
     states and ancestor, in their order, then what its own style writes, its base where no rule
     of a state set the field last, then its own states that hold (the mask order); the style made
     kept for those rules, that own style and its states, shared; a style that changed lays the
@@ -2025,7 +2027,7 @@ asks for a frame                                  slime-app's loop
 ├── a termination signal, the tool's end ─────────  winit's loop) runs it again
 ├── another thread: Context::waker ───────────▶ headless: waits on the Waker's condition variable
 └── after a frame: Context::request_frame,
-    Ui::needs_frame, Ui::next_frame_due, the channel's
+    Ui::needs_frame, Ui::next_frame_due (MAIN's), the channel's
     work that waits (a capture, steps, a picking)
 ```
 

@@ -5,7 +5,7 @@
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::style::{FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::time::{FrameShown, Instant};
@@ -66,7 +66,7 @@ impl Window {
                 |_| {},
             ));
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         Self {
             ui,
             items: [items[0], items[1], items[2]],
@@ -82,7 +82,7 @@ impl Window {
             state,
             repeat: false,
         });
-        self.ui.frame();
+        self.ui.frame(TargetId::MAIN);
         taken
     }
 
@@ -116,7 +116,7 @@ impl Window {
                 }
             });
         });
-        self.ui.frame();
+        self.ui.frame(TargetId::MAIN);
         (layer, entries)
     }
 
@@ -140,7 +140,7 @@ impl Window {
             .pointer_button(MouseButton::Left, ButtonState::Pressed);
         self.ui
             .pointer_button(MouseButton::Left, ButtonState::Released);
-        self.ui.frame();
+        self.ui.frame(TargetId::MAIN);
     }
 }
 
@@ -223,7 +223,7 @@ fn the_pointer_opens_a_menu_closes_it_and_opens_anothers_as_it_comes_over_its_it
     assert!(window.ui.state(file).expect("there").expanded);
     let (x, y) = window.middle(edit);
     window.ui.pointer_moved(x, y);
-    window.ui.frame();
+    window.ui.frame(TargetId::MAIN);
     assert_eq!(
         window.actions(),
         [
@@ -239,8 +239,10 @@ fn the_pointer_opens_a_menu_closes_it_and_opens_anothers_as_it_comes_over_its_it
     let (x, y) = window.middle(file);
     window.ui.pointer_moved(x, y);
     at += std::time::Duration::from_secs(1);
-    window.ui.set_frame_shown(FrameShown::simulated(at));
-    window.ui.frame();
+    window
+        .ui
+        .set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    window.ui.frame(TargetId::MAIN);
     assert!(window.actions().is_empty());
 }
 

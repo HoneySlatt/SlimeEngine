@@ -628,8 +628,10 @@ impl Ui {
     }
 
     /// What changed in what the tree means since it was last taken, or the whole tree for `whole`
-    /// or when it must be whole ([`MeaningChanges::whole`]), from the last [`Ui::frame`]; the
-    /// elements' marks are cleared. It costs what changed: each element that changed, the boxes
+    /// or when it must be whole ([`MeaningChanges::whole`]), from the last [`Ui::frame`] of each
+    /// target; the elements' marks are cleared. Taken after one target's frame, they may hold
+    /// another target's new elements before its own frame styles and lays them out: that frame
+    /// marks them again. It costs what changed: each element that changed, the boxes
     /// that only lay others out below it, and a field's text laid out, as it draws it. Where the
     /// changes are not taken, the marks are kept up to twice as many as the elements of the tree,
     /// and up to 1 024 for a smaller tree, past which the next changes are whole.

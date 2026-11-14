@@ -47,7 +47,7 @@ fn interface(direction: LayoutDirection, element: Element) -> (Ui, ElementId, El
     ui.build(root, 0, |children| {
         id = Some(children.add("control", element, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, root, id.expect("built"))
 }
 
@@ -144,7 +144,7 @@ fn a_check_box_keeps_what_the_user_toggled_until_the_program_changes_it() {
                 |_| {},
             );
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     };
     click(&mut ui, 5.0, 10.0);
     ui.take_actions();
@@ -240,7 +240,7 @@ fn a_logarithmic_slider_multiplies_its_value_by_as_much_along_its_track() {
     );
     // The thumb at 1 stands in the middle of the track, from 8 to 208.
     let middle = |ui: &mut Ui| {
-        let (list, _) = ui.frame();
+        let (list, _) = ui.frame(TargetId::MAIN);
         let thumb = list
             .items()
             .iter()
@@ -323,7 +323,7 @@ fn a_slider_keeps_its_value_until_the_program_changes_it() {
                 |_| {},
             );
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     };
     ui.set_focus(Some(slider));
     ui.key(&named(NamedKey::End));
@@ -361,7 +361,7 @@ fn section(open: bool) -> (Ui, ElementId, ElementId, ElementId) {
             button = Some(children.add("apply", tall, |_| {}));
         }));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, root, folding.expect("built"), button.expect("built"))
 }
 
@@ -378,7 +378,7 @@ fn a_section_folds_what_it_holds_and_opens_by_its_header() {
     assert!(folded_height < 40.0, "{folded_height}");
     // A press on its header opens it.
     click(&mut ui, 5.0, 5.0);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(ui.state(folding).expect("a section").expanded);
     assert!(ui.meaning_of(button).is_some());
     let open_height = ui.rect(folding).expect("laid out").height;
@@ -395,7 +395,7 @@ fn a_section_folds_what_it_holds_and_opens_by_its_header() {
     // Enter while it holds the focus folds it; a section tells the program nothing.
     ui.set_focus(Some(folding));
     ui.key(&named(NamedKey::Enter));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(!ui.state(folding).expect("a section").expanded);
     assert_eq!(ui.meaning_of(button), None);
     assert!(ui.take_actions().is_empty());
@@ -411,7 +411,7 @@ fn a_section_opened_by_the_program_and_its_button_reached_by_tab() {
     assert_eq!(ui.focus(), Some(button));
     // Folded by the program: the focus leaves what it no longer shows.
     ui.set_open(folding, false);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.focus(), None);
 }
 
@@ -436,7 +436,7 @@ fn build_tabs(ui: &mut Ui, root: ElementId, revision: u64, chosen: usize) -> Ele
         });
         bar = Some(id);
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     bar.expect("built")
 }
 
@@ -523,7 +523,7 @@ fn a_split_shares_its_length_and_its_handle_is_dragged_and_moved_by_the_keys() {
             },
         );
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let split = ui.element_by_path("main/split").expect("built");
     let left = ui.element_by_path("main/split/left").expect("built");
     let right = ui.element_by_path("main/split/right").expect("built");
@@ -545,7 +545,7 @@ fn a_split_shares_its_length_and_its_handle_is_dragged_and_moved_by_the_keys() {
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_moved(204.0, 100.0);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.split_share(split), Some(0.5));
     assert_eq!(ui.rect(left).map(|rect| rect.width), Some(200.0));
     // A press beside the handle, on a panel, leaves it alone.
@@ -586,7 +586,7 @@ fn a_box_whose_content_does_not_fit_shows_a_scroll_bar_that_scrolls_it() {
             }
         }));
     });
-    let (list, _) = ui.frame();
+    let (list, _) = ui.frame(TargetId::MAIN);
     let scroll = scroll.expect("built");
     // 90 pixels of content in 40: a bar along its end, 8 pixels thick, drawn over its content.
     let before = list.items().len();
@@ -600,7 +600,7 @@ fn a_box_whose_content_does_not_fit_shows_a_scroll_bar_that_scrolls_it() {
     let [_, y] = ui.scroll(scroll).expect("a box that scrolls");
     assert!((y - 25.0).abs() < 0.5, "{y}");
     // A press on its track below the thumb pages down, to the end.
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.pointer_moved(96.0, 39.0);
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
@@ -639,7 +639,7 @@ fn a_third_child_of_two_panels_is_neither_drawn_nor_reached() {
             },
         );
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let third = ui.element_by_path("main/split/third").expect("built");
     assert_eq!(ui.meaning_of(third), None);
     ui.key(&named(NamedKey::Tab));
@@ -659,7 +659,7 @@ fn a_check_box_s_label_and_a_section_s_title_lie_beside_their_box_from_either_si
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
         for element in elements.clone() {
             let (mut ui, _, _) = interface(direction, element);
-            let (list, _) = ui.frame();
+            let (list, _) = ui.frame(TargetId::MAIN);
             let mut boxed = None;
             let mut text = None;
             for item in list.items() {
@@ -699,7 +699,7 @@ fn a_slider_whose_bounds_are_no_numbers_keeps_its_value_and_draws() {
     assert_eq!(ui.slider_value(slider), Some(0.55));
     assert!(ui.set_value(slider, "7.25"));
     assert_eq!(ui.slider_value(slider), Some(7.25));
-    let (list, _) = ui.frame();
+    let (list, _) = ui.frame(TargetId::MAIN);
     for item in list.items() {
         if let Primitive::Box(primitive) = &item.primitive {
             assert!(primitive.rect.x.is_finite(), "{primitive:?}");

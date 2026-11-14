@@ -47,7 +47,7 @@ fn row() -> (Ui, Vec<ElementId>) {
             buttons.push(children.add(index, button(), |_| {}));
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, buttons)
 }
 
@@ -156,7 +156,7 @@ fn tab_moves_the_focus_in_the_order_of_the_tree_and_the_arrows_to_the_nearest_on
             },
         );
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.key(&named(NamedKey::Tab));
     assert_eq!(ui.focus(), Some(cells[0]));
     ui.key(&named(NamedKey::Tab));
@@ -200,14 +200,14 @@ fn the_focus_that_keys_move_and_a_row_asked_for_are_scrolled_into_view() {
         ));
     });
     let (scroll, list) = (scroll.expect("built"), list.expect("built"));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     // Buttons 40 high in a box 100 high: the fourth is out of view until Tab reaches it.
     for _ in 0..4 {
         ui.key(&named(NamedKey::Tab));
     }
     assert_eq!(ui.focus(), Some(buttons[3]));
     assert_eq!(ui.scroll(scroll), Some([0.0, 4.0 * 40.0 - 100.0]));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     // Back to the first: scrolled to its top.
     let mut shift = Modifiers::default();
     shift.shift = true;
@@ -220,7 +220,7 @@ fn the_focus_that_keys_move_and_a_row_asked_for_are_scrolled_into_view() {
     // A row far down, built or not: as little as shows it whole.
     ui.show_row(list, 500);
     assert_eq!(ui.scroll(list), Some([0.0, 501.0 * 20.0 - 100.0]));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.show_row(list, 10);
     assert_eq!(ui.scroll(list), Some([0.0, 200.0]));
     ui.show_row(list, 12);
@@ -257,7 +257,7 @@ fn scrolling_into_view_counts_logical_pixels_and_a_list_not_laid_out_shows_a_row
     // Before any layout: the row at the list's top.
     ui.show_row(list, 50);
     assert_eq!(ui.scroll(list), Some([0.0, 1_000.0]));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.scroll_into_view(buttons[5]);
     assert_eq!(ui.scroll(scroll), Some([0.0, 6.0 * 40.0 - 100.0]));
 }
@@ -296,7 +296,7 @@ fn a_draggable_element_drops_on_a_target_and_agents_drop_it_too() {
         });
     });
     let (source, target) = (source.expect("built"), target.expect("built"));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let dropped = |ui: &mut Ui| {
         ui.take_actions()
             .into_iter()
@@ -385,7 +385,7 @@ fn a_draggable_element_drops_on_a_target_and_agents_drop_it_too() {
             );
         });
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(again, Some(target), "the same target");
     assert_eq!(ui.dragging().map(|dragging| dragging.source), Some(source));
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
@@ -400,7 +400,7 @@ fn a_draggable_element_drops_on_a_target_and_agents_drop_it_too() {
             ));
         });
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.pointer_moved(50.0, 20.0);
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
@@ -424,7 +424,7 @@ fn a_modal_root_takes_the_pointer_and_the_focus_and_gives_the_focus_back_when_it
         inside.push(children.add("ok", button(), |_| {}));
         inside.push(children.add("cancel", button(), |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.focus(), Some(inside[0]));
     assert_eq!(ui.rect(inside[1]).map(|rect| rect.x), Some(200.0));
     // The roots below take no pointer, and the focus stays inside.
@@ -468,7 +468,7 @@ fn the_wheel_scrolls_the_box_under_the_pointer() {
             }
         }));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.pointer_moved(50.0, 50.0);
     ui.wheel(ScrollDelta::Lines { x: 0.0, y: -2.0 });
     assert_eq!(ui.scroll(scroll.unwrap()), Some([0.0, 80.0]));
@@ -495,7 +495,7 @@ fn shortcuts_name_commands_by_the_key_s_meaning_in_the_scopes_of_the_focus() {
         );
         buttons.push(children.add("outside", button(), |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let table = "scope global {\n    Primary+Z undo\n    Delete \"delete everything\"\n    T theme\n}\n\
                  scope hierarchy {\n    Delete delete\n}\n";
     ui.set_platform(Platform::Linux);
@@ -626,7 +626,7 @@ fn the_focus_moves_within_its_root_and_starts_in_the_top_root_that_can_take_it()
             buttons.push(children.add(index, button(), |_| {}));
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     // Without a focus, Tab starts in the top root, and Shift+Tab from its last element.
     ui.key(&named(NamedKey::Tab));
     assert_eq!(ui.focus(), Some(buttons[0]));
@@ -650,7 +650,7 @@ fn the_focus_moves_within_its_root_and_starts_in_the_top_root_that_can_take_it()
     // A top root with nothing to focus leaves it to the one below.
     ui.remove(above);
     let empty = ui.add_root("main", settings(100.0, 100.0, [0.0; 2], false), |s| s);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.set_focus(None);
     ui.key(&named(NamedKey::Tab));
     assert_eq!(ui.focus(), Some(below[0]));
@@ -673,7 +673,7 @@ fn a_disabled_or_hidden_button_is_not_pressed_and_loses_the_focus() {
                 },
             );
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         buttons
     };
     let buttons = build(&mut ui, 0, Display::Flex);
@@ -699,7 +699,7 @@ fn a_disabled_or_hidden_button_is_not_pressed_and_loses_the_focus() {
             kind: ActionKind::Intent(Intent::Accept),
         }]
     );
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.focus(), None);
     assert!(!ui.state(buttons[0]).unwrap().focused);
     // Hidden by an ancestor: neither the focus, nor an agent's press, nor Tab reach it.
@@ -735,7 +735,7 @@ fn modal_roots_closed_in_either_order_give_the_focus_back_to_what_it_was_before_
             ui.build(modal, 0, |children| {
                 children.add("ok", button(), |_| {});
             });
-            ui.frame();
+            ui.frame(TargetId::MAIN);
             modals.push(modal);
         }
         // Under a modal root, an agent presses nothing either.
@@ -747,9 +747,9 @@ fn modal_roots_closed_in_either_order_give_the_focus_back_to_what_it_was_before_
             (modals[1], modals[0])
         };
         ui.remove(first);
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         ui.remove(second);
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         assert_eq!(ui.focus(), Some(buttons[1]), "below first: {below_first}");
     }
 }
@@ -785,7 +785,7 @@ fn the_hover_follows_what_moves_under_a_still_pointer() {
             buttons.push(children.add(index, button(), |_| {}));
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.pointer_moved(50.0, 20.0);
     assert!(ui.state(buttons[0]).unwrap().hovered);
     // The first button gone, the second takes its place under the pointer: the frame that lays it
@@ -795,9 +795,9 @@ fn the_hover_follows_what_moves_under_a_still_pointer() {
             children.add(index, button(), |_| {});
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(!ui.state(buttons[1]).unwrap().hovered);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(ui.state(buttons[1]).unwrap().hovered);
 }
 
@@ -823,7 +823,7 @@ fn the_pointer_and_the_wheel_find_their_way_in_a_root_from_right_to_left() {
             },
         ));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     // The root starts at its origin, and its first child at its right.
     assert_eq!(ui.element_at(TargetId::MAIN, 350.0, 70.0), first);
     // The scroll box lies left of the button, from 150 to 300; its first item at its right, and
@@ -847,7 +847,7 @@ fn a_rule_selects_the_element_that_holds_the_focus() {
     )
     .expect("a style sheet");
     ui.set_focus(Some(buttons[1]));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let border = |ui: &Ui, id: ElementId| ui.style(id).expect("an element").paint.border_width;
     assert_eq!(border(&ui, buttons[1]), 2.0);
     assert_eq!(border(&ui, buttons[0]), 0.0);
@@ -869,7 +869,7 @@ fn a_press_on_what_the_interface_draws_is_its_own_and_a_modal_root_takes_every_p
             |_| {},
         );
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let both = |ui: &mut Ui, button| {
         let pressed = ui.pointer_button(button, ButtonState::Pressed);
         let released = ui.pointer_button(button, ButtonState::Released);
@@ -893,7 +893,7 @@ fn a_press_on_what_the_interface_draws_is_its_own_and_a_modal_root_takes_every_p
     assert!(ui.pointer_button(MouseButton::Left, ButtonState::Released));
     // A modal root takes every press, every wheel and every key pressed, not their releases.
     let modal = ui.add_root("main", settings(100.0, 100.0, [0.0; 2], true), |s| s);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(both(&mut ui, MouseButton::Left), (true, true));
     assert!(ui.wheel(ScrollDelta::Lines { x: 0.0, y: 1.0 }));
     assert!(ui.key(&press(KeyCode::KeyW, Key::Character("w".to_owned()))));
@@ -902,7 +902,7 @@ fn a_press_on_what_the_interface_draws_is_its_own_and_a_modal_root_takes_every_p
     release.state = ButtonState::Released;
     assert!(!ui.key(&release));
     ui.remove(modal);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(both(&mut ui, MouseButton::Left), (false, false));
     assert!(!ui.key(&press(KeyCode::KeyW, Key::Character("w".to_owned()))));
 }
@@ -969,7 +969,7 @@ fn a_game_s_interface_takes_tab_once_it_holds_the_focus_and_f6_moves_between_its
             buttons.push(children.add(index, button(), |_| {}));
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.set_tab_enters(false);
     // Tab is the game's without a focus, and with the one that a press gave.
     assert!(!ui.key(&named(NamedKey::Tab)));
@@ -1008,7 +1008,7 @@ fn a_game_s_interface_takes_tab_once_it_holds_the_focus_and_f6_moves_between_its
     ui.build(modal, 0, |children| {
         ok = Some(children.add("ok", button(), |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(ui.key(&named(NamedKey::Tab)));
     assert_eq!(ui.focus(), ok);
     assert!(ui.key(&named(NamedKey::F6)));
@@ -1016,7 +1016,7 @@ fn a_game_s_interface_takes_tab_once_it_holds_the_focus_and_f6_moves_between_its
     // With no root that holds an element to focus, F6 is the game's.
     let mut empty = Ui::new(Fonts::new());
     empty.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
-    empty.frame();
+    empty.frame(TargetId::MAIN);
     assert!(!empty.key(&named(NamedKey::F6)));
 }
 
@@ -1036,7 +1036,7 @@ fn a_release_of_a_press_the_interface_did_not_take_is_not_taken_and_an_empty_lab
             |_| {},
         );
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     // Pressed over nothing, let go over the panel: the game keeps both.
     ui.pointer_moved(300.0, 100.0);
     assert!(!ui.pointer_button(MouseButton::Left, ButtonState::Pressed));
@@ -1069,7 +1069,7 @@ fn a_label_takes_the_presses_that_fall_on_its_glyphs_not_those_past_them() {
             });
             children.add("label", label, |_| {});
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         for (x, taken) in [(on, true), (past, false)] {
             ui.pointer_moved(x, 10.0);
             let pressed = ui.pointer_button(MouseButton::Left, ButtonState::Pressed);

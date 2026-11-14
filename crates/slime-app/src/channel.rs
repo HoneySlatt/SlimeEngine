@@ -1241,7 +1241,8 @@ mod tests {
                     children.add(button, sized, |_| {});
                 });
             }
-            ui.frame();
+            ui.frame(TargetId::MAIN);
+            ui.frame(TargetId(2));
             Self { ui }
         }
     }

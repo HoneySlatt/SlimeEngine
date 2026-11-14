@@ -8,6 +8,7 @@ use std::time::{Duration as Time, Instant};
 
 use slime_color::LinearColor;
 use uwui::DocumentErrors;
+use uwui::host::TargetId;
 use uwui::text::Fonts;
 use uwui::theme::{Duration, Fallback, Length, Number, StyleSheet, Theme, Token, Tokens};
 use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
@@ -49,7 +50,7 @@ fn styled(themes: &[(&str, &str)], fill: bool) -> Result<(Ui, ElementId), Docume
         .map(|(name, text)| Theme::from_text(*name, *text))
         .collect();
     ui.set_style(&sheets, &themes)?;
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     Ok((ui, root))
 }
 
@@ -364,7 +365,7 @@ fn a_whole_number_of_a_theme_sets_a_field_of_whole_numbers_and_a_fraction_is_ref
         &[Theme::from_text("a.theme", "number {\n    span 2\n}\n")],
     )
     .expect("a whole number");
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let child = ui.children(root)[0];
     assert_eq!(ui.style(child).expect("styled").layout.column.span, 2);
     let error = ui

@@ -360,12 +360,16 @@ impl Ui {
         }
     }
 
-    /// Lays out again the layers whose anchor moved since they were placed: what moved it, a
+    /// Lays out again `t`'s layers whose anchor moved since they were placed: what moved it, a
     /// layout or a scroll, ran this frame. Gives them.
-    pub(crate) fn follow_anchors(&mut self) -> Vec<ElementId> {
+    pub(crate) fn follow_anchors(&mut self, t: TargetId) -> Vec<ElementId> {
         let mut moved = Vec::new();
         for root in self.layers() {
-            let Some(held) = self.node(root).and_then(|node| node.layer.as_ref()) else {
+            let Some(held) = self
+                .node(root)
+                .filter(|node| node.drawn_on == t)
+                .and_then(|node| node.layer.as_ref())
+            else {
                 continue;
             };
             let anchored = held.anchored;
@@ -557,12 +561,13 @@ impl Ui {
         }
     }
 
-    /// Gives the first element of each layer that opened by the keyboard the focus, once its
-    /// builder has given it elements.
-    pub(crate) fn focus_new_layers(&mut self) {
+    /// Gives the first element of each of `t`'s layers that opened by the keyboard the focus, once
+    /// its builder has given it elements.
+    pub(crate) fn focus_new_layers(&mut self, t: TargetId) {
         for root in self.layers() {
             let wanted = self
                 .node(root)
+                .filter(|node| node.drawn_on == t)
                 .and_then(|node| node.layer.as_ref())
                 .is_some_and(|held| held.focus_first);
             if !wanted || self.children(root).is_empty() {

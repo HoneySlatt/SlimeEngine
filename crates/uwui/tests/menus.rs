@@ -5,7 +5,7 @@
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind};
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::style::{FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
@@ -50,7 +50,7 @@ impl Menu {
         ui.build(root, 0, |children| {
             button = Some(children.add("file", Element::button("File").style(column), |_| {}));
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         let button = button.expect("built");
         ui.set_focus(Some(button));
         let layer = open_menu(
@@ -75,7 +75,7 @@ impl Menu {
                 ..ElementState::default()
             },
         );
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         let items = [items[0], items[1], items[2], items[3]];
         Self {
             ui,
@@ -94,7 +94,7 @@ impl Menu {
             state: ButtonState::Pressed,
             repeat: false,
         });
-        self.ui.frame();
+        self.ui.frame(TargetId::MAIN);
     }
 
     /// Opens the submenu of `recent`, as the program does when it reads its press: its layer and
@@ -146,7 +146,7 @@ fn open_menu(ui: &mut Ui, place: Place, items: &[(&str, &str, ItemMark)]) -> Ele
             }
         });
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     layer
 }
 
@@ -256,7 +256,7 @@ fn the_pointer_over_an_item_gives_it_a_focus_that_does_not_show_and_its_press_cl
             .pointer_button(MouseButton::Left, ButtonState::Pressed);
         menu.ui
             .pointer_button(MouseButton::Left, ButtonState::Released);
-        menu.ui.frame();
+        menu.ui.frame(TargetId::MAIN);
         if menu.ui.take_actions().len() == 1 {
             menu.open_submenu();
         }
@@ -271,7 +271,7 @@ fn the_pointer_over_an_item_gives_it_a_focus_that_does_not_show_and_its_press_cl
         .pointer_button(MouseButton::Left, ButtonState::Pressed);
     menu.ui
         .pointer_button(MouseButton::Left, ButtonState::Released);
-    menu.ui.frame();
+    menu.ui.frame(TargetId::MAIN);
     let kinds: Vec<ActionKind> = menu.actions().into_iter().map(|(_, kind)| kind).collect();
     // The press in the menu closes the submenu first, then the item closes the menu.
     assert_eq!(

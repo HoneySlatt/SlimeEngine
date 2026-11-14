@@ -1114,31 +1114,34 @@ pub(crate) struct Changed {
     pub(crate) meaning: bool,
 }
 
-/// What a frame did ([`Ui::frame`]).
+/// What a frame of one target did ([`Ui::frame`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FrameStats {
-    /// The builders that ran, of those that [`Ui::build`] was given.
+    /// The builders that ran, of those that [`Ui::build`] was given, since the last frame of any
+    /// target.
     pub built: usize,
-    /// The elements whose rules were matched again, and their style made again.
+    /// The target's elements whose rules were matched again, and their style made again.
     pub styled: usize,
-    /// The roots laid out again.
+    /// The target's roots laid out again.
     pub layouts: usize,
-    /// The lists whose rows alone were laid out again, their roots not.
+    /// The target's lists whose rows alone were laid out again, their roots not.
     pub lists: usize,
-    /// The elements drawn again.
+    /// The target's elements drawn again.
     pub painted: usize,
-    /// The elements in the tree.
+    /// The elements in the tree, of every target.
     pub elements: usize,
-    /// The elements that the frame's walks reached: each element of the roots, to find what to
-    /// draw again, and each one shown of the main target's roots, to gather its display list, even
-    /// when nothing changed. What
-    /// a frame costs grows with it; an element hidden is reached, what it holds is not.
+    /// The elements that the frame's walks reached: each element of the target's roots, to find
+    /// what to draw again, and each one shown, to gather its display list, even when nothing
+    /// changed. What a frame costs grows with it; an element hidden is reached, what it holds is
+    /// not.
     pub visited: usize,
-    /// Whether a transition goes on after this frame, the pointer rests where a tooltip will show
-    /// or a submenu open, a bar of progress without a share moves, or a notification waits for its
-    /// time to end: a program that draws only when something changes draws the next frame too.
+    /// Whether, on the target, a transition goes on after this frame, the pointer rests where a
+    /// tooltip will show or a submenu open, a bar of progress without a share moves, or, on
+    /// [`TargetId::MAIN`], a notification waits for its time to end: a program that draws only
+    /// when something changes draws the next frame too.
     pub animating: bool,
-    /// The time that the host gave the frame, with its source ([`Ui::set_frame_shown`]).
+    /// The time that the host gave the target's frame, as given, with its source
+    /// ([`Ui::set_frame_shown`]).
     pub shown: FrameShown,
 }
 
@@ -1154,6 +1157,10 @@ pub(crate) struct Node {
     pub(crate) state: ElementState,
     /// The root's settings, for a root.
     pub(crate) root: Option<RootSettings>,
+    /// The target that it draws on, its root's, kept here so that a frame finds what is its own
+    /// without walking up to each element's root. A root's settings name it too; a move to another
+    /// target changes both (`Ui::move_to_target`).
+    pub(crate) drawn_on: TargetId,
     /// The revision its children were last built for, for an element that a builder fills.
     pub(crate) built: Option<u64>,
     /// Whether its builder runs again whatever the revision: a list below it shows other rows.
@@ -1250,12 +1257,12 @@ struct Slot {
 /// ui.build(root, 1, |children| {
 ///     panel = Some(children.add("panel", panel_box, |_| {}));
 /// });
-/// let (_list, stats) = ui.frame();
+/// let (_list, stats) = ui.frame(uwui::host::TargetId::MAIN);
 /// assert_eq!(stats.layouts, 1);
 /// // At the start of a line laid out from right to left, in pixels of the screen.
 /// assert_eq!(ui.rect(panel.unwrap()), Some(Rect::new(600.0, 0.0, 200.0, 100.0)));
 /// // Nothing changed: nothing laid out nor drawn.
-/// let (_list, stats) = ui.frame();
+/// let (_list, stats) = ui.frame(uwui::host::TargetId::MAIN);
 /// assert_eq!((stats.layouts, stats.painted), (0, 0));
 /// ```
 pub struct Ui {
@@ -1325,11 +1332,11 @@ pub struct Ui {
     /// The picker of colors that a color well opened, while one is open.
     picker: Option<color::Picker>,
     notices: notify::Notices,
-    /// The host's clock: the latest time that the host gave, of a frame or of an event, which never
-    /// goes back ([`Ui::set_frame_shown`], [`Ui::event`]).
+    /// The host's clock: the latest time that the host gave, of any target's frame or of an event,
+    /// which never goes back ([`Ui::set_frame_shown`], [`Ui::event`]): what waits counts on it.
     now: Instant,
-    /// The last frame's time, as the host gave it.
-    frame_shown: FrameShown,
+    /// Each target's frames' time, and whether it holds a change to draw.
+    frames: Vec<clock::TargetFrame>,
     /// The clocks that the host gave roots ([`Ui::set_root_clock`]); a root that it gave none
     /// follows the host's.
     clocks: Vec<(ElementId, RootClock)>,
@@ -1384,7 +1391,7 @@ impl Ui {
             picker: None,
             notices: notify::Notices::default(),
             now: Instant::ZERO,
-            frame_shown: FrameShown::default(),
+            frames: Vec::new(),
             clocks: Vec::new(),
             waker: Waker::noop().clone(),
             preferences: Preferences::default(),
@@ -1436,13 +1443,14 @@ impl Ui {
     ) -> ElementId {
         assert_scale(settings.scale);
         let key = self.free_root_key(key);
-        let mut node = Node::new(key, element);
+        let mut node = Node::new(key, element, settings.target);
         node.root = Some(settings);
         let id = self.insert(node);
         self.roots.push(id);
         // A target's input is kept from its first root, so that what its host was told outlives it.
         self.interaction.of_mut(settings.target);
         self.restyled.push(id);
+        self.changed_on(settings.target);
         self.top_changed = true;
         if settings.modal {
             self.opened_modal(id);
@@ -1553,6 +1561,10 @@ impl Ui {
             for root in above {
                 self.mark_meaning_below(root);
             }
+        }
+        if self.roots.contains(&id) {
+            let drawn_on = self.root_target(id);
+            self.changed_on(drawn_on);
         }
         self.roots.retain(|&root| root != id);
         self.forget_clock(id);
@@ -1764,9 +1776,11 @@ impl Ui {
         };
         if node.scroll != offset {
             node.scroll = offset;
+            let drawn_on = node.drawn_on;
             if !self.scrolled.contains(&id) {
                 self.scrolled.push(id);
             }
+            self.changed_on(drawn_on);
             self.update_rows(id);
         }
     }
@@ -1919,14 +1933,22 @@ impl Ui {
         self.roots.is_empty()
     }
 
-    /// Lays out the roots where something changed, draws again what changed, and gives what the
-    /// roots of [`TargetId::MAIN`] draw, in the order they were added, and what it did. The roots
-    /// of every target are laid out and drawn; [`Ui::display_list`] gives another target's.
-    pub fn frame(&mut self) -> (DisplayList, FrameStats) {
+    /// Draws `target`'s frame: lays out its roots where something changed, draws again what
+    /// changed, and gives what its roots draw, in the order they were added, and what it did. The
+    /// host gives its time first ([`Ui::set_frame_shown`]).
+    ///
+    /// Only `target`'s roots are styled, stepped, laid out, drawn and gathered; what another
+    /// target holds, its changes, its transitions and its waiting bars, waits for that target's
+    /// frame, which [`Ui::needs_frame`] asks for. The notifications, which stand on
+    /// [`TargetId::MAIN`], settle in its frame. A target that the interface does not know, or that
+    /// has no roots, gives an empty list
+    /// (`docs/adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md`).
+    pub fn frame(&mut self, target: TargetId) -> (DisplayList, FrameStats) {
+        let t = target;
         let mut stats = FrameStats {
             built: std::mem::take(&mut self.built),
             elements: self.len(),
-            shown: self.frame_shown,
+            shown: self.frame_shown(t),
             ..FrameStats::default()
         };
         // The builders asked that are gone, or that a build ran, are asked no more.
@@ -1936,28 +1958,38 @@ impl Ui {
         // Transitions move on to the clock; then styles: a style that changed lays its element
         // out again. The input's states follow what they made, a focus hidden or disabled dropped,
         // and are styled in turn.
-        self.step_motions();
-        // A bar of progress without a share moves with the clock.
+        self.step_motions(t);
+        // A bar of progress without a share moves with the clock; another target's waits for its
+        // own frame.
         for id in std::mem::take(&mut self.spinning) {
-            self.mark_paint(id);
+            match self.target_of(id) {
+                Some(on) if on == t => self.mark_paint(id),
+                Some(_) => self.spinning.push(id),
+                None => {}
+            }
         }
         // The pointer resting long enough shows a tooltip or opens a submenu; notifications whose
         // time ended go.
-        self.settle_rest();
-        self.settle_notices();
-        self.settle_palette();
-        self.settle_picker();
+        self.settle_rest(t);
+        if t == TargetId::MAIN {
+            self.settle_notices();
+        }
+        self.settle_palette(t);
+        self.settle_picker(t);
         // Layers take their surface from the root that they stand over, those whose anchor went
         // close, and those opened by the keyboard give their first element the focus.
         self.settle_layers();
-        self.focus_new_layers();
-        stats.styled += self.restyle_marked();
-        self.settle_input();
-        stats.styled += self.restyle_marked();
+        self.focus_new_layers(t);
+        stats.styled += self.restyle_marked(t);
+        self.settle_input(t);
+        stats.styled += self.restyle_marked(t);
         let mut laid_out = Vec::new();
         let mut lists = Vec::new();
         for root in self.roots.clone() {
-            if self.node(root).is_some_and(|node| node.changed.layout) {
+            if self
+                .node(root)
+                .is_some_and(|node| node.drawn_on == t && node.changed.layout)
+            {
                 layout::lay_out(self, root);
                 stats.layouts += 1;
                 laid_out.push(root);
@@ -1965,49 +1997,52 @@ impl Ui {
             }
         }
         for list in std::mem::take(&mut self.relaid) {
-            // A list of a root laid out above has had its rows laid out with it.
-            if self
-                .root_of(list)
-                .is_some_and(|root| !laid_out.contains(&root))
-            {
-                lists.extend(layout::lay_out_list(self, list));
-                stats.lists += 1;
+            match self.target_of(list) {
+                Some(on) if on != t => self.relaid.push(list),
+                // A list of a root laid out above has had its rows laid out with it.
+                Some(_)
+                    if self
+                        .root_of(list)
+                        .is_some_and(|root| !laid_out.contains(&root)) =>
+                {
+                    lists.extend(layout::lay_out_list(self, list));
+                    stats.lists += 1;
+                }
+                _ => {}
             }
         }
         for id in std::mem::take(&mut self.scrolled) {
-            layout::place_below(self, id);
-            lists.push(id);
+            match self.target_of(id) {
+                Some(on) if on == t => {
+                    layout::place_below(self, id);
+                    lists.push(id);
+                }
+                Some(_) => self.scrolled.push(id),
+                None => {}
+            }
         }
         // A layer follows its anchor, which a layout or a scroll may have moved.
-        let followed = self.follow_anchors();
+        let followed = self.follow_anchors(t);
         stats.layouts += followed.len();
         lists.extend(followed);
         if stats.layouts + stats.lists > 0 || !lists.is_empty() {
-            self.moved();
+            self.moved(t);
         }
         for list in lists {
             self.update_rows(list);
         }
         for root in self.roots.clone() {
-            let (painted, visited) = paint::paint(self, root);
-            stats.painted += painted;
-            stats.visited += visited;
+            if self.root_target(root) == t {
+                let (painted, visited) = paint::paint(self, root);
+                stats.painted += painted;
+                stats.visited += visited;
+            }
         }
         let mut list = DisplayList::new();
-        stats.visited += self.gather(TargetId::MAIN, &mut list);
-        stats.animating = self.animating() || self.next_frame_due().is_some();
+        stats.visited += self.gather(t, &mut list);
+        self.drew(t);
+        stats.animating = self.animating(t) || self.next_frame_due(t).is_some();
         (list, stats)
-    }
-
-    /// What the roots of `target` draw, in the order they were added, as the last [`Ui::frame`]
-    /// drew them: a host of several targets draws each one's. [`Ui::frame`] gives
-    /// [`TargetId::MAIN`]'s; until each target has a frame of its own, it lays out and draws every
-    /// target's roots
-    /// (`docs/adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md`).
-    pub fn display_list(&self, target: TargetId) -> DisplayList {
-        let mut list = DisplayList::new();
-        self.gather(target, &mut list);
-        list
     }
 
     /// Gathers into `list` what the roots of `target` draw; gives the elements that it reached.
@@ -2019,25 +2054,33 @@ impl Ui {
             .sum()
     }
 
-    /// Whether the interface moves on its own and needs every frame though nothing else changes: a
-    /// transition goes on, or a bar of progress without a share moves. A transition of a paused
-    /// root's clock holds where it is, and does not count. A program that draws only when something changes asks for the next
-    /// frame while it holds, and for one at [`Ui::next_frame_due`].
-    pub fn animating(&self) -> bool {
-        self.motions_go_on() || !self.spinning.is_empty()
+    /// Whether `target` moves on its own and needs every frame though nothing else changes: a
+    /// transition of its elements goes on, or a bar of progress without a share moves. A
+    /// transition of a paused root's clock holds where it is, and does not count. A program that
+    /// draws only when something changes asks for the next frame while it holds, and for one at
+    /// [`Ui::next_frame_due`].
+    pub fn animating(&self, target: TargetId) -> bool {
+        self.motions_go_on(target)
+            || self
+                .spinning
+                .iter()
+                .any(|&id| self.target_of(id) == Some(target))
     }
 
-    /// Whether the interface needs the next frame, though nothing else changes: it moves
-    /// ([`Ui::animating`]), or a builder must run again, a list showing rows that its builder has
-    /// not built since it scrolled or was laid out, which the program's next [`Ui::build`] runs. A
-    /// program that draws only when something changes asks for the next frame while it holds, and
-    /// for one at [`Ui::next_frame_due`].
-    pub fn needs_frame(&self) -> bool {
-        self.animating()
-            || self
-                .asked
-                .iter()
-                .any(|&id| self.node(id).is_some_and(|node| node.rebuild))
+    /// Whether `target` needs its next frame, though nothing else changes: it moves
+    /// ([`Ui::animating`]); it holds a change that its frame would draw, made since its last frame
+    /// by the program, by an event or by another target's frame, as a layer of its closed; or a
+    /// builder of its must run again, a list showing rows that its builder has not built since it
+    /// scrolled or was laid out, which the program's next [`Ui::build`] runs. A program that draws
+    /// only when something changes asks for the next frame while it holds, and for one at
+    /// [`Ui::next_frame_due`].
+    pub fn needs_frame(&self, target: TargetId) -> bool {
+        self.animating(target)
+            || self.holds_change(target)
+            || self.asked.iter().any(|&id| {
+                self.node(id)
+                    .is_some_and(|node| node.rebuild && node.drawn_on == target)
+            })
     }
 
     pub(crate) fn node(&self, id: ElementId) -> Option<&Node> {
@@ -2127,10 +2170,18 @@ impl Ui {
         }
     }
 
-    /// Makes again the styles marked to be, and counts those that it made.
-    fn restyle_marked(&mut self) -> usize {
-        let marked = std::mem::take(&mut self.restyled);
-        marked.into_iter().filter(|&id| self.restyle(id)).count()
+    /// Makes again the styles of `t`'s elements marked to be, and counts those that it made;
+    /// another target's stay marked for its own frame.
+    fn restyle_marked(&mut self, t: TargetId) -> usize {
+        let mut made = 0;
+        for id in std::mem::take(&mut self.restyled) {
+            match self.target_of(id) {
+                Some(on) if on != t => self.restyled.push(id),
+                Some(_) => made += usize::from(self.restyle(id)),
+                None => {}
+            }
+        }
+        made
     }
 
     /// Marks the style of `id` made again at the next frame.
@@ -2139,7 +2190,9 @@ impl Ui {
             && !node.changed.style
         {
             node.changed.style = true;
+            let drawn_on = node.drawn_on;
             self.restyled.push(id);
+            self.changed_on(drawn_on);
         }
     }
 
@@ -2435,6 +2488,9 @@ impl Ui {
     /// Marks `id` laid out again, with its ancestors, up to its root, or up to the list it is a
     /// row of: a list lays out its rows alone.
     pub(crate) fn mark_layout(&mut self, id: ElementId) {
+        if let Some(drawn_on) = self.node(id).map(|node| node.drawn_on) {
+            self.changed_on(drawn_on);
+        }
         let mut at = id;
         loop {
             let Some(node) = self.node_mut(at) else {
@@ -2458,6 +2514,9 @@ impl Ui {
         let Some(node) = self.node_mut(id) else {
             return;
         };
+        let drawn_on = node.drawn_on;
+        self.changed_on(drawn_on);
+        let node = self.node_mut(id).expect("marked above");
         node.changed.layout = true;
         node.changed.paint = true;
         node.cache.clear();
@@ -2479,6 +2538,9 @@ impl Ui {
 
     /// Asks for the rows of the list `list` to be laid out again at the next frame.
     fn relay(&mut self, list: ElementId) {
+        if let Some(drawn_on) = self.node(list).map(|node| node.drawn_on) {
+            self.changed_on(drawn_on);
+        }
         if !self.relaid.contains(&list) {
             self.relaid.push(list);
         }
@@ -2589,9 +2651,28 @@ impl Ui {
         }
     }
 
-    /// The target that `id` draws on, its root's; none for an element that is in no root.
+    /// The target that `id` draws on, its root's; none for an id that names nothing.
     pub(crate) fn target_of(&self, id: ElementId) -> Option<TargetId> {
-        Some(self.node(self.root_of(id)?)?.root?.target)
+        self.node(id).map(|node| node.drawn_on)
+    }
+
+    /// Gives `root` and every element below it `to`, the target that they draw on now, their
+    /// transitions ended at once: they were placed on the old target's time, which the new
+    /// target's frames do not read
+    /// (`docs/adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md`).
+    pub(crate) fn draw_on(&mut self, root: ElementId, to: TargetId) {
+        let mut stack = vec![root];
+        while let Some(id) = stack.pop() {
+            let Some(node) = self.node_mut(id) else {
+                continue;
+            };
+            node.drawn_on = to;
+            let moves = node.motion.is_some() || node.reveal.is_some();
+            stack.extend(node.children.iter().copied());
+            if moves {
+                self.finish_motion(id);
+            }
+        }
     }
 
     /// The target whose input `id` follows: its own, or the active target for an element that is
@@ -2602,9 +2683,7 @@ impl Ui {
 
     /// The target that the root `root` draws on; [`TargetId::MAIN`] for an id that names no root.
     pub(crate) fn root_target(&self, root: ElementId) -> TargetId {
-        self.node(root)
-            .and_then(|node| node.root)
-            .map_or(TargetId::MAIN, |settings| settings.target)
+        self.target_of(root).unwrap_or(TargetId::MAIN)
     }
 
     /// The roots that draw on `target`, from the bottom.
@@ -2618,7 +2697,7 @@ impl Ui {
 }
 
 impl Node {
-    fn new(key: Key, element: Element) -> Self {
+    fn new(key: Key, element: Element, drawn_on: TargetId) -> Self {
         let field = field::given(&element.kind).map(|text| Box::new(field::Field::new(text)));
         let mut state = ElementState::default();
         let control = control::Control::new(&element.kind, &mut state);
@@ -2631,6 +2710,7 @@ impl Node {
             element,
             state,
             root: None,
+            drawn_on,
             built: None,
             rebuild: false,
             owner: None,
@@ -2815,6 +2895,8 @@ impl<'a> Children<'a> {
                     let node = self.ui.node_mut(id).expect("kept");
                     if drawn {
                         node.changed.paint = true;
+                        let drawn_on = node.drawn_on;
+                        self.ui.changed_on(drawn_on);
                     }
                     if layout {
                         self.ui.mark_layout(id);
@@ -2829,7 +2911,11 @@ impl<'a> Children<'a> {
                 id
             }
             None => {
-                let mut node = Node::new(key, element);
+                let drawn_on = self
+                    .ui
+                    .node(self.parent)
+                    .map_or(TargetId::MAIN, |parent| parent.drawn_on);
+                let mut node = Node::new(key, element, drawn_on);
                 node.parent = Some(self.parent);
                 node.owner = Some(self.owner);
                 let id = self.ui.insert(node);

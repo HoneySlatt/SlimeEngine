@@ -8,7 +8,7 @@
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind, FieldValue};
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::style::{Align, Dimension, FlexDirection};
 use uwui::text::Fonts;
 use uwui::tree::{
@@ -70,7 +70,7 @@ impl Choice {
             });
             id = Some(children.add("quality", element, |_| {}));
         });
-        self.ui.frame();
+        self.ui.frame(TargetId::MAIN);
         self.choice = id.expect("built");
     }
 
@@ -82,7 +82,7 @@ impl Choice {
             state: ButtonState::Pressed,
             repeat: false,
         });
-        self.ui.frame();
+        self.ui.frame(TargetId::MAIN);
     }
 
     fn click(&mut self, x: f32, y: f32) {
@@ -91,7 +91,7 @@ impl Choice {
             .pointer_button(MouseButton::Left, ButtonState::Pressed);
         self.ui
             .pointer_button(MouseButton::Left, ButtonState::Released);
-        self.ui.frame();
+        self.ui.frame(TargetId::MAIN);
     }
 
     /// The list open below the list to choose from, and its options; none while it is closed.
@@ -245,7 +245,7 @@ fn an_agent_chooses_by_an_options_text_or_its_place() {
         element: Some(choice.choice),
         kind: ActionKind::Press,
     });
-    choice.ui.frame();
+    choice.ui.frame(TargetId::MAIN);
     let (_, options) = choice.list().expect("open");
     assert_eq!(choice.ui.focus(), Some(options[1]));
 }
@@ -300,7 +300,7 @@ fn a_choice_kept_by_the_user_stays_among_fewer_options() {
             ),
         );
     });
-    choice.ui.frame();
+    choice.ui.frame(TargetId::MAIN);
     assert_eq!(choice.ui.chosen(choice.choice), Some(0));
     let meaning = choice.ui.meaning_of(choice.choice).expect("drawn");
     assert_eq!(meaning.value.as_deref(), Some("Low"));
@@ -331,7 +331,7 @@ fn a_list_to_choose_from_in_a_modal_layer_opens_and_chooses() {
         });
         inner = Some(children.add("quality", element, |_| {}));
     });
-    choice.ui.frame();
+    choice.ui.frame(TargetId::MAIN);
     let inner = inner.expect("built");
     let (x, y) = middle(&choice.ui, inner);
     choice.click(x, y);
@@ -373,7 +373,7 @@ fn options_that_are_disabled_are_passed_over_and_options_show_their_help() {
         });
         children.add("quality", element, |_| {});
     });
-    choice.ui.frame();
+    choice.ui.frame(TargetId::MAIN);
     // Closed, the arrows pass over it, both ways.
     choice.ui.set_focus(Some(choice.choice));
     choice.key(NamedKey::ArrowDown);
@@ -411,7 +411,7 @@ fn options_that_are_disabled_are_passed_over_and_options_show_their_help() {
         let element = Element::choice(options, 1).style(|s| s.fonts(vec!["Noto Sans".to_owned()]));
         children.add("quality", element, |_| {});
     });
-    choice.ui.frame();
+    choice.ui.frame(TargetId::MAIN);
     assert_eq!(choice.ui.chosen(choice.choice), Some(1));
     choice.ui.set_focus(Some(choice.choice));
     choice.key(NamedKey::Enter);

@@ -399,7 +399,8 @@ mod tests {
             ..ElementState::default()
         };
         ui.set_state(save.expect("built"), disabled);
-        ui.frame();
+        ui.frame(TargetId::MAIN);
+        ui.frame(TargetId(2));
         ui
     }
 
@@ -518,7 +519,7 @@ mod tests {
             kinds,
             [ActionKind::Press, ActionKind::Command("undo".to_owned())]
         );
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         let buttons = found(&mut ui, "Button", "");
         assert_eq!(buttons[2].states, ["focused"], "over the disabled button");
         let below = shown(&ui, "main/notes/below").expect("scrolled to");
@@ -581,7 +582,7 @@ mod tests {
             children.add("save", button, |_| {});
             children.add("plain", Element::button("plain"), |_| {});
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         let style = |ui: &mut Ui, element: &str| {
             let element = element.to_owned();
             match reply(ui, Request::Style { element }) {

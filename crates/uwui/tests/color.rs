@@ -7,7 +7,7 @@
 use slime_color::LinearColor;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{ActionKind, FieldValue};
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::style::{Align, Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementId, LayoutDirection, Meaning, Role, RootSettings, Ui};
@@ -65,7 +65,7 @@ impl Well {
                 .named("tint");
             id = Some(children.add("tint", tint, |_| {}));
         });
-        self.ui.frame();
+        self.ui.frame(TargetId::MAIN);
         self.well = id.expect("built");
     }
 
@@ -85,7 +85,7 @@ impl Well {
             state: ButtonState::Pressed,
             repeat: false,
         });
-        self.ui.frame();
+        self.ui.frame(TargetId::MAIN);
     }
 
     /// A press at (`x`, `y`), the pointer moved to each of `path` while held, then let go.
@@ -98,7 +98,7 @@ impl Well {
         }
         self.ui
             .pointer_button(MouseButton::Left, ButtonState::Released);
-        self.ui.frame();
+        self.ui.frame(TargetId::MAIN);
     }
 
     fn click_well(&mut self) {
@@ -231,7 +231,7 @@ fn channels_and_a_code_typed_set_the_color_and_never_reach_the_program_as_fields
     );
     // The picker shows it: its code, its channel as typed.
     let code = well.find(Role::TextInput, "hexadecimal code").id;
-    well.ui.frame();
+    well.ui.frame(TargetId::MAIN);
     assert_eq!(well.ui.field_text(code), Some("#ff89ff"));
     assert_eq!(well.ui.field_text(green), Some("0.25"));
     assert!(well.ui.set_value(code, "#00ff0080"));
@@ -243,7 +243,7 @@ fn channels_and_a_code_typed_set_the_color_and_never_reach_the_program_as_fields
     // A code that names no color is given back.
     assert!(well.ui.set_value(code, "teal"));
     assert!(well.colors().is_empty());
-    well.ui.frame();
+    well.ui.frame(TargetId::MAIN);
     assert_eq!(well.ui.field_text(code), Some("#00ff0080"));
 }
 
@@ -320,10 +320,10 @@ fn what_is_typed_in_a_field_is_committed_as_the_picker_closes() {
     well.ui.pointer_moved(590.0, 490.0);
     well.ui
         .pointer_button(MouseButton::Left, ButtonState::Pressed);
-    well.ui.frame();
+    well.ui.frame(TargetId::MAIN);
     well.ui
         .pointer_button(MouseButton::Left, ButtonState::Released);
-    well.ui.frame();
+    well.ui.frame(TargetId::MAIN);
     assert!(!well.ui.state(well.well).expect("there").expanded);
     let colors = well.colors();
     assert_eq!(colors.last().map(|(what, _)| *what), Some("committed"));
@@ -369,7 +369,7 @@ fn a_drag_cut_by_escape_is_committed_and_the_alpha_strip_keeps_the_channels() {
     well.key(NamedKey::Escape);
     well.ui
         .pointer_button(MouseButton::Left, ButtonState::Released);
-    well.ui.frame();
+    well.ui.frame(TargetId::MAIN);
     let colors = well.colors();
     let (what, color) = *colors.last().expect("a commit");
     assert_eq!(what, "committed");
@@ -385,7 +385,7 @@ fn a_channel_out_of_its_range_is_given_back() {
     for wrong in ["-3", "1e300"] {
         assert!(well.ui.set_value(green, wrong));
         assert!(well.colors().is_empty(), "{wrong}");
-        well.ui.frame();
+        well.ui.frame(TargetId::MAIN);
         assert_eq!(well.ui.field_text(green), Some("0.5"), "{wrong}");
     }
     let alpha = well.find(Role::SpinButton, "alpha channel").id;
@@ -427,14 +427,14 @@ fn the_open_picker_shows_the_color_that_the_program_gives_and_one_picker_opens_a
             .named("glow");
         second = Some(children.add("glow", glow, |_| {}));
     });
-    well.ui.frame();
+    well.ui.frame(TargetId::MAIN);
     let (first, second) = (first.expect("built"), second.expect("built"));
     well.ui.set_focus(Some(second));
     well.ui.act(uwui::action::Action {
         element: Some(second),
         kind: ActionKind::Press,
     });
-    well.ui.frame();
+    well.ui.frame(TargetId::MAIN);
     assert!(well.ui.state(second).expect("there").expanded);
     assert!(!well.ui.state(first).expect("there").expanded);
     assert_eq!(

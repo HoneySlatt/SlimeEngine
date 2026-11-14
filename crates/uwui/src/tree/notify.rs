@@ -105,8 +105,15 @@ impl Ui {
         if self.notices.shown.len() > SHOWN {
             self.notices.shown.remove(0);
         }
-        self.notices.changed = true;
+        self.notices_changed();
         id
+    }
+
+    /// Notes that the notifications changed: their stack is built again at the next frame of
+    /// [`TargetId::MAIN`], which they stand on and which asks for it.
+    fn notices_changed(&mut self) {
+        self.notices.changed = true;
+        self.changed_on(TargetId::MAIN);
     }
 
     /// Replaces what the notification `id` tells, as a bar of progress moves on or a task ends, its
@@ -118,7 +125,7 @@ impl Ui {
         };
         shown.1 = notification;
         shown.2 = now;
-        self.notices.changed = true;
+        self.notices_changed();
         true
     }
 
@@ -127,7 +134,9 @@ impl Ui {
         let before = self.notices.shown.len();
         self.notices.shown.retain(|(each, ..)| *each != id);
         let closed = self.notices.shown.len() != before;
-        self.notices.changed |= closed;
+        if closed {
+            self.notices_changed();
+        }
         closed
     }
 

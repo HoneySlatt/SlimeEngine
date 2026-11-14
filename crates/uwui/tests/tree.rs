@@ -4,6 +4,7 @@
 use slime_color::LinearColor;
 use uwui::Rect;
 use uwui::display::Primitive;
+use uwui::host::TargetId;
 use uwui::style::{Align, Dimension, Display, FlexDirection, Shadow, StyleBuilder, Track};
 use uwui::text::{Fonts, TextStyle};
 use uwui::theme::{StyleSheet, Theme};
@@ -89,7 +90,7 @@ fn a_flexbox_row_is_laid_out_and_mirrored_from_right_to_left() {
         });
         rects.push(ids);
     }
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let at = |ids: &[ElementId]| {
         ids.iter()
             .map(|&id| ui.rect(id).unwrap())
@@ -148,7 +149,7 @@ fn a_grid_is_laid_out_and_mirrored_from_right_to_left() {
         });
         rects.push(ids);
     }
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let at = |ids: &[ElementId]| {
         ids.iter()
             .map(|&id| ui.rect(id).unwrap())
@@ -189,7 +190,7 @@ fn a_label_is_as_large_as_its_text_and_breaks_its_lines_in_a_narrow_box() {
             Element::label(words).style(|s| text_look(s).max_width(Dimension::Pixels(80.0)));
         narrow = Some(children.add("narrow", boxed, |_| {}));
     });
-    let (list, _) = ui.frame();
+    let (list, _) = ui.frame(TargetId::MAIN);
     let (wide, narrow) = (
         ui.rect(wide.unwrap()).unwrap(),
         ui.rect(narrow.unwrap()).unwrap(),
@@ -299,10 +300,10 @@ fn a_frame_counts_the_elements_that_its_walks_visit() {
             children.add("inside", Element::container(), |_| {});
         });
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     // Nothing changed: every element walked to find what to draw again, and those shown, with
     // the hidden one but not what it holds, walked again to gather the display list.
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!(
         (stats.elements, stats.painted, stats.visited),
         (5, 0, 5 + 4)
@@ -333,28 +334,28 @@ fn a_frame_where_nothing_changed_lays_out_and_draws_nothing() {
     };
     let red = LinearColor::rgba(1.0, 0.0, 0.0, 1.0);
     let ids = build(&mut ui, 1, red, "Text");
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!(
         (stats.built, stats.layouts, stats.painted, stats.elements),
         (1, 1, 4, 4)
     );
     // Nothing given: nothing done.
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!(
         (stats.built, stats.layouts, stats.lists, stats.painted),
         (0, 0, 0, 0)
     );
     // The same revision: the builder does not run.
     build(&mut ui, 1, red, "Text");
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.built, stats.layouts, stats.painted), (0, 0, 0));
     // Built again the same: nothing laid out nor drawn.
     build(&mut ui, 2, red, "Text");
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.built, stats.layouts, stats.painted), (1, 0, 0));
     // A color: drawn again alone.
     build(&mut ui, 3, LinearColor::WHITE, "Text");
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.layouts, stats.painted), (0, 1));
     // A state: its style made again, the same without rules that select by states, so nothing
     // drawn again.
@@ -365,11 +366,11 @@ fn a_frame_where_nothing_changed_lays_out_and_draws_nothing() {
             ..ElementState::default()
         },
     );
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.styled, stats.layouts, stats.painted), (1, 0, 0));
     // A text: laid out again, and drawn again where it moved.
     build(&mut ui, 4, LinearColor::WHITE, "A longer text");
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.layouts, stats.painted), (1, 2));
 }
 
@@ -396,26 +397,29 @@ fn a_list_of_100_000_rows_builds_lays_out_and_draws_only_the_rows_that_show() {
     };
     // The first frame lays the list out; the next builds the rows that it shows.
     let list = build(&mut ui, 0);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.children(list).len(), 0);
     // A program that draws only when something changes runs the next frame for them.
-    assert!(ui.needs_frame(), "its rows wait for the builder");
+    assert!(
+        ui.needs_frame(TargetId::MAIN),
+        "its rows wait for the builder"
+    );
     build(&mut ui, 0);
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.built, stats.layouts, stats.lists), (1, 0, 1));
     assert_eq!(ui.children(list).len(), 15);
-    assert!(!ui.needs_frame());
+    assert!(!ui.needs_frame(TargetId::MAIN));
     assert_eq!(stats.elements, 2 + 15);
     let row = ui.children(list)[3];
     assert_eq!(ui.rect(row), Some(Rect::new(0.0, 60.0, 400.0, 20.0)));
     // Scrolled far: the rows that show then, at their places, cut to the list.
     ui.scroll_to(list, [0.0, 20.0 * 50_000.0 + 10.0]);
     assert!(
-        ui.needs_frame(),
+        ui.needs_frame(TargetId::MAIN),
         "scrolled, other rows wait for the builder"
     );
     build(&mut ui, 0);
-    let (display, stats) = ui.frame();
+    let (display, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.built, stats.layouts, stats.lists), (1, 0, 1));
     let rows = ui.children(list);
     assert_eq!(rows.len(), 16);
@@ -431,7 +435,7 @@ fn a_list_of_100_000_rows_builds_lays_out_and_draws_only_the_rows_that_show() {
     assert!(display.items()[..16].iter().all(|item| item.clip == cut));
     // Standing still, it costs nothing.
     build(&mut ui, 0);
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!(
         (stats.built, stats.layouts, stats.lists, stats.painted),
         (0, 0, 0, 0)
@@ -440,7 +444,7 @@ fn a_list_of_100_000_rows_builds_lays_out_and_draws_only_the_rows_that_show() {
     ui.scroll_to(list, [0.0, 1.0e9]);
     assert_eq!(ui.scroll(list), Some([0.0, 100_000.0 * 20.0 - 300.0]));
     build(&mut ui, 0);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let rows = ui.children(list);
     assert_eq!(
         ui.path(*rows.last().unwrap()).unwrap()[1],
@@ -477,11 +481,11 @@ fn a_box_that_scrolls_moves_its_content_cut_to_its_edges_without_laying_it_out()
         }));
     });
     let scroll = scroll.unwrap();
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.rect(scroll), Some(Rect::new(0.0, 0.0, 200.0, 100.0)));
     assert_eq!(ui.rect(items[1]), Some(Rect::new(0.0, 40.0, 200.0, 40.0)));
     ui.scroll_to(scroll, [0.0, 30.0]);
-    let (display, stats) = ui.frame();
+    let (display, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.layouts, stats.painted), (0, 5));
     assert_eq!(ui.rect(items[0]), Some(Rect::new(0.0, -30.0, 200.0, 40.0)));
     // Its items cut to it, then its scroll bar's track and thumb over them.
@@ -544,7 +548,7 @@ fn the_display_list_draws_each_element_before_its_children_as_its_state_and_dire
         );
         drawn.push(button.unwrap());
     }
-    let (display, _) = ui.frame();
+    let (display, _) = ui.frame(TargetId::MAIN);
     let items: Vec<_> = display.items().iter().map(|item| &item.primitive).collect();
     // Per root: its box, the panel's shadow and box, the button's box and text.
     assert_eq!(items.len(), 10);
@@ -589,7 +593,7 @@ fn a_root_at_another_scale_is_laid_out_again_in_its_pixels() {
             |_| {},
         ));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.set_root(
         root,
         RootSettings {
@@ -597,7 +601,7 @@ fn a_root_at_another_scale_is_laid_out_again_in_its_pixels() {
             ..settings
         },
     );
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.layouts, stats.painted), (1, 2));
     assert_eq!(
         ui.rect(panel.unwrap()),
@@ -673,7 +677,7 @@ fn a_list_in_a_slot_builds_its_rows_with_its_own_builder_and_lays_out_only_them(
                 });
             }
         });
-        (list, ui.frame().1)
+        (list, ui.frame(TargetId::MAIN).1)
     };
     frame(&mut ui, 0, 20.0, "Row");
     let (list, stats) = frame(&mut ui, 0, 20.0, "Row");
@@ -719,7 +723,7 @@ fn a_list_in_the_rows_of_another_shows_its_rows_after_the_other_scrolls() {
                 }),
             );
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         outer.unwrap()
     };
     for _ in 0..3 {
@@ -761,7 +765,7 @@ fn what_an_element_whose_display_is_none_holds_takes_no_space() {
             child = Some(children.add("child", label, |_| {}));
         }));
     });
-    let (list, _) = ui.frame();
+    let (list, _) = ui.frame(TargetId::MAIN);
     assert!(list.is_empty());
     for id in [hidden.unwrap(), child.unwrap()] {
         let rect = ui.rect(id).unwrap();
@@ -783,7 +787,7 @@ fn a_root_turned_to_the_other_direction_draws_every_element_again_mirrored() {
         });
         children.add("bar", bar, |_| {});
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.set_root(
         root,
         RootSettings {
@@ -791,7 +795,7 @@ fn a_root_turned_to_the_other_direction_draws_every_element_again_mirrored() {
             ..settings
         },
     );
-    let (list, stats) = ui.frame();
+    let (list, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.layouts, stats.painted), (1, 2));
     let Primitive::Box(bar) = &list.items()[0].primitive else {
         panic!("the bar's box");
@@ -839,11 +843,11 @@ fn a_box_that_scrolls_from_right_to_left_scrolls_from_its_start_and_cuts_inside_
             }
         }));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let scroll = scroll.unwrap();
     assert_eq!(ui.rect(scroll), Some(Rect::new(100.0, 0.0, 100.0, 50.0)));
     ui.scroll_to(scroll, [30.0, 0.0]);
-    let (list, _) = ui.frame();
+    let (list, _) = ui.frame(TargetId::MAIN);
     // 30 pixels from its start, which is on the right: its first item moved right.
     assert_eq!(ui.rect(items[0]), Some(Rect::new(170.0, 0.0, 60.0, 50.0)));
     let inside = Some(Rect::new(102.0, 2.0, 96.0, 46.0));

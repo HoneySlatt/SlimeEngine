@@ -8,6 +8,7 @@ use super::{ElementId, ElementState, ItemMark, Kind, LayoutDirection, Ui};
 use crate::Rect;
 use crate::action::{Action, ActionKind, FieldValue};
 use crate::display::{BoxPrimitive, Primitive, TextPrimitive};
+use crate::host::TargetId;
 use crate::style::{Dimension, Icons};
 use crate::text::{TextBounds, TextLayout, TextStyle};
 
@@ -1373,15 +1374,16 @@ impl Ui {
                 );
                 primitives.push(filled(track, control.radius, control.track));
                 // Its share from a line's start; without one, a third of the track that crosses it
-                // every second and a half of the host's clock, drawn again each frame while it
-                // shows, or still in its middle for less motion. Its phase is taken from the
-                // clock's whole nanoseconds, so that it keeps its precision however long the
-                // machine has run.
+                // every second and a half of the host's clock, read at its target's frame's time,
+                // drawn again each frame while it shows, or still in its middle for less motion.
+                // Its phase is taken from the clock's whole nanoseconds, so that it keeps its
+                // precision however long the machine has run.
                 let (from, length) = match share {
                     Some(share) => (0.0, share.clamp(0.0, 1.0)),
                     None if self.preferences.reduced_motion || !self.shown(id) => (0.35, 0.3),
                     None => {
-                        let turn = (self.now.as_nanos() % SPIN_PERIOD) as f32 / SPIN_PERIOD as f32;
+                        let at = self.frame_time(self.target_of(id).unwrap_or(TargetId::MAIN));
+                        let turn = (at.as_nanos() % SPIN_PERIOD) as f32 / SPIN_PERIOD as f32;
                         self.spinning.push(id);
                         (turn * 1.3 - 0.3, 0.3)
                     }

@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use tracing::span::{Attributes, Id, Record};
 use tracing::{Event, Level, Metadata, Subscriber};
+use uwui::host::TargetId;
 use uwui::text::Fonts;
 use uwui::theme::{Fallback, Length, Theme, Token, Tokens};
 use uwui::tree::{Element, LayoutDirection, RootSettings, Ui};
@@ -82,7 +83,7 @@ fn with_elements(ui: &mut Ui, elements: usize) {
             children.add(index, element, |_| {});
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
 }
 
 /// Gives `ui` a root whose own style names `test_gap` alone, and makes a frame.
@@ -96,7 +97,7 @@ fn with_the_gap(ui: &mut Ui) {
         target: uwui::host::TargetId::MAIN,
     };
     ui.add_root("main", settings, |s| s.padding(GAP));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
 }
 
 #[test]

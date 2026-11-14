@@ -91,7 +91,7 @@ impl Interaction {
     }
 
     /// The `index`th target that has an input, in the order they came: a walk by index lets each
-    /// one's input change on the way, without a list of them made at each frame.
+    /// one's input change on the way, without a list of them made for the walk.
     pub(super) fn target_at(&self, index: usize) -> Option<TargetId> {
         self.targets.get(index).map(|(target, _)| *target)
     }
@@ -1686,10 +1686,13 @@ impl Ui {
     pub(super) fn move_to_target(&mut self, group: &[ElementId], from: TargetId, to: TargetId) {
         self.leave_target(from, group);
         self.interaction.of_mut(to);
+        // The old target draws them no more.
+        self.changed_on(from);
         for &root in group {
             if let Some(settings) = self.node_mut(root).and_then(|node| node.root.as_mut()) {
                 settings.target = to;
             }
+            self.draw_on(root, to);
             self.mark_layout(root);
         }
         let modals: Vec<ElementId> = group
@@ -1798,40 +1801,38 @@ impl Ui {
         }
     }
 
-    /// Keeps the input's states true to the tree on every target, as a frame begins and its
-    /// styles are made: a focus that its element can no longer hold is dropped, the top modal root
-    /// takes the focus when nothing of its own holds it, and the hover follows what moved under
-    /// the pointer.
-    pub(super) fn settle_input(&mut self) {
-        let mut index = 0;
-        while let Some(t) = self.interaction.target_at(index) {
-            index += 1;
-            if let Some(focus) = self.interaction.of(t).focus
-                && !self.focusable(focus)
-            {
-                self.focus_on(t, None);
+    /// Keeps `t`'s input's states true to the tree, as its frame begins and its styles are made:
+    /// a focus that its element can no longer hold is dropped, the top modal root takes the focus
+    /// when nothing of its own holds it, and the hover follows what moved under the pointer.
+    pub(super) fn settle_input(&mut self, t: TargetId) {
+        if !self.interaction.knows(t) {
+            return;
+        }
+        if let Some(focus) = self.interaction.of(t).focus
+            && !self.focusable(focus)
+        {
+            self.focus_on(t, None);
+        }
+        if let Some(&(modal, _)) = self.interaction.of(t).modals.last() {
+            let inside = self
+                .interaction
+                .of(t)
+                .focus
+                .is_some_and(|focus| self.root_of(focus) == Some(modal));
+            if !inside && let Some(&first) = self.focusables(modal).first() {
+                self.focus_on(t, Some(first));
             }
-            if let Some(&(modal, _)) = self.interaction.of(t).modals.last() {
-                let inside = self
-                    .interaction
-                    .of(t)
-                    .focus
-                    .is_some_and(|focus| self.root_of(focus) == Some(modal));
-                if !inside && let Some(&first) = self.focusables(modal).first() {
-                    self.focus_on(t, Some(first));
-                }
-            }
-            if std::mem::take(&mut self.interaction.of_mut(t).moved) {
-                self.hover(t);
-            }
+        }
+        if std::mem::take(&mut self.interaction.of_mut(t).moved) {
+            self.hover(t);
         }
     }
 
-    /// Marks what lies under the pointer to be found again as the next frame begins: the tree
-    /// was laid out or scrolled.
-    pub(super) fn moved(&mut self) {
-        for (_, input) in self.interaction.each_mut() {
-            input.moved = true;
+    /// Marks what lies under `t`'s pointer to be found again as its next frame begins: its roots
+    /// were laid out or scrolled.
+    pub(super) fn moved(&mut self, t: TargetId) {
+        if self.interaction.knows(t) {
+            self.interaction.of_mut(t).moved = true;
         }
     }
 }

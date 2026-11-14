@@ -7,6 +7,7 @@ use slime_gfx::{GfxError, Gpu, RenderTarget};
 use slime_platform::PhysicalSize;
 use slime_render::RenderStats;
 use uwui::action::{Action, ActionKind, Intent};
+use uwui::host::TargetId;
 use uwui::look::{self, Colors, Density};
 use uwui::shortcuts::Shortcuts;
 use uwui::style::{Dimension, FlexDirection};
@@ -326,7 +327,7 @@ impl Overlay {
     /// As [`InterfaceRenderer::draw`]: if `target` does not have the format of the target that made
     /// its renderer, or holds several samples per pixel.
     pub fn draw(&mut self, gpu: &Gpu, target: &RenderTarget) -> Result<(), GfxError> {
-        let (display, _) = self.ui.frame();
+        let (display, _) = self.ui.frame(TargetId::MAIN);
         if display.items().is_empty() {
             return Ok(());
         }
@@ -453,7 +454,7 @@ mod tests {
                 children.add("reset", Element::button("Reset"), |_| {});
             });
         }
-        overlay.ui_mut().frame();
+        overlay.ui_mut().frame(TargetId::MAIN);
     }
 
     /// The box of the open panel titled `title`, in pixels of the window.

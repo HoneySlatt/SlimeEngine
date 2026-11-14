@@ -218,8 +218,9 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   - On demand, with a window or without: `AppConfig::on_demand` runs a frame only when something
     asks for one, the loop waiting meanwhile, as the editor's program does
     (`docs/adr/0156-the-editors-window-and-its-operations.md`): an event of the window, a request of
-    the development channel, the presentation's interface while it moves or once its next frame is
-    due (`Ui::needs_frame`, `Ui::next_frame_due`), the program through `Context::request_frame` or
+    the development channel, the presentation's interface while it moves, holds a change to draw
+    after a frame that drew an image, or once its next frame is due (`Ui::needs_frame`,
+    `Ui::next_frame_due`, of `TargetId::MAIN`), the program through `Context::request_frame` or
     `SimulationContext::request_frame`, or at
     a time that it gives through `Context::request_frame_at`, a view's new size that has held still
     ([ADR-0158](../../docs/adr/0158-the-viewport.md)), or another thread through a `Waker`

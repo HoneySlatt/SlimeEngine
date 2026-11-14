@@ -8,7 +8,7 @@ use std::time::Duration;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind, FieldValue};
 use uwui::display::Primitive;
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::preferences::Preferences;
 use uwui::style::{Dimension, StyleBuilder};
 use uwui::text::Fonts;
@@ -80,7 +80,7 @@ fn key(ui: &mut Ui, named: NamedKey) {
         state: ButtonState::Pressed,
         repeat: false,
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
 }
 
 fn click(ui: &mut Ui, id: ElementId) {
@@ -88,7 +88,7 @@ fn click(ui: &mut Ui, id: ElementId) {
     ui.pointer_moved(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0);
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn a_button_that_toggles_stays_pressed_and_tells_the_program() {
             let toggle = Element::toggle_button("Snap", on).style(|s| style(s, Some(80.0)));
             id = Some(children.add("snap", toggle, |_| {}));
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         id.expect("built")
     };
     let snap = build(&mut ui, 0, false);
@@ -151,7 +151,7 @@ fn a_control_of_segments_is_chosen_by_a_press_and_the_arrows() {
         );
         ids.0 = Some(control);
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let (control, segments) = (ids.0.expect("built"), ids.1);
     assert_eq!(
         ui.meaning_of(control).expect("drawn").role,
@@ -193,7 +193,7 @@ fn a_tabs_count_follows_its_title_and_is_part_of_its_name() {
             },
         );
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let (plain, counted) = (
         ui.rect(tabs[0]).expect("laid out"),
         ui.rect(tabs[1]).expect("laid out"),
@@ -220,7 +220,7 @@ fn a_bar_of_progress_gives_its_share_and_one_without_moves_with_the_clock() {
             |_| {},
         ));
     });
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert!(stats.animating, "the bar without a share moves");
     let meaning = ui.meaning_of(bars[0]).expect("drawn");
     assert_eq!(
@@ -232,7 +232,7 @@ fn a_bar_of_progress_gives_its_share_and_one_without_moves_with_the_clock() {
     // The moving part's place, in the bar without a share, at two times of the clock.
     let unknown = ui.rect(bars[1]).expect("laid out");
     let moving = |ui: &mut Ui| {
-        let (list, _) = ui.frame();
+        let (list, _) = ui.frame(TargetId::MAIN);
         list.items()
             .iter()
             .filter_map(|item| match &item.primitive {
@@ -248,10 +248,10 @@ fn a_bar_of_progress_gives_its_share_and_one_without_moves_with_the_clock() {
             .next()
     };
     at += Duration::from_millis(500);
-    ui.set_frame_shown(FrameShown::simulated(at));
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
     let before = moving(&mut ui).expect("a part that moves");
     at += Duration::from_millis(300);
-    ui.set_frame_shown(FrameShown::simulated(at));
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
     let after = moving(&mut ui).expect("a part that moves");
     assert!(after > before, "{before} then {after}");
 }
@@ -266,7 +266,7 @@ fn a_field_of_search_is_emptied_by_its_mark_once_it_holds_text() {
             .placeholder("Search");
         id = Some(children.add("search", search, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let search = id.expect("built");
     assert_eq!(
         ui.meaning_of(search).expect("drawn").role,
@@ -279,7 +279,7 @@ fn a_field_of_search_is_emptied_by_its_mark_once_it_holds_text() {
         ui.pointer_moved(mark.0, mark.1);
         ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
         ui.pointer_button(MouseButton::Left, ButtonState::Released);
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     };
     // Empty, it has no mark: a press there gives it the focus, and empties nothing.
     press(&mut ui);
@@ -294,7 +294,7 @@ fn a_field_of_search_is_emptied_by_its_mark_once_it_holds_text() {
             repeat: false,
         });
     }
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     values(&mut ui);
     press(&mut ui);
     assert_eq!(
@@ -320,7 +320,7 @@ fn a_fields_prefix_lies_before_its_number_and_drags_it_even_focused() {
             .prefix("X");
         ids.push(children.add("x", x, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let x = ids[1];
     let rect = ui.rect(x).expect("laid out");
     ui.set_focus(Some(x));
@@ -330,7 +330,7 @@ fn a_fields_prefix_lies_before_its_number_and_drags_it_even_focused() {
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_moved(at.0 + 10.0, at.1);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let values = values(&mut ui);
     assert_eq!(
         values.last().map(String::as_str),
@@ -350,23 +350,23 @@ fn a_bar_without_a_share_stops_moving_once_hidden_or_given_one() {
                 section.add("bar", bar, |_| {});
             });
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     };
     build(&mut ui, 0, true, None);
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert!(stats.animating);
     // Folded, what the section holds does not show: nothing moves.
     let section = ui.element_by_path("main/cook").expect("built");
     ui.set_open(section, false);
-    ui.frame();
-    let (_, stats) = ui.frame();
+    ui.frame(TargetId::MAIN);
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert!(!stats.animating, "hidden");
     ui.set_open(section, true);
-    ui.frame();
-    let (_, stats) = ui.frame();
+    ui.frame(TargetId::MAIN);
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert!(stats.animating, "shown again");
     build(&mut ui, 1, true, Some(0.5));
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert!(!stats.animating, "given a share");
     // Less motion keeps it still.
     build(&mut ui, 2, true, None);
@@ -374,8 +374,8 @@ fn a_bar_without_a_share_stops_moving_once_hidden_or_given_one() {
         reduced_motion: true,
         ..Preferences::default()
     });
-    ui.frame();
-    let (_, stats) = ui.frame();
+    ui.frame(TargetId::MAIN);
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert!(!stats.animating, "less motion");
 }
 
@@ -400,7 +400,7 @@ fn from_right_to_left_a_fields_prefix_and_marks_stand_at_its_right_and_left() {
         let search = Element::search_field("torch").style(|s| style(s, Some(200.0)));
         ids.push(children.add("search", search, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let (x, search) = (ids[0], ids[1]);
     // The prefix at the field's right, which a drag towards the left, its line's end, raises.
     let rect = ui.rect(x).expect("laid out");
@@ -409,7 +409,7 @@ fn from_right_to_left_a_fields_prefix_and_marks_stand_at_its_right_and_left() {
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_moved(at.0 + 10.0, at.1);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.field_text(x), Some("2"));
     values(&mut ui);
     // The mark that empties the field of search at its left.
@@ -417,7 +417,7 @@ fn from_right_to_left_a_fields_prefix_and_marks_stand_at_its_right_and_left() {
     ui.pointer_moved(rect.x + 8.0, rect.y + rect.height / 2.0);
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.field_text(search), Some(""));
 }
 
@@ -432,12 +432,12 @@ fn a_prefix_given_later_makes_room_and_a_composition_keeps_it_from_dragging() {
                 .prefix(prefix);
             id = Some(children.add("x", field, |_| {}));
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         id.expect("built")
     };
     // Where the field draws its number, `1`.
     let number_x = |ui: &mut Ui| {
-        let (list, _) = ui.frame();
+        let (list, _) = ui.frame(TargetId::MAIN);
         list.items()
             .iter()
             .find_map(|item| match &item.primitive {
@@ -465,7 +465,7 @@ fn a_prefix_given_later_makes_room_and_a_composition_keeps_it_from_dragging() {
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_moved(at.0 + 30.0, at.1);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(
         !values(&mut ui)
             .iter()
@@ -482,7 +482,7 @@ fn a_field_of_numbers_reads_an_expression_and_shows_its_result_once_committed() 
         let field = Element::number_field(1.0, 0.1).style(|s| style(s, Some(160.0)));
         id = Some(children.add("number", field, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let field = id.expect("built");
     assert!(ui.set_value(field, "sqrt(2)/2"));
     let committed = values(&mut ui).pop().expect("a commit");
@@ -511,7 +511,7 @@ fn a_field_of_lengths_shows_meters_and_converts_what_is_typed() {
             .units(Units::Length);
         id = Some(children.add("length", field, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let field = id.expect("built");
     assert_eq!(
         ui.meaning_of(field).expect("drawn").value.as_deref(),
@@ -528,7 +528,7 @@ fn a_field_of_lengths_shows_meters_and_converts_what_is_typed() {
     );
     assert!(!ui.set_value(field, "90°"), "an angle is no length");
     // The symbol of its unit is drawn after its number.
-    let (list, _) = ui.frame();
+    let (list, _) = ui.frame(TargetId::MAIN);
     assert!(list.items().iter().any(|item| matches!(
         &item.primitive,
         Primitive::Text(text) if text.layout.shown() == "m"
@@ -543,7 +543,7 @@ fn a_drag_goes_finer_with_shift_and_coarser_with_control() {
         let field = Element::number_field(1.0, 0.1).style(|s| style(s, Some(160.0)));
         id = Some(children.add("number", field, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let field = id.expect("built");
     let rect = ui.rect(field).expect("laid out");
     let drag = |ui: &mut Ui, modifiers: slime_input::Modifiers| {
@@ -554,7 +554,7 @@ fn a_drag_goes_finer_with_shift_and_coarser_with_control() {
         ui.pointer_moved(at.0 + 10.0, at.1);
         ui.pointer_button(MouseButton::Left, ButtonState::Released);
         ui.modifiers(slime_input::Modifiers::default());
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         ui.set_focus(None);
         values(ui).pop().expect("a commit")
     };
@@ -602,7 +602,7 @@ fn a_sections_header_holds_its_box_at_its_end_whose_presses_do_not_fold_it() {
                 );
             }));
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         let (section, reset) = (ids.0.expect("built"), ids.1.expect("built"));
         let (box_, button) = (
             ui.rect(section).expect("laid out"),
@@ -628,7 +628,7 @@ fn a_sections_header_holds_its_box_at_its_end_whose_presses_do_not_fold_it() {
         );
         // Folded, the section keeps its header's box.
         ui.set_open(section, false);
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         assert!(ui.meaning_of(reset).is_some(), "{direction:?}");
     }
 }
@@ -644,7 +644,7 @@ fn a_tooltip_of_a_title_and_a_text_is_read_as_both() {
             .help("Roughness", "How rough the surface is, from 0 to 1");
         id = Some(children.add("roughness", field, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let field = id.expect("built");
     assert_eq!(
         ui.meaning_of(field).expect("drawn").description.as_deref(),
@@ -653,8 +653,8 @@ fn a_tooltip_of_a_title_and_a_text_is_read_as_both() {
     let rect = ui.rect(field).expect("laid out");
     ui.pointer_moved(rect.x + 5.0, rect.y + 5.0);
     at += Duration::from_millis(600);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    ui.frame(TargetId::MAIN);
     let title = ui
         .element_by_path("tooltip/tooltip/title")
         .expect("the tooltip's title");
@@ -667,7 +667,7 @@ fn a_tooltip_of_a_title_and_a_text_is_read_as_both() {
 
 /// The x of the start and the end of the drawn text `text`, in the display list of a frame.
 fn drawn_text(ui: &mut Ui, text: &str) -> Option<(f32, f32)> {
-    let (list, _) = ui.frame();
+    let (list, _) = ui.frame(TargetId::MAIN);
     list.items().iter().find_map(|item| match &item.primitive {
         Primitive::Text(drawn) if drawn.layout.shown() == text => {
             Some((drawn.origin[0], drawn.origin[0] + drawn.layout.width()))
@@ -706,7 +706,7 @@ fn a_sections_title_keeps_beside_its_mark_and_leaves_the_room_of_its_headers_box
                     }
                 }));
             });
-            ui.frame();
+            ui.frame(TargetId::MAIN);
             id.expect("built")
         };
         let section = build(&mut ui, 0, None);
@@ -739,7 +739,7 @@ fn a_modifier_held_in_the_middle_of_a_drag_goes_on_from_where_it_was() {
         let field = Element::number_field(0.0, 0.1).style(|s| style(s, Some(160.0)));
         id = Some(children.add("number", field, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let field = id.expect("built");
     let rect = ui.rect(field).expect("laid out");
     let y = rect.y + rect.height / 2.0;
@@ -775,7 +775,7 @@ fn what_is_typed_in_a_field_of_lengths_reads_as_it_is_until_committed() {
             .units(Units::Length);
         id = Some(children.add("length", field, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let field = id.expect("built");
     ui.set_focus(Some(field));
     // Its text selected whole, then typed over.
@@ -802,7 +802,7 @@ fn what_is_typed_in_a_field_of_lengths_reads_as_it_is_until_committed() {
             repeat: false,
         });
     }
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(
         ui.meaning_of(field).expect("drawn").value.as_deref(),
         Some("200cm")

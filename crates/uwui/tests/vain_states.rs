@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use slime_color::LinearColor;
 use tracing::span::{Attributes, Id, Record};
 use tracing::{Event, Level, Metadata, Subscriber};
+use uwui::host::TargetId;
 use uwui::text::Fonts;
 use uwui::tree::{Element, LayoutDirection, RootSettings, Ui};
 
@@ -75,9 +76,9 @@ fn a_hover_written_for_a_kind_that_the_pointer_never_reaches_is_warned_of_once()
             let panel = Element::container().style(|s| s.hover(|s| s.background(blue)));
             children.add("box", panel, |_| {});
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         assert_eq!(warnings.0.load(Ordering::Relaxed), 3);
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         assert_eq!(warnings.0.load(Ordering::Relaxed), 3, "not told again");
     });
 }

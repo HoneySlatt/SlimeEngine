@@ -40,7 +40,7 @@ use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderPassDescriptor, TextureFormat};
 use uwui::Rect;
 use uwui::action::{Action, ActionKind};
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::look::{Colors, Density};
 use uwui::preferences::{Preferences, TextSize};
 use uwui::style::Display;
@@ -193,7 +193,9 @@ fn a_floating_panel_a_list_open_and_a_tooltip_match_their_reference_image() {
         .ui
         .pointer_moved(tab.x + tab.width / 2.0, tab.y + tab.height / 2.0);
     at += std::time::Duration::from_millis(600);
-    panel.ui.set_frame_shown(FrameShown::simulated(at));
+    panel
+        .ui
+        .set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
     check(&mut panel, "widgets-layers");
 }
 

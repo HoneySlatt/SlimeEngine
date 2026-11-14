@@ -28,6 +28,7 @@ use uwui::Rect;
 use uwui::action::{Action, ActionKind, FieldValue, SurfaceInput};
 use uwui::display::{BoxPrimitive, DisplayList, ImageKey};
 use uwui::dock::{Dock, Target};
+use uwui::host::TargetId;
 use uwui::look::{self, Colors, Density};
 use uwui::preferences::Preferences;
 use uwui::shortcuts::Shortcuts;
@@ -1332,7 +1333,7 @@ impl Model {
             self.hierarchy
                 .build(&mut self.ui, slot, world, &selected, Instant::now());
         }
-        let (mut display, stats) = self.ui.frame();
+        let (mut display, stats) = self.ui.frame(TargetId::MAIN);
         // Over the viewport, under nothing: the pointer is the surface's while it is drawn.
         if let Some((rect, viewport)) = self.marquee(scale) {
             display.push(

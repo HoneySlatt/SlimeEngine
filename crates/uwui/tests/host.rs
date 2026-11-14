@@ -54,7 +54,7 @@ fn interface() -> (Ui, [ElementId; 5]) {
             ids.push(children.add(index, element.style(sized), |_| {}));
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, ids.try_into().expect("five elements"))
 }
 
@@ -104,14 +104,17 @@ fn an_event_for_a_target_that_no_root_draws_on_changes_nothing_but_the_time() {
     assert_eq!(ui.outputs(other), Outputs::default());
     // The time moved to the events': a notification given now ends five seconds after them,
     // though the frame's time given since is earlier.
-    ui.set_frame_shown(FrameShown::simulated(Instant::ZERO));
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(Instant::ZERO));
     ui.notify(Notification {
         kind: NotificationKind::Information,
         text: "Saved".to_owned(),
         ..Notification::default()
     });
-    ui.frame();
-    assert_eq!(ui.next_frame_due(), Some(at + Duration::from_secs(5)));
+    ui.frame(TargetId::MAIN);
+    assert_eq!(
+        ui.next_frame_due(TargetId::MAIN),
+        Some(at + Duration::from_secs(5))
+    );
     let moved = Input::PointerMoved { x: 10.0, y: 10.0 };
     let _ = given(&mut ui, TargetId::MAIN, Instant::ZERO, moved);
     assert!(
@@ -171,7 +174,7 @@ fn the_outputs_tell_the_input_method_on_as_each_fields_input_starts_and_its_care
     ui.set_focus(Some(text));
     let before = ui.outputs(main).input_area.expect("told");
     ui.key(&typed("w"));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let outputs = ui.outputs(main);
     assert_eq!(outputs.input_method, None, "the same input");
     assert!(

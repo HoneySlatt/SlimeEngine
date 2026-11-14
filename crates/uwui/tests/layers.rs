@@ -5,7 +5,7 @@
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::style::{Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
@@ -35,7 +35,7 @@ fn interface(direction: LayoutDirection, top: f32) -> (Ui, ElementId, ElementId)
             |_| {},
         ));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, root, button.expect("built"))
 }
 
@@ -65,7 +65,7 @@ fn open(ui: &mut Ui, place: Place) -> (ElementId, ElementId) {
             |_| {},
         ));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (layer, item.expect("built"))
 }
 
@@ -74,7 +74,7 @@ fn click(ui: &mut Ui, x: f32, y: f32) {
     ui.pointer_moved(x, y);
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
 }
 
 /// A press of Escape.
@@ -198,7 +198,7 @@ fn escape_closes_the_top_layer_and_gives_the_focus_back() {
         },
     );
     // Opened while the keyboard last acted: its first element holds the focus.
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.focus(), Some(item));
     // A layer over what it holds, then Escape twice: the top first, then the first.
     let (above, _) = open(
@@ -210,10 +210,10 @@ fn escape_closes_the_top_layer_and_gives_the_focus_back() {
         },
     );
     assert!(ui.key(&escape()));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(ui.rect(above).is_none() && ui.rect(layer).is_some());
     assert!(ui.key(&escape()));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(ui.rect(layer).is_none());
     assert_eq!(ui.focus(), Some(button), "back to what held it");
 }
@@ -239,7 +239,7 @@ fn a_layer_closes_with_its_anchor_and_takes_the_layers_over_it_along() {
     );
     // The program closes the first: the one over it goes too, without telling.
     ui.remove(layer);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(ui.rect(above).is_none());
     assert!(ui.take_actions().is_empty());
     // An anchor that goes closes its layer, which the program reads.
@@ -252,7 +252,7 @@ fn a_layer_closes_with_its_anchor_and_takes_the_layers_over_it_along() {
         },
     );
     ui.build(root, 1, |_| {});
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(ui.rect(layer).is_none());
     let kinds: Vec<ActionKind> = ui.take_actions().into_iter().map(|a| a.kind).collect();
     assert_eq!(kinds, [ActionKind::Dismissed]);
@@ -283,7 +283,7 @@ fn a_layer_follows_its_anchor_as_it_moves() {
             |_| {},
         );
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let button_rect = ui.rect(button).expect("laid out");
     let rect = ui.rect(layer).expect("placed");
     assert_eq!(rect.y, button_rect.y + button_rect.height + 4.0);
@@ -373,7 +373,7 @@ fn a_modal_layer_keeps_the_input_and_the_focus_until_it_closes() {
             |_| {},
         ));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let ok = ok.expect("built");
     // A press below it reaches nothing there, and does not close it; the focus stays within it.
     click(&mut ui, 50.0, 15.0);
@@ -385,7 +385,7 @@ fn a_modal_layer_keeps_the_input_and_the_focus_until_it_closes() {
     assert_eq!(ui.focus(), Some(ok));
     // Escape closes it, which the program reads.
     assert!(ui.key(&escape()));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(ui.rect(dialog).is_none());
     let kinds: Vec<ActionKind> = ui.take_actions().into_iter().map(|a| a.kind).collect();
     assert_eq!(kinds, [ActionKind::Dismissed]);
@@ -454,7 +454,7 @@ fn a_layer_over_a_root_placed_within_the_window_stays_within_the_window() {
             |_| {},
         ));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let button = button.expect("built");
     let (layer, _) = open(
         &mut ui,

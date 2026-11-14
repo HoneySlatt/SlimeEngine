@@ -53,6 +53,7 @@ use super::{
     RootSettings, Ui, Units, kind_name,
 };
 use crate::display::{DisplayList, ImageKey, Primitive};
+use crate::host::TargetId;
 use crate::look::{self, FIXED_FAMILY, ICON_FAMILY, TEXT_FAMILY};
 use crate::style::{Dimension, FlexDirection, Sides, Style, StyleDeclaration};
 use crate::text::Fonts;
@@ -332,7 +333,7 @@ fn pressed() -> ElementState {
 
 /// Selects the first `bytes` of the text of the field `field`, which holds the focus.
 fn select_start(ui: &mut Ui, field: ElementId, bytes: usize) {
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.set_focus(Some(field));
     assert_eq!(ui.focus(), Some(field), "the field takes the focus");
     assert!(ui.select_text(field, 0, bytes), "a field");
@@ -655,7 +656,7 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
             }),
             configuration("two panels, the handle focused", |ui, root, leaves| {
                 let id = split(ui, root, leaves, true);
-                ui.frame();
+                ui.frame(TargetId::MAIN);
                 ui.set_focus(Some(id));
                 assert_eq!(ui.focus(), Some(id), "the split takes the focus");
                 id
@@ -672,7 +673,7 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
             }),
             configuration("a splitter focused", |ui, root, leaves| {
                 let id = splitter(ui, root, leaves);
-                ui.frame();
+                ui.frame(TargetId::MAIN);
                 ui.set_focus(Some(id));
                 assert_eq!(ui.focus(), Some(id), "the splitter takes the focus");
                 id
@@ -922,7 +923,7 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                     root,
                     Element::color_well(color).style(|s| s.with_style(&shown(leaves))),
                 );
-                ui.frame();
+                ui.frame(TargetId::MAIN);
                 ui.press_well(id);
                 id
             }),
@@ -996,7 +997,7 @@ fn list(ui: &mut Ui, root: ElementId, leaves: &Style, rows: usize) -> ElementId 
                 },
             )
         }));
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     }
     subject.expect("built")
 }
@@ -1170,9 +1171,9 @@ fn color_part(
         Element::color_well(LinearColor::rgba(0.8, 0.3, 0.1, 0.7))
             .style(|s| s.with_style(&plain_sized(60.0, 24.0))),
     );
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.press_well(well);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let picker = ui.owned_layer(well).expect("the picker is open");
     // The picker's layer holds one box, whose color parts are, in order, the square, the strip of
     // hue and the strip of alpha.
@@ -1276,8 +1277,8 @@ fn draw(
         configuration.name
     );
     let layer_root = ui.layers().contains(&subject);
-    ui.frame();
-    let (list, _) = ui.frame();
+    ui.frame(TargetId::MAIN);
+    let (list, _) = ui.frame(TargetId::MAIN);
     // A kind that reads none of these leaves draws the same whatever they hold: the drawings
     // compared only mean something if the subject was given them.
     let computed = &ui.node(subject).expect("the subject is still there").style;

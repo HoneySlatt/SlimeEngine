@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 
 use slime_gfx::{Gpu, PresentMode, Surface};
 use slime_platform::{Event, EventHandler, LoopControl, Window, WindowConfig};
+use uwui::host::TargetId;
 use uwui::time::{EventTime, FrameShown, FrameSource};
 
 use crate::app::{AppConfig, Frames};
@@ -190,10 +191,13 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         if let Some(ui) = self.presentation.ui() {
             // The pointer's last move first, at its own time, before the frame moves the clock.
             self.input.give_moved(ui);
-            ui.set_frame_shown(FrameShown {
-                at: shown,
-                source: FrameSource::Started,
-            });
+            ui.set_frame_shown(
+                TargetId::MAIN,
+                FrameShown {
+                    at: shown,
+                    source: FrameSource::Started,
+                },
+            );
             if !ui.waker().will_wake(&self.ui_waker) {
                 ui.set_waker(self.ui_waker.clone());
             }
@@ -226,7 +230,7 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         // On the loop's clock, which the platform waits on, from the host's.
         let interface_due = ui
             .as_ref()
-            .and_then(|ui| ui.next_frame_due())
+            .and_then(|ui| ui.next_frame_due(TargetId::MAIN))
             .map(|due| now + due.saturating_duration_since(shown));
         // The earlier of the interface's change and the time that the presentation asked for.
         self.change_due = match (interface_due, self.host.context.take_frame_due()) {
@@ -234,7 +238,7 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
             (due, None) | (None, due) => due,
         };
         self.wanted = answered
-            || ui.is_some_and(|ui| ui.needs_frame())
+            || ui.is_some_and(|ui| interface_asks(ui, presented))
             || self.host.context.take_frame_request()
             || self.frames.waiting()
             || self.host.context.steps_asked() > 0;
@@ -609,6 +613,20 @@ pub(crate) fn next_due(due: Instant, started: Instant, period: Duration) -> Inst
     }
 }
 
+/// Whether the interface asks for the next frame after one that `presented` an image or not. What
+/// it holds to draw waits for a frame that draws an image: a window that gave none, covered or
+/// without an image ready, may not have run the interface's frame at all, as a game's overlay runs
+/// it only into an image, and would otherwise ask again at every frame until the window shows. A
+/// transition asks either way, as it always did
+/// (`docs/adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md`).
+fn interface_asks(ui: &uwui::tree::Ui, presented: bool) -> bool {
+    if presented {
+        ui.needs_frame(TargetId::MAIN)
+    } else {
+        ui.animating(TargetId::MAIN)
+    }
+}
+
 /// When a frame runs while the window holds its frames, if something asks for one: once it is due
 /// (`next_frame`), and `SIGNAL_WAIT` after `since`, when the loop asked for the redraw that waits
 /// for the compositor's signal, or when the last frame ran for a window without area; `None` while
@@ -671,6 +689,33 @@ mod tests {
         for event in &own {
             assert!(!is_input(event), "{event:?}");
         }
+    }
+
+    #[test]
+    fn an_interface_asks_for_a_frame_to_draw_its_changes_only_after_one_that_drew_an_image() {
+        use uwui::tree::{Element, LayoutDirection, RootSettings, Ui};
+        let mut ui = Ui::new(uwui::text::Fonts::new());
+        let settings = RootSettings {
+            size: [200.0, 100.0],
+            scale: 1.0,
+            direction: LayoutDirection::LeftToRight,
+            origin: [0.0; 2],
+            modal: false,
+            target: TargetId::MAIN,
+        };
+        let root = ui.add_root("main", settings, |s| s);
+        ui.frame(TargetId::MAIN);
+        // A change that no frame drew: a window that showed no image, covered, leaves it until
+        // it shows again, rather than asking at every frame.
+        ui.build(root, 1, |children| {
+            children.add("waiting", Element::progress(None), |_| {});
+        });
+        assert!(interface_asks(&ui, true));
+        assert!(!interface_asks(&ui, false));
+        // A waiting bar drawn moves on its own, and asks either way.
+        ui.frame(TargetId::MAIN);
+        assert!(interface_asks(&ui, true));
+        assert!(interface_asks(&ui, false));
     }
 
     #[test]

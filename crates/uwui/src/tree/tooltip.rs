@@ -70,18 +70,9 @@ impl Ui {
         self.hide_tooltip(t)
     }
 
-    /// How long a pointer must rest still before a tooltip shows or a submenu opens where it
-    /// rests, on the host's clock, the soonest of every target's; none when each rests where
-    /// neither will.
-    pub(crate) fn rest_remaining(&self) -> Option<Duration> {
-        self.interaction
-            .targets()
-            .filter_map(|t| self.rest_remaining_on(t))
-            .min()
-    }
-
-    /// What [`Ui::rest_remaining`] says of `t`'s pointer.
-    fn rest_remaining_on(&self, t: TargetId) -> Option<Duration> {
+    /// How long `t`'s pointer must rest still before a tooltip shows or a submenu opens where it
+    /// rests, on the host's clock; none when it rests where neither will.
+    pub(crate) fn rest_remaining(&self, t: TargetId) -> Option<Duration> {
         let rest = &self.interaction.of(t).rest;
         let on = rest.on?;
         let rested = self.now - rest.since;
@@ -93,20 +84,10 @@ impl Ui {
             .map(|rest| rest.saturating_sub(rested))
     }
 
-    /// What each target's pointer resting does once it has rested long enough on the host's
-    /// clock: an item of a menu opens its submenu, or closes the others' in its menu; the tooltip
-    /// of the element, or of its nearest ancestor that has one, shows. Run before a frame lays
-    /// out.
-    pub(crate) fn settle_rest(&mut self) {
-        let mut index = 0;
-        while let Some(t) = self.interaction.target_at(index) {
-            index += 1;
-            self.settle_rest_on(t);
-        }
-    }
-
-    /// What [`Ui::settle_rest`] does on `t`.
-    fn settle_rest_on(&mut self, t: TargetId) {
+    /// What `t`'s pointer resting does once it has rested long enough on the host's clock: an
+    /// item of a menu opens its submenu, or closes the others' in its menu; the tooltip of the
+    /// element, or of its nearest ancestor that has one, shows. Run before `t`'s frame lays out.
+    pub(crate) fn settle_rest(&mut self, t: TargetId) {
         let Some(on) = self.interaction.of(t).rest.on else {
             return;
         };

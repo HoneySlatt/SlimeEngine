@@ -176,6 +176,9 @@ impl Ui {
         let first = self.roots.iter().position(|&each| each == root);
         self.roots.retain(|each| !raised.contains(each));
         self.roots.extend(&raised);
+        // Its target draws its roots in another order.
+        let drawn_on = self.root_target(root);
+        self.changed_on(drawn_on);
         // The roots that moved take other numbers, which their elements' paths begin with.
         self.top_changed = true;
         for moved in self

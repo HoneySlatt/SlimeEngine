@@ -96,6 +96,7 @@ use slime_world::{Command, Component, PersistentId, World};
 use uwui::Rect;
 use uwui::action::{ActionKind, FieldValue, Intent};
 use uwui::display::{ImageKey, ImageKind};
+use uwui::host::TargetId;
 use uwui::shortcuts::Shortcuts;
 use uwui::style::{Align, Dimension, Display, FlexDirection, Justify, Sides, StyleBuilder, Track};
 use uwui::text::Fonts;
@@ -576,7 +577,7 @@ impl Interface {
             });
         }
         self.view = view.or(self.view);
-        let (display, _) = self.ui.frame();
+        let (display, _) = self.ui.frame(TargetId::MAIN);
 
         // The view, drawn into its own target at the size of its image.
         let inside = self

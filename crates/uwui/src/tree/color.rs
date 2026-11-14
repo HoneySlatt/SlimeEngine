@@ -11,6 +11,7 @@ use super::{Along, ColorPart, Element, ElementId, Kind, Layer, Place, Side, Ui};
 use crate::Rect;
 use crate::action::{Action, ActionKind, FieldValue};
 use crate::display::{BoxPrimitive, GradientPrimitive, Primitive};
+use crate::host::TargetId;
 use crate::style::{Dimension, FlexDirection};
 
 /// The size of the square of saturation and value, in logical pixels.
@@ -581,9 +582,14 @@ impl Ui {
     }
 
     /// Builds the open picker again where its well's color, hue or saturation is no longer what it
-    /// shows, as when the program gave the well another: run before a frame lays out.
-    pub(crate) fn settle_picker(&mut self) {
-        let Some(picker) = self.picker.as_ref() else {
+    /// shows, as when the program gave the well another: run before a frame of the picker's
+    /// target lays out.
+    pub(crate) fn settle_picker(&mut self, t: TargetId) {
+        let Some(picker) = self
+            .picker
+            .as_ref()
+            .filter(|picker| self.target_of(picker.well) == Some(t))
+        else {
             return;
         };
         let well = picker.well;

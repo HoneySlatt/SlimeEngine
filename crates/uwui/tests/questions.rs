@@ -57,7 +57,7 @@ fn fields(texts: &[&str]) -> (Ui, Vec<ElementId>) {
             ids.push(children.add(index, field, |_| {}));
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.set_focus(Some(ids[0]));
     (ui, ids)
 }
@@ -257,7 +257,7 @@ fn a_range_over_two_lines_gives_its_first_lines_box_and_where_it_ends() {
             .style(|s| sized(s, 200.0).height(Dimension::Pixels(100.0)));
         area = Some(children.add("area", element, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.set_focus(area);
     // "rst\nsec": its first line's part ends after the line break, the sixth byte.
     let first = ui
@@ -337,7 +337,7 @@ fn a_field_given_the_focus_answers_where_it_will_show_its_text_before_the_next_f
         Some(199)
     );
     // The next frame shows it where the question placed it.
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(one_box(&mut ui, 199..200, TextUnit::Utf8), last);
 }
 
@@ -666,7 +666,7 @@ fn a_point_is_the_interfaces_under_a_button_that_draws_nothing_and_anywhere_unde
         });
         children.add("bare", bare, |_| {});
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(ui.covers(MAIN, 50.0, 20.0));
     assert!(!ui.covers(MAIN, 300.0, 200.0));
     let modal = RootSettings {
@@ -676,7 +676,7 @@ fn a_point_is_the_interfaces_under_a_button_that_draws_nothing_and_anywhere_unde
         ..settings
     };
     ui.add_root("dialog", modal, |s| s);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(
         ui.covers(MAIN, 300.0, 20.0),
         "any point while a modal root is open"

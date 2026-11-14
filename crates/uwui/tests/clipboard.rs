@@ -53,7 +53,7 @@ fn rooted_fields(texts: &[&str]) -> (Ui, ElementId, Vec<ElementId>) {
             ids.push(children.add(index, field, |_| {}));
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.set_focus(Some(ids[0]));
     // The input method on for the field, read as a host reads it, so that the outputs then tell
     // the clipboard alone.
@@ -188,7 +188,7 @@ fn a_paste_pending_when_its_field_is_removed_is_dropped() {
     ui.build(root, 1, |children| {
         children.add(1_usize, Element::text_field("").style(sized), |_| {});
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.focus(), None);
     assert!(reads(&mut ui).is_empty(), "never told the host");
 }

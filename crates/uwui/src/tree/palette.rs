@@ -276,7 +276,7 @@ impl Ui {
             return false;
         }
         // What was typed since the last frame finds its commands before Enter gives one.
-        self.settle_palette();
+        self.settle_palette(t);
         let Some(palette) = self.palette.as_ref() else {
             return false;
         };
@@ -310,14 +310,16 @@ impl Ui {
 
     /// Keeps the palette and the sheet of shortcuts in the middle of the window, which may have
     /// changed its size, and finds the commands again where the palette's field changed, however
-    /// it changed: typed in, composed, pasted or given by an agent. Run before a frame lays out.
-    pub(crate) fn settle_palette(&mut self) {
+    /// it changed: typed in, composed, pasted or given by an agent. Run before a frame of `t` lays
+    /// out, for those on `t`.
+    pub(crate) fn settle_palette(&mut self, t: TargetId) {
         // The palette and the sheet stay in the middle of a window that changes its size, each
         // on the target that it opened on.
         let roots = [
             self.palette.as_ref().map(|palette| palette.root),
             self.sheet,
-        ];
+        ]
+        .map(|root| root.filter(|&root| self.root_target(root) == t));
         for root in roots.into_iter().flatten() {
             if let Some(place) = self.own_place(self.root_target(root))
                 && self.layer_place(root) != Some(place)
@@ -325,7 +327,11 @@ impl Ui {
                 self.set_layer_place(root, place);
             }
         }
-        let Some(palette) = self.palette.as_ref() else {
+        let Some(palette) = self
+            .palette
+            .as_ref()
+            .filter(|palette| self.root_target(palette.root) == t)
+        else {
             return;
         };
         let query = self.field_text(palette.field).unwrap_or_default();

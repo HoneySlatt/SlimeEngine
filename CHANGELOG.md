@@ -28,16 +28,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   (`Ui::character_at`), and whether a point is the interface's (`Ui::covers`).
 - uwui's roots draw on several targets (ADR-0256): `RootSettings::target` names each root's, a
   layer standing on its root's. Each target keeps its own pointer, hover, focus, modal roots and
-  outputs, and gives its own display list (`Ui::display_list`); a modal root blocks its own target
-  alone. The active target, that of the last key or button (`Ui::active_target`), holds the focus
+  outputs; a modal root blocks its own target alone. Each target draws its own frame at its own
+  time, which its motions and waiting bars read, and asks for a frame when it holds a change
+  (ADR-0258); a root moved to another target ends its transitions. The active target, that of the last key or button (`Ui::active_target`), holds the focus
   that `Ui::focus` reads, and takes the program's clipboard, the palette of commands and an action
   without an element; `Ui::focus_in` reads any target's focus. `Ui::set_root` moves a root to
   another target, letting go of what the old one held.
 
 ### Changed
 
-- `Ui::element_at` and `Ui::meaning_at` take the target whose roots they reach (ADR-0256), and
-  `Ui::frame` gives `TargetId::MAIN`'s display list.
+- `Ui::element_at` and `Ui::meaning_at` take the target whose roots they reach (ADR-0256).
+  `Ui::frame`, `Ui::set_frame_shown`, `Ui::needs_frame`, `Ui::animating` and
+  `Ui::next_frame_due` take the target that they draw or read (ADR-0258).
 - uwui takes input as the host's events (ADR-0253): `Ui::event(Event)`, each `uwui::host::Event`
   with its target, its time and its input, the pointer, the wheel, the modifiers, a key or an input
   method, answered at once, `Answer::Taken` or `NotTaken`. `Ui::pointer_moved`, `pointer_left`,
@@ -57,9 +59,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `Answer::TakenLeftToPlatform` for a platform that fires its own clipboard events from the keys
   (`Ui::set_clipboard_events`) are new. A cut deletes what it copied whether or not the host has a
   clipboard. The editor's paste reaches the level a frame later than before.
-- `Ui::advance` and `Ui::next_change` are gone: a host gives each frame its time on the host's
-  clock, `Ui::set_frame_shown(FrameShown)`, and asks for a frame at `Ui::next_frame_due()`, an
-  `Instant`. A bar of progress without a share keeps its place however long the machine has run.
+- `Ui::advance` and `Ui::next_change` are gone: a host gives each target's frame its time on the
+  host's clock, `Ui::set_frame_shown(target, shown)`, and asks for a frame of a target at
+  `Ui::next_frame_due(target)`, an `Instant`. A bar of progress without a share keeps its place however long the machine has run.
 - The development channel carries the session of uwui's core for agents, `uwui-agent` (ADR-0246):
   its messages are JSON-RPC 2.0, a message a line, no longer the engine's binary encoding, and a
   tool or game of before cannot speak to one of after. `PROTOCOL_VERSION` gives way to the core's

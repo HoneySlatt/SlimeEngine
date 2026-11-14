@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::text::Fonts;
 use uwui::theme::StyleSheet;
@@ -56,7 +56,7 @@ fn interface() -> (Ui, ElementId) {
         target: uwui::host::TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s.fonts(vec!["Noto Sans".to_owned()]));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, root)
 }
 
@@ -83,7 +83,7 @@ fn key(ui: &mut Ui, logical: Key, text: Option<&str>) {
         state: ButtonState::Pressed,
         repeat: false,
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
 }
 
 fn type_text(ui: &mut Ui, text: &str) {
@@ -138,7 +138,7 @@ fn a_commands_chord_and_the_shortcuts_by_scope() {
 fn the_palette_finds_commands_by_what_is_typed_and_gives_the_chosen_one() {
     let (mut ui, _) = interface();
     ui.open_palette("Type a command", commands());
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(ui.palette_open());
     let field = ui
         .element_by_path("palette/palette/search")
@@ -169,7 +169,7 @@ fn the_palette_finds_commands_by_what_is_typed_and_gives_the_chosen_one() {
 fn the_arrows_choose_a_press_gives_and_escape_closes_the_palette() {
     let (mut ui, _) = interface();
     ui.open_palette("Type a command", commands());
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     key(&mut ui, Key::Named(NamedKey::ArrowDown), None);
     key(&mut ui, Key::Named(NamedKey::ArrowDown), None);
     let chosen = ui
@@ -188,11 +188,11 @@ fn the_arrows_choose_a_press_gives_and_escape_closes_the_palette() {
     ui.pointer_moved(rect.x + 10.0, rect.y + rect.height / 2.0);
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(actions(&mut ui), [ActionKind::Command("grid".to_owned())]);
     // Escape closes it, giving nothing.
     ui.open_palette("Type a command", commands());
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     key(&mut ui, Key::Named(NamedKey::Escape), None);
     assert!(!ui.palette_open());
     assert!(actions(&mut ui).is_empty());
@@ -208,7 +208,7 @@ fn the_palette_scrolls_past_its_height_and_keeps_the_chosen_command_in_sight() {
         })
         .collect();
     ui.open_palette("Type a command", many);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(rows(&ui).len(), 60, "every command found, not twelve");
     let list = ui
         .element_by_path("palette/palette/commands")
@@ -264,7 +264,7 @@ fn the_palette_scrolls_past_its_height_and_keeps_the_chosen_command_in_sight() {
             repeat: false,
         });
     }
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     chosen += 2;
     assert!(ui.state(row(&ui, chosen)).expect("there").selected);
     assert!(inside(&ui, row(&ui, chosen)), "the chosen one in sight");
@@ -284,7 +284,7 @@ fn the_palette_scrolls_past_its_height_and_keeps_the_chosen_command_in_sight() {
 fn the_sheet_lists_the_shortcuts_by_scope_and_escape_closes_it() {
     let (mut ui, _) = interface();
     ui.open_shortcut_sheet("Keyboard shortcuts", &commands());
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let sheet = ui.element_by_path("shortcuts/sheet").expect("the sheet");
     let meaning = ui.meaning_of(sheet).expect("drawn");
     assert_eq!(
@@ -318,17 +318,20 @@ fn notifications_stack_at_the_bottom_end_and_go_after_their_kinds_time() {
         text: "A texture is missing".to_owned(),
         ..Notification::default()
     });
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert!(stats.animating, "a notification waits for its time");
     // The success's five seconds, the error staying until it is closed; no frame needed meanwhile.
     assert_eq!(
-        ui.next_frame_due(),
+        ui.next_frame_due(TargetId::MAIN),
         Some(Instant::ZERO + Duration::from_secs(5))
     );
-    assert!(!ui.needs_frame());
+    assert!(!ui.needs_frame(TargetId::MAIN));
     at += Duration::from_secs(2);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    assert_eq!(ui.next_frame_due(), Some(at + Duration::from_secs(3)));
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    assert_eq!(
+        ui.next_frame_due(TargetId::MAIN),
+        Some(at + Duration::from_secs(3))
+    );
     let stack = ui
         .element_by_path("notifications/notifications")
         .expect("the stack");
@@ -345,12 +348,12 @@ fn notifications_stack_at_the_bottom_end_and_go_after_their_kinds_time() {
     );
     // Five seconds on: the success goes, the error stays.
     at += Duration::from_secs(6);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.notifications(), [failed]);
     assert!(!ui.close_notification(saved));
     assert!(ui.close_notification(failed));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(ui.element_by_path("notifications/notifications").is_none());
 }
 
@@ -364,18 +367,18 @@ fn the_pointer_resting_keeps_a_notification_and_its_buttons_give_commands() {
         buttons: vec![("Cook".to_owned(), "cook".to_owned())],
         ..Notification::default()
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let card = ui
         .element_by_path("notifications/notifications/#0")
         .expect("it");
     let rect = ui.rect(card).expect("laid out");
     ui.pointer_moved(rect.x + 5.0, rect.y + 5.0);
     // The one under the pointer waits for nothing, which a frame would end.
-    assert_eq!(ui.next_frame_due(), None);
+    assert_eq!(ui.next_frame_due(TargetId::MAIN), None);
     for _ in 0..4 {
         at += Duration::from_secs(2);
-        ui.set_frame_shown(FrameShown::simulated(at));
-        ui.frame();
+        ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+        ui.frame(TargetId::MAIN);
     }
     assert_eq!(
         ui.notifications(),
@@ -389,7 +392,7 @@ fn the_pointer_resting_keeps_a_notification_and_its_buttons_give_commands() {
     ui.pointer_moved(rect.x + 5.0, rect.y + 5.0);
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(actions(&mut ui), [ActionKind::Command("cook".to_owned())]);
     assert!(ui.notifications().is_empty());
     // One with a bar of progress stays, and more than five keep the newest.
@@ -399,8 +402,8 @@ fn the_pointer_resting_keeps_a_notification_and_its_buttons_give_commands() {
         ..Notification::default()
     });
     at += Duration::from_secs(30);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.notifications(), [bar]);
     for number in 0..5 {
         ui.notify(Notification {
@@ -408,7 +411,7 @@ fn the_pointer_resting_keeps_a_notification_and_its_buttons_give_commands() {
             ..Notification::default()
         });
     }
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.notifications().len(), 5);
     assert!(!ui.notifications().contains(&bar));
 }
@@ -422,7 +425,7 @@ fn a_notification_takes_the_focus_from_no_one_and_an_update_shows_at_once() {
         let element = uwui::tree::Element::text_field("");
         field = Some(children.add("name", element, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let field = field.expect("built");
     ui.set_focus(Some(field));
     let cooking = ui.notify(Notification {
@@ -430,10 +433,10 @@ fn a_notification_takes_the_focus_from_no_one_and_an_update_shows_at_once() {
         progress: Some(Some(0.1)),
         ..Notification::default()
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.focus(), Some(field), "the field keeps the focus");
     at += Duration::from_secs(30);
-    ui.set_frame_shown(FrameShown::simulated(at));
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
     ui.update_notification(
         cooking,
         Notification {
@@ -442,7 +445,7 @@ fn a_notification_takes_the_focus_from_no_one_and_an_update_shows_at_once() {
             ..Notification::default()
         },
     );
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     // Its text shows at once, and its time starts again: it is not gone for the time before.
     let card = ui
         .element_by_path("notifications/notifications/#0")
@@ -457,7 +460,7 @@ fn a_notification_takes_the_focus_from_no_one_and_an_update_shows_at_once() {
     ui.pointer_moved(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0);
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(ui.notifications().is_empty());
     assert!(actions(&mut ui).is_empty());
 }
@@ -466,7 +469,7 @@ fn a_notification_takes_the_focus_from_no_one_and_an_update_shows_at_once() {
 fn a_shortcut_works_while_the_palette_is_open_and_enter_finds_what_was_just_typed() {
     let (mut ui, _) = interface();
     ui.open_palette("Type a command", commands());
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let mut control = slime_input::Modifiers::default();
     control.control = true;
     ui.modifiers(control);
@@ -497,7 +500,7 @@ fn a_shortcut_works_while_the_palette_is_open_and_enter_finds_what_was_just_type
 fn enter_in_a_composition_is_the_input_methods_and_a_chord_given_again_is_the_later() {
     let (mut ui, _) = interface();
     ui.open_palette("Type a command", commands());
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.ime(&slime_input::Ime::Enabled);
     ui.ime(&slime_input::Ime::Preedit {
         text: "sa".to_owned(),

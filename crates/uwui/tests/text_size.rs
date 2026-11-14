@@ -3,6 +3,7 @@
 //! whole in pixels of the screen, and never overlap; a change of it styles every element again.
 
 use uwui::Rect;
+use uwui::host::TargetId;
 use uwui::preferences::{Preferences, TextSize};
 use uwui::style::Dimension;
 use uwui::text::Fonts;
@@ -72,12 +73,12 @@ fn the_size_of_text_reaches_what_rules_and_code_size_but_not_icons() {
         let icon = Element::label("\u{E06C}").class("icon");
         ids.push(children.add("icon", icon, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let sizes = |ui: &Ui| ids.iter().map(|&id| size_of(ui, id)).collect::<Vec<_>>();
     assert_eq!(sizes(&ui), [13.0, 20.0, 16.0, 13.0]);
 
     ui.set_preferences(text_size(2.0));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(
         sizes(&ui),
         [26.0, 40.0, 32.0, 13.0],
@@ -89,7 +90,7 @@ fn the_size_of_text_reaches_what_rules_and_code_size_but_not_icons() {
         text_size: curve,
         ..Preferences::default()
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(
         sizes(&ui),
         [26.0, 30.0, 26.0 + 4.0 * (3.0 / 7.0), 13.0],
@@ -97,7 +98,7 @@ fn the_size_of_text_reaches_what_rules_and_code_size_but_not_icons() {
     );
 
     ui.set_preferences(Preferences::default());
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(
         sizes(&ui),
         [13.0, 20.0, 16.0, 13.0],
@@ -124,7 +125,7 @@ fn rows_at(scale: f32, factor: f32) -> Vec<Rect> {
                 rows.add(row, Element::label("Row"), |_| {});
             }
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     }
     ui.children(list)
         .iter()
@@ -176,16 +177,16 @@ fn a_change_of_the_size_of_text_builds_the_rows_that_now_show() {
                 rows.add(row, Element::label("Row"), |_| {});
             }
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     };
     build(&mut ui);
     build(&mut ui);
     ui.set_preferences(text_size(2.0));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     build(&mut ui);
     assert_eq!(ui.children(list).len(), 8, "300 pixels hold 8 rows of 40");
     ui.set_preferences(text_size(0.5));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     build(&mut ui);
     assert_eq!(ui.children(list).len(), 30, "and 30 rows of 10");
 }

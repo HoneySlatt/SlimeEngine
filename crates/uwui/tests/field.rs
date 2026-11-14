@@ -70,7 +70,7 @@ fn interface(element: Element) -> (Ui, ElementId, ElementId, ElementId) {
         field = Some(children.add("field", element, |_| {}));
         button = Some(children.add("button", Element::button("").style(style), |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, root, field.expect("built"), button.expect("built"))
 }
 
@@ -394,7 +394,7 @@ fn the_program_s_text_replaces_the_user_s_only_when_it_changes() {
             children.add("field", Element::text_field(text).style(style), |_| {});
             children.add("button", Element::button("").style(style), |_| {});
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     };
     ui.set_focus(Some(field));
     type_text(&mut ui, " typed");
@@ -508,7 +508,7 @@ fn the_program_clears_a_field_or_gives_back_a_text_once_another_is_committed() {
             children.add("field", Element::text_field(text).style(style), |_| {});
             children.add("button", Element::button("").style(style), |_| {});
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     };
     // A message sent: the same empty text, given again, clears the field.
     ui.set_focus(Some(field));
@@ -720,7 +720,7 @@ fn a_field_keeps_its_caret_in_view_and_places_a_line_written_from_right_to_left_
     // and its caret as the focus comes back.
     ui.key(&named(NamedKey::End));
     ui.set_focus(None);
-    let (list, _) = ui.frame();
+    let (list, _) = ui.frame(TargetId::MAIN);
     let start = list
         .items()
         .iter()
@@ -732,7 +732,7 @@ fn a_field_keeps_its_caret_in_view_and_places_a_line_written_from_right_to_left_
     assert!(start >= rect.x, "{start} from {rect:?}");
     assert_eq!(input_method(&mut ui), Some(InputMethod::Off));
     ui.set_focus(Some(field));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let caret = told_caret(&mut ui);
     assert!(caret.x > rect.x + rect.width / 2.0, "{caret:?}");
     // Hebrew, its start on the right, in a field wider than it.
@@ -778,7 +778,7 @@ fn a_program_that_gives_back_each_change_keeps_what_the_user_is_typing() {
             );
             children.add("button", Element::button("").style(style), |_| {});
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     };
     ui.set_focus(Some(field));
     ui.key(&named(NamedKey::End));
@@ -801,7 +801,7 @@ fn a_program_that_gives_back_each_change_keeps_what_the_user_is_typing() {
             children.add("field", Element::text_field(text).style(style), |_| {});
             children.add("button", Element::button("").style(style), |_| {});
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     };
     ui.set_focus(Some(field));
     chord(&mut ui, control(), &typed("a"));
@@ -831,7 +831,7 @@ fn a_field_of_single_precision_shows_an_f32_shortest_and_keeps_what_was_committe
             children.add("field", element, |_| {});
             children.add("button", Element::button("").style(style), |_| {});
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     };
     ui.set_focus(Some(field));
     chord(&mut ui, control(), &typed("a"));
@@ -1015,7 +1015,7 @@ fn an_empty_field_shows_its_placeholder_in_its_quieter_color_until_it_holds_text
         .placeholder("Search entities");
     let (mut ui, _, field, _) = interface(field);
     let placeholder_drawn = |ui: &mut Ui| {
-        let (list, _) = ui.frame();
+        let (list, _) = ui.frame(TargetId::MAIN);
         list.items().iter().any(|item| {
             matches!(
                 &item.primitive,

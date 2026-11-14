@@ -8,6 +8,7 @@ use std::time::Duration;
 use slime_color::LinearColor;
 use uwui::display::DisplayList;
 use uwui::display::ImageKey;
+use uwui::host::TargetId;
 use uwui::look::{self, Colors, Density};
 use uwui::preferences::{Preferences, TextSize};
 use uwui::shortcuts::Shortcuts;
@@ -808,32 +809,32 @@ pub fn tree(context: &mut Context) -> Result<Vec<Row>, String> {
     for _ in 0..runs {
         let (fonts, labels) = (latin()?, labels.clone());
         let (mut editor, built) = timed(|| Editor::new(fonts, labels));
-        let (_, framed) = timed(|| black_box(editor.ui.frame()));
+        let (_, framed) = timed(|| black_box(editor.ui.frame(TargetId::MAIN)));
         firsts.push(built + framed);
     }
     let mut editor = Editor::new(latin()?, labels);
-    let (list, _) = editor.ui.frame();
+    let (list, _) = editor.ui.frame(TargetId::MAIN);
     // Counted before the series, whose length a run of `--counters` cuts.
     let counters = still_counters(|| {
         editor.build(0);
-        editor.ui.frame()
+        editor.ui.frame(TargetId::MAIN)
     });
     // The frame after one value of the inspector changed, which builds the inspector again.
     let (_, rebuilt) = counted(|| {
         editor.value = 1;
         editor.build(1);
-        editor.ui.frame()
+        editor.ui.frame(TargetId::MAIN)
     });
     let mut revision = 1;
     let changed = times(runs, || {
         revision += 1;
         editor.value = revision;
         editor.build(revision);
-        editor.ui.frame()
+        editor.ui.frame(TargetId::MAIN)
     });
     let still = times(runs, || {
         editor.build(revision);
-        editor.ui.frame()
+        editor.ui.frame(TargetId::MAIN)
     });
     let mut light = false;
     let restyled = times(runs, || {
@@ -845,7 +846,7 @@ pub fn tree(context: &mut Context) -> Result<Vec<Row>, String> {
                 &[theme(light)],
             )
             .expect("the editor's style");
-        editor.ui.frame()
+        editor.ui.frame(TargetId::MAIN)
     });
     let mut rows = counters;
     rows.push(Row::count("items of the first frame", list.len()));
@@ -932,7 +933,7 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
         text_size: TextSize::factor(LARGER_TEXT).expect("within its range"),
         ..Preferences::default()
     });
-    let ((_, built), first) = counted(|| larger_first.ui.frame());
+    let ((_, built), first) = counted(|| larger_first.ui.frame(TargetId::MAIN));
     drop(larger_first);
     // The same tree, its labels' and buttons' own styles naming a role and a token of the tree's
     // own, which its theme gives by the look's name: the frame of a change of the look's colours
@@ -950,12 +951,15 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
         &named_themes,
         |s| s.text_color(theme::CANVAS_TEXT).padding_start(TREE_SPACE),
     );
-    named.ui.frame();
+    named.ui.frame(TargetId::MAIN);
     // The host's clock, a frame of 240 Hz further at each tick.
     let clock = std::cell::Cell::new(uwui::time::Instant::ZERO);
     let tick = |ui: &mut uwui::tree::Ui| {
         clock.set(clock.get() + FRAME_240);
-        ui.set_frame_shown(uwui::time::FrameShown::simulated(clock.get()));
+        ui.set_frame_shown(
+            TargetId::MAIN,
+            uwui::time::FrameShown::simulated(clock.get()),
+        );
     };
     let mut light_themes = themes(Colors::Light);
     light_themes.push(Theme::from_text(
@@ -967,7 +971,7 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
         .set_style(&sheets, &light_themes)
         .expect("the look's documents are valid");
     tick(&mut named.ui);
-    let ((_, named_stats), named_change) = counted(|| named.ui.frame());
+    let ((_, named_stats), named_change) = counted(|| named.ui.frame(TargetId::MAIN));
     drop(named);
     let mut editor = Editor::styled(
         fonts(),
@@ -976,7 +980,7 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
         &themes(Colors::Dark),
         |s| s,
     );
-    editor.ui.frame();
+    editor.ui.frame(TargetId::MAIN);
     let mut light = false;
     // Gives the interface its theme of the other colours, which reads the look's documents.
     let mut restyle = |editor: &mut Editor| {
@@ -990,17 +994,17 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     // The frame of the change, which styles every element again.
     let change = |editor: &mut Editor| {
         tick(&mut editor.ui);
-        editor.ui.frame()
+        editor.ui.frame(TargetId::MAIN)
     };
     // The frames of 240 Hz until no transition goes on, and their time together.
     let settle = |editor: &mut Editor| -> Result<(usize, Duration), String> {
         let mut spent = Duration::ZERO;
         for frames in 0..TRANSITION_FRAMES {
-            if !editor.ui.animating() {
+            if !editor.ui.animating(TargetId::MAIN) {
                 return Ok((frames, spent));
             }
             tick(&mut editor.ui);
-            let (_, took) = timed(|| black_box(editor.ui.frame()));
+            let (_, took) = timed(|| black_box(editor.ui.frame(TargetId::MAIN)));
             spent += took;
         }
         Err(format!(
@@ -1020,9 +1024,9 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     settle(&mut editor)?;
     // Counted before the series, whose length a run of `--counters` cuts.
     resize(&mut editor);
-    let ((_, resized), text) = counted(|| editor.ui.frame());
+    let ((_, resized), text) = counted(|| editor.ui.frame(TargetId::MAIN));
     resize(&mut editor);
-    editor.ui.frame();
+    editor.ui.frame(TargetId::MAIN);
     let ((), read) = counted(|| restyle(&mut editor));
     // The editor's tables of shortcuts, which it reads at its start beside its look's documents,
     // Blender's way laid over its own.
@@ -1052,7 +1056,7 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     let ((_, stats), allocations) = counted(|| change(&mut editor));
     // The first frame of the transition, which draws again every element that moves.
     tick(&mut editor.ui);
-    let ((_, moved), moving) = counted(|| editor.ui.frame());
+    let ((_, moved), moving) = counted(|| editor.ui.frame(TargetId::MAIN));
     let (frames, _) = settle(&mut editor)?;
     let frames = frames + 1;
     let mut changed = Vec::new();
@@ -1075,7 +1079,7 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     // To twice the look's size and back, each a change of the size of text.
     for _ in 0..runs {
         resize(&mut editor);
-        let (_, took) = timed(|| black_box(editor.ui.frame()));
+        let (_, took) = timed(|| black_box(editor.ui.frame(TargetId::MAIN)));
         resizes.push(took);
     }
     let first_per_element = first.calls as f64 / built.styled.max(1) as f64;
@@ -1210,24 +1214,24 @@ pub fn list(context: &mut Context) -> Result<Vec<Row>, String> {
         list.unwrap()
     };
     let list = build(&mut ui);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     build(&mut ui);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     // Counted before the series, whose length a run of `--counters` cuts.
     let counters = still_counters(|| {
         build(&mut ui);
-        ui.frame()
+        ui.frame(TargetId::MAIN)
     });
     let mut offset = 0.0;
     let scrolled = times(runs, || {
         offset += 7.0;
         ui.scroll_to(list, [0.0, offset]);
         build(&mut ui);
-        ui.frame()
+        ui.frame(TargetId::MAIN)
     });
     let still = times(runs, || {
         build(&mut ui);
-        ui.frame()
+        ui.frame(TargetId::MAIN)
     });
     let mut rows = counters;
     rows.extend(Row::times("a frame scrolled by 7 pixels", &scrolled));

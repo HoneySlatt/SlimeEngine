@@ -6,7 +6,7 @@
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, Modifiers};
 use uwui::DocumentErrors;
 use uwui::action::ActionKind;
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::text::Fonts;
 use uwui::tree::{LayoutDirection, RootSettings, Ui};
@@ -319,7 +319,7 @@ fn the_sheet_of_shortcuts_lists_two_chords_that_show_alike() {
     };
     ui.add_root("main", settings, |s| s);
     ui.open_shortcut_sheet("Shortcuts", &[]);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let chords = &ui.shortcuts()[0].1;
     assert_eq!(chords.len(), 2);
     assert_eq!(chords[0].0, chords[1].0);

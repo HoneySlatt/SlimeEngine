@@ -74,7 +74,7 @@ fn interface(sheet: &str, element: Element) -> (Ui, ElementId, ElementId) {
     ui.build(root, 0, |children| {
         added = Some(children.add("it", element, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, root, added.expect("built"))
 }
 
@@ -107,8 +107,8 @@ fn ms(millis: u64) -> Duration {
 
 /// A frame shown at `at` on the host's clock.
 fn frame_at(ui: &mut Ui, at: Instant) -> DisplayList {
-    ui.set_frame_shown(FrameShown::simulated(at));
-    ui.frame().0
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    ui.frame(TargetId::MAIN).0
 }
 
 fn select(ui: &mut Ui, id: ElementId) {
@@ -159,10 +159,13 @@ fn a_paused_roots_transition_holds_where_it_is_and_asks_for_no_frame() {
     );
     let list = frame_at(&mut ui, start + ms(500));
     assert!(close(red(&list), 0.5));
-    assert!(!ui.animating(), "a paused transition moves nothing");
-    assert!(!ui.needs_frame());
-    ui.set_frame_shown(FrameShown::simulated(start + ms(516)));
-    assert_eq!(ui.frame().1.painted, 0, "nor is drawn again");
+    assert!(
+        !ui.animating(TargetId::MAIN),
+        "a paused transition moves nothing"
+    );
+    assert!(!ui.needs_frame(TargetId::MAIN));
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(start + ms(516)));
+    assert_eq!(ui.frame(TargetId::MAIN).1.painted, 0, "nor is drawn again");
     // Resumed, it ends on the game's time.
     ui.set_root_clock(
         root,
@@ -171,7 +174,7 @@ fn a_paused_roots_transition_holds_where_it_is_and_asks_for_no_frame() {
             speed: 1.0,
         },
     );
-    assert!(ui.animating());
+    assert!(ui.animating(TargetId::MAIN));
     assert!(close(red(&frame_at(&mut ui, start + ms(516))), 1.0));
 }
 
@@ -189,7 +192,10 @@ fn a_hover_follows_the_hosts_clock_while_its_root_is_paused() {
     frame_at(&mut ui, start);
     ui.pointer_moved(50.0, 15.0);
     assert!(close(red(&frame_at(&mut ui, start)), 0.0));
-    assert!(ui.animating(), "the hover moves though the game is paused");
+    assert!(
+        ui.animating(TargetId::MAIN),
+        "the hover moves though the game is paused"
+    );
     assert!(close(red(&frame_at(&mut ui, start + ms(100))), 0.5));
     assert!(close(red(&frame_at(&mut ui, start + ms(200))), 1.0));
 }
@@ -230,7 +236,7 @@ fn a_hover_that_changes_no_style_leaves_a_later_selection_on_its_roots_clock() {
     ui.set_state(button, state);
     frame_at(&mut ui, start);
     assert!(close(red(&frame_at(&mut ui, start + ms(100))), 0.0));
-    assert!(!ui.animating());
+    assert!(!ui.animating(TargetId::MAIN));
 }
 
 #[test]
@@ -248,7 +254,7 @@ fn a_slowed_root_moves_its_transitions_by_its_own_time() {
     // of the way, whatever the host's time.
     ui.set_root_clock(root, quarter(50_000_000));
     assert!(close(red(&frame_at(&mut ui, start + ms(200))), 0.25));
-    assert!(ui.animating());
+    assert!(ui.animating(TargetId::MAIN));
 }
 
 #[test]
@@ -300,7 +306,7 @@ fn a_section_follows_its_roots_clock_from_its_first_frame() {
     // frame, its first step shown, not at the fold.
     ui.set_open(section, false);
     frame_at(&mut ui, start + ms(400));
-    assert!(ui.animating(), "it starts at its first frame");
+    assert!(ui.animating(TargetId::MAIN), "it starts at its first frame");
     assert!((ui.rect(section).expect("laid out").height - open).abs() < 1.0);
     // The game takes its own clock, paused: it holds at its start, open.
     ui.set_root_clock(
@@ -312,7 +318,7 @@ fn a_section_follows_its_roots_clock_from_its_first_frame() {
     );
     frame_at(&mut ui, start + ms(800));
     assert!((ui.rect(section).expect("laid out").height - open).abs() < 1.0);
-    assert!(!ui.animating());
+    assert!(!ui.animating(TargetId::MAIN));
     // Halfway on the game's clock.
     ui.set_root_clock(
         root,
@@ -358,8 +364,8 @@ fn a_frame_tells_its_time_and_the_interfaces_time_never_goes_back() {
         at: Instant::from_nanos(7_000_000_000),
         source: FrameSource::Started,
     };
-    ui.set_frame_shown(time);
-    assert_eq!(ui.frame().1.shown, time);
+    ui.set_frame_shown(TargetId::MAIN, time);
+    assert_eq!(ui.frame(TargetId::MAIN).1.shown, time);
     // A notification waits from the frame's time; a frame given an earlier time moves nothing
     // back, so that it ends when it was due.
     ui.notify(Notification {
@@ -367,12 +373,15 @@ fn a_frame_tells_its_time_and_the_interfaces_time_never_goes_back() {
         text: "Saved".to_owned(),
         ..Notification::default()
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let due = Some(time.at + Duration::from_secs(5));
-    assert_eq!(ui.next_frame_due(), due);
-    ui.set_frame_shown(FrameShown::simulated(Instant::from_nanos(1)));
-    assert_eq!(ui.frame().1.shown.at, Instant::from_nanos(1));
-    assert_eq!(ui.next_frame_due(), due);
+    assert_eq!(ui.next_frame_due(TargetId::MAIN), due);
+    ui.set_frame_shown(
+        TargetId::MAIN,
+        FrameShown::simulated(Instant::from_nanos(1)),
+    );
+    assert_eq!(ui.frame(TargetId::MAIN).1.shown.at, Instant::from_nanos(1));
+    assert_eq!(ui.next_frame_due(TargetId::MAIN), due);
 }
 
 #[test]
@@ -449,10 +458,10 @@ fn a_paused_motion_lays_out_and_draws_nothing_again() {
     frame_at(&mut ui, start + ms(66));
     // Paused halfway: the frames that the game still draws lay out and draw nothing of it.
     ui.set_root_clock(root, game(50_000_000, 0.0));
-    ui.set_frame_shown(FrameShown::simulated(start + ms(82)));
-    ui.frame();
-    ui.set_frame_shown(FrameShown::simulated(start + ms(98)));
-    let (_, stats) = ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(start + ms(82)));
+    ui.frame(TargetId::MAIN);
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(start + ms(98)));
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.layouts, stats.painted), (0, 0), "{stats:?}");
     assert!(ui.state(section).is_some());
 }
@@ -492,7 +501,10 @@ fn a_layer_follows_the_clock_of_the_root_that_it_opens_over() {
     select(&mut ui, item);
     frame_at(&mut ui, start);
     frame_at(&mut ui, start + ms(100));
-    assert!(!ui.animating(), "the menu's transition holds with the game");
+    assert!(
+        !ui.animating(TargetId::MAIN),
+        "the menu's transition holds with the game"
+    );
     // A clock given to the layer itself is ignored: it follows its opener.
     ui.set_root_clock(
         layer,
@@ -502,7 +514,7 @@ fn a_layer_follows_the_clock_of_the_root_that_it_opens_over() {
         },
     );
     frame_at(&mut ui, start + ms(200));
-    assert!(!ui.animating());
+    assert!(!ui.animating(TargetId::MAIN));
 }
 
 /// A second button, for a layer.
@@ -531,7 +543,10 @@ fn a_press_and_a_visible_focus_follow_the_hosts_clock_while_the_root_is_paused()
             ui.set_focus(Some(button));
         }
         frame_at(&mut ui, start);
-        assert!(ui.animating(), "{state} moves though the game is paused");
+        assert!(
+            ui.animating(TargetId::MAIN),
+            "{state} moves though the game is paused"
+        );
         assert!(
             close(red(&frame_at(&mut ui, start + ms(100))), 0.5),
             "{state}"
@@ -562,7 +577,7 @@ button-focus {
 fn an_event_earlier_than_the_interfaces_time_moves_nothing_back() {
     let (mut ui, _, _) = interface(BUTTONS, button());
     let at = Instant::from_nanos(9_000_000_000);
-    ui.set_frame_shown(FrameShown::simulated(at));
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
     let early = EventTime::received(Instant::from_nanos(1));
     let _ = ui.event(Event::new(TargetId::MAIN, early, Input::PointerLeft));
     ui.notify(Notification {
@@ -570,8 +585,11 @@ fn an_event_earlier_than_the_interfaces_time_moves_nothing_back() {
         text: "Saved".to_owned(),
         ..Notification::default()
     });
-    ui.frame();
-    assert_eq!(ui.next_frame_due(), Some(at + Duration::from_secs(5)));
+    ui.frame(TargetId::MAIN);
+    assert_eq!(
+        ui.next_frame_due(TargetId::MAIN),
+        Some(at + Duration::from_secs(5))
+    );
 }
 
 /// Counts its wakes.

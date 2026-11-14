@@ -4,6 +4,7 @@
 //! wrote it.
 
 use slime_color::LinearColor;
+use uwui::host::TargetId;
 use uwui::style::Dimension;
 use uwui::text::Fonts;
 use uwui::theme::StyleSheet;
@@ -62,7 +63,7 @@ fn holding(element: Element) -> (Ui, ElementId) {
     ui.build(root, 0, |children| {
         id = Some(children.add("subject", element, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, id.expect("built"))
 }
 
@@ -77,7 +78,7 @@ fn hover(ui: &mut Ui, id: ElementId, hovered: bool) {
         ..ui.state(id).expect("an element")
     };
     ui.set_state(id, state);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
 }
 
 #[test]
@@ -142,7 +143,7 @@ fn an_own_hover_shows_where_no_rule_names_the_hover_and_goes() {
         second = Some(children.add("second", Element::button("B").style(own), |_| {}));
     });
     let (first, second) = (first.expect("built"), second.expect("built"));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     hover(&mut ui, first, true);
     assert_eq!(background(&ui, first), BLUE);
     assert_eq!(background(&ui, second), grey());
@@ -178,7 +179,7 @@ fn a_controls_size_set_in_a_state_lays_the_element_out_again() {
         ..ui.state(check).expect("an element")
     };
     ui.set_state(check, state);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let after = ui.rect(check).expect("laid out");
     assert!(
         after.width > before.width,
@@ -199,7 +200,7 @@ fn a_declaration_in_a_state_makes_another_style_than_the_same_in_the_base() {
         let in_hover = Element::button("B").style(|s| s.hover(|s| s.background(BLUE)));
         hovered = Some(children.add("hover", in_hover, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(background(&ui, base.expect("built")), BLUE);
     assert_eq!(
         background(&ui, hovered.expect("built")),
@@ -221,7 +222,7 @@ fn of_two_own_states_that_hold_the_press_wins_over_the_hover() {
         ..ui.state(button).expect("an element")
     };
     ui.set_state(button, state);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(
         background(&ui, button),
         GREEN,
@@ -276,7 +277,7 @@ fn an_element_whose_style_moved_in_its_code_keeps_the_new_place() {
         let button = Element::button("Save").style(|s| s.background(GREEN));
         id = Some(children.add("subject", button, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     // The same style, written on another line, as a reload that moved it would give it.
     let mut moved = 0;
     ui.build(root, 1, |children| {
@@ -284,7 +285,7 @@ fn an_element_whose_style_moved_in_its_code_keeps_the_new_place() {
         moved = line!() - 1;
         children.add("subject", button, |_| {});
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let places = ui.element(id.expect("built")).expect("kept").style.places();
     assert_eq!(
         places.iter().map(|place| place.line()).collect::<Vec<_>>(),

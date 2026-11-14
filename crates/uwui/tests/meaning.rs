@@ -135,16 +135,16 @@ fn interface() -> (Ui, ElementId) {
     };
     // The first frame lays the list out; the next builds the rows that it shows.
     build(&mut ui);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     build(&mut ui);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let save = ui
         .element_by_path("main/page/bar/save")
         .expect("the button");
     let mut disabled = ui.state(save).expect("an element");
     disabled.disabled = true;
     ui.set_state(save, disabled);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, root)
 }
 
@@ -299,7 +299,7 @@ fn an_element_is_found_by_its_path_and_at_a_pixel() {
             );
         });
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let no = ui
         .element_by_path("confirm/dialog/#no")
         .expect("named `#no`");
@@ -333,12 +333,12 @@ fn a_name_or_a_role_changed_draws_nothing_again() {
         });
     };
     build(&mut ui, 0, "before", Role::Group);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     build(&mut ui, 1, "after", Role::Group);
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.layouts, stats.painted), (0, 0));
     build(&mut ui, 2, "after", Role::Toolbar);
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.layouts, stats.painted), (0, 0));
     let panel = ui.element_by_path("main/panel").expect("the panel");
     assert_eq!(
@@ -361,7 +361,7 @@ fn an_element_shows_only_within_its_root() {
             );
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let bounds: Vec<_> = ui.meaning().iter().map(|meaning| meaning.bounds).collect();
     assert_eq!(
         bounds,
@@ -389,7 +389,7 @@ fn a_tree_s_items_mean_their_levels_and_whether_they_open() {
     });
     let tree = tree.expect("built");
     // Laid out first, so that the list knows which rows show.
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let mut rows = Vec::new();
     ui.build(tree, 0, |children| {
         for row in children.rows() {
@@ -415,7 +415,7 @@ fn a_tree_s_items_mean_their_levels_and_whether_they_open() {
             ..ElementState::default()
         },
     );
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let meaning = ui.meaning();
     let tree = meaning
         .iter()

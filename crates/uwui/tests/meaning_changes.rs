@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 use slime_input::{ButtonState, MouseButton};
 use uwui::action::{Action, ActionKind};
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::style::{Dimension, Display, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
@@ -181,7 +181,7 @@ fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
     let mut ui = ui();
     let root = ui.add_root("main", settings(false), |s| s);
     build(&mut ui, root, 1);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let mut held = Held::default();
     let first = ui.take_meaning_changes(false);
     assert!(first.whole, "the first changes are whole");
@@ -213,7 +213,7 @@ fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
     let status = ui.element_by_path("main/page/status").expect("the text");
     let status_number = number(&mut ui, status);
     build(&mut ui, root, 3);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let (changed, top) = step(&mut ui, &mut held);
     // The second panel is new, below a box that means nothing: the top changed with it.
     assert!(top);
@@ -229,7 +229,7 @@ fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
         .expect("the button");
     let open_number = number(&mut ui, open);
     ui.pointer_moved(10.0, 10.0);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(step(&mut ui, &mut held), (vec![open_number], false));
 
     // A scroll: what moved below the box that scrolls.
@@ -243,7 +243,7 @@ fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
         })
         .to_vec();
     ui.scroll_to(scroll, [0.0, 10.0]);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(step(&mut ui, &mut held), (sorted(moved), false));
 
     // A field typed in: the field, its value and its runs.
@@ -251,7 +251,7 @@ fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
     let field_number = number(&mut ui, field);
     ui.pointer_moved(10.0, 200.0);
     ui.set_focus(Some(field));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     step(&mut ui, &mut held);
     let typed = slime_input::KeyEvent {
         physical: slime_input::KeyCode::KeyA,
@@ -261,7 +261,7 @@ fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
         repeat: false,
     };
     assert!(ui.key(&typed));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let (changed, _) = step(&mut ui, &mut held);
     assert!(changed.contains(&field_number), "{changed:?}");
     let node = &held.nodes[&field_number];
@@ -276,7 +276,7 @@ fn a_modal_root_makes_the_changes_whole_as_it_opens_and_closes() {
     let mut ui = ui();
     let root = ui.add_root("main", settings(false), |s| s);
     build(&mut ui, root, 1);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let mut held = Held::default();
     held.apply(ui.take_meaning_changes(false));
     let dialog = ui.add_root("main", settings(true), |s| s);
@@ -292,7 +292,7 @@ fn a_modal_root_makes_the_changes_whole_as_it_opens_and_closes() {
             );
         });
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let changes = ui.take_meaning_changes(false);
     assert!(changes.whole, "what every element takes changed");
     held.apply(changes);
@@ -306,7 +306,7 @@ fn a_modal_root_makes_the_changes_whole_as_it_opens_and_closes() {
     let last = *held.top.last().expect("a top");
     assert_eq!(held.nodes[&last].meaning.role, Role::Dialog);
     ui.remove(dialog);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let changes = ui.take_meaning_changes(false);
     assert!(changes.whole);
     held.apply(changes);
@@ -336,17 +336,17 @@ fn a_box_hidden_leaves_the_tree_and_shown_again_comes_back_whole() {
         });
     };
     build(&mut ui, 0, Display::Flex);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let mut held = Held::default();
     held.apply(ui.take_meaning_changes(false));
     assert_eq!(held.nodes.len(), 2);
     build(&mut ui, 1, Display::None);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let (_, top) = step(&mut ui, &mut held);
     assert!(top);
     assert!(held.nodes.is_empty(), "hidden, with what it holds");
     build(&mut ui, 2, Display::Flex);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     step(&mut ui, &mut held);
     assert_eq!(held.nodes.len(), 2, "shown again, with what it holds");
 }
@@ -356,7 +356,7 @@ fn numbers_name_one_element_or_run_each_and_find_it_again() {
     let mut ui = ui();
     let root = ui.add_root("main", settings(false), |s| s);
     build(&mut ui, root, 1);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let changes = ui.take_meaning_changes(true);
     let mut numbers = HashSet::new();
     for node in &changes.nodes {
@@ -389,7 +389,7 @@ fn numbers_name_one_element_or_run_each_and_find_it_again() {
             |_| {},
         );
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let again = ui.element_by_path("main/again").expect("built");
     assert_ne!(number(&mut ui, again), before);
     assert_eq!(ui.element_by_number(before), None);
@@ -400,14 +400,14 @@ fn changes_that_no_one_takes_are_kept_within_bounds_and_then_whole() {
     let mut ui = ui();
     let root = ui.add_root("main", settings(false), |s| s);
     build(&mut ui, root, 1);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.take_meaning_changes(false);
     // The pointer over a button and away again, many times, its state changing each time.
     for _ in 0..2_000 {
         ui.pointer_moved(10.0, 10.0);
         ui.pointer_moved(390.0, 290.0);
     }
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let changes = ui.take_meaning_changes(false);
     assert!(
         !changes.whole,
@@ -440,13 +440,13 @@ fn runs(text: &str, width: f32, multiline: bool, selection: Option<(usize, usize
     ui.build(root, 0, |children| {
         field = Some(children.add("field", element, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let field = field.expect("built");
     if let Some((anchor, focus)) = selection {
         ui.set_focus(Some(field));
         assert!(ui.select_text(field, anchor, focus));
     }
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.field_runs(field).expect("a field")
 }
 
@@ -560,7 +560,7 @@ fn a_press_on_a_button_changes_its_state_alone() {
     let mut ui = ui();
     let root = ui.add_root("main", settings(false), |s| s);
     build(&mut ui, root, 1);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let mut held = Held::default();
     held.apply(ui.take_meaning_changes(false));
     let open = ui
@@ -568,10 +568,10 @@ fn a_press_on_a_button_changes_its_state_alone() {
         .expect("the button");
     let open_number = number(&mut ui, open);
     ui.pointer_moved(10.0, 10.0);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     step(&mut ui, &mut held);
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     // Pressed, and given the focus, which every change gives.
     assert_eq!(step(&mut ui, &mut held), (vec![open_number], false));
     assert_eq!(ui.take_meaning_changes(false).focus, Some(open_number));
@@ -600,13 +600,13 @@ fn a_box_named_comes_between_its_children_and_the_element_above_them() {
         });
     };
     build(&mut ui, 0, None);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let mut held = Held::default();
     held.apply(ui.take_meaning_changes(false));
     assert_eq!(held.top.len(), 2, "the buttons, below a box of no meaning");
     // Named, the box is a group that holds them.
     build(&mut ui, 1, Some("answers"));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let (changed, top) = step(&mut ui, &mut held);
     assert!(top);
     assert_eq!(changed.len(), 1, "the group alone");
@@ -614,11 +614,11 @@ fn a_box_named_comes_between_its_children_and_the_element_above_them() {
     assert_eq!(held.nodes[&held.top[0]].children.len(), 2);
     // Its name changed: the group alone, the top as it was.
     build(&mut ui, 2, Some("choices"));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(!step(&mut ui, &mut held).1);
     // Its name taken away: the buttons at the top again.
     build(&mut ui, 3, None);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     step(&mut ui, &mut held);
     assert_eq!(held.top.len(), 2);
 }
@@ -651,16 +651,16 @@ fn rows_built_by_a_scroll_another_kind_under_a_key_and_a_disabled_button_keep_th
         });
     };
     build(&mut ui, 0, true);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     build(&mut ui, 0, true);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let mut held = Held::default();
     held.apply(ui.take_meaning_changes(false));
     // Other rows shown by a scroll: the list's builder runs again, rows come and go.
     let list = ui.element_by_path("main/list").expect("the list");
     ui.scroll_to(list, [0.0, 400.0]);
     build(&mut ui, 0, true);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     step(&mut ui, &mut held);
     let list_number = number(&mut ui, list);
     let rows: Vec<String> = held.nodes[&list_number]
@@ -673,7 +673,7 @@ fn rows_built_by_a_scroll_another_kind_under_a_key_and_a_disabled_button_keep_th
     let button = ui.element_by_path("main/second").expect("the button");
     let before = number(&mut ui, button);
     build(&mut ui, 1, false);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     step(&mut ui, &mut held);
     assert!(!held.nodes.contains_key(&before));
     let label = ui.element_by_path("main/second").expect("the text");
@@ -683,13 +683,13 @@ fn rows_built_by_a_scroll_another_kind_under_a_key_and_a_disabled_button_keep_th
     );
     // A button disabled takes nothing.
     build(&mut ui, 2, true);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     step(&mut ui, &mut held);
     let button = ui.element_by_path("main/second").expect("the button");
     let mut state = ui.state(button).expect("a button");
     state.disabled = true;
     ui.set_state(button, state);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     step(&mut ui, &mut held);
     assert!(
         held.nodes[&number(&mut ui, button)]
@@ -713,7 +713,7 @@ fn a_root_resized_or_removed_below_others_changes_what_it_shows_but_not_their_pa
             );
         });
     }
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let mut held = Held::default();
     held.apply(ui.take_meaning_changes(false));
     // The first root narrowed: what shows of its button.
@@ -724,14 +724,14 @@ fn a_root_resized_or_removed_below_others_changes_what_it_shows_but_not_their_pa
             ..settings(false)
         },
     );
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     step(&mut ui, &mut held);
     let wide = ui.element_by_path("first/wide").expect("the button");
     let bounds = held.nodes[&number(&mut ui, wide)].meaning.bounds;
     assert_eq!(bounds.map(|bounds| bounds.width), Some(200.0));
     // The first root removed: the second's elements keep their paths, named by its key.
     ui.remove(first);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     step(&mut ui, &mut held);
     let paths: Vec<&str> = held
         .nodes
@@ -759,7 +759,7 @@ fn a_root_is_named_by_its_key_and_a_key_already_held_by_a_variant_of_it() {
             );
         });
     }
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let paths: Vec<String> = roots
         .iter()
         .map(|&root| {
@@ -781,7 +781,7 @@ fn a_root_is_named_by_its_key_and_a_key_already_held_by_a_variant_of_it() {
             |_| {},
         );
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(
         ui.path_text(ui.children(again)[0]).as_deref(),
         Some("main/wide")
@@ -830,7 +830,7 @@ fn widgets_used_change_what_they_mean_and_keep_the_tree_whole() {
                 children.add(shown, panel, |_| {});
             });
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     };
     build(&mut ui);
     let mut held = whole(&mut ui);
@@ -852,7 +852,7 @@ fn widgets_used_change_what_they_mean_and_keep_the_tree_whole() {
                 kind: ActionKind::Press,
             });
         }
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         let (changed, _) = step(&mut ui, &mut held);
         assert!(changed.contains(&element_number), "{changed:?}");
     }

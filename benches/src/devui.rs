@@ -7,6 +7,7 @@ use std::hint::black_box;
 use slime_devui::WorldPanel;
 use slime_world::glam::DVec3;
 use slime_world::{Light, Name, Transform, World};
+use uwui::host::TargetId;
 use uwui::look::{self, Colors, Density};
 use uwui::style::FlexDirection;
 use uwui::text::Fonts;
@@ -66,7 +67,7 @@ pub fn world_panel(context: &mut Context) -> Result<Vec<Row>, String> {
         let mut actions = ui.take_actions();
         black_box(panel.act(&mut actions));
         panel.build(ui, root, world);
-        ui.frame()
+        ui.frame(TargetId::MAIN)
     };
     // The first frame lays the list out, the second builds the rows that it shows.
     frame(&mut ui, &world, &mut panel);

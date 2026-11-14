@@ -14,6 +14,7 @@ use slime_color::LinearColor;
 use super::reads_tests::{Configuration, DIRECTIONS, base_style, configurations};
 use super::{ElementId, RootSettings, Ui};
 use crate::display::Primitive;
+use crate::host::TargetId;
 use crate::look;
 use crate::style::{Colors, Style};
 use crate::text::Fonts;
@@ -203,8 +204,8 @@ fn drawn(
         leaves.icons.font.clear();
     }
     (configuration.show)(&mut ui, root, &leaves);
-    ui.frame();
-    let (list, _) = ui.frame();
+    ui.frame(TargetId::MAIN);
+    let (list, _) = ui.frame(TargetId::MAIN);
     // The color that a well of the tree, or of a layer, edits: what its picker draws as content.
     let mut stack: Vec<ElementId> = std::iter::once(root)
         .chain(ui.layers().iter().copied())
@@ -429,7 +430,7 @@ fn kinds_of_other_bases_share_no_style() {
                 label = Some(make_label(children));
             }
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         let text = |id: Option<ElementId>| ui.style(id.expect("built")).expect("styled").text.color;
         assert_eq!(
             text(label),

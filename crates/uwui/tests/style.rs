@@ -4,6 +4,7 @@
 //! document and keep the style that the interface had.
 
 use slime_color::LinearColor;
+use uwui::host::TargetId;
 use uwui::style::{Dimension, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::theme::{StyleSheet, Theme};
@@ -116,7 +117,7 @@ fn rules_select_by_kind_class_key_state_and_ancestor_in_the_order_of_their_file(
         &[Theme::from_text("dark.theme", DARK)],
     )
     .expect("a style sheet and a theme");
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let [plain, panel, item, special] = [ids[0], ids[1], ids[2], ids[3]];
     assert_eq!(fill(&ui, plain), srgb(0x202020));
     // The panel's rule comes after the boxes': its fill wins, and its corners are the theme's.
@@ -135,11 +136,11 @@ fn rules_select_by_kind_class_key_state_and_ancestor_in_the_order_of_their_file(
         ..ElementState::default()
     };
     ui.set_state(plain, pressed);
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.styled, stats.painted, stats.layouts), (1, 1, 0));
     assert_eq!(fill(&ui, plain), srgb(0x4c6ef5));
     ui.set_state(plain, ElementState::default());
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(fill(&ui, plain), srgb(0x202020));
 }
 
@@ -155,7 +156,7 @@ fn an_element_keeps_the_fields_that_its_own_style_sets_and_takes_the_rules_for_t
         &[Theme::from_text("dark.theme", DARK)],
     )
     .expect("a style sheet and a theme");
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let style = ui.style(ids[1]).unwrap();
     assert_eq!(
         style.paint.background,
@@ -174,12 +175,12 @@ fn another_theme_styles_every_element_again_with_its_values() {
     let sheets = [StyleSheet::from_text("ui.style", SHEET)];
     ui.set_style(&sheets, &[Theme::from_text("dark.theme", DARK)])
         .expect("dark");
-    ui.frame();
-    let (_, stats) = ui.frame();
+    ui.frame(TargetId::MAIN);
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.styled, stats.layouts, stats.painted), (0, 0, 0));
     ui.set_style(&sheets, &[Theme::from_text("light.theme", LIGHT)])
         .expect("light");
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!(stats.styled, stats.elements);
     // Its gaps change the padding: laid out again.
     assert_eq!(stats.layouts, 1);
@@ -194,7 +195,7 @@ fn another_theme_styles_every_element_again_with_its_values() {
         });
         children.add("special", Element::container(), |_| {});
     });
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!(stats.styled, 3);
     assert_eq!(fill(&ui, ids[1]), srgb(0xf0f0f0));
     assert_eq!(fill(&ui, ids[2]), srgb(0xf0f0f0));
@@ -210,7 +211,7 @@ fn a_wrong_style_sheet_or_theme_is_refused_by_name_and_place_and_the_style_is_ke
         std::slice::from_ref(&theme),
     )
     .expect("a style sheet and a theme");
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let cases = [
         (
             "a {\n    select kind=Container\n    paint background=$missing\n}\n",
@@ -287,7 +288,7 @@ fn a_wrong_style_sheet_or_theme_is_refused_by_name_and_place_and_the_style_is_ke
         "{error}"
     );
     // The interface keeps its style.
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!(stats.styled, 0);
     assert_eq!(fill(&ui, ids[1]), srgb(0x303030));
 }
@@ -303,7 +304,7 @@ fn rules_apply_in_the_order_of_their_file_whatever_their_names() {
         &[Theme::from_text("empty.theme", "")],
     )
     .expect("a style sheet");
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(fill(&ui, ids[0]), srgb(0x222222));
 }
 
@@ -318,11 +319,11 @@ fn an_element_whose_own_style_changes_is_styled_again() {
         &[Theme::from_text("dark.theme", DARK)],
     )
     .expect("a style sheet and a theme");
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(fill(&ui, ids[1]), LinearColor::rgba(1.0, 0.0, 0.0, 1.0));
     // Its fill back at its default: the rules give theirs.
     build(&mut ui, root, 1, |s| s);
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.styled, stats.painted), (1, 1));
     assert_eq!(fill(&ui, ids[1]), srgb(0x303030));
 }
@@ -345,7 +346,7 @@ fn the_rows_of_a_list_restyled_lay_out_the_list_s_rows_alone() {
                 }
             }));
         });
-        ui.frame()
+        ui.frame(TargetId::MAIN)
     };
     build(&mut ui);
     build(&mut ui);
@@ -364,7 +365,7 @@ fn a_shadow_set_in_part_takes_the_defaults_of_what_it_leaves_out() {
                  shadow blur=18 { offset 0 4; }\n    }\n}\n";
     ui.set_style(&[StyleSheet::from_text("shadows.style", sheet)], &[])
         .expect("a style sheet");
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let plain = ui.style(ids[0]).unwrap().paint.shadow.expect("a shadow");
     assert_eq!(
         (plain.offset, plain.blur, plain.spread),
@@ -387,7 +388,7 @@ fn computed(themes: &[(&str, &str)]) -> Result<LinearColor, String> {
     ui.build(root, 0, |children| {
         id = Some(children.add("box", Element::container(), |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     Ok(fill(&ui, id.expect("built")))
 }
 

@@ -1202,6 +1202,8 @@ impl Ui {
     pub(crate) fn mark_paint(&mut self, id: ElementId) {
         if let Some(node) = self.node_mut(id) {
             node.changed.paint = true;
+            let drawn_on = node.drawn_on;
+            self.changed_on(drawn_on);
         }
     }
 

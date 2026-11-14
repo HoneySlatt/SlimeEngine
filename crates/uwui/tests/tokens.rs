@@ -6,6 +6,7 @@
 use std::time::Duration as Time;
 
 use slime_color::LinearColor;
+use uwui::host::TargetId;
 use uwui::style::{Dimension, Style};
 use uwui::text::Fonts;
 use uwui::theme::{
@@ -52,7 +53,7 @@ fn styled(themes: &[Theme], elements: Vec<Element>) -> (Ui, Vec<ElementId>) {
             ids.push(children.add(index, element, |_| {}));
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, ids)
 }
 
@@ -131,7 +132,7 @@ fn a_token_named_in_a_state_reads_the_themes_too() {
         ..ui.state(ids[0]).expect("an element")
     };
     ui.set_state(ids[0], state);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(style(&ui, ids[0]).paint.background, srgb(0x2BB673));
 }
 
@@ -161,7 +162,7 @@ fn a_change_of_themes_gives_a_token_its_new_value_and_leaves_a_literal() {
     assert_eq!(style(&ui, ids[0]).layout.padding.start, 5.0);
     ui.set_style(&[], &[theme("length {\n    test_gap 9\n}\n")])
         .expect("a valid theme");
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(style(&ui, ids[0]).layout.padding.start, 9.0);
     assert_eq!(style(&ui, ids[1]).layout.padding.start, 5.0);
 }
@@ -184,7 +185,7 @@ fn a_list_declared_after_the_themes_is_read_at_their_next_giving() {
     assert_eq!(style(&ui, ids[0]).layout.padding.start, 7.0);
     ui.declare_tokens(&LATE_TOKENS).expect("a name of its own");
     ui.set_style(&[], &[given]).expect("a valid theme");
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(style(&ui, ids[0]).layout.padding.start, 30.0);
 }
 
@@ -250,7 +251,7 @@ fn a_value_of_another_kind_not_finite_or_a_negative_duration_refuses_the_themes(
             target: uwui::host::TargetId::MAIN,
         };
         let root = ui.add_root("main", settings, |s| s.padding(GAP));
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         assert_eq!(
             ui.style(root).expect("styled").layout.padding.start,
             3.0,
@@ -312,7 +313,7 @@ fn a_name_declared_by_two_lists_is_refused_and_one_token_declared_again_is_one()
         target: uwui::host::TargetId::MAIN,
     };
     let root = fresh.add_root("main", settings, |s| s.padding(GAP));
-    fresh.frame();
+    fresh.frame(TargetId::MAIN);
     assert_eq!(fresh.style(root).expect("styled").layout.padding.start, 5.0);
 }
 
@@ -391,13 +392,13 @@ fn an_element_built_again_naming_another_token_takes_its_value() {
     ui.build(root, 0, |children| {
         id = Some(children.add("subject", make(GAP), |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let id = id.expect("built");
     assert_eq!(style(&ui, id).layout.padding.top, 10.0);
     ui.build(root, 1, |children| {
         children.add("subject", make(OTHER), |_| {});
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(style(&ui, id).layout.padding.top, 20.0);
 }
 
@@ -453,7 +454,7 @@ fn a_list_whose_static_tokens_fall_back_in_a_cycle_is_refused() {
     ui.build(root, 0, |children| {
         id = Some(children.add("subject", element, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(style(&ui, id.expect("built")).layout.padding.start, 0.0);
 }
 

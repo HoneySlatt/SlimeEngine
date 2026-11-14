@@ -9,6 +9,7 @@
 
 use slime_color::{LinearColor, Oklch};
 use uwui::display::Primitive;
+use uwui::host::TargetId;
 use uwui::look::{self, Colors, Density, FIXED_FAMILY, TEXT_FAMILY};
 use uwui::preferences::Preferences;
 use uwui::text::{Fonts, TextBounds, TextStyle};
@@ -121,7 +122,7 @@ fn styled_with(
             ids.push(children.add(index, element, |_| {}));
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, ids)
 }
 
@@ -165,7 +166,7 @@ fn the_style_sheet_styles_each_kind_its_states_and_its_classes() {
     // its width, to the accent lightened.
     let before = style(&ui, 2).paint;
     ui.set_focus(Some(ids[2]));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.set_preferences(Preferences {
         reduced_motion: true,
         ..Preferences::default()
@@ -216,13 +217,13 @@ fn every_button_shows_the_keyboards_focus_by_its_border() {
             },
         );
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let focus = lighten(srgb(0x4C8DFF), 0.08);
     for button in buttons {
         let border = |ui: &Ui| ui.style(button).expect("styled").paint.border;
         assert_eq!(border(&ui).a, 0.0, "{button:?}: no border before the focus");
         ui.set_focus(Some(button));
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         assert!(near(border(&ui), focus), "{button:?}: {:?}", border(&ui));
     }
 }
@@ -253,7 +254,7 @@ fn a_chosen_tab_takes_the_panels_color_and_the_others_a_quieter_text() {
             }
         });
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let [first, chosen] = [tabs[0], tabs[1]].map(|tab| ui.style(tab).expect("styled").clone());
     assert_eq!(chosen.paint.background, srgb(0x1E1F24));
     assert_eq!(chosen.text.color, srgb(0xE6E7EB));
@@ -387,7 +388,7 @@ fn a_project_s_accent_changes_every_color_that_follows_it() {
         ..Preferences::default()
     });
     ui.set_focus(Some(ids[8]));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let border = ui.style(ids[8]).expect("styled").paint.border;
     assert!(near(border, lighten(srgb(0x2BB673), 0.08)), "{border:?}");
 }
@@ -424,7 +425,7 @@ fn the_controls_draw_their_ticks_and_chevrons_from_lucide_which_names_its_icons(
         assert!(run.glyphs.iter().all(|glyph| glyph.id != 0), "{name}");
     }
     // The checked check box draws its tick, and the open section its chevron, as texts in Lucide.
-    let (list, _) = ui.frame();
+    let (list, _) = ui.frame(TargetId::MAIN);
     let icons_drawn = list
         .items()
         .iter()
@@ -490,7 +491,7 @@ fn a_modal_layer_dims_the_window_below_it_and_another_does_not() {
             },
             |s| s,
         );
-        let (list, _) = ui.frame();
+        let (list, _) = ui.frame(TargetId::MAIN);
         ui.remove(layer);
         let window = Rect::new(0.0, 0.0, 800.0, 600.0);
         list.items()

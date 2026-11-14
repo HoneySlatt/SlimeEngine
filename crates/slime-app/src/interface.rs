@@ -225,7 +225,7 @@ mod tests {
             field = Some(children.add("field", Element::text_field("").style(size), |_| {}));
             button = Some(children.add("button", Element::button("go").style(size), |_| {}));
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         (ui, field.expect("built"), button.expect("built"))
     }
 
@@ -301,20 +301,21 @@ mod tests {
             });
             children.add("button", button, |_| {});
         });
-        ui.frame();
+        ui.frame(TargetId::MAIN);
         let moved_at = Instant::ZERO + Duration::from_secs(1);
         let mut input = WindowInput::default();
         let moved = Event::CursorMoved { x: 10.0, y: 10.0 };
         input.give(&mut ui, &moved, EventTime::received(moved_at));
         // The frame starts later, and takes the move first.
         input.give_moved(&mut ui);
-        ui.set_frame_shown(uwui::time::FrameShown::simulated(
-            moved_at + Duration::from_millis(100),
-        ));
-        ui.frame();
+        ui.set_frame_shown(
+            TargetId::MAIN,
+            uwui::time::FrameShown::simulated(moved_at + Duration::from_millis(100)),
+        );
+        ui.frame(TargetId::MAIN);
         // A tooltip shows after half a second of rest, from the move, not from the frame.
         assert_eq!(
-            ui.next_frame_due(),
+            ui.next_frame_due(TargetId::MAIN),
             Some(moved_at + Duration::from_millis(500))
         );
     }

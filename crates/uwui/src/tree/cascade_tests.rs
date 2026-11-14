@@ -18,6 +18,7 @@ use std::panic::Location;
 use slime_color::LinearColor;
 
 use super::Ui;
+use crate::host::TargetId;
 use crate::style::{
     Align, Dimension, Display, Easing, FlexDirection, GridPlace, Justify, OwnStyle, Same, Shadow,
     Sides, Style, StyleBuilder, StyleDeclaration, Track, state_bit,
@@ -153,7 +154,7 @@ fn own_styles_that_differ_by_a_signed_zero_share_no_style() {
             |_| {},
         ));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let gap = |id| ui.style(id).expect("styled").layout.gap;
     // Each sets the gap between rows alone, over the rule; the gap between columns stays the
     // rule's. The two differ by the sign of a zero, their bits: they share no style, as they did

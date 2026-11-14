@@ -29,7 +29,7 @@ fn interface(direction: LayoutDirection) -> (Ui, ElementId) {
         target: TargetId::MAIN,
     };
     let root = ui.add_root("main", settings, |s| s);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, root)
 }
 
@@ -61,7 +61,7 @@ fn open(ui: &mut Ui, over: ElementId, origin: [f32; 2], title: &str) -> (Element
             panel.add("box", boxed, |_| {});
         }));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (layer, panel.expect("built"))
 }
 
@@ -71,7 +71,7 @@ fn drag(ui: &mut Ui, from: (f32, f32), to: (f32, f32)) {
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_moved(to.0, to.1);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
 }
 
 fn origin_and_size(ui: &Ui, layer: ElementId) -> ([f32; 2], [f32; 2]) {
@@ -121,7 +121,7 @@ fn a_panel_fills_its_layer_and_its_bar_moves_it_within_the_window() {
             size: [220.0, 160.0],
         },
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(origin_and_size(&ui, layer), ([10.0, 20.0], [220.0, 160.0]));
     assert_eq!(ui.take_actions().len(), 1, "told as the pointer's");
 }
@@ -212,7 +212,7 @@ fn a_raised_panel_keeps_the_menu_that_it_opened_above_it() {
         });
         button = Some(children.add("open", opener, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let button = button.expect("built");
     let menu = ui.open_layer(
         "layer",
@@ -234,7 +234,7 @@ fn a_raised_panel_keeps_the_menu_that_it_opened_above_it() {
         });
         children.add("item", item, |_| {});
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let (second, _) = open(&mut ui, root, [60.0, 60.0], "Second");
     let _ = second;
     // A press on the button raises the first panel, its menu staying above it.

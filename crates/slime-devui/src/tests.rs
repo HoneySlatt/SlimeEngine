@@ -7,7 +7,7 @@ use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use slime_reflect::{Path, Reflect, Value};
 use slime_world::glam::{DVec3, Quat, Vec3};
 use slime_world::{Command, Entity, Light, Name, World};
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::look::{self, Colors, Density};
 use uwui::style::FlexDirection;
 use uwui::text::Fonts;
@@ -79,7 +79,7 @@ impl Bench {
             }
         }
         self.panel.build(&mut self.ui, self.root, &self.world);
-        self.ui.frame();
+        self.ui.frame(TargetId::MAIN);
         commands
     }
 
@@ -408,7 +408,7 @@ fn a_list_of_many_entities_builds_only_the_rows_that_show() {
     let mut panel = WorldPanel::default();
     for _ in 0..2 {
         panel.build(&mut ui, root, &world);
-        ui.frame();
+        ui.frame(TargetId::MAIN);
     }
     let rows = ui
         .meaning()
@@ -494,7 +494,7 @@ fn a_value_outside_a_world_takes_the_edits_that_its_ranges_hold() {
     };
     let mut editor = ValueEditor::default();
     editor.build(&mut ui, slot, "knobs", &knobs);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let find = |ui: &Ui, name: &str| {
         ui.meaning()
             .into_iter()
@@ -521,7 +521,7 @@ fn a_value_outside_a_world_takes_the_edits_that_its_ranges_hold() {
     );
     // Built again for the value changed, the field keeps what was committed.
     editor.build(&mut ui, slot, "knobs", &knobs);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.field_text(find(&ui, "scale")), Some("0.5"));
 }
 
@@ -559,7 +559,7 @@ fn names(ui: &Ui) -> Vec<String> {
 /// Builds `panel` over `world` in `ui`, and lays it out.
 fn show(ui: &mut Ui, root: ElementId, panel: &mut WorldPanel, world: &World) {
     panel.build(ui, root, world);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
 }
 
 #[test]
@@ -696,7 +696,7 @@ fn what_the_review_found_stays_fixed() {
     bench.panel.select(point);
     bench.frame();
     bench.panel.build(&mut bench.ui, bench.root, &bench.world);
-    let (_, stats) = bench.ui.frame();
+    let (_, stats) = bench.ui.frame(TargetId::MAIN);
     assert_eq!(stats.built, 0, "nothing built again");
 }
 
@@ -758,13 +758,13 @@ fn an_options_box_is_enabled_again_once_it_holds_a_value() {
         found.state.disabled
     };
     editor.build(&mut ui, slot, "pick", &Pick { target: None });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(boxed(&ui), "nothing to start holding");
     let mut world = World::new();
     let held = Pick {
         target: Some(world.spawn()),
     };
     editor.build(&mut ui, slot, "pick", &held);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert!(!boxed(&ui), "it empties the option");
 }

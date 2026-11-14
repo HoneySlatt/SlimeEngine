@@ -21,6 +21,7 @@ use uwui::Rect;
 use uwui::display::{
     BoxPrimitive, DisplayList, ImageKey, ImageKind, ImagePrimitive, TextPrimitive,
 };
+use uwui::host::TargetId;
 use uwui::style::{Align, Dimension};
 use uwui::text::{Fonts, GlyphPixels, GlyphRasterizer, TextBounds, TextLayout, TextStyle};
 use uwui::tree::{Element, LayoutDirection, RootSettings, Ui};
@@ -535,7 +536,7 @@ fn a_tree_of_elements_is_drawn_where_its_layout_places_it_and_mirrored_from_righ
                 ids.push(children.add(index, element, |_| {}));
             }
         });
-        let (list, _) = ui.frame();
+        let (list, _) = ui.frame(TargetId::MAIN);
         let (image, _) = setup.draw(ui.fonts(), &list);
         let pixel = |x: f32, y: f32| {
             let index = (y as usize * WIDTH as usize + x as usize) * 4;

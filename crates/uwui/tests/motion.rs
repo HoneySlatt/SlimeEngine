@@ -8,7 +8,7 @@ use std::time::Duration;
 use slime_color::LinearColor;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::display::{DisplayList, Primitive};
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::preferences::Preferences;
 use uwui::style::{Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
@@ -85,24 +85,24 @@ fn a_color_moves_over_the_time_given_and_less_motion_drops_it() {
             |_| {},
         );
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     ui.pointer_moved(50.0, 15.0);
     // The hover starts from black: no time has passed.
-    let (list, stats) = ui.frame();
+    let (list, stats) = ui.frame(TargetId::MAIN);
     assert_eq!(fill(&list, 100.0), LinearColor::rgba(0.0, 0.0, 0.0, 1.0));
     assert!(stats.animating);
     // Halfway, then at the end, linear in the colors' light.
     at += Duration::from_millis(100);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    let (list, _) = ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    let (list, _) = ui.frame(TargetId::MAIN);
     assert!(
         (fill(&list, 100.0).r - 0.5).abs() < 1e-3,
         "{:?}",
         fill(&list, 100.0)
     );
     at += Duration::from_millis(150);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    let (list, stats) = ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    let (list, stats) = ui.frame(TargetId::MAIN);
     assert_eq!(fill(&list, 100.0), LinearColor::rgba(1.0, 1.0, 1.0, 1.0));
     assert!(!stats.animating);
     // Less motion: the pointer leaves, and the button is black at once.
@@ -111,7 +111,7 @@ fn a_color_moves_over_the_time_given_and_less_motion_drops_it() {
         ..Preferences::default()
     });
     ui.pointer_moved(300.0, 200.0);
-    let (list, stats) = ui.frame();
+    let (list, stats) = ui.frame(TargetId::MAIN);
     assert_eq!(fill(&list, 100.0), LinearColor::rgba(0.0, 0.0, 0.0, 1.0));
     assert!(!stats.animating);
 }
@@ -126,7 +126,7 @@ fn a_new_element_shows_its_style_at_once() {
             |_| {},
         );
     });
-    let (list, stats) = ui.frame();
+    let (list, stats) = ui.frame(TargetId::MAIN);
     assert_eq!(fill(&list, 100.0), LinearColor::rgba(0.0, 0.0, 0.0, 1.0));
     assert!(!stats.animating);
 }
@@ -149,7 +149,7 @@ fn an_opacity_multiplies_what_an_element_and_its_children_draw() {
             children.add("inner", inner, |_| {});
         });
     });
-    let (list, _) = ui.frame();
+    let (list, _) = ui.frame(TargetId::MAIN);
     assert!((fill(&list, 200.0).a - 0.5).abs() < 1e-6);
     // Its own and its parent's: 0.8 × 0.5 × 0.5.
     assert!((fill(&list, 50.0).a - 0.2).abs() < 1e-6);
@@ -181,36 +181,36 @@ fn a_section_grows_and_shrinks_to_its_height_over_its_transition() {
             ));
         }));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let (section, row) = (section.expect("built"), row.expect("built"));
     let open = ui.rect(section).expect("laid out").height;
     ui.set_open(section, false);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     // Folding: what it holds still shows, cut to its height, which shrinks over the time.
     assert!(ui.rect(row).is_some_and(|rect| rect.height == 100.0));
     at += Duration::from_millis(100);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    let (_, stats) = ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    let (_, stats) = ui.frame(TargetId::MAIN);
     let half = ui.rect(section).expect("laid out").height;
     assert!(stats.animating);
     assert!(half < open && half > open - 100.0, "{half} of {open}");
     at += Duration::from_millis(150);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    ui.frame();
-    let (_, stats) = ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    ui.frame(TargetId::MAIN);
+    let (_, stats) = ui.frame(TargetId::MAIN);
     let folded = ui.rect(section).expect("laid out").height;
     assert!((folded - (open - 100.0)).abs() < 1.0, "{folded} of {open}");
     assert!(!stats.animating);
     assert!(ui.meaning_of(row).is_none(), "folded, it means nothing");
     // Opening: measured at once, then grown from its folded height.
     ui.set_open(section, true);
-    let (_, stats) = ui.frame();
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert!(stats.animating);
     assert!((ui.rect(section).expect("laid out").height - folded).abs() < 1.0);
     at += Duration::from_millis(250);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    ui.frame();
-    ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    ui.frame(TargetId::MAIN);
+    ui.frame(TargetId::MAIN);
     assert!((ui.rect(section).expect("laid out").height - open).abs() < 1.0);
 }
 
@@ -238,23 +238,23 @@ fn the_focus_shows_to_the_keyboard_and_not_to_the_pointer() {
             ));
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     // Tab: the first button holds a focus that shows.
     ui.key(&named(NamedKey::Tab));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let state = ui.state(buttons[0]).expect("there");
     assert!(state.focused && state.focus_visible);
     // A press of the pointer on the second: focused, its focus not shown.
     ui.pointer_moved(50.0, 45.0);
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_button(MouseButton::Left, ButtonState::Released);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let state = ui.state(buttons[1]).expect("there");
     assert!(state.focused && !state.focus_visible, "{state:?}");
     assert!(!ui.state(buttons[0]).expect("there").focus_visible);
     // Tab again: the focus shows once more.
     ui.key(&named(NamedKey::Tab));
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let focus = ui.focus().expect("a focus");
     assert!(ui.state(focus).expect("there").focus_visible);
 }
@@ -273,7 +273,7 @@ fn boxes_lie_on_whole_pixels_at_any_scale() {
     ui.build(root, 0, |children| {
         children.add("box", boxed, |_| {});
     });
-    let (list, _) = ui.frame();
+    let (list, _) = ui.frame(TargetId::MAIN);
     let boxes: Vec<_> = list
         .items()
         .iter()
@@ -329,15 +329,15 @@ fn a_transition_moves_every_color_that_a_style_holds() {
             |_| {},
         );
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let button = ui
         .find(root, &[uwui::tree::Key::from("button")])
         .expect("the button");
     ui.pointer_moved(50.0, 15.0);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     at += Duration::from_millis(100);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    ui.frame(TargetId::MAIN);
     let style = ui.style(button).expect("styled");
     let shadow = style.paint.shadow.expect("a shadow").color;
     for (name, color) in [
@@ -371,7 +371,7 @@ fn two_buttons(after: &str) -> (Ui, ElementId, ElementId) {
             );
         }
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let changed = BUTTONS.replacen(
         "paint background=\"#000000\"",
         &format!("paint background=\"{after}\""),
@@ -382,7 +382,7 @@ fn two_buttons(after: &str) -> (Ui, ElementId, ElementId) {
         &[Theme::from_text("empty.theme", "")],
     )
     .expect("the style sheet");
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let a = ui.find(root, &[uwui::tree::Key::from("a")]).expect("a");
     let b = ui.find(root, &[uwui::tree::Key::from("b")]).expect("b");
     (ui, a, b)
@@ -393,8 +393,8 @@ fn elements_that_move_alike_share_the_style_that_they_show() {
     let mut at = Instant::ZERO;
     let (mut ui, a, b) = two_buttons("#ffffff");
     at += Duration::from_millis(100);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    ui.frame(TargetId::MAIN);
     let (shown_a, shown_b) = (ui.style(a).expect("a"), ui.style(b).expect("b"));
     assert!((shown_a.paint.background.r - 0.5).abs() < 1e-3);
     assert!(
@@ -408,16 +408,16 @@ fn an_element_styled_again_during_its_transition_leaves_the_others() {
     let mut at = Instant::ZERO;
     let (mut ui, a, b) = two_buttons("#808080");
     at += Duration::from_millis(100);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    ui.frame(TargetId::MAIN);
     // The pointer over `a`, halfway: `a` goes on towards its hover, white, `b` towards grey.
     ui.pointer_moved(50.0, 15.0);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let (shown_a, shown_b) = (ui.style(a).expect("a"), ui.style(b).expect("b"));
     assert!(!std::ptr::eq(shown_a, shown_b));
     at += Duration::from_millis(300);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    let (_, stats) = ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    let (_, stats) = ui.frame(TargetId::MAIN);
     assert!(!stats.animating);
     assert_eq!(
         ui.style(a).expect("a").paint.background,
@@ -471,7 +471,7 @@ fn elements_from_the_same_colors_at_the_same_time_towards_two_styles_share_nothi
     let mut at = Instant::ZERO;
     let (mut ui, root) = ui(TWO_CLASSES, 1.0);
     column_of_two(&mut ui, root, 0, ["a", "b"]);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let changed = TWO_CLASSES
         .replacen("\"#000000\"", "\"#ffffff\"", 1)
         .replacen("\"#000000\"", "\"#808080\"", 1);
@@ -480,10 +480,10 @@ fn elements_from_the_same_colors_at_the_same_time_towards_two_styles_share_nothi
         &[Theme::from_text("empty.theme", "")],
     )
     .expect("the style sheet");
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     at += Duration::from_millis(100);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    ui.frame(TargetId::MAIN);
     let a = ui.find(root, &[uwui::tree::Key::from("a")]).expect("a");
     let b = ui.find(root, &[uwui::tree::Key::from("b")]).expect("b");
     let grey = LinearColor::from_srgb8(128, 128, 128).r;
@@ -500,15 +500,15 @@ fn elements_towards_one_style_at_the_same_time_from_two_colors_share_nothing() {
     let mut at = Instant::ZERO;
     let (mut ui, root) = ui(BUTTONS, 1.0);
     column_of_two(&mut ui, root, 0, ["", ""]);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let a = ui.find(root, &[uwui::tree::Key::from("a")]).expect("a");
     let b = ui.find(root, &[uwui::tree::Key::from("b")]).expect("b");
     // `b` hovered, halfway to white.
     ui.pointer_moved(50.0, 45.0);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     at += Duration::from_millis(100);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    ui.frame(TargetId::MAIN);
     assert!((red(&ui, b) - 0.5).abs() < 1e-3, "b is {}", red(&ui, b));
     // The base turns grey as the pointer leaves: both go to one style, from two colors.
     let changed = BUTTONS.replacen("\"#000000\"", "\"#808080\"", 1);
@@ -518,10 +518,10 @@ fn elements_towards_one_style_at_the_same_time_from_two_colors_share_nothing() {
     )
     .expect("the style sheet");
     ui.pointer_moved(300.0, 250.0);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     at += Duration::from_millis(100);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    ui.frame(TargetId::MAIN);
     let grey = LinearColor::from_srgb8(128, 128, 128).r;
     assert!(
         (red(&ui, a) - grey / 2.0).abs() < 1e-3,
@@ -554,18 +554,18 @@ fn elements_towards_one_style_from_one_color_started_apart_share_nothing() {
     let mut at = Instant::ZERO;
     let (mut ui, root) = ui(LIT, 1.0);
     column_of_two(&mut ui, root, 0, ["", ""]);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let a = ui.find(root, &[uwui::tree::Key::from("a")]).expect("a");
     let b = ui.find(root, &[uwui::tree::Key::from("b")]).expect("b");
     column_of_two(&mut ui, root, 1, ["lit", ""]);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     at += Duration::from_millis(50);
-    ui.set_frame_shown(FrameShown::simulated(at));
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
     column_of_two(&mut ui, root, 2, ["lit", "lit"]);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     at += Duration::from_millis(50);
-    ui.set_frame_shown(FrameShown::simulated(at));
-    ui.frame();
+    ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
+    ui.frame(TargetId::MAIN);
     assert!((red(&ui, a) - 0.5).abs() < 1e-3, "a is {}", red(&ui, a));
     assert!((red(&ui, b) - 0.25).abs() < 1e-3, "b is {}", red(&ui, b));
 }
@@ -588,11 +588,11 @@ button-hovered {
 fn the_frame_that_starts_a_transition_shows_exactly_what_showed() {
     let (mut ui, root) = ui(CLEAR_WHITE, 1.0);
     column_of_two(&mut ui, root, 0, ["", ""]);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let a = ui.find(root, &[uwui::tree::Key::from("a")]).expect("a");
     let before = ui.style(a).expect("a").paint.background;
     assert_eq!(before, LinearColor::rgba(1.0, 1.0, 1.0, 0.0));
     ui.pointer_moved(50.0, 15.0);
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     assert_eq!(ui.style(a).expect("a").paint.background, before);
 }

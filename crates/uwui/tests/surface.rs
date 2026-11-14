@@ -10,7 +10,7 @@ use slime_input::{
 };
 use uwui::action::{ActionKind, SurfaceInput};
 use uwui::display::{ImageKey, Primitive};
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::style::{Dimension, FlexDirection};
 use uwui::text::Fonts;
@@ -44,7 +44,7 @@ fn interface() -> (Ui, ElementId, ElementId) {
         let fill = Element::surface(ImageKey(7)).style(|s| s.grow(1.0));
         surface = Some(children.add("view", fill, |_| {}));
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     (ui, field.expect("built"), surface.expect("built"))
 }
 
@@ -79,7 +79,7 @@ fn a_surface_draws_its_image_into_its_box() {
         (rect.x, rect.y, rect.width, rect.height),
         (0.0, 80.0, 800.0, 520.0)
     );
-    let (list, _) = ui.frame();
+    let (list, _) = ui.frame(TargetId::MAIN);
     let drawn = list
         .items()
         .iter()
@@ -220,7 +220,7 @@ fn alt_pressed_while_a_surface_holds_the_pointer_opens_no_menu() {
             menus.add("File", item, |_| {});
         });
     });
-    ui.frame();
+    ui.frame(TargetId::MAIN);
     let alt = |state| KeyEvent {
         physical: KeyCode::AltLeft,
         logical: Key::Named(NamedKey::Alt),

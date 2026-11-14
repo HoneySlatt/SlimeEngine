@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use slime_editor::{Hierarchy, InterfaceFrame, Offscreen};
 use slime_gfx::Gpu;
 use slime_world::{Name, World};
-use uwui::host::Person;
+use uwui::host::{Person, TargetId};
 use uwui::look::{self, Colors, Density};
 use uwui::style::{Dimension, FlexDirection};
 use uwui::text::Fonts;
@@ -72,7 +72,7 @@ pub fn hierarchy(context: &mut Context) -> Result<Vec<Row>, String> {
     let mut hierarchy = Hierarchy::default();
     let frame = |ui: &mut Ui, world: &World, hierarchy: &mut Hierarchy| {
         hierarchy.build(ui, slot, world, &[], Instant::now());
-        ui.frame()
+        ui.frame(TargetId::MAIN)
     };
     // The first frames make the rows and lay the list out, the next builds the rows that it shows.
     for _ in 0..3 {

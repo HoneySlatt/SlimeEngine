@@ -78,18 +78,18 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   that they show (`docs/adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md`);
   and a section's height as it opens or folds, which less motion drops (`Ui::set_preferences`); a
   frame says whether one goes on (`FrameStats::animating`), and a program that draws only when
-  something changes reads whether the interface moves (`Ui::animating`) or needs the next frame for
-  the rows of a list (`Ui::needs_frame`), and when its next frame is due on its own, a tooltip's
-  rest or a notification's end (`Ui::next_frame_due`). A style's paint holds an opacity, which its descendants share; the
+  something changes reads, for each target, whether it moves (`Ui::animating`) or needs the next
+  frame for a change or the rows of a list (`Ui::needs_frame`), and when its next frame is due on
+  its own, a tooltip's rest or a notification's end (`Ui::next_frame_due`). A style's paint holds an opacity, which its descendants share; the
   display list places boxes, images and clips on whole pixels of the screen; a text's style names
   OpenType features (`TextStyle::features`); an element focused by the keyboard, an agent or the
   program is in the state `FocusVisible`, one that the pointer focused is not.
 - The host gives `Ui` its times (`time`, `docs/adr/0227-the-time-that-motion-reads.md`), in whole
   nanoseconds: `Instant`, a time of the host's clock, which counts a suspend, and `RootTime`, a
-  time of a root's clock, which cannot be mixed. Before each frame, when it shows and where that
-  time comes from (`Ui::set_frame_shown`); with each input event, when it came (`host::Event`);
-  each root's clock, its time and its speed, by default the host's at
-  speed 1 (`Ui::set_root_clock`). What follows which clock is `RootClock`'s: in short, what
+  time of a root's clock, which cannot be mixed. Before each frame of each target, when it shows
+  and where that time comes from (`Ui::set_frame_shown`), which that target's motions read; with
+  each input event, when it came (`host::Event`); each root's clock, its time and its speed, by
+  default the host's at speed 1, read at its target's frame's time (`Ui::set_root_clock`). What follows which clock is `RootClock`'s: in short, what
   answers a person follows the host's, the rest its root's, which a paused game holds, and a layer
   follows the root that it opens over. The host gives the waker by which any thread asks it for a
   step (`Ui::set_waker`, `Ui::waker`).
@@ -110,10 +110,11 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   (`Ui::character_at`), and whether a point is the interface's (`Ui::covers`)
   (`docs/adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md`). Each root
   draws on its target (`RootSettings::target`), a layer on its root's; each target keeps its own
-  input and outputs, and gives its own display list (`Ui::display_list`); what names no element
-  follows the active target, that of the last key or button (`Ui::active_target`)
+  input and outputs; what names no element follows the active target, that of the last key or
+  button (`Ui::active_target`)
   (`docs/adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md`).
-  One frame lays out and draws every target until M6d.5c3b. With the feature `test-input`, which tests
+  Each target draws its own frame (`Ui::frame(target)`), at its own time, and asks for it when it
+  changes (`docs/adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md`). With the feature `test-input`, which tests
   and benchmarks turn on, `host::Person` gives a person's input at no time of its own. `Ui` turns
   the input into `action::Action`s: a button pressed, an intent of navigation, the
   command of a shortcut. The program reads them from a queue (`Ui::take_actions`); an agent sends
