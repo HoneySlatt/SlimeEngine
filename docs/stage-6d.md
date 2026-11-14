@@ -140,7 +140,10 @@ in git.
   [M6d.9a1b3](#m6d9a1b3--long-lists-and-the-interfaces-family), cut in two on 2026-11-14
   ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)):
   done, [M6d.9a1b3a](#m6d9a1b3a--the-interfaces-family-in-uwui), on the same day; then
-  [M6d.9a1b3b](#m6d9a1b3b--long-lists); then
+  [M6d.9a1b3b](#m6d9a1b3b--long-lists), cut in two on 2026-11-14
+  ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)): in progress,
+  [M6d.9a1b3b1](#m6d9a1b3b1--lists); then
+  [M6d.9a1b3b2](#m6d9a1b3b2--the-editors-journal); then
   [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
@@ -2417,21 +2420,31 @@ under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
 
 The second half of M6d.9a1b3
 ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)),
-under [the stage's rules](#stage-6d--uwui-leaves-the-engine). Its questions go to the owner at its
-start, with the findings of the attack on M6d.9a1b3's design
-([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md),
-"Context").
+cut in two at its start, on 2026-11-14
+([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)):
+the lists first, then the editor's journal, whose first entry holds the level on one line.
 
-- **Goal.** A long list read by pages.
-- **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `slime-editor`, `slime-mcp`;
-  `slime-world`, for entities resumed where a page ended, with the owner's go.
-- **Delivers.** The cursor: entities, elements and the editor's journal paged, the journal with a
-  generation; the log's pages bounded in bytes; a family's codes of faults carried both ways
-  across the channel; the MCP server's tools paged; `interface` 3, `world` 2 and `editing` 2.
-- **Done when.** A journal past the tool's largest line is read whole by pages; a list goes past
-  an element larger than the tool's line; CI is green.
-- **Measured.** At rest, with the owner's go: a page of a thousand elements, against the list of
-  today; frames with seven agents listing, against M6d.9a1b1's.
+### M6d.9a1b3b1 — Lists
+
+In progress, its card in [`PLAN.md`](PLAN.md#m6d9a1b3b1--lists).
+
+### M6d.9a1b3b2 — The editor's journal
+
+The second half of M6d.9a1b3b
+([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)),
+under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The editor's journal read by pages, whatever its size.
+- **Crates.** `slime-channel`, `slime-app`, `slime-editor`, `slime-mcp`.
+- **Delivers.** `editing/journal` paged by M6d.9a1b3b1's cursor: the journal's generation kept
+  by the editor's session, which outlives a level opened; pages read by seek, never the whole
+  file, bounded in bytes of JSON, cut at a line's end where one is, else at a character's
+  boundary; bytes that are not UTF-8 read lossily and marked; `editing` 2; `editor_journal`
+  paged.
+- **Done when.** A journal past the tool's largest line, whose level's entry is larger than a page,
+  is read whole by pages, byte for byte; a level opened between pages makes the cursor stale; CI is
+  green.
+- **Measured.** A page of the journal read on the editor's thread.
 
 ### M6d.9a2 — uwui's MCP library and families
 
@@ -2439,7 +2452,9 @@ start, with the findings of the attack on M6d.9a1b3's design
 - **Crates.** uwui's MCP library, new, named at its start; `slime-mcp`.
 - **Delivers.** The MCP library on `rmcp`, its tools by families, the interface's among them;
   `slime-mcp` on it with the engine's families and its own tools, a program started, assets cooked,
-  tests run.
+  tests run; one way of paging a list for every tool, its cursors passed through untouched, `STALE`
+  given to MCP's clients as −32602
+  ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
 - **Done when.** The engine's MCP session tests pass through the library; a session test of uwui's
   server drives an example; CI is green.
 - **Measured.** The engine's answer through MCP against its figure before.

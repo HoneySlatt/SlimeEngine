@@ -24,9 +24,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - Two tracks at most, the owner's choice of 2026-11-11, each milestone in its own session:
   - Track A, uwui's core, in the main checkout: M6d.9a, cut in five
     ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
-    done, M6d.9a1a to [M6d.9a1b3a](stage-6d.md#m6d9a1b3a--the-interfaces-family-in-uwui), half of
-    M6d.9a1b3 ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)); next,
-    [M6d.9a1b3b](stage-6d.md#m6d9a1b3b--long-lists), long lists.
+    done, M6d.9a1a to [M6d.9a1b3a](stage-6d.md#m6d9a1b3a--the-interfaces-family-in-uwui); in
+    progress, [M6d.9a1b3b1](#m6d9a1b3b1--lists).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5a to M6d.5c3b, done, M6d.5c whole; next,
     [M6d.5d](stage-6d.md#m6d5d--accesskits-translation-in-uwui).
   - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249.
@@ -52,11 +51,24 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b2 — The new wire, requests in flight, events](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a1b3a — The interface's family in uwui](stage-6d.md#m6d9a1b3a--the-interfaces-family-in-uwui) | Done |
-| [M6d.9a1b3b to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a1b3b--long-lists) | Planned |
+| [M6d.9a1b3b1 — Lists](#m6d9a1b3b1--lists) | In progress |
+| [M6d.9a1b3b2 to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a1b3b2--the-editors-journal) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
+
+## M6d.9a1b3b1 — Lists
+
+Started on 2026-11-14.
+
+- **Goal.** Entities, elements and the log read by pages.
+- **Crates.** `uwui-agent`, `uwui`, `slime-world`, `slime-channel`, `slime-app`, `slime-mcp`.
+- **Delivers.** [ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)'s cursor, bounds and cut texts; faults' codes both ways and `STALE`;
+  `world` 2, `interface` 3; the MCP server's lists paged.
+- **Done when.** A list passes an element larger than the tool's line; a world replaced makes its
+  cursor stale; seven agents listing keep the frame's start in budget; CI is green.
+- **Measured.** At rest, with the owner's go: a page of a thousand elements; seven agents' frames.
 
 ## Ideas waiting for their milestone
 

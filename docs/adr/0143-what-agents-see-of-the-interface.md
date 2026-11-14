@@ -7,9 +7,10 @@
   adapter, not from this one); amended by [0146](0146-screen-readers.md) (an element's value, an
   agent's action that sets it, and the changes of the meaning, which the marks give),
   [0156](0156-the-editors-window-and-its-operations.md) (a root named in paths by its key, not its
-  number) and
+  number),
   [0259](0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)
-  (each element named with its target; an element's own style read by agents)
+  (each element named with its target; an element's own style read by agents) and
+  [0260](0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md) (a list of elements by pages, its texts cut)
 - Date: 2026-10-25
 
 ## Context
