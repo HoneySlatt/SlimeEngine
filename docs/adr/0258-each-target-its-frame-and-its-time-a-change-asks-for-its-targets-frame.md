@@ -10,7 +10,7 @@
 
 [ADR-0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)
 cut M6d.5c3 in two. M6d.5c3a gave each target its input and outputs. Its second half, M6d.5c3b
-([`PLAN.md`](../PLAN.md#m6d5c3b--frames-and-times-per-target)), gives each target its own frame,
+([`stage-6d.md`](../stage-6d.md#m6d5c3b--frames-and-times-per-target)), gives each target its own frame,
 its frame's time and its next frame due. [ADR-0227](0227-the-time-that-motion-reads.md) asks for
 one time for each window, read by every root drawn into it.
 [ADR-0251](0251-the-engines-host-clock-and-its-times.md) left one frame's time serving every root

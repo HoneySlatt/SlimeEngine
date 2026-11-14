@@ -162,8 +162,8 @@ in git.
   [M6d.5c1](#m6d5c1--events-and-outputs-on-one-target) and
   [M6d.5c2](#m6d5c2--the-clipboard-and-the-hosts-questions), on 2026-11-13; then
   [M6d.5c3](#m6d5c3--the-targets), cut in two on 2026-11-14 ([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)): done,
-  [M6d.5c3a](#m6d5c3a--input-and-outputs-per-target), on 2026-11-14; in progress,
-  [M6d.5c3b](#m6d5c3b--frames-and-times-per-target); then
+  [M6d.5c3a](#m6d5c3a--input-and-outputs-per-target) and
+  [M6d.5c3b](#m6d5c3b--frames-and-times-per-target), on 2026-11-14, M6d.5c whole; then
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui) and
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
@@ -2028,8 +2028,39 @@ The first half of M6d.5c3 ([ADR-0256](adr/0256-each-root-on-its-target-each-targ
 
 ### M6d.5c3b — Frames and times per target
 
-The second half of M6d.5c3; in progress, its card in
-[`PLAN.md`](PLAN.md#m6d5c3b--frames-and-times-per-target).
+The second half of M6d.5c3 ([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Each target draws its own frames, at its own time.
+- **Crates.** `uwui`, `slime-app`, `slime-editor`, `slime-devui`; track A's interface tests'
+  frames, after a `git fetch`, by the owner's leave (ADR-0259).
+- **Delivers.** `Ui::frame` for one target, which lays out, draws and settles that target's roots
+  alone; each target's frame's time, which its motions and its spinners read
+  ([ADR-0227](adr/0227-the-time-that-motion-reads.md)), the host's latest time kept for deadlines;
+  each target's next frame due and whether it needs a frame; the lists, scrolls, builders asked
+  and motions that wait narrowed to their target; `Ui::display_list` gone.
+- **Done when.** A frame of one target leaves another's changes, motions and spinners for its own
+  frame; two targets at two frame times step their motions each by its own; the editor's and the
+  game's rest and input unchanged; CI is green.
+- **Measured.** Input to present, the editor and the game, with the owner's go on the GPU; the
+  frame of a change of look, against M6d.5c3a's.
+- **Result.** Done on 2026-11-14, CI green
+  ([ADR-0258](adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md);
+  input to present on the GPU, the owner's choice). M6d.5c is done whole:
+  - `Ui::frame(target)` styles, steps, lays out, draws and gathers that target's roots alone;
+    another target's changes, transitions and waiting bars wait for its own frame.
+  - Each target has its frame's time (`Ui::set_frame_shown(target, …)`), kept from the first given,
+    root or not, which its transitions, waiting bars and clockless roots read; deadlines read the
+    latest time given.
+  - Each target notes a change to draw, so that `Ui::needs_frame(target)` asks for its frame after
+    a build, a scroll, a notification, a root moved or another target's frame; each element stores
+    its target. A root or layer moved to another target ends its transitions.
+  - The engine counts the interface's need of a frame only after a frame that drew an image, so
+    that a covered window does not ask at every frame; its rest and input are unchanged, input to
+    present on the GPU as before. The frame of a change of look costs about the same, under its
+    noise ([`measurements.md`](measurements.md#m6d5c3b-frames-and-times-per-target)).
+  - The closing review found three changes that asked for no frame, a notification, less motion and
+    the covered window, each fixed under a test that failed first.
 
 ### M6d.5d — AccessKit's translation in uwui
 

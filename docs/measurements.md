@@ -3869,3 +3869,69 @@ Every job stays within its limit of 20 minutes. `windows (tests)` is the longest
 margin, and `windows-release` keeps 4 min 3 s. The part adds 8 tests, 3 of them uwui's, one of
 which takes the place of a test of `slime-app`'s.
 
+
+## M6d.5c3b, frames and times per target
+
+The frame of a change of look, on 2026-11-14, by `ui.tree.look` in a release build on an AMD Ryzen
+7 5800X, the machine not at rest (another project building, a load falling from 8 to 5): the code
+before, `52e5fe1`, built apart, and after, each target its own frame, run in turn, three times
+each.
+
+| Series | A frame after the look's colours changed, median of 15 | Its transition's 29 frames, together, median of 15 |
+|---|---|---|
+| Before, first | 56.79 ms | 776.43 ms |
+| After, first | 59.58 ms | 871.29 ms |
+| Before, second | 51.00 ms | 672.04 ms |
+| After, second | 51.94 ms | 671.43 ms |
+| Before, third | 50.86 ms | 646.44 ms |
+| After, third | 52.22 ms | 695.43 ms |
+
+Both builds style the same 12,487 elements and allocate the same 109,456 times in the frame of the
+change; the counters of `benches/counters.txt` are unchanged, a frame standing still allocating as
+before. What it says: noting each change on its target and filtering by the element's target may
+cost about 1 ms of the change's 51 ms, under the series' noise of some 6 ms between its first
+rounds. One target alone is measured: the filters on two targets are read to cost one comparison
+for each element waiting, not timed.
+
+Input to present on the GPU, the owner's go, the same day, by `scripts/input-to-present.sh --gpu` on
+the RX 6900 XT, its clock on `high`, in a headless sway at 240 Hz; before and after in turn, twice
+each, the machine's load falling from 4.5 to 1.9, not at rest. The intervals from an input to the
+end of the present of the image after it, before then after, each pair the two series:
+
+| Program | Inputs | Median before | Median after | 99th percentile before | 99th percentile after |
+|---|---|---|---|---|---|
+| The editor, on the yard | apart | 0.71 ms, 0.97 ms | 0.71 ms, 0.70 ms | 13.05 ms, 13.17 ms | 12.87 ms, 1.55 ms |
+| The editor, on the yard | in a row | 12.68 ms, 13.05 ms | 12.37 ms, 12.53 ms | 16.53 ms, 16.67 ms | 16.57 ms, 17.07 ms |
+| *Hunna Wood* | apart | 8.81 ms, 9.35 ms | 8.80 ms, 8.75 ms | 16.48 ms, 16.66 ms | 16.58 ms, 16.42 ms |
+| *Hunna Wood* | in a row | 12.64 ms, 12.94 ms | 12.81 ms, 12.53 ms | 16.86 ms, 17.40 ms | 16.74 ms, 16.56 ms |
+
+What it says: the engine's input reaches its image as before; the editor and the game draw one
+target, and take the path of one. The editor's 99th percentile still passes its frame of 4.17 ms,
+an input waiting for the next frame of a schedule of 60 a second, as at M6c.Q2d
+([`debt.md`](debt.md)); *Hunna Wood* stays within its two frames.
+
+How long CI's jobs took on `d1c795d`, the commits that gave each target its frame, on 2026-11-14,
+run again once track A's run of `52e5fe1` ended (each push to `main` cancels the run before it):
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 22 s |
+| `check (headless)` | 17 min 15 s |
+| `check (windowed)` | 10 min 51 s |
+| `check (game)` | 12 min 5 s |
+| `check (gles)` | 3 min 11 s |
+| `windows (tests)` | 16 min 0 s |
+| `windows (render)` | 7 min 12 s |
+| `windows (game)` | 6 min 49 s |
+| `windows-release` | 11 min 58 s |
+| `compositors (weston)` | 14 min 5 s |
+| `compositors (sway)` | 15 min 35 s |
+| `compositors (kwin)` | 14 min 23 s |
+| `compositors (mutter)` | 10 min 20 s |
+| `compositors (x11)` | 12 min 40 s |
+| Docs' `links` | 23 s |
+
+Every job stays within its limit of 20 minutes. `check (headless)` is the longest, with 2 min 45 s
+of margin, 3 min 21 s longer than at M6d.5c3a: the commit carries M6d.9a1b3a's tests too, and the
+runners' times vary. `windows (tests)` keeps 4 min. The part adds 13 tests of uwui and one of
+`slime-app`'s, in files that existed.
