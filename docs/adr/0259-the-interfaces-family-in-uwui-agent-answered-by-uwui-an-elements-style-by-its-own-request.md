@@ -26,8 +26,8 @@ The facts, read in the repository on 2026-11-14:
   them from `Ui`, and crops a capture from its frame's image. `ElementSummary` and
   `InterfaceAction` are `slime-channel`'s types.
 - `OwnStyle::places` gives the place of each call that wrote an element's own style; nothing reads
-  it. Each declaration keeps its field, written as a style sheet writes it (`padding.top`), its
-  state, the token that it names, if any, and its place.
+  it. Each declaration keeps its field, written as a style sheet writes it
+  (`layout.padding.start`), its state, the token that it names, if any, and its place.
 - A place is the compiler's: relative to the workspace for its members, absolute for other crates,
   so it may hold a person's home folder.
 - `slime-channel` sends every refusal as `REFUSED`, and its tool reads every fault as a refusal:
@@ -84,7 +84,7 @@ the `Ui` that answers it.
 **An element's own style is read by a request of its own,** `interface/style`, given an element's
 path. Its answer groups the declarations by place, in the order of the calls. Each place has its
 file, line and column. Each declaration has:
-- its field, as a style sheet writes it: `padding.top`;
+- its field, as a style sheet writes it: `layout.padding.start`;
 - its state, none for the base;
 - the token that it names, if any, so that an agent changes the theme rather than the code.
 
@@ -164,8 +164,8 @@ The targets:
   names their crates.
 - A new edge in the crates' graph: `uwui` to `uwui-agent`, behind `agents`
   ([`ARCHITECTURE.md`](../ARCHITECTURE.md), [`dependencies.md`](../dependencies.md)).
-- The interface's tests of `slime-app`'s channel move into `uwui`'s module. M6d.5c3b changes their
-  frames there, not in `channel.rs`.
+- The interface's tests of `slime-app`'s channel move into `uwui`'s module. A small test of the
+  family's carrying stays in `channel.rs`. M6d.5c3b changes the frames of both.
 - `OwnStyle::places` has its first reader.
 - The game built for shipping is checked free of `agents`, and the check of its development
   channel no longer passes when `cargo` fails.
