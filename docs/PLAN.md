@@ -26,8 +26,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
     ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
     done, M6d.9a1a to [M6d.9a1b3a](stage-6d.md#m6d9a1b3a--the-interfaces-family-in-uwui); in
     progress, [M6d.9a1b3b1](#m6d9a1b3b1--lists).
-  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5a to M6d.5c3b, done, M6d.5c whole; next,
-    [M6d.5d](stage-6d.md#m6d5d--accesskits-translation-in-uwui).
+  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5a to M6d.5c3b, done, M6d.5c whole; in progress,
+    [M6d.5d](#m6d5d--accesskits-translation-in-uwui).
   - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249.
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
@@ -45,7 +45,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.0a to M6d.3c3, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.4a to M6d.4b2 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
 | [M6d.5a to M6d.5c3b — The host's API, its first parts](stage-6d.md#m6d5--the-hosts-api) | Done |
-| [M6d.5d to M6d.5e — The rest of M6d.5](stage-6d.md#m6d5d--accesskits-translation-in-uwui) | Planned |
+| [M6d.5d — AccessKit's translation in uwui](#m6d5d--accesskits-translation-in-uwui) | In progress |
+| [M6d.5e — slime-app a host through the API alone](stage-6d.md#m6d5e--slime-app-a-host-through-the-api-alone) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
@@ -69,6 +70,22 @@ Started on 2026-11-14.
 - **Done when.** A list passes an element larger than the tool's line; a world replaced makes its
   cursor stale; seven agents listing keep the frame's start in budget; CI is green.
 - **Measured.** At rest, with the owner's go: a page of a thousand elements; seven agents' frames.
+
+## M6d.5d — AccessKit's translation in uwui
+
+Started on 2026-11-14, the fourth part of M6d.5
+([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)). It follows the rules
+of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Any host of uwui gives screen readers its tree through one crate of uwui's.
+- **Crates.** `uwui-accesskit`, new, its name M6d.10's; `uwui`; `slime-app`.
+- **Delivers.** `slime-app`'s translation and its tests moved into the crate, over uwui's public
+  meaning; each reader of meaning following its own changes, the agents' among them; late answers
+  to a screen reader numbered; `accesskit` moved from `slime-app` to the crate.
+- **Done when.** The translation's tests pass in the crate; `scripts/screen-reader-check.sh`
+  passes; `slime-app` holds no translation; CI is green.
+- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **Measured.** The crate's compiling time.
 
 ## Ideas waiting for their milestone
 

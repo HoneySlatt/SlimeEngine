@@ -166,8 +166,8 @@ in git.
   [M6d.5c2](#m6d5c2--the-clipboard-and-the-hosts-questions), on 2026-11-13; then
   [M6d.5c3](#m6d5c3--the-targets), cut in two on 2026-11-14 ([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)): done,
   [M6d.5c3a](#m6d5c3a--input-and-outputs-per-target) and
-  [M6d.5c3b](#m6d5c3b--frames-and-times-per-target), on 2026-11-14, M6d.5c whole; then
-  [M6d.5d](#m6d5d--accesskits-translation-in-uwui) and
+  [M6d.5c3b](#m6d5c3b--frames-and-times-per-target), on 2026-11-14, M6d.5c whole; in progress,
+  [M6d.5d](#m6d5d--accesskits-translation-in-uwui); then
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
@@ -2067,15 +2067,7 @@ The second half of M6d.5c3 ([ADR-0256](adr/0256-each-root-on-its-target-each-tar
 
 ### M6d.5d — AccessKit's translation in uwui
 
-- **Goal.** Any host of uwui gives screen readers its tree through one crate of uwui's.
-- **Crates.** `uwui-accesskit`, new, its name M6d.10's; `uwui`; `slime-app`.
-- **Delivers.** `slime-app`'s translation and its tests moved into the crate, over uwui's public
-  meaning; each reader of meaning following its own changes, the agents' among them; late answers
-  to a screen reader numbered; `accesskit` moved from `slime-app` to the crate.
-- **Done when.** The translation's tests pass in the crate; `scripts/screen-reader-check.sh`
-  passes; `slime-app` holds no translation; CI is green.
-- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
-- **Measured.** The crate's compiling time.
+In progress, its card in [`PLAN.md`](PLAN.md#m6d5d--accesskits-translation-in-uwui).
 
 ### M6d.5e — slime-app a host through the API alone
 
