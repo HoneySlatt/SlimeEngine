@@ -124,6 +124,22 @@ The editor and games change their interfaces in two ways that applications rarel
 | Services of files, settings, the network and long work, the same on every platform, the web and the phones included | The editor's and the tools' files and settings, and their long work, written once for every platform, as uwui's budget of porting asks ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)) | Indispensable: uwui's 1.0 | Yes: weighed at M6d.10 |
 | Semantic versioning kept strictly after uwui's 1.0 | The engine's façade, stable after its own 1.0 ([ADR-0207](adr/0207-what-slimeengine-is-to-become.md)) | Indispensable: the engine's 1.0 | Yes |
 
+### What the owner's shell and compositor ask
+
+Not the engine's: since [ADR-0266](adr/0266-uwui-targets-the-owners-shell-its-lock-and-login-screens-and-what-yuna-draws.md),
+uwui draws the owner's shell, Hollow, its lock and login screens, and the interfaces that the
+compositor Yuna draws itself. Kept here, beside the engine's, as uwui's general needs of hosts;
+Yuna's side is its ADR-0063.
+
+| Need | Its use | Mark | In uwui's requirements |
+|---|---|---|---|
+| A surface of Wayland's layer shell as a target: its layer, its anchors, its exclusive zone, its keyboard's interactivity | Hollow's bar and panels | Indispensable: Hollow | New |
+| A surface of the session lock as a target, one for each output, its input alone while locked | Hollow's lock screen | Indispensable: Hollow | New |
+| A host that lends a Vulkan device of its own, its queue and its targets, rather than a wgpu device | Yuna's own interfaces drawn on its Vulkan device | Indispensable: Yuna | New: `uwui-render` takes a wgpu device today |
+| A failure of uwui inside a host caught and recovered from: the interface dropped and built again, the host going on | Yuna, which a fault of its interfaces must never take down | Indispensable: Yuna | New |
+| uwui's time in each frame of a host counted and checked in CI | Yuna's frame budget | Indispensable: Yuna | Precision: the counters exist ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)); a host's frame budget is to say |
+| Nothing drawn, nor asked of the GPU, while the host shows a game in full screen and no interface is open | Yuna over a game | Indispensable: Yuna | Precision: rest at zero is uwui's; a host that holds it whole is to say |
+
 ## SlimeEngine's own
 
 These stay in the engine. They ask uwui only for the general needs above.

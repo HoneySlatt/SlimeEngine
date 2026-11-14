@@ -267,7 +267,7 @@ the ADR linking to it.
 | [0196](0196-checks-by-hand-on-macos.md) | Checks by hand on macOS | Accepted; amended by 0213 and 0233 |
 | [0197](0197-uwuis-repository-public-from-now.md) | uwui's repository, public from now | Accepted; amends 0181 and 0190 |
 | [0198](0198-screens-of-reference-and-the-rivals-measured.md) | The screens of reference and the rivals measured | Accepted; amends 0181 and 0194; amended by 0199, 0200, 0201, 0203 and 0213 |
-| [0199](0199-uwuis-targets-tools-and-references-narrowed.md) | uwui's targets, tools and references narrowed | Accepted; amends 0190 and 0198; amended by 0202, 0203 and 0213 |
+| [0199](0199-uwuis-targets-tools-and-references-narrowed.md) | uwui's targets, tools and references narrowed | Accepted; amends 0190 and 0198; amended by 0202, 0203, 0213 and 0266 |
 | [0200](0200-applications-measured-from-outside.md) | Applications measured from outside | Accepted; amends 0191 and 0198; amended by 0201 |
 | [0201](0201-the-rivals-narrowed.md) | The rivals narrowed | Accepted; amends 0198 and 0200 |
 | [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) | How M6d.1 compares ways of writing an application | Accepted; amends 0190, 0194 and 0199; amended by 0204, 0210 and 0212 |
@@ -334,3 +334,4 @@ the ADR linking to it.
 | [0263](0263-the-cursor-of-elements-anchored-on-its-next-sibling-what-a-list-may-skip-the-slots-read.md) | The cursor of elements anchored on its next sibling; what a list may skip; the slots read | Accepted; amends 0260 |
 | [0264](0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md) | The lifecycle before each target's size; a lost surface made again within a budget; M6d.5e cut in two | Accepted; amends 0025, 0187, 0248, 0249 and 0256 |
 | [0265](0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md) | The editor's journal read by pages: its number drawn by the journal, pages of whole entries in bytes, read on the editor's thread, bytes not UTF-8 replaced and marked | Accepted; amends 0250 and 0260 |
+| [0266](0266-uwui-targets-the-owners-shell-its-lock-and-login-screens-and-what-yuna-draws.md) | uwui targets the owner's shell, its lock and login screens, and what Yuna draws | Accepted; amends 0199 |

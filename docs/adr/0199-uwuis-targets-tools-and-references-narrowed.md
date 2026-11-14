@@ -7,8 +7,9 @@
   and M6d.0b's measures widened); amended by
   [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) (the references read, not
   written again), [0203](0203-pilots-replaced-pluto-and-a-daw.md) (the pilots that `uwui bundle` and updates
-  wait for) and [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (`uwui bundle` packages
-  macOS)
+  wait for), [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (`uwui bundle` packages
+  macOS) and [0266](0266-uwui-targets-the-owners-shell-its-lock-and-login-screens-and-what-yuna-draws.md) (the owner's shell, its lock and login screens and what Yuna draws are
+  targets again)
 - Date: 2026-11-06
 
 ## Context
