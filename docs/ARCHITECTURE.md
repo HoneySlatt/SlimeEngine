@@ -1850,28 +1850,35 @@ element_style → interface/style     uwui::agents: the places of the calls that
 
 Built with `slime-app`'s `accessibility` feature, a windowed run gives screen readers the tree of
 its window through AccessKit's adapter, which `slime-platform` makes before the window shows
-([ADR-0146](adr/0146-screen-readers.md)). The interface marks each element whose meaning changes,
-and gives what changed in its own types; `slime-app` alone translates them:
+([ADR-0146](adr/0146-screen-readers.md)). The interface marks each element whose meaning changes
+for each *reader of meaning* of its target, the window's among them, and gives each reader what
+changed in its own types ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)); `slime-app` alone translates
+them:
 
 ```text
 a screen reader begins to read          the adapter, from its own thread → Event::Accessibility
                                         (TreeRequested), delivered on the event loop's thread
-slime-app                               ui.take_meaning_changes(whole): every element that means
-                                        something → AccessKit's update, the window's node at the
-                                        root; Window::update_accessibility
-each frame drawn, while one reads       ui.take_meaning_changes: the elements marked since, each
-                                        with its children, a field with its runs of text; the
-                                        window's node when the top or the size changed
+slime-app                               ui.add_meaning_reader(target) at the first update, then
+                                        ui.take_meaning_changes(reader, whole): every element of
+                                        the target that means something → AccessKit's update, the
+                                        window's node at the root; Window::update_accessibility
+each frame drawn, while one reads       ui.take_meaning_changes(reader, false): the elements
+                                        marked since, each with its children, a field with its
+                                        runs of text; the window's node when the top or the size
+                                        changed
 the event loop                          gives the adapter the updates once the handler's call returns
 a screen reader asks: a click, the      Event::Accessibility(Action) → slime-app: the element found
-focus, a value, a selection, a scroll   by its number, then ui.act, ui.set_focus, ui.set_value,
-                                        ui.select_text or ui.scroll_to, as a person's input
+focus, a value, a selection, a scroll   by its number, on the window's tree and target, then
+                                        ui.act, ui.set_focus, ui.set_value, ui.select_text or
+                                        ui.scroll_to, as a person's input
+no screen reader reads any more         Event::Accessibility(Deactivated) → slime-app lets its
+                                        reader go
 ```
 
 An element is marked as its role, name, value, states, actions, bounds or children change, and the
 element above it that means something when it comes, goes, or comes to mean something or nothing;
-a modal root opened or closed makes the next changes whole. No screen reader, no update: the
-adapter does nothing, and the marks that no one takes are kept within a bound, past which the next
+a modal root opened or closed makes its target's next changes whole. No screen reader, no reader
+and no mark; the marks that a reader does not take are kept within a bound, past which its next
 changes are whole.
 
 ### Drawing an interface

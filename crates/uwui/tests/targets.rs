@@ -703,19 +703,22 @@ fn a_known_target_without_roots_takes_a_release_whose_press_it_took_and_its_shor
 }
 
 #[test]
-fn the_meaning_and_the_program_follow_the_active_target() {
+fn each_tree_of_meaning_tells_its_targets_focus_and_the_program_follows_the_active_target() {
     let Two { mut ui, fields, .. } = two_targets();
     assert!(click(&mut ui, A, 50.0, 60.0));
     assert!(click(&mut ui, B, 50.0, 60.0));
-    let number = |ui: &mut Ui, id: ElementId| {
-        ui.take_meaning_changes(true)
+    // Each window's tree tells its own focus, whichever target is active.
+    for (target, field) in [(A, fields[0]), (B, fields[1])] {
+        let reader = ui.add_meaning_reader(target).expect("a reader");
+        let changes = ui.take_meaning_changes(reader, true).expect("its changes");
+        let number = changes
             .nodes
             .iter()
-            .find(|node| node.meaning.id == id)
-            .map(|node| node.number)
-    };
-    let b = number(&mut ui, fields[1]);
-    assert_eq!(ui.take_meaning_changes(true).focus, b);
+            .find(|node| node.meaning.id == field)
+            .map(|node| node.number);
+        assert!(number.is_some());
+        assert_eq!(changes.focus, number);
+    }
     // The program's focus on `a`'s field does not make `a` active.
     ui.set_focus(Some(fields[0]));
     assert_eq!(ui.active_target(), B);

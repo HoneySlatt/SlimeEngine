@@ -983,9 +983,14 @@ program ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md),
 agent or a screen reader: each element that a person reads or uses, its *role*, its name, a
 field's value, its states, the actions it takes now, where it shows and its *path*; made when asked
 (`Ui::meaning`, [ADR-0143](adr/0143-what-agents-see-of-the-interface.md)). What changed in it since
-it was last taken is given element by element, each marked as its meaning changes and named by a
-number that the interface never gives again (`Ui::take_meaning_changes`,
-[ADR-0146](adr/0146-screen-readers.md)).
+it was last taken is given to each *reader of meaning*, element by element, each marked as its
+meaning changes and named by a number that the interface never gives again
+(`Ui::take_meaning_changes`, [ADR-0146](adr/0146-screen-readers.md)).
+
+**Reader of meaning.** One reader of what a target's part of an interface means, a screen
+reader's window, and an agent's session from M6d.9a2, which follows its own changes: the interface keeps its
+marks apart from every other reader's (`Ui::add_meaning_reader`,
+[ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)).
 
 **Menu bar.** The row of an interface's menus, *File*, *View*, whose items open them below; the
 keys move along it and between its menus, and F10 or Alt alone reaches it (`Element::menu_bar`,

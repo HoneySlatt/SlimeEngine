@@ -2,9 +2,9 @@
 //! the window, and what they ask of it given back to the interface
 //! (`docs/adr/0146-screen-readers.md`).
 //!
-//! The interface gives what changed in its meaning in the engine's own types
-//! ([`Ui::take_meaning_changes`]); this module alone translates them into AccessKit's tree, whose
-//! types stay out of `uwui`.
+//! The interface gives what changed in its meaning in the engine's own types, to a reader of its
+//! own ([`Ui::take_meaning_changes`]); this module alone translates them into AccessKit's tree,
+//! whose types stay out of `uwui`.
 
 use accesskit::{
     Action as AccessAction, ActionData, ActionRequest, HasPopup, Live, Node, NodeId,
@@ -14,8 +14,10 @@ use accesskit::{
 use slime_platform::{Accessibility, PhysicalSize, Window};
 use uwui::Rect;
 use uwui::action::{Action, ActionKind};
+use uwui::host::TargetId;
 use uwui::tree::{
-    ElementAction, ElementId, FieldText, LayoutDirection, MeaningChanges, MeaningNode, Role, Ui,
+    ElementAction, ElementId, FieldText, LayoutDirection, MeaningChanges, MeaningNode,
+    MeaningReader, Role, Ui,
 };
 
 /// The node of the window, the root of the tree, which no element's number names: theirs start at
@@ -27,6 +29,14 @@ const SCROLL_ITEM: f32 = 40.0;
 
 /// What screen readers read of a window: whether one does, and what the window's node holds.
 pub(crate) struct ScreenReaders {
+    /// The target that the window shows, whose part of the interface its tree holds.
+    target: TargetId,
+    /// The window's reader of the interface's meaning, while a screen reader reads the window:
+    /// made at its first update, let go when no screen reader reads, so that the interface keeps
+    /// no changes for it otherwise.
+    reader: Option<MeaningReader>,
+    /// Whether the interface refused the window a reader, which is told once.
+    refused: bool,
     /// The window's title, its node's name.
     title: String,
     /// Whether a screen reader reads the window: from the tree it asked for until it no longer
@@ -45,6 +55,9 @@ impl ScreenReaders {
     /// No screen reader reads a window of `title` yet.
     pub(crate) fn new(title: &str) -> Self {
         Self {
+            target: TargetId::MAIN,
+            reader: None,
+            refused: false,
             title: title.to_owned(),
             active: false,
             whole: true,
@@ -66,12 +79,23 @@ impl ScreenReaders {
                 self.whole = true;
                 self.update(window, ui);
             }
-            Accessibility::Deactivated => self.active = false,
+            Accessibility::Deactivated => self.deactivated(ui),
             Accessibility::Action(request) => {
                 if let Some(ui) = ui {
-                    act(ui, request);
+                    act(ui, self.target, request);
                 }
             }
+        }
+    }
+
+    /// No screen reader reads the window any more: the interface, `ui`, keeps no changes for it.
+    fn deactivated(&mut self, ui: Option<&mut Ui>) {
+        self.active = false;
+        // Without the interface, the window keeps its reader, to read again or let go later.
+        if let Some(ui) = ui
+            && let Some(reader) = self.reader.take()
+        {
+            ui.remove_meaning_reader(reader);
         }
     }
 
@@ -93,7 +117,7 @@ impl ScreenReaders {
         let whole = std::mem::take(&mut self.whole) || ui.is_some() != self.had_interface;
         self.had_interface = ui.is_some();
         let changes = match ui {
-            Some(ui) => ui.take_meaning_changes(whole),
+            Some(ui) => self.changes(ui, whole)?,
             None => MeaningChanges {
                 whole,
                 nodes: Vec::new(),
@@ -102,6 +126,29 @@ impl ScreenReaders {
             },
         };
         Some(self.translate(changes, size))
+    }
+
+    /// What changed in `ui`'s meaning for the window's reader, whole for `whole`: the whole tree
+    /// through a new reader at the first update, or once the interface is another, whose readers
+    /// are its own. None where the interface holds as many readers as it can.
+    fn changes(&mut self, ui: &mut Ui, whole: bool) -> Option<MeaningChanges> {
+        if let Some(changes) = self
+            .reader
+            .and_then(|reader| ui.take_meaning_changes(reader, whole))
+        {
+            return Some(changes);
+        }
+        let Some(reader) = ui.add_meaning_reader(self.target) else {
+            if !std::mem::replace(&mut self.refused, true) {
+                tracing::warn!(
+                    "the interface holds as many readers of meaning as it can: no screen reader \
+                     reads the window"
+                );
+            }
+            return None;
+        };
+        self.reader = Some(reader);
+        ui.take_meaning_changes(reader, true)
     }
 
     /// `changes` as AccessKit's update, the window's content area of `size`: the window's node
@@ -400,12 +447,25 @@ fn rect(rect: Rect) -> AccessRect {
 
 /// Does what `request` asks of the element it names in `ui`, through the interface's calls, as a
 /// person's input or an agent's actions do: a press, the focus, a value or a selection set, a
-/// scroll. What names no element, or asks what the element does not take now, is left out.
-fn act(ui: &mut Ui, request: &ActionRequest) {
+/// scroll. What names another tree than the window's, an element that the window's target, `target`,
+/// does not draw, or no element, or asks what the element does not take now, is left out: a screen
+/// reader may ask on a tree older than the window's last, whose element has moved since to another
+/// window
+/// (`docs/adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md`).
+fn act(ui: &mut Ui, target: TargetId, request: &ActionRequest) {
     tracing::debug!(?request, "a screen reader asks");
+    if request.target_tree != TreeId::ROOT {
+        return;
+    }
     let Some((id, None)) = ui.element_by_number(request.target_node.0) else {
         return;
     };
+    if ui
+        .root_settings(id)
+        .is_none_or(|settings| settings.target != target)
+    {
+        return;
+    }
     let takes = |ui: &Ui, wanted: ElementAction| {
         ui.meaning_of(id)
             .is_some_and(|meaning| meaning.actions.contains(&wanted))
@@ -534,6 +594,23 @@ mod tests {
 
     use super::*;
 
+    impl ScreenReaders {
+        /// The update of what changed in `ui` for the window's reader, as a frame gives it, for
+        /// a window of `size`.
+        fn read(&mut self, ui: &mut Ui, whole: bool, size: PhysicalSize) -> TreeUpdate {
+            let changes = self.changes(ui, whole).expect("a reader");
+            self.translate(changes, size)
+        }
+    }
+
+    /// The whole of what `ui`'s main target means, through a reader of its own, let go then.
+    fn whole(ui: &mut Ui) -> MeaningChanges {
+        let reader = ui.add_meaning_reader(TargetId::MAIN).expect("a reader");
+        let changes = ui.take_meaning_changes(reader, true).expect("its changes");
+        ui.remove_meaning_reader(reader);
+        changes
+    }
+
     /// An interface of no element, whose texts are laid out in the font of uwui's tests, and
     /// its root, of 400 by 300 logical pixels at scale 1.
     fn empty() -> (Ui, ElementId) {
@@ -614,7 +691,7 @@ mod tests {
     fn the_whole_tree_is_the_window_holding_what_the_interface_means() {
         let (mut ui, _) = interface();
         let mut readers = ScreenReaders::new("Example");
-        let update = readers.translate(ui.take_meaning_changes(true), SIZE);
+        let update = readers.read(&mut ui, true, SIZE);
         let tree = Tree::new(update, true);
         let state = tree.state();
         let window = state.root();
@@ -649,14 +726,14 @@ mod tests {
     fn an_update_holds_what_changed_alone_and_keeps_the_tree_whole() {
         let (mut ui, root) = interface();
         let mut readers = ScreenReaders::new("Example");
-        let mut tree = Tree::new(readers.translate(ui.take_meaning_changes(true), SIZE), true);
+        let mut tree = Tree::new(readers.read(&mut ui, true, SIZE), true);
         // Nothing changed: an update of nothing but the focus.
-        let update = readers.translate(ui.take_meaning_changes(false), SIZE);
+        let update = readers.read(&mut ui, false, SIZE);
         assert!(update.nodes.is_empty());
         // The text's words changed: that node alone.
         build(&mut ui, root, "saved at last");
         ui.frame(uwui::host::TargetId::MAIN);
-        let update = readers.translate(ui.take_meaning_changes(false), SIZE);
+        let update = readers.read(&mut ui, false, SIZE);
         assert_eq!(update.nodes.len(), 1);
         assert_eq!(update.nodes[0].1.value(), Some("saved at last"));
         let mut changes = Changes::default();
@@ -685,10 +762,7 @@ mod tests {
             });
         });
         ui.frame(uwui::host::TargetId::MAIN);
-        tree.update_and_process_changes(
-            readers.translate(ui.take_meaning_changes(false), SIZE),
-            &mut changes,
-        );
+        tree.update_and_process_changes(readers.read(&mut ui, false, SIZE), &mut changes);
         let top: Vec<Option<String>> = tree
             .state()
             .root()
@@ -698,17 +772,14 @@ mod tests {
         assert_eq!(top, [Some("Open".to_owned()), Some("Save".to_owned())]);
         build(&mut ui, root, "saved at last");
         ui.frame(uwui::host::TargetId::MAIN);
-        tree.update_and_process_changes(
-            readers.translate(ui.take_meaning_changes(false), SIZE),
-            &mut changes,
-        );
+        tree.update_and_process_changes(readers.read(&mut ui, false, SIZE), &mut changes);
         assert_eq!(tree.state().root().children().count(), 3);
         // The window resized: its node, with the elements it holds.
         let larger = PhysicalSize {
             width: 800,
             height: 600,
         };
-        let update = readers.translate(ui.take_meaning_changes(false), larger);
+        let update = readers.read(&mut ui, false, larger);
         assert_eq!(update.nodes.len(), 1);
         tree.update_and_process_changes(update, &mut changes);
         assert_eq!(tree.state().root().children().count(), 3);
@@ -719,7 +790,7 @@ mod tests {
         let (mut ui, _) = interface();
         let save = ui.element_by_path("main/page/bar/save").expect("built");
         let name = ui.element_by_path("main/page/name").expect("built");
-        let changes = ui.take_meaning_changes(true);
+        let changes = whole(&mut ui);
         let number = |id: ElementId| {
             changes
                 .nodes
@@ -735,7 +806,11 @@ mod tests {
             data,
         };
         // A click presses the button, which the program reads.
-        act(&mut ui, &request(number(save), AccessAction::Click, None));
+        act(
+            &mut ui,
+            TargetId::MAIN,
+            &request(number(save), AccessAction::Click, None),
+        );
         let kinds: Vec<ActionKind> = ui
             .take_actions()
             .into_iter()
@@ -743,11 +818,16 @@ mod tests {
             .collect();
         assert_eq!(kinds, [ActionKind::Press]);
         // The focus, then a value set: changed and committed.
-        act(&mut ui, &request(number(name), AccessAction::Focus, None));
+        act(
+            &mut ui,
+            TargetId::MAIN,
+            &request(number(name), AccessAction::Focus, None),
+        );
         assert_eq!(ui.focus(), Some(name));
         let value = Some(ActionData::Value("Grace".into()));
         act(
             &mut ui,
+            TargetId::MAIN,
             &request(number(name), AccessAction::SetValue, value),
         );
         assert_eq!(ui.field_text(name), Some("Grace"));
@@ -769,13 +849,22 @@ mod tests {
         let data = Some(ActionData::SetTextSelection(selection));
         act(
             &mut ui,
+            TargetId::MAIN,
             &request(number(name), AccessAction::SetTextSelection, data),
         );
         let text = ui.field_runs(name).expect("a field");
         assert_eq!((text.anchor, text.focus), ((0, 1), (0, 5)));
         // The window's node, and a number that names nothing: left out.
-        act(&mut ui, &request(WINDOW, AccessAction::Click, None));
-        act(&mut ui, &request(NodeId(9_999), AccessAction::Click, None));
+        act(
+            &mut ui,
+            TargetId::MAIN,
+            &request(WINDOW, AccessAction::Click, None),
+        );
+        act(
+            &mut ui,
+            TargetId::MAIN,
+            &request(NodeId(9_999), AccessAction::Click, None),
+        );
         assert!(ui.take_actions().is_empty());
     }
 
@@ -811,7 +900,7 @@ mod tests {
     fn a_modal_root_gives_a_whole_update_that_the_tree_takes() {
         let (mut ui, _) = interface();
         let mut readers = ScreenReaders::new("Example");
-        let mut tree = Tree::new(readers.translate(ui.take_meaning_changes(true), SIZE), true);
+        let mut tree = Tree::new(readers.read(&mut ui, true, SIZE), true);
         let settings = RootSettings {
             size: [200.0, 100.0],
             scale: 1.0,
@@ -828,7 +917,7 @@ mod tests {
             });
         });
         ui.frame(uwui::host::TargetId::MAIN);
-        let update = readers.translate(ui.take_meaning_changes(false), SIZE);
+        let update = readers.read(&mut ui, false, SIZE);
         assert!(update.tree.is_some(), "whole");
         let mut changes = Changes::default();
         tree.update_and_process_changes(update, &mut changes);
@@ -855,8 +944,7 @@ mod tests {
         state.disabled = true;
         ui.set_state(save, state);
         ui.frame(uwui::host::TargetId::MAIN);
-        let number = ui
-            .take_meaning_changes(true)
+        let number = whole(&mut ui)
             .nodes
             .into_iter()
             .find(|node| node.meaning.id == save)
@@ -870,7 +958,7 @@ mod tests {
                 target_node: number,
                 data: None,
             };
-            act(&mut ui, &request);
+            act(&mut ui, TargetId::MAIN, &request);
         }
         assert!(ui.take_actions().is_empty());
         assert_eq!(ui.focus(), focus);
@@ -920,7 +1008,7 @@ mod tests {
         ui.frame(uwui::host::TargetId::MAIN);
         let (area, scroll) = (area.expect("built"), scroll.expect("built"));
         let number = |ui: &mut Ui, id: ElementId| {
-            ui.take_meaning_changes(true)
+            whole(ui)
                 .nodes
                 .into_iter()
                 .find(|node| node.meaning.id == id)
@@ -949,6 +1037,7 @@ mod tests {
         };
         act(
             &mut ui,
+            TargetId::MAIN,
             &request(
                 target,
                 AccessAction::SetTextSelection,
@@ -963,10 +1052,15 @@ mod tests {
         let item = Some(ActionData::ScrollUnit(ScrollUnit::Item));
         act(
             &mut ui,
+            TargetId::MAIN,
             &request(target, AccessAction::ScrollLeft, item.clone()),
         );
         assert_eq!(ui.scroll(scroll), Some([SCROLL_ITEM, 0.0]));
-        act(&mut ui, &request(target, AccessAction::ScrollRight, item));
+        act(
+            &mut ui,
+            TargetId::MAIN,
+            &request(target, AccessAction::ScrollRight, item),
+        );
         assert_eq!(ui.scroll(scroll), Some([0.0, 0.0]));
     }
 
@@ -1036,7 +1130,7 @@ mod tests {
         });
         ui.frame(uwui::host::TargetId::MAIN);
         let mut readers = ScreenReaders::new("Example");
-        let changes = ui.take_meaning_changes(true);
+        let changes = whole(&mut ui);
         let numbers: Vec<(ElementId, NodeId)> = changes
             .nodes
             .iter()
@@ -1100,13 +1194,29 @@ mod tests {
             target_node: number(id),
             data: None,
         };
-        act(&mut ui, &request(slider, AccessAction::Increment));
+        act(
+            &mut ui,
+            TargetId::MAIN,
+            &request(slider, AccessAction::Increment),
+        );
         assert_eq!(ui.slider_value(slider), Some(0.6));
-        act(&mut ui, &request(check, AccessAction::Click));
+        act(
+            &mut ui,
+            TargetId::MAIN,
+            &request(check, AccessAction::Click),
+        );
         assert!(!ui.state(check).expect("there").checked);
-        act(&mut ui, &request(section, AccessAction::Expand));
+        act(
+            &mut ui,
+            TargetId::MAIN,
+            &request(section, AccessAction::Expand),
+        );
         assert!(ui.state(section).expect("there").expanded);
-        act(&mut ui, &request(scene, AccessAction::Click));
+        act(
+            &mut ui,
+            TargetId::MAIN,
+            &request(scene, AccessAction::Click),
+        );
         assert_eq!(ui.chosen(bar), Some(0));
         // The program reads the slider's change and the check box's, each committed.
         let kinds: Vec<ActionKind> = ui
@@ -1163,7 +1273,7 @@ mod tests {
         });
         ui.frame(uwui::host::TargetId::MAIN);
         let mut readers = ScreenReaders::new("Example");
-        let changes = ui.take_meaning_changes(true);
+        let changes = whole(&mut ui);
         let numbers: Vec<(ElementId, NodeId)> = changes
             .nodes
             .iter()
@@ -1209,6 +1319,7 @@ mod tests {
             .expect("an element");
         act(
             &mut ui,
+            TargetId::MAIN,
             &ActionRequest {
                 action: AccessAction::SetValue,
                 target_tree: TreeId::ROOT,
@@ -1226,6 +1337,7 @@ mod tests {
             .expect("an element");
         act(
             &mut ui,
+            TargetId::MAIN,
             &ActionRequest {
                 action: AccessAction::SetValue,
                 target_tree: TreeId::ROOT,
@@ -1273,7 +1385,7 @@ mod tests {
         ui.set_state(items[0], state);
         ui.frame(uwui::host::TargetId::MAIN);
         let mut readers = ScreenReaders::new("Example");
-        let changes = ui.take_meaning_changes(true);
+        let changes = whole(&mut ui);
         let second = changes
             .nodes
             .iter()
@@ -1307,6 +1419,7 @@ mod tests {
         // A screen reader asks for the second item shown: the list scrolls as little as shows it.
         act(
             &mut ui,
+            TargetId::MAIN,
             &ActionRequest {
                 action: AccessAction::ScrollIntoView,
                 target_tree: TreeId::ROOT,
@@ -1343,7 +1456,7 @@ mod tests {
         });
         ui.frame(uwui::host::TargetId::MAIN);
         let mut readers = ScreenReaders::new("Example");
-        let tree = Tree::new(readers.translate(ui.take_meaning_changes(true), SIZE), true);
+        let tree = Tree::new(readers.read(&mut ui, true, SIZE), true);
         let state = tree.state();
         let nodes: Vec<_> = state.root().children().collect();
         let roles: Vec<AccessRole> = nodes.iter().map(|node| node.role()).collect();
@@ -1389,7 +1502,7 @@ mod tests {
         });
         ui.frame(uwui::host::TargetId::MAIN);
         let mut readers = ScreenReaders::new("Example");
-        let tree = Tree::new(readers.translate(ui.take_meaning_changes(true), SIZE), true);
+        let tree = Tree::new(readers.read(&mut ui, true, SIZE), true);
         let state = tree.state();
         let nodes: Vec<_> = state.root().children().collect();
         let read: Vec<(AccessRole, Option<Live>)> = nodes
@@ -1403,5 +1516,156 @@ mod tests {
                 (AccessRole::Alert, Some(Live::Assertive))
             ]
         );
+    }
+
+    #[test]
+    fn a_request_on_another_tree_or_on_another_window_s_element_does_nothing() {
+        let (mut ui, _) = interface();
+        let other = uwui::host::TargetId(1);
+        let root = ui.add_root(
+            "other",
+            RootSettings {
+                target: other,
+                ..ui.root_settings(ui.element_by_path("main").expect("built"))
+                    .expect("a root")
+            },
+            |s| s,
+        );
+        ui.build(root, 1, |children| {
+            let button = Element::button("Go").style(|s| s.width(Dimension::Pixels(100.0)));
+            children.add("go", button, |_| {});
+        });
+        ui.frame(other);
+        let numbers = |ui: &mut Ui, target| {
+            let reader = ui.add_meaning_reader(target).expect("a reader");
+            let changes = ui.take_meaning_changes(reader, true).expect("its changes");
+            ui.remove_meaning_reader(reader);
+            changes
+                .nodes
+                .into_iter()
+                .filter(|node| node.meaning.role == Role::Button)
+                .map(|node| NodeId(node.number))
+                .collect::<Vec<_>>()
+        };
+        let go = numbers(&mut ui, other)[0];
+        let save = numbers(&mut ui, TargetId::MAIN)[1];
+        let click = |node, tree| ActionRequest {
+            action: AccessAction::Click,
+            target_tree: tree,
+            target_node: node,
+            data: None,
+        };
+        // The main window's reader takes no request on the other window's button, nor on a
+        // tree of another id.
+        act(&mut ui, TargetId::MAIN, &click(go, TreeId::ROOT));
+        let elsewhere = TreeId(accesskit::Uuid::from_u128(1));
+        act(&mut ui, TargetId::MAIN, &click(save, elsewhere));
+        assert!(ui.take_actions().is_empty());
+        act(&mut ui, other, &click(go, TreeId::ROOT));
+        act(&mut ui, TargetId::MAIN, &click(save, TreeId::ROOT));
+        assert_eq!(ui.take_actions().len(), 2);
+    }
+
+    #[test]
+    fn the_window_s_reader_is_let_go_when_no_screen_reader_reads() {
+        let (mut ui, _) = interface();
+        let mut readers = ScreenReaders::new("Example");
+        readers.active = true;
+        assert!(readers.next_update(Some(&mut ui), SIZE).is_some());
+        let reader = readers.reader.expect("a reader while one reads");
+        readers.deactivated(Some(&mut ui));
+        assert_eq!(readers.reader, None);
+        assert_eq!(ui.take_meaning_changes(reader, false), None);
+        // Told without the interface, the window keeps its reader, which it lets go later.
+        readers.active = true;
+        assert!(readers.next_update(Some(&mut ui), SIZE).is_some());
+        readers.deactivated(None);
+        let kept = readers.reader.expect("the reader kept");
+        readers.deactivated(Some(&mut ui));
+        assert_eq!(ui.take_meaning_changes(kept, false), None);
+        // Read again, the whole tree comes through a new reader.
+        readers.active = true;
+        let update = readers.next_update(Some(&mut ui), SIZE).expect("an update");
+        assert!(update.tree.is_some());
+    }
+
+    #[test]
+    fn updates_of_random_changes_keep_accesskit_s_tree_whole() {
+        let (mut ui, root) = interface();
+        let mut readers = ScreenReaders::new("Example");
+        readers.active = true;
+        let first = readers
+            .next_update(Some(&mut ui), SIZE)
+            .expect("the whole tree");
+        let mut tree = Tree::new(first, true);
+        let mut state: u64 = 3;
+        for step in 0..200_u64 {
+            // A linear congruential generator: Knuth's MMIX constants.
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            match (state >> 33) % 4 {
+                0 => build(&mut ui, root, &"status ".repeat(1 + (step % 3) as usize)),
+                1 => {
+                    let dialog = ui.add_root(
+                        "dialog",
+                        RootSettings {
+                            modal: true,
+                            ..ui.root_settings(root).expect("a root")
+                        },
+                        |s| s,
+                    );
+                    ui.frame(TargetId::MAIN);
+                    ui.remove(dialog);
+                }
+                2 => {
+                    let field = ui.element_by_path("main/page/name").expect("built");
+                    ui.set_value(field, &format!("{step}"));
+                }
+                _ => {}
+            }
+            ui.frame(TargetId::MAIN);
+            let update = readers.next_update(Some(&mut ui), SIZE).expect("an update");
+            // AccessKit panics on an update that names a node that neither it nor the tree
+            // holds.
+            tree.update_and_process_changes(update, &mut Changes::default());
+            let held = Tree::new(readers_whole(&mut ui), true);
+            assert_eq!(
+                described(&tree),
+                described(&held),
+                "the updates applied give the whole tree at step {step}"
+            );
+        }
+    }
+
+    /// The whole tree of `ui`, as a new window's reader gives it.
+    fn readers_whole(ui: &mut Ui) -> TreeUpdate {
+        let mut readers = ScreenReaders::new("Example");
+        readers.active = true;
+        let update = readers.next_update(Some(ui), SIZE).expect("the whole tree");
+        if let Some(reader) = readers.reader {
+            ui.remove_meaning_reader(reader);
+        }
+        update
+    }
+
+    /// Each node of `tree` reached from its root, by its id: its role, name, value and children.
+    fn described(tree: &Tree) -> Vec<String> {
+        let state = tree.state();
+        let mut found = Vec::new();
+        let mut stack = vec![state.root()];
+        while let Some(node) = stack.pop() {
+            found.push(format!(
+                "{:?} {:?} {:?} {:?} {:?}",
+                node.id(),
+                node.role(),
+                node.label(),
+                node.value(),
+                node.child_ids().collect::<Vec<_>>()
+            ));
+            stack.extend(node.children());
+        }
+        found.sort();
+        found
     }
 }

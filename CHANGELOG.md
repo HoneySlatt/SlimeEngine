@@ -40,6 +40,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `Ui::element_at` and `Ui::meaning_at` take the target whose roots they reach (ADR-0256).
   `Ui::frame`, `Ui::set_frame_shown`, `Ui::needs_frame`, `Ui::animating` and
   `Ui::next_frame_due` take the target that they draw or read (ADR-0258).
+- Each reader of uwui's meaning follows its own changes, on its own target (ADR-0261):
+  `Ui::add_meaning_reader(target)` gives one, `Ui::take_meaning_changes(reader, whole)` what
+  changed in that target's tree since it last took them, with that target's focus. A screen reader
+  of the engine's window reads that window's elements alone, and its requests act only on them.
 - uwui takes input as the host's events (ADR-0253): `Ui::event(Event)`, each `uwui::host::Event`
   with its target, its time and its input, the pointer, the wheel, the modifiers, a key or an input
   method, answered at once, `Answer::Taken` or `NotTaken`. `Ui::pointer_moved`, `pointer_left`,

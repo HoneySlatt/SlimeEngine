@@ -3,6 +3,8 @@
 //! path (`docs/adr/0143-what-agents-see-of-the-interface.md`); and what changed in it since it was
 //! last read, which the elements' marks give (`docs/adr/0146-screen-readers.md`).
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use super::{ElementId, ElementState, ItemMark, Key, Kind, Node, Ui};
 use crate::Rect;
 use crate::host::TargetId;
@@ -240,8 +242,9 @@ pub struct Meaning {
     pub bounds: Option<Rect>,
 }
 
-/// What changed in what the tree means since it was last taken ([`Ui::take_meaning_changes`]): the
-/// elements whose meaning changed, as a screen reader's adapter sends them.
+/// What changed in what one target's part of the tree means since its reader last took its changes
+/// ([`Ui::take_meaning_changes`]): the elements of that target whose meaning changed, as a screen
+/// reader's adapter sends them.
 ///
 /// The elements form a tree of their own, which leaves out those that mean nothing: an element's
 /// children are the elements that mean something nearest below it. An element that the changes do
@@ -249,16 +252,19 @@ pub struct Meaning {
 /// names any more has left it, with what it held.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MeaningChanges {
-    /// Whether they hold the whole tree: every element that is drawn and means something, and the
-    /// top. The first changes taken are whole, and so are those after a modal root opened or
-    /// closed, which changes what every element takes.
+    /// Whether they hold the target's whole tree: every element of the target that is drawn and
+    /// means something, and the top. A reader's first changes are whole, and so are those after a
+    /// modal root opened or closed on its target, which changes what every element there takes,
+    /// and those after the reader left more marks than its bound.
     pub whole: bool,
     /// The elements that changed, or that are new, in no order.
     pub nodes: Vec<MeaningNode>,
-    /// The numbers of the elements that mean something below none that does, in the order of the
-    /// tree and of the roots, when they changed; always given in whole changes.
+    /// The numbers of the target's elements that mean something below none that does, in the
+    /// order of the tree and of the target's roots, when they changed; always given in whole
+    /// changes.
     pub top: Option<Vec<u64>>,
-    /// The number of the element that holds the focus, drawn; none where none holds it.
+    /// The number of the element that holds the target's focus ([`Ui::focus_in`]), drawn; none
+    /// where none holds it.
     pub focus: Option<u64>,
 }
 
@@ -275,6 +281,51 @@ pub struct MeaningNode {
     pub children: Vec<u64>,
     /// A field's text, by runs, and its selection; none for an element that is no field.
     pub text: Option<FieldText>,
+}
+
+/// The most readers of meaning that an interface holds at once ([`Ui::add_meaning_reader`]): one
+/// bit of each element for each.
+pub const MEANING_READERS: usize = 64;
+
+/// A reader of what a target's part of the tree means, which follows its own changes
+/// ([`Ui::add_meaning_reader`], [`Ui::take_meaning_changes`]). It names one reader of one
+/// interface: once let go, or given to another interface, it reads nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct MeaningReader {
+    /// The interface that made it.
+    identity: u64,
+    /// Its slot among that interface's readers.
+    slot: u8,
+    /// The slot's generation when it was made: a reader let go leaves its slot to another.
+    generation: u32,
+}
+
+/// A slot of a reader of meaning, and its generation, which a reader let go moves on.
+#[derive(Debug, Default)]
+pub(crate) struct ReaderSlot {
+    pub(crate) reader: Option<Reader>,
+    pub(crate) generation: u32,
+}
+
+/// What changed for one reader of meaning since it last took its changes.
+#[derive(Debug)]
+pub(crate) struct Reader {
+    /// The target whose part of the tree it reads.
+    target: TargetId,
+    /// The elements of its target whose meaning changed, each once.
+    marked: Vec<ElementId>,
+    /// Whether its next changes are whole: it took none yet, a modal root changed what every
+    /// element of its target takes, or more changed than the tree holds.
+    whole: bool,
+    /// Whether the elements that mean something at its target's top changed.
+    top_changed: bool,
+}
+
+/// A number for a new interface, given to no other in the program's run: its readers of meaning
+/// carry it, so that one interface's reader reads nothing of another's.
+pub(crate) fn next_identity() -> u64 {
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
 }
 
 /// A field's text as a screen reader reads it ([`Ui::field_runs`]): by runs, each a piece of a
@@ -341,8 +392,16 @@ impl Ui {
     /// [`Role::GenericContainer`]. It is made when asked, from the last [`Ui::frame`], at the cost
     /// of a walk of the tree.
     pub fn meaning(&self) -> Vec<Meaning> {
+        self.meaning_in(None)
+    }
+
+    /// What the roots of `target` mean, as [`Ui::meaning`] gives it; every root's for none.
+    fn meaning_in(&self, target: Option<TargetId>) -> Vec<Meaning> {
         let mut found = Vec::new();
         for &root in &self.roots {
+            if target.is_some_and(|target| self.target_of(root) != Some(target)) {
+                continue;
+            }
             let Some(key) = self.node(root).map(|node| node.key.to_string()) else {
                 continue;
             };
@@ -627,28 +686,72 @@ impl Ui {
             .is_some_and(|node| self.role_of(node) != Role::GenericContainer)
     }
 
-    /// What changed in what the tree means since it was last taken, or the whole tree for `whole`
-    /// or when it must be whole ([`MeaningChanges::whole`]), from the last [`Ui::frame`] of each
-    /// target; the elements' marks are cleared. Taken after one target's frame, they may hold
-    /// another target's new elements before its own frame styles and lays them out: that frame
-    /// marks them again. It costs what changed: each element that changed, the boxes
-    /// that only lay others out below it, and a field's text laid out, as it draws it. Where the
-    /// changes are not taken, the marks are kept up to twice as many as the elements of the tree,
-    /// and up to 1 024 for a smaller tree, past which the next changes are whole.
-    pub fn take_meaning_changes(&mut self, whole: bool) -> MeaningChanges {
-        let whole = std::mem::take(&mut self.meaning_whole) || whole;
-        let marked = std::mem::take(&mut self.meant);
-        for &id in &marked {
-            if let Some(node) = self.node_mut(id) {
-                node.changed.meaning = false;
+    /// A reader of what `target`'s part of the tree means, which follows its own changes
+    /// ([`Ui::take_meaning_changes`]): a screen reader's window, and an agent's session from
+    /// M6d.9a2. Its first changes are whole. A mark costs a look at the readers' slots where no
+    /// reader reads, and one push for each reader of the element's target. None past [`MEANING_READERS`] readers at once.
+    pub fn add_meaning_reader(&mut self, target: TargetId) -> Option<MeaningReader> {
+        let reader = Reader {
+            target,
+            marked: Vec::new(),
+            whole: true,
+            top_changed: false,
+        };
+        let slot = match self.readers.iter().position(|slot| slot.reader.is_none()) {
+            Some(slot) => slot,
+            None if self.readers.len() < MEANING_READERS => {
+                self.readers.push(ReaderSlot::default());
+                self.readers.len() - 1
             }
+            None => return None,
+        };
+        self.readers[slot].reader = Some(reader);
+        Some(MeaningReader {
+            identity: self.identity,
+            slot: slot as u8,
+            generation: self.readers[slot].generation,
+        })
+    }
+
+    /// Lets `reader` go, with its marks: nothing happens for one that was let go already, or that
+    /// another interface made.
+    pub fn remove_meaning_reader(&mut self, reader: MeaningReader) {
+        let Some(slot) = self.slot_of(reader) else {
+            return;
+        };
+        if let Some(gone) = self.readers[slot].reader.take() {
+            self.unmark(slot, &gone.marked);
         }
-        let top_changed = std::mem::take(&mut self.top_changed);
+        self.readers[slot].generation = self.readers[slot].generation.wrapping_add(1);
+    }
+
+    /// What changed in what `reader`'s target means since `reader` last took its changes, or the
+    /// whole of it for `whole` or when it must be whole ([`MeaningChanges::whole`]), from that
+    /// target's last [`Ui::frame`]; `reader`'s marks are cleared, and no other reader's. They hold
+    /// the elements that the target's roots draw, its top and its focus ([`Ui::focus_in`]). It
+    /// costs what changed: each element that changed, the boxes that only lay others out below it,
+    /// and a field's text laid out, as it draws it. Where a reader does not take them, its marks
+    /// are kept up to twice as many as the elements of the tree, and up to 1 024 for a smaller
+    /// tree, past which its next changes are whole. None for a reader that was let go, or that
+    /// another interface made.
+    pub fn take_meaning_changes(
+        &mut self,
+        reader: MeaningReader,
+        whole: bool,
+    ) -> Option<MeaningChanges> {
+        let slot = self.slot_of(reader)?;
+        let taken = self.readers[slot].reader.as_mut()?;
+        let target = taken.target;
+        let whole = std::mem::take(&mut taken.whole) || whole;
+        let top_changed = std::mem::take(&mut taken.top_changed);
+        let marked = std::mem::take(&mut taken.marked);
+        self.unmark(slot, &marked);
         let meanings = if whole {
-            self.meaning()
+            self.meaning_in(Some(target))
         } else {
             marked
                 .into_iter()
+                .filter(|&id| self.target_of(id) == Some(target))
                 .filter_map(|id| self.meaning_of(id))
                 .collect()
         };
@@ -673,11 +776,12 @@ impl Ui {
         }
         let top = (whole || top_changed).then(|| {
             self.roots
-                .clone()
-                .into_iter()
+                .iter()
+                .copied()
                 .filter(|&root| {
-                    self.node(root)
-                        .is_some_and(|node| node.style.layout.display != Display::None)
+                    self.node(root).is_some_and(|node| {
+                        node.drawn_on == target && node.style.layout.display != Display::None
+                    })
                 })
                 .flat_map(|root| {
                     if self.means(root) {
@@ -689,17 +793,34 @@ impl Ui {
                 .filter_map(|id| self.node(id).map(|node| node.number))
                 .collect()
         });
-        // One tree serves every target until each window has its own: its focus is the active
-        // target's.
         let focus = self
-            .focus()
+            .focus_in(target)
             .filter(|&focus| self.meaning_of(focus).is_some())
             .and_then(|focus| self.node(focus).map(|node| node.number));
-        MeaningChanges {
+        Some(MeaningChanges {
             whole,
             nodes,
             top,
             focus,
+        })
+    }
+
+    /// The slot of `reader`, while it reads this interface.
+    fn slot_of(&self, reader: MeaningReader) -> Option<usize> {
+        let slot = usize::from(reader.slot);
+        let held = self.readers.get(slot)?;
+        (reader.identity == self.identity
+            && held.generation == reader.generation
+            && held.reader.is_some())
+        .then_some(slot)
+    }
+
+    /// Clears the bit of the reader in `slot` on `marked`, the elements it marked.
+    fn unmark(&mut self, slot: usize, marked: &[ElementId]) {
+        for &id in marked {
+            if let Some(node) = self.node_mut(id) {
+                node.changed.meaning &= !(1 << slot);
+            }
         }
     }
 
@@ -747,34 +868,90 @@ impl Ui {
         found
     }
 
-    /// Marks what `id` means changed: its changes are given when they are next taken.
+    /// Marks what `id` means changed for each reader of its target: its changes are given when
+    /// that reader next takes them.
     pub(crate) fn mark_meaning(&mut self, id: ElementId) {
-        if self.meaning_whole {
+        // Slots outlive their readers, so that a reader let go never names the next one.
+        if self.readers.iter().all(|slot| slot.reader.is_none()) {
             return;
         }
-        let Some(node) = self.node_mut(id) else {
+        let bound = 2 * self.len().max(512);
+        let Some(target) = self.target_of(id) else {
             return;
         };
-        if node.changed.meaning {
-            return;
-        }
-        node.changed.meaning = true;
-        self.meant.push(id);
-        // Changes that no one takes are kept within twice the tree; past that, the next are whole.
-        if self.meant.len() > 2 * self.len().max(512) {
-            for id in std::mem::take(&mut self.meant) {
-                if let Some(node) = self.node_mut(id) {
-                    node.changed.meaning = false;
-                }
+        for slot in 0..self.readers.len() {
+            let bit = 1 << slot;
+            let Some(reader) = self.readers[slot].reader.as_mut() else {
+                continue;
+            };
+            if reader.target != target || reader.whole {
+                continue;
             }
-            self.meaning_whole = true;
+            // The node, borrowed beside the reader: `target_of` found it.
+            let Some(node) = self
+                .slots
+                .get_mut(id.index as usize)
+                .filter(|held| held.generation == id.generation)
+                .and_then(|held| held.node.as_mut())
+            else {
+                return;
+            };
+            if node.changed.meaning & bit != 0 {
+                continue;
+            }
+            node.changed.meaning |= bit;
+            reader.marked.push(id);
+            // Changes that a reader does not take are kept within twice the tree; past that, its
+            // next are whole.
+            if reader.marked.len() > bound {
+                self.meaning_whole_for(slot);
+            }
+        }
+    }
+
+    /// Makes the next changes of the reader in `slot` whole, its marks dropped.
+    fn meaning_whole_for(&mut self, slot: usize) {
+        let Some(reader) = self.readers[slot].reader.as_mut() else {
+            return;
+        };
+        reader.whole = true;
+        let marked = std::mem::take(&mut reader.marked);
+        self.unmark(slot, &marked);
+    }
+
+    /// Makes the next changes of `target`'s readers whole: what every element there takes changed.
+    pub(crate) fn meaning_whole_on(&mut self, target: TargetId) {
+        for slot in 0..self.readers.len() {
+            if self.readers[slot]
+                .reader
+                .as_ref()
+                .is_some_and(|reader| reader.target == target)
+            {
+                self.meaning_whole_for(slot);
+            }
+        }
+    }
+
+    /// Tells `target`'s readers that the elements that mean something at its top changed.
+    pub(crate) fn top_changed_on(&mut self, target: TargetId) {
+        for slot in &mut self.readers {
+            if let Some(reader) = slot
+                .reader
+                .as_mut()
+                .filter(|reader| reader.target == target)
+            {
+                reader.top_changed = true;
+            }
         }
     }
 
     /// Marks what `id` means changed, and the elements above it up to the first that means
-    /// something, whose children are those that mean something nearest below it; the top, when
-    /// none above it does.
+    /// something, whose children are those that mean something nearest below it; the top of its
+    /// target, when none above it does.
     pub(crate) fn mark_meaning_up(&mut self, id: ElementId) {
+        let Some(target) = self.target_of(id) else {
+            return;
+        };
         let mut at = Some(id);
         while let Some(id) = at {
             self.mark_meaning(id);
@@ -783,16 +960,17 @@ impl Ui {
             }
             at = self.node(id).and_then(|node| node.parent);
         }
-        self.top_changed = true;
+        self.top_changed_on(target);
     }
 
     /// Marks the elements above `id` changed, up to the first that means something, as
     /// [`Ui::mark_meaning_up`] does from `id`'s parent: `id` became or ceased to be one of its
     /// children, or what it holds did.
     pub(crate) fn mark_meaning_above(&mut self, id: ElementId) {
-        match self.node(id).and_then(|node| node.parent) {
-            Some(parent) => self.mark_meaning_up(parent),
-            None => self.top_changed = true,
+        match self.node(id).map(|node| (node.parent, node.drawn_on)) {
+            Some((Some(parent), _)) => self.mark_meaning_up(parent),
+            Some((None, target)) => self.top_changed_on(target),
+            None => {}
         }
     }
 

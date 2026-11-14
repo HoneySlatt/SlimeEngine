@@ -180,7 +180,7 @@ impl Ui {
         let drawn_on = self.root_target(root);
         self.changed_on(drawn_on);
         // The roots that moved take other numbers, which their elements' paths begin with.
-        self.top_changed = true;
+        self.top_changed_on(drawn_on);
         for moved in self
             .roots
             .iter()

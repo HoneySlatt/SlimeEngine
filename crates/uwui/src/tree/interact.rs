@@ -1045,8 +1045,7 @@ impl Ui {
     /// [`Ui::set_focus`] takes; the modifiers held ([`Ui::held_modifiers`]); the palette of
     /// commands and the sheet of shortcuts, which open over its first root; the program's clipboard
     /// ([`Ui::write_clipboard`], [`Ui::read_clipboard`]); an action without an element
-    /// ([`Ui::act`]); and the focus that the meaning's changes tell
-    /// ([`Ui::take_meaning_changes`]). A focus that the program gives does not change it
+    /// ([`Ui::act`]). A focus that the program gives does not change it
     /// (`docs/adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md`).
     pub fn active_target(&self) -> TargetId {
         self.interaction.active
@@ -1607,7 +1606,7 @@ impl Ui {
         self.focus_on(t, None);
         self.interaction.of_mut(t).modals.push((root, before));
         // What every element of the roots below takes changed.
-        self.meaning_whole = true;
+        self.meaning_whole_on(t);
     }
 
     /// Forgets what `removed`, an element taken out of the tree with what it held, leaves behind
@@ -1660,7 +1659,7 @@ impl Ui {
             return false;
         };
         let (_, before) = input.modals.remove(at);
-        self.meaning_whole = true;
+        self.meaning_whole_on(t);
         let input = self.interaction.of_mut(t);
         match input.modals.get_mut(at) {
             Some((_, above)) => {
@@ -1694,7 +1693,11 @@ impl Ui {
             }
             self.draw_on(root, to);
             self.mark_layout(root);
+            // It leaves the old target's tree of meaning and joins the new one's whole.
+            self.mark_meaning_below(root);
         }
+        self.top_changed_on(from);
+        self.top_changed_on(to);
         let modals: Vec<ElementId> = group
             .iter()
             .copied()
@@ -1735,7 +1738,7 @@ impl Ui {
             .min()
             .unwrap_or(self.roots.len());
         self.roots.splice(at..at, group.iter().copied());
-        self.top_changed = true;
+        self.top_changed_on(to);
     }
 
     /// `going`, a root and the layers that stand over what it holds, leave the target `from`

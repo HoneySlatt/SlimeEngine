@@ -341,13 +341,14 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   Without a token, it does not listen. The `slime-channel` crate holds the protocol and its limits;
   `tests/channel.rs` drives a headless run through it.
 - The `accessibility` feature: a windowed run gives screen readers its window's tree, the window's
-  node holding what the presentation's interface means (`uwui::tree::Ui::take_meaning_changes`),
+  node holding what the presentation's interface means on its target, through a reader of meaning
+  of the window's own while a screen reader reads it (`uwui::tree::Ui::take_meaning_changes`),
   translated into AccessKit's tree, whole when a screen reader asks for it and what changed after
-  each frame from then on, while one reads the window; it gives the interface what a screen reader
-  asks, a click, the focus, a value or a selection set, a scroll, through its calls, as a person's
-  input. Its translation's tests, in `src/accessibility.rs`, run with the feature (`cargo test -p
-  slime-app --features accessibility`), which a workspace's run of the tests turns on through the
-  examples.
+  each frame from then on; it gives the interface what a screen reader asks of the window's tree
+  and its target's elements, a click, the focus, a value or a selection set, a scroll, through its
+  calls, as a person's input. Its translation's tests, in `src/accessibility.rs`, run with the
+  feature (`cargo test -p slime-app --features accessibility`), which a workspace's run of the
+  tests turns on through the examples.
 
 Engine code and games log through the `tracing` macros. The conventions for errors, log levels and
 assertions are in `docs/adr/0008-errors-logging-and-assertions.md`; why the engine owns the main

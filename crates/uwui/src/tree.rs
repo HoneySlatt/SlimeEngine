@@ -55,8 +55,8 @@ pub use interact::Dragging;
 use interact::Interaction;
 pub use layer::{Along, Layer, Place, Side};
 pub use meaning::{
-    ElementAction, FieldText, Meaning, MeaningChanges, MeaningNode, RUN_CHARACTERS, Role,
-    RunCharacter, TextRun, ValueRange,
+    ElementAction, FieldText, MEANING_READERS, Meaning, MeaningChanges, MeaningNode, MeaningReader,
+    RUN_CHARACTERS, Role, RunCharacter, TextRun, ValueRange,
 };
 pub use notify::{Notification, NotificationId, NotificationKind};
 pub use palette::PaletteCommand;
@@ -1109,9 +1109,9 @@ pub(crate) struct Changed {
     /// How it is drawn.
     pub(crate) paint: bool,
     /// What it means: its role, name, value, states, actions, bounds, the elements that mean
-    /// something nearest below it, or a field's text. Kept for what the interface last gave of its
-    /// meaning's changes ([`Ui::take_meaning_changes`]).
-    pub(crate) meaning: bool,
+    /// something nearest below it, or a field's text. One bit for each reader of meaning that
+    /// holds it among its marks ([`Ui::add_meaning_reader`]), so that a reader lists it once.
+    pub(crate) meaning: u64,
 }
 
 /// What a frame of one target did ([`Ui::frame`]).
@@ -1315,13 +1315,11 @@ pub struct Ui {
     /// The number that the next element, or run of a field's text, is given: from 1, so that 0
     /// names none.
     next_number: u64,
-    /// The elements whose meaning changed since its changes were last taken.
-    meant: Vec<ElementId>,
-    /// Whether the next changes of the meaning are the whole tree: none were taken yet, a modal
-    /// root changed what every element takes, or more changed than the tree holds.
-    meaning_whole: bool,
-    /// Whether the elements that mean something at the top of the tree changed.
-    top_changed: bool,
+    /// The number that names this interface among others, which its readers of meaning carry.
+    identity: u64,
+    /// The readers of meaning, each in its slot, with what changed for it since it last took its
+    /// changes ([`Ui::add_meaning_reader`]).
+    readers: Vec<meaning::ReaderSlot>,
     /// The bars of progress without a share that the last frame drew, which move with the clock and
     /// are drawn again each frame.
     spinning: Vec<ElementId>,
@@ -1382,9 +1380,8 @@ impl Ui {
             styles: HashMap::new(),
             selected: Vec::new(),
             next_number: 1,
-            meant: Vec::new(),
-            meaning_whole: true,
-            top_changed: false,
+            identity: meaning::next_identity(),
+            readers: Vec::new(),
             spinning: Vec::new(),
             palette: None,
             sheet: None,
@@ -1451,7 +1448,7 @@ impl Ui {
         self.interaction.of_mut(settings.target);
         self.restyled.push(id);
         self.changed_on(settings.target);
-        self.top_changed = true;
+        self.top_changed_on(settings.target);
         if settings.modal {
             self.opened_modal(id);
         }
@@ -1548,7 +1545,8 @@ impl Ui {
             }
             self.children_changed(parent);
         } else {
-            self.top_changed = true;
+            let drawn_on = node.drawn_on;
+            self.top_changed_on(drawn_on);
             // The roots above it take the numbers below theirs, which their elements' paths begin
             // with.
             let above: Vec<ElementId> = self
@@ -2721,7 +2719,7 @@ impl Node {
                 style: true,
                 layout: true,
                 paint: true,
-                meaning: false,
+                meaning: 0,
             },
             taffy: taffy::Style::default(),
             cache: taffy::Cache::new(),

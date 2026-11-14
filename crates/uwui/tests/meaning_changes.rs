@@ -11,12 +11,41 @@ use uwui::host::{Person, TargetId};
 use uwui::style::{Dimension, Display, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
-    Element, ElementId, FieldText, LayoutDirection, MeaningChanges, MeaningNode, Role,
-    RootSettings, Ui,
+    Element, ElementId, FieldText, LayoutDirection, MeaningChanges, MeaningNode, MeaningReader,
+    Role, RootSettings, Ui,
 };
 
-/// An interface whose fonts are the tests' Noto Sans and Noto Sans Hebrew.
-fn ui() -> Ui {
+/// An interface and the reader of its main target's meaning, as a screen reader of its window.
+struct Reading {
+    ui: Ui,
+    reader: MeaningReader,
+}
+
+impl Reading {
+    /// The reader's changes, whole for `whole`.
+    fn changes(&mut self, whole: bool) -> MeaningChanges {
+        self.ui
+            .take_meaning_changes(self.reader, whole)
+            .expect("a reader of the interface")
+    }
+}
+
+impl std::ops::Deref for Reading {
+    type Target = Ui;
+
+    fn deref(&self) -> &Ui {
+        &self.ui
+    }
+}
+
+impl std::ops::DerefMut for Reading {
+    fn deref_mut(&mut self) -> &mut Ui {
+        &mut self.ui
+    }
+}
+
+/// An interface whose fonts are the tests' Noto Sans and Noto Sans Hebrew, read from its start.
+fn ui() -> Reading {
     let mut fonts = Fonts::new();
     for file in ["NotoSans.ttf", "NotoSansHebrew.ttf"] {
         let path = format!("{}/tests/fonts/{file}", env!("CARGO_MANIFEST_DIR"));
@@ -24,7 +53,9 @@ fn ui() -> Ui {
             .register(std::fs::read(path).expect("the test font"))
             .expect("a font");
     }
-    Ui::new(fonts)
+    let mut ui = Ui::new(fonts);
+    let reader = ui.add_meaning_reader(TargetId::MAIN).expect("a reader");
+    Reading { ui, reader }
 }
 
 /// Settings of a root of 400 by 300 logical pixels at scale 1.
@@ -56,10 +87,37 @@ struct Held {
 
 impl Held {
     /// Applies `changes`: the elements given replace those of their numbers, and those that no
-    /// element's children nor the top names any more leave, with what they held.
+    /// element's children nor the top names any more leave, with what they held. It panics where
+    /// AccessKit's adapters panic: a node that lists a child twice, a child that neither the tree
+    /// nor the changes hold, a new node that no node of the changes lists, a node reached twice, a
+    /// focus outside the tree.
     fn apply(&mut self, changes: MeaningChanges) {
         if changes.whole {
             self.nodes.clear();
+            self.top.clear();
+        }
+        let given: HashSet<u64> = changes.nodes.iter().map(|node| node.number).collect();
+        let mut listed = HashSet::new();
+        let lists = changes
+            .top
+            .iter()
+            .chain(changes.nodes.iter().map(|node| &node.children));
+        for list in lists {
+            let mut seen = HashSet::new();
+            for &child in list {
+                assert!(seen.insert(child), "a node lists {child} twice");
+                listed.insert(child);
+                assert!(
+                    self.nodes.contains_key(&child) || given.contains(&child),
+                    "the child {child} is neither in the tree nor given"
+                );
+            }
+        }
+        for &number in &given {
+            assert!(
+                self.nodes.contains_key(&number) || listed.contains(&number),
+                "the node {number} is neither in the tree nor a child of a node given"
+            );
         }
         for node in changes.nodes {
             self.nodes.insert(node.number, node);
@@ -78,20 +136,26 @@ impl Held {
             stack.extend(&node.children);
         }
         self.nodes.retain(|number, _| reached.contains(number));
+        if let Some(focus) = changes.focus {
+            assert!(
+                reached.contains(&focus),
+                "the focus {focus} is not in the tree"
+            );
+        }
     }
 }
 
 /// The whole tree, as `ui` means it now.
-fn whole(ui: &mut Ui) -> Held {
+fn whole(ui: &mut Reading) -> Held {
     let mut held = Held::default();
-    held.apply(ui.take_meaning_changes(true));
+    held.apply(ui.changes(true));
     held
 }
 
 /// Takes the changes of `ui`, applies them to `held`, and checks that it holds the whole tree;
 /// gives the numbers of the elements that changed, sorted, and whether the top changed.
-fn step(ui: &mut Ui, held: &mut Held) -> (Vec<u64>, bool) {
-    let changes = ui.take_meaning_changes(false);
+fn step(ui: &mut Reading, held: &mut Held) -> (Vec<u64>, bool) {
+    let changes = ui.changes(false);
     assert!(!changes.whole);
     let mut numbers: Vec<u64> = changes.nodes.iter().map(|node| node.number).collect();
     numbers.sort_unstable();
@@ -102,8 +166,8 @@ fn step(ui: &mut Ui, held: &mut Held) -> (Vec<u64>, bool) {
 }
 
 /// The number of `id`, as the whole tree gives it.
-fn number(ui: &mut Ui, id: ElementId) -> u64 {
-    ui.take_meaning_changes(true)
+fn number(ui: &mut Reading, id: ElementId) -> u64 {
+    ui.changes(true)
         .nodes
         .into_iter()
         .find(|node| node.meaning.id == id)
@@ -183,7 +247,7 @@ fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
     build(&mut ui, root, 1);
     ui.frame(TargetId::MAIN);
     let mut held = Held::default();
-    let first = ui.take_meaning_changes(false);
+    let first = ui.changes(false);
     assert!(first.whole, "the first changes are whole");
     assert!(first.top.is_some());
     held.apply(first);
@@ -206,7 +270,7 @@ fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
     );
     // Nothing changed: nothing given, after the first changes and after whole ones asked for.
     assert_eq!(step(&mut ui, &mut held), (Vec::new(), false));
-    assert!(ui.take_meaning_changes(true).whole);
+    assert!(ui.changes(true).whole);
     assert_eq!(step(&mut ui, &mut held), (Vec::new(), false));
 
     // A text's words: that text alone.
@@ -278,7 +342,7 @@ fn a_modal_root_makes_the_changes_whole_as_it_opens_and_closes() {
     build(&mut ui, root, 1);
     ui.frame(TargetId::MAIN);
     let mut held = Held::default();
-    held.apply(ui.take_meaning_changes(false));
+    held.apply(ui.changes(false));
     let dialog = ui.add_root("main", settings(true), |s| s);
     ui.build(dialog, 0, |children| {
         let box_of = Element::container()
@@ -293,7 +357,7 @@ fn a_modal_root_makes_the_changes_whole_as_it_opens_and_closes() {
         });
     });
     ui.frame(TargetId::MAIN);
-    let changes = ui.take_meaning_changes(false);
+    let changes = ui.changes(false);
     assert!(changes.whole, "what every element takes changed");
     held.apply(changes);
     assert_eq!(held, whole(&mut ui));
@@ -307,7 +371,7 @@ fn a_modal_root_makes_the_changes_whole_as_it_opens_and_closes() {
     assert_eq!(held.nodes[&last].meaning.role, Role::Dialog);
     ui.remove(dialog);
     ui.frame(TargetId::MAIN);
-    let changes = ui.take_meaning_changes(false);
+    let changes = ui.changes(false);
     assert!(changes.whole);
     held.apply(changes);
     assert_eq!(held, whole(&mut ui));
@@ -338,7 +402,7 @@ fn a_box_hidden_leaves_the_tree_and_shown_again_comes_back_whole() {
     build(&mut ui, 0, Display::Flex);
     ui.frame(TargetId::MAIN);
     let mut held = Held::default();
-    held.apply(ui.take_meaning_changes(false));
+    held.apply(ui.changes(false));
     assert_eq!(held.nodes.len(), 2);
     build(&mut ui, 1, Display::None);
     ui.frame(TargetId::MAIN);
@@ -357,7 +421,7 @@ fn numbers_name_one_element_or_run_each_and_find_it_again() {
     let root = ui.add_root("main", settings(false), |s| s);
     build(&mut ui, root, 1);
     ui.frame(TargetId::MAIN);
-    let changes = ui.take_meaning_changes(true);
+    let changes = ui.changes(true);
     let mut numbers = HashSet::new();
     for node in &changes.nodes {
         assert!(node.number > 0);
@@ -401,14 +465,14 @@ fn changes_that_no_one_takes_are_kept_within_bounds_and_then_whole() {
     let root = ui.add_root("main", settings(false), |s| s);
     build(&mut ui, root, 1);
     ui.frame(TargetId::MAIN);
-    ui.take_meaning_changes(false);
+    ui.changes(false);
     // The pointer over a button and away again, many times, its state changing each time.
     for _ in 0..2_000 {
         ui.pointer_moved(10.0, 10.0);
         ui.pointer_moved(390.0, 290.0);
     }
     ui.frame(TargetId::MAIN);
-    let changes = ui.take_meaning_changes(false);
+    let changes = ui.changes(false);
     assert!(
         !changes.whole,
         "the same element marked again is marked once"
@@ -423,7 +487,7 @@ fn changes_that_no_one_takes_are_kept_within_bounds_and_then_whole() {
             );
         });
     }
-    assert!(ui.take_meaning_changes(false).whole);
+    assert!(ui.changes(false).whole);
 }
 
 /// The text of a field holding `text`, in a box of `width` logical pixels, of several lines for
@@ -562,7 +626,7 @@ fn a_press_on_a_button_changes_its_state_alone() {
     build(&mut ui, root, 1);
     ui.frame(TargetId::MAIN);
     let mut held = Held::default();
-    held.apply(ui.take_meaning_changes(false));
+    held.apply(ui.changes(false));
     let open = ui
         .element_by_path("main/page/bar/open")
         .expect("the button");
@@ -574,7 +638,7 @@ fn a_press_on_a_button_changes_its_state_alone() {
     ui.frame(TargetId::MAIN);
     // Pressed, and given the focus, which every change gives.
     assert_eq!(step(&mut ui, &mut held), (vec![open_number], false));
-    assert_eq!(ui.take_meaning_changes(false).focus, Some(open_number));
+    assert_eq!(ui.changes(false).focus, Some(open_number));
 }
 
 #[test]
@@ -602,7 +666,7 @@ fn a_box_named_comes_between_its_children_and_the_element_above_them() {
     build(&mut ui, 0, None);
     ui.frame(TargetId::MAIN);
     let mut held = Held::default();
-    held.apply(ui.take_meaning_changes(false));
+    held.apply(ui.changes(false));
     assert_eq!(held.top.len(), 2, "the buttons, below a box of no meaning");
     // Named, the box is a group that holds them.
     build(&mut ui, 1, Some("answers"));
@@ -655,7 +719,7 @@ fn rows_built_by_a_scroll_another_kind_under_a_key_and_a_disabled_button_keep_th
     build(&mut ui, 0, true);
     ui.frame(TargetId::MAIN);
     let mut held = Held::default();
-    held.apply(ui.take_meaning_changes(false));
+    held.apply(ui.changes(false));
     // Other rows shown by a scroll: the list's builder runs again, rows come and go.
     let list = ui.element_by_path("main/list").expect("the list");
     ui.scroll_to(list, [0.0, 400.0]);
@@ -715,7 +779,7 @@ fn a_root_resized_or_removed_below_others_changes_what_it_shows_but_not_their_pa
     }
     ui.frame(TargetId::MAIN);
     let mut held = Held::default();
-    held.apply(ui.take_meaning_changes(false));
+    held.apply(ui.changes(false));
     // The first root narrowed: what shows of its button.
     ui.set_root(
         first,
@@ -880,4 +944,289 @@ fn widgets_used_change_what_they_mean_and_keep_the_tree_whole() {
     assert_eq!(panels, ["light"]);
     let light_number = number(&mut ui, light);
     assert!(held.nodes[&light_number].meaning.state.selected);
+}
+
+/// The whole of `target`'s tree, through a reader of its own, let go then.
+fn whole_of(ui: &mut Ui, target: TargetId) -> Held {
+    let reader = ui.add_meaning_reader(target).expect("a reader");
+    let mut held = Held::default();
+    held.apply(ui.take_meaning_changes(reader, true).expect("its changes"));
+    ui.remove_meaning_reader(reader);
+    held
+}
+
+/// Applies `reader`'s changes to `held`, and checks that it then holds `target`'s whole tree;
+/// gives the changes' numbers, sorted, and whether they were whole.
+fn follow(
+    ui: &mut Ui,
+    reader: MeaningReader,
+    target: TargetId,
+    held: &mut Held,
+) -> (Vec<u64>, bool) {
+    let changes = ui.take_meaning_changes(reader, false).expect("its changes");
+    let whole = changes.whole;
+    let mut numbers: Vec<u64> = changes.nodes.iter().map(|node| node.number).collect();
+    numbers.sort_unstable();
+    held.apply(changes);
+    assert_eq!(
+        *held,
+        whole_of(ui, target),
+        "the changes applied give the target's tree"
+    );
+    (numbers, whole)
+}
+
+/// Settings of a root of 400 by 300 logical pixels at scale 1, on `target`.
+fn on(target: TargetId, modal: bool) -> RootSettings {
+    RootSettings {
+        target,
+        ..settings(modal)
+    }
+}
+
+/// The target of another window.
+const OTHER: TargetId = TargetId(1);
+
+#[test]
+fn two_readers_of_one_target_follow_their_changes_apart() {
+    let mut ui = ui();
+    let root = ui.add_root("main", settings(false), |s| s);
+    build(&mut ui, root, 1);
+    ui.frame(TargetId::MAIN);
+    let first = ui.reader;
+    let second = ui.add_meaning_reader(TargetId::MAIN).expect("a reader");
+    let (mut held_first, mut held_second) = (Held::default(), Held::default());
+    assert!(
+        follow(&mut ui, first, TargetId::MAIN, &mut held_first).1,
+        "whole at first"
+    );
+    assert!(follow(&mut ui, second, TargetId::MAIN, &mut held_second).1);
+    build(&mut ui, root, 2);
+    ui.frame(TargetId::MAIN);
+    let (taken, whole) = follow(&mut ui, first, TargetId::MAIN, &mut held_first);
+    assert!(!whole && !taken.is_empty());
+    assert!(
+        follow(&mut ui, first, TargetId::MAIN, &mut held_first)
+            .0
+            .is_empty()
+    );
+    // The first reader's changes, taken, are still the second's.
+    assert_eq!(
+        follow(&mut ui, second, TargetId::MAIN, &mut held_second),
+        (taken, false)
+    );
+    // A reader let go reads nothing, and its slot serves another reader, whose first changes
+    // are whole.
+    ui.remove_meaning_reader(second);
+    assert_eq!(ui.take_meaning_changes(second, false), None);
+    let third = ui.add_meaning_reader(TargetId::MAIN).expect("a reader");
+    assert_ne!(third, second);
+    assert!(
+        ui.take_meaning_changes(third, false)
+            .expect("its changes")
+            .whole
+    );
+    // Another interface's reader reads nothing of this one.
+    let mut other = Ui::new(Fonts::new());
+    let stranger = other.add_meaning_reader(TargetId::MAIN).expect("a reader");
+    assert_eq!(ui.take_meaning_changes(stranger, false), None);
+    ui.remove_meaning_reader(stranger);
+    assert!(other.take_meaning_changes(stranger, false).is_some());
+}
+
+#[test]
+fn an_interface_holds_as_many_readers_as_an_element_has_bits() {
+    let mut ui = Ui::new(Fonts::new());
+    let readers: Vec<MeaningReader> = (0..uwui::tree::MEANING_READERS)
+        .map(|_| ui.add_meaning_reader(TargetId::MAIN).expect("a reader"))
+        .collect();
+    assert_eq!(ui.add_meaning_reader(TargetId::MAIN), None);
+    ui.remove_meaning_reader(readers[7]);
+    assert!(ui.add_meaning_reader(OTHER).is_some());
+}
+
+#[test]
+fn each_target_s_reader_holds_its_target_s_tree_alone() {
+    let mut ui = ui();
+    let main = ui.add_root("main", settings(false), |s| s);
+    build(&mut ui, main, 1);
+    let other = ui.add_root("other", on(OTHER, false), |s| s);
+    build(&mut ui, other, 1);
+    ui.frame(TargetId::MAIN);
+    ui.frame(OTHER);
+    let main_reader = ui.reader;
+    let other_reader = ui.add_meaning_reader(OTHER).expect("a reader");
+    let (mut held_main, mut held_other) = (Held::default(), Held::default());
+    follow(&mut ui, main_reader, TargetId::MAIN, &mut held_main);
+    follow(&mut ui, other_reader, OTHER, &mut held_other);
+    let top = held_main.top.len();
+    assert!(top > 0 && held_other.top.len() == top);
+    assert!(
+        held_main
+            .nodes
+            .keys()
+            .all(|number| !held_other.nodes.contains_key(number)),
+        "no element is in both trees"
+    );
+    // The other target's new elements, built before its frame, wait for its own reader.
+    build(&mut ui, other, 2);
+    ui.frame(TargetId::MAIN);
+    assert_eq!(
+        follow(&mut ui, main_reader, TargetId::MAIN, &mut held_main),
+        (vec![], false)
+    );
+    ui.frame(OTHER);
+    assert!(
+        !follow(&mut ui, other_reader, OTHER, &mut held_other)
+            .0
+            .is_empty()
+    );
+    // A modal root makes its own target's changes whole, and the other's not.
+    let dialog = ui.add_root("dialog", on(OTHER, true), |s| s);
+    ui.frame(OTHER);
+    ui.frame(TargetId::MAIN);
+    assert!(follow(&mut ui, other_reader, OTHER, &mut held_other).1);
+    assert!(!follow(&mut ui, main_reader, TargetId::MAIN, &mut held_main).1);
+    ui.remove(dialog);
+    ui.frame(OTHER);
+    assert!(follow(&mut ui, other_reader, OTHER, &mut held_other).1);
+    // A root moved to the main target leaves the other's tree and joins the main one's.
+    let moved = held_other.top.len();
+    // Its changes, marked for the other target's reader before it moved, are not that reader's.
+    build(&mut ui, other, 3);
+    ui.frame(OTHER);
+    ui.set_root(other, on(TargetId::MAIN, false));
+    ui.frame(TargetId::MAIN);
+    ui.frame(OTHER);
+    follow(&mut ui, main_reader, TargetId::MAIN, &mut held_main);
+    assert!(
+        follow(&mut ui, other_reader, OTHER, &mut held_other)
+            .0
+            .is_empty()
+    );
+    assert_eq!(
+        (held_main.top.len(), held_other.top.len()),
+        (top + moved, 0)
+    );
+}
+
+#[test]
+fn readers_at_different_rates_over_two_targets_keep_their_trees_whole() {
+    for seed in [1_u64, 7, 42, 1_234] {
+        readers_follow_random_changes(seed);
+    }
+}
+
+/// Random changes on two targets, a root moving between them and a modal root on each, read by
+/// a reader of each target after each of its frames and a rare reader of the other target: each
+/// reader's changes, applied, give its target's whole tree.
+fn readers_follow_random_changes(seed: u64) {
+    let mut state = seed;
+    let mut next = |below: u64| {
+        // A linear congruential generator: Knuth's MMIX constants.
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (state >> 33) % below
+    };
+    let targets = [TargetId::MAIN, OTHER];
+    let mut ui = ui();
+    let roots = [
+        ui.add_root("a", on(TargetId::MAIN, false), |s| s),
+        ui.add_root("b", on(OTHER, false), |s| s),
+        ui.add_root("moving", on(TargetId::MAIN, false), |s| s),
+    ];
+    for &root in &roots {
+        build(&mut ui, root, 1);
+    }
+    let readers = [ui.reader, ui.add_meaning_reader(OTHER).expect("a reader")];
+    let rare = ui.add_meaning_reader(OTHER).expect("a reader");
+    let mut held = [Held::default(), Held::default()];
+    let mut held_rare = Held::default();
+    let mut modals: [Option<ElementId>; 2] = [None, None];
+    let mut moving_on = 0;
+    for step in 0..300 {
+        match next(5) {
+            0 => {
+                let root = roots[next(3) as usize];
+                build(&mut ui, root, 1 + next(3) + step * 3);
+            }
+            1 => {
+                moving_on = 1 - moving_on;
+                ui.set_root(roots[2], on(targets[moving_on], false));
+            }
+            2 => {
+                let t = next(2) as usize;
+                match modals[t].take() {
+                    Some(dialog) => ui.remove(dialog),
+                    None => {
+                        let dialog = ui.add_root("dialog", on(targets[t], true), |s| s);
+                        build(&mut ui, dialog, 1);
+                        modals[t] = Some(dialog);
+                    }
+                }
+            }
+            _ => {
+                let t = next(2) as usize;
+                ui.frame(targets[t]);
+                follow(&mut ui, readers[t], targets[t], &mut held[t]);
+                if t == 1 && next(8) == 0 {
+                    follow(&mut ui, rare, OTHER, &mut held_rare);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_rare_reader_past_its_bound_turns_whole_beside_a_frequent_one_and_another_target_s() {
+    let mut ui = ui();
+    let root = ui.add_root("main", settings(false), |s| s);
+    build(&mut ui, root, 1);
+    ui.frame(TargetId::MAIN);
+    let frequent = ui.reader;
+    let rare = ui.add_meaning_reader(TargetId::MAIN).expect("a reader");
+    let elsewhere = ui.add_meaning_reader(OTHER).expect("a reader");
+    let mut held = Held::default();
+    follow(&mut ui, frequent, TargetId::MAIN, &mut held);
+    assert!(
+        ui.take_meaning_changes(rare, false)
+            .expect("its changes")
+            .whole
+    );
+    assert!(
+        ui.take_meaning_changes(elsewhere, false)
+            .expect("its changes")
+            .whole
+    );
+    // Each build adds a row, which marks it and its root: past 1 024 marks, the rare reader's
+    // bound for a tree this small.
+    for revision in 0..1_500_u64 {
+        ui.build(root, 100 + revision, |children| {
+            children.add(
+                revision,
+                Element::label("row").style(|s| sized(s, 10.0, 10.0)),
+                |_| {},
+            );
+        });
+        ui.frame(TargetId::MAIN);
+        let changes = ui
+            .take_meaning_changes(frequent, false)
+            .expect("its changes");
+        assert!(
+            !changes.whole,
+            "the frequent reader stays incremental, at {revision}"
+        );
+        held.apply(changes);
+    }
+    assert!(
+        ui.take_meaning_changes(rare, false)
+            .expect("its changes")
+            .whole
+    );
+    // A mark reaches the readers of its element's target alone.
+    let elsewhere = ui
+        .take_meaning_changes(elsewhere, false)
+        .expect("its changes");
+    assert!(!elsewhere.whole && elsewhere.nodes.is_empty());
 }

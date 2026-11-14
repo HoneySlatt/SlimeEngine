@@ -790,9 +790,8 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The engine gives no root a clock of its own: no game's root runs on uwui yet, and the dev overlay and the editor follow the host's clock.
   A motion asks for every frame while it moves.
   Followed at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames), which reads the platforms' times, finds the system's notice that it resumed, gives the time suspended with it, and reads macOS's clock; the layer of games' interfaces, which feeds a game's clock to its roots ([`uwui-needs.md`](uwui-needs.md#slimeengines-own)); uwui's first stage builds the caps of motion.
-- **uwui's targets share one tree of meaning, a modal root reaches its own target alone, and the engine gives the pointer's moves of a frame as one** ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md), [ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md), [ADR-0258](adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md)).
+- **A modal root reaches its own target alone, and the engine gives the pointer's moves of a frame as one** ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md), [ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md), [ADR-0258](adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md)).
   A modal root blocks its own target alone: a dialog in a window of its own, or panels torn off into windows, would need one that blocks a parent window or every window, which nothing reads yet.
-  One tree of meaning serves every target: its focus is the active target's, and each target's element in focus keeps its `focused` state. Its changes taken after one target's frame may hold another target's new elements before that target's frame styles and lays them out.
   A target's record of its frames, its time and whether it holds a change, is kept until the host removes the target, which comes at M6d.5e.
   The active target is the one of the last key or button, not yet the target that holds the system's focus; a write of the program's own, without a person's gesture, goes to the window that the person last touched.
   The engine has one window: it holds one move of the pointer, without a target, the owner's choice; a host of several windows holds one for each.
@@ -803,7 +802,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The moves between two frames, the wheel's phase, a field's purpose, the pointer's entering and whether the cursor shows are not built: no code reads them.
   The surrounding text is not told as an output after each change, and whether a point is uwui's tells no kind of region, a bar's caption, edges or buttons: their readers are M6d.8's input methods and M6d.7's decorations ([ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)).
   A question over a field of 4,000 bytes whose long word follows text of two directions costs about 0.2 ms, ten times as much as over one direction, the character at a point included; the cause, found neither in uwui nor yet in parley, is not known ([`measurements.md`](measurements.md#m6d5c2-the-clipboard-and-the-hosts-questions)).
-  Followed at M6d.5d, each window its tree of meaning; M6d.5e, the system's focus and a target removed; M6d.7, several windows and a layer's own; the pen, inertial scrolling and the hosts of Android and the web, which read the rest.
+  Followed at M6d.5e, the system's focus and a target removed; M6d.7, several windows and a layer's own; the pen, inertial scrolling and the hosts of Android and the web, which read the rest.
 - **Starting many transitions at once looks each one up in the list of those under way** ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)).
   `Ui`'s styling and a section's reveal search the list of transitions under way before adding an element to it: a change of look that starts a transition on each of the editor's 12,487 elements makes about 78 million comparisons, inside the frame of the change that `ui.tree.look` times.
   Its share of that frame is not measured; found by M6d.5c3b's closing review, outside its change.
@@ -860,7 +859,9 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A label's text gives no runs: a screen reader reads it whole.
   A field of numbers takes no increment or decrement.
   The hover and the press are given to agents, not to screen readers, which AccessKit does not ask.
-  A root's box that changes, a window resized, marks all it holds; a modal root opened or closed makes the next changes whole.
+  A root's box that changes, a window resized, marks all it holds; a modal root opened or closed makes its target's next changes whole.
+  A screen reader may act on an element that changed since the person heard it, a row of a list reused for another item: no platform that AccessKit adapts tells which tree a request was asked on, so no number guards it ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)); a node's number, never given again, and the actions an element takes now are the guard.
+  Each target's tree is a tree of its own, not a subtree grafted into the window's: a target drawn as a region of another's image, a texture in the game, is not read there.
   Each element's meaning is made again from the tree when marked, the boxes that only lay others out below it walked, and a field's runs laid out from its text, as it draws it.
   On Windows, which never says that no client reads any more, a window whose tree was asked for once is given an update after each frame until it closes.
   A text that its builder names gives screen readers its name, not its words.
