@@ -32,16 +32,25 @@ pub enum Event {
     /// The scheme of colors that the system prefers changed, where the platform tells it
     /// ([`Window::color_scheme`](crate::Window::color_scheme)).
     ColorSchemeChanged(ColorScheme),
-    /// The window gained (`true`) or lost (`false`) the keyboard focus. The keys and mouse buttons
-    /// still down when the focus is lost are released just before: see [`Key`](Self::Key) and
-    /// [`MouseButton`](Self::MouseButton).
+    /// The window gained (`true`) or lost (`false`) the keyboard focus. The modifiers, keys and
+    /// mouse buttons still down when the focus is lost are released just after, so that what reads
+    /// them knows that the person did not let them go in this window: see [`Key`](Self::Key) and
+    /// [`MouseButton`](Self::MouseButton)
+    /// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
     Focused(bool),
+    /// The window was covered whole (`true`), or shows again (`false`), where the platform tells
+    /// it: on X11 and macOS. Wayland and Windows never tell it; on X11, a compositing manager,
+    /// Xwayland's included, reports every window visible. A minimized window is not covered: on
+    /// Windows its size is zero ([`Resized`](Self::Resized)). `slime-app` holds the frames of a
+    /// covered window, as of a hidden one
+    /// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+    Occluded(bool),
     /// A key went down or up.
     ///
     /// The events of a key come in pairs, the same way on every platform: a release always follows
     /// a press of the same key, and auto-repeated presses may come in between (see
     /// [`KeyEvent::repeat`]). A key still down when the window loses the keyboard focus is released
-    /// just before [`Focused(false)`](Self::Focused), even though the user lets go of it later, in
+    /// just after [`Focused(false)`](Self::Focused), even though the user lets go of it later, in
     /// another window. A key already down when the window gains the focus is not reported, its
     /// release included, until it is pressed again. On X11 and Windows, "already down" is judged
     /// when the event loop handles the focus gain, which can be later than the focus changed:
@@ -62,15 +71,15 @@ pub enum Event {
     /// Only changes are reported: two of these events in a row hold different states. The modifiers
     /// held when the window gains the keyboard focus are reported, unlike the keys held then (see
     /// [`Key`](Self::Key)), next to [`Focused(true)`](Self::Focused). When the window loses the
-    /// focus, modifiers still held are reported released, before the keys still down and
-    /// [`Focused(false)`](Self::Focused).
+    /// focus, modifiers still held are reported released, after [`Focused(false)`](Self::Focused)
+    /// and before the keys still down.
     ModifiersChanged(Modifiers),
     /// A mouse button went down over the window, or went up after going down there, possibly
     /// with the cursor outside the window by then.
     ///
     /// The events of a button come in pairs, as those of a key do: a release always follows a
     /// press of the same button, and a button is not pressed twice in a row. A button still down
-    /// when the window loses the keyboard focus is released just before
+    /// when the window loses the keyboard focus is released just after
     /// [`Focused(false)`](Self::Focused), even if the user lets go of it later, over the window or
     /// in another one; its real release is then not reported. One case is not covered: on
     /// Wayland, a compositor that takes the pointer away during a press without taking the
@@ -171,12 +180,13 @@ impl Translator {
                 Event::ScaleFactorChanged { scale_factor }
             }
             WindowEvent::ThemeChanged(theme) => Event::ColorSchemeChanged(theme.into()),
-            WindowEvent::Focused(focused) => {
-                if !focused {
-                    self.release_all(&mut deliver);
-                }
-                Event::Focused(focused)
+            WindowEvent::Focused(false) => {
+                deliver(Event::Focused(false));
+                self.release_all(&mut deliver);
+                return;
             }
+            WindowEvent::Focused(true) => Event::Focused(true),
+            WindowEvent::Occluded(occluded) => Event::Occluded(occluded),
             WindowEvent::KeyboardInput {
                 event,
                 is_synthetic,
@@ -303,7 +313,7 @@ impl Translator {
         true
     }
 
-    /// Releases the modifiers, keys and mouse buttons still down, because the window is losing the
+    /// Releases the modifiers, keys and mouse buttons still down, because the window lost the
     /// focus.
     fn release_all(&mut self, deliver: &mut impl FnMut(Event)) {
         if self.modifiers != Modifiers::default() {
@@ -393,7 +403,7 @@ mod tests {
         );
         assert_eq!(
             lose_focus(&mut translator),
-            [Event::Key(w(Released, false)), Event::Focused(false)]
+            [Event::Focused(false), Event::Key(w(Released, false))]
         );
         // On X11 and Windows, winit releases the key itself first; the key is released once.
         assert_eq!(
@@ -403,7 +413,7 @@ mod tests {
         assert_eq!(translator.key(W, w(Released, false), true), None);
         assert_eq!(
             lose_focus(&mut translator),
-            [Event::Key(w(Released, false)), Event::Focused(false)]
+            [Event::Focused(false), Event::Key(w(Released, false))]
         );
     }
 
@@ -545,11 +555,11 @@ mod tests {
         assert_eq!(
             lose_focus(&mut translator),
             [
+                Event::Focused(false),
                 Event::MouseButton {
                     button: MouseButton::Left,
                     state: Released,
                 },
-                Event::Focused(false)
             ]
         );
         // On X11, the real release can still come after the focus is lost; it is dropped.
@@ -576,7 +586,7 @@ mod tests {
         assert!(translator.key(first, unnamed(Released), false).is_some());
         assert_eq!(
             lose_focus(&mut translator),
-            [Event::Key(unnamed(Released)), Event::Focused(false)]
+            [Event::Focused(false), Event::Key(unnamed(Released))]
         );
     }
 
@@ -596,6 +606,10 @@ mod tests {
         assert_eq!(
             translate(WindowEvent::Focused(false)),
             Some(Event::Focused(false))
+        );
+        assert_eq!(
+            translate(WindowEvent::Occluded(true)),
+            Some(Event::Occluded(true))
         );
         // What an input method composes, then commits.
         let preedit = winit::event::Ime::Preedit("にほ".to_owned(), Some((6, 6)));
@@ -713,7 +727,7 @@ mod tests {
         events(&mut translator, changed(ModifiersState::SHIFT));
         assert_eq!(
             events(&mut translator, WindowEvent::Focused(false)),
-            [held(false, false), Event::Focused(false)]
+            [Event::Focused(false), held(false, false)]
         );
         // The release that winit reports itself on every platform then changes nothing.
         assert_eq!(

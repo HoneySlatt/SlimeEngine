@@ -26,10 +26,10 @@ impl WindowInput {
     /// then do not see: a press over what the interface draws, and its release, a key that a
     /// field, a shortcut or the focus takes, a wheel over a box that scrolls or a list, or over
     /// what the interface draws, every press, key and wheel while a modal root is open, what an
-    /// input method composes for a field. The pointer's moves, the modifiers and the releases of
-    /// keys reach the game too; a move is held, and given before the interface's next event or
-    /// the next frame, so that the game sees it first. The window's other events, focus, raw
-    /// motion and the rest, are not the interface's, and leave a held move held.
+    /// input method composes for a field. The pointer's moves, the modifiers, the window's focus
+    /// and the releases of keys reach the game too; a move is held, and given before the
+    /// interface's next event or the next frame, so that the game sees it first. The window's
+    /// other events, raw motion and the rest, are not the interface's, and leave a held move held.
     pub(crate) fn give(&mut self, ui: &mut Ui, event: &Event, time: EventTime) -> bool {
         let input = match event {
             Event::CursorMoved { x, y } => {
@@ -45,6 +45,7 @@ impl WindowInput {
             Event::ModifiersChanged(modifiers) => Input::Modifiers(*modifiers),
             Event::Key(key) => Input::Key(key),
             Event::Ime(ime) => Input::InputMethod(ime),
+            Event::Focused(focused) => Input::Focus(*focused),
             _ => return false,
         };
         self.give_moved(ui);
@@ -251,6 +252,46 @@ mod tests {
         assert!(!input.give(&mut ui, &Event::Focused(true), ZERO));
     }
 
+    /// The window's focus reaches the interface before the releases that the platform makes as it
+    /// leaves: Alt pressed, then the focus lost as Alt and Tab leave the window, gives the bar of
+    /// menus nothing at Alt's release
+    /// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+    #[test]
+    fn the_windows_focus_reaches_the_interface() {
+        use slime_platform::NamedKey;
+        let mut ui = Ui::new(Fonts::new());
+        let settings = RootSettings {
+            size: [400.0, 300.0],
+            scale: 1.0,
+            direction: LayoutDirection::LeftToRight,
+            origin: [0.0; 2],
+            modal: false,
+            target: TargetId::MAIN,
+        };
+        let root = ui.add_root("main", settings, |s| s);
+        ui.build(root, 0, |children| {
+            children.add("bar", Element::menu_bar(), |bar| {
+                let item = Element::menu_item("File", "", uwui::tree::ItemMark::Submenu);
+                bar.add("file", item, |_| {});
+            });
+        });
+        ui.frame(TargetId::MAIN);
+        let alt = |state| {
+            Event::Key(KeyEvent {
+                physical: KeyCode::AltLeft,
+                logical: Key::Named(NamedKey::Alt),
+                text: None,
+                state,
+                repeat: false,
+            })
+        };
+        let mut input = WindowInput::default();
+        input.give(&mut ui, &alt(ButtonState::Pressed), ZERO);
+        assert!(!input.give(&mut ui, &Event::Focused(false), ZERO));
+        input.give(&mut ui, &alt(ButtonState::Released), ZERO);
+        assert_eq!(ui.focus(), None, "the bar took no focus");
+    }
+
     /// The pointer's moves reach the interface as one, the last, at the time it came: when another
     /// of the interface's events comes, or the frame starts.
     #[test]
@@ -263,7 +304,8 @@ mod tests {
         input.give(&mut ui, &Event::CursorMoved { x: 10.0, y: 40.0 }, at(2));
         assert!(!hovered(&ui, field) && !hovered(&ui, button), "held");
         // The window's own events leave it held.
-        assert!(!input.give(&mut ui, &Event::Focused(true), at(3)));
+        let raw = Event::RawMotion { delta: [1.0, 0.0] };
+        assert!(!input.give(&mut ui, &raw, at(3)));
         assert!(!hovered(&ui, button), "still held");
         // A press reaches the button that the last move came over, after that move.
         assert!(input.give(&mut ui, &press(ButtonState::Pressed), at(4)));

@@ -101,12 +101,12 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **A hidden window keeps drawing on X11, and on Windows when it is covered**, at the scheduled rate (2 to 3 % of one CPU core on the development machine).
   A program run on demand, as the editor (`AppConfig::on_demand`), draws only when woken.
   On Wayland, a hidden window draws when the compositor sends it a frame callback: never in Weston, once a second in niri ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
-  On X11, the engine ignores winit's occlusion: under a compositing manager, Xwayland included, the X server reports windows visible anyway.
+  On X11 and macOS, a window covered whole holds its frames once the system says so ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)); under a compositing manager, Xwayland included, the X server reports every window visible, and the window keeps drawing. Windows tells no covered window through winit; DXGI's notice of occlusion is M6d.7's. Checked by hand alone: nothing in CI covers a window.
   On Windows, a minimized window, of size zero, draws nothing and wakes not at all (ADR-0187); not checked in the virtual machine yet.
 - **A window that holds its frames** ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)), hidden on Wayland or minimized on Windows, runs a frame only for what asks from outside.
   A run with a frame limit (`--frames`) does not reach it while hidden.
   A game that must go on while hidden, a server's or a multiplayer game's, cannot.
-  A capture asked of a minimized window on Windows is never answered, and runs a frame every 100 ms until the window shows.
+  A capture asked of a minimized window on Windows, or while the window's surface is given up and waits to be made again, is never answered, and runs a frame every 100 ms until the window shows.
   A hidden window wakes once at the start of each hold, for a frame that finds a device lost before the run knew it, whose last image never reached the compositor.
 - **wgpu's errors panic, in release builds too** (ADR-0016): a use of wgpu that it rejects is treated as a bug.
   Logging the error and dropping the frame is to consider before games ship.
@@ -782,6 +782,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   An opacity multiplies each primitive's alpha, rather than drawing the element apart and blending it whole: overlapping parts of a translucent element show through each other, until groups are drawn apart ([ADR-0171](adr/0171-effects-of-the-interface.md)).
   A shadow is not placed on whole pixels.
   On Linux, the system's dark or light preference is not read: winit reads no desktop's settings, and the portal of the desktop's settings would need a new dependency; Windows reports it.
+  No host of the engine gives the system's size of text or less motion: the editor follows neither, and gives no setting of its own; `Ui::set_preferences` waits for the reader of uwui's first stage ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
   Followed by uwui's reader of the system's preferences, which the engine's platform layer calls once the editor moves onto uwui's 1.0, at Stage 6c's resumption ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); the reader's dependencies are put to the owner when it is built.
 - **The user's size of text is checked on the `widgets` example alone, and the look has one set of high contrast** ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md)).
   At 200 %, a test finds no text of the `widgets` example cut, with the statistics, the sheet of shortcuts and a notification open; it reads labels, buttons, toggles, segments, tabs without a count and check boxes, not a field's text, a menu item's, a section's or a floating panel's title, a tab's count nor a list to choose from: menus, the palette of commands and the colour picker are not checked.
@@ -798,6 +799,12 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The engine gives no root a clock of its own: no game's root runs on uwui yet, and the dev overlay and the editor follow the host's clock.
   A motion asks for every frame while it moves.
   Followed at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames), which reads the platforms' times, finds the system's notice that it resumed, gives the time suspended with it, and reads macOS's clock; the layer of games' interfaces, which feeds a game's clock to its roots ([`uwui-needs.md`](uwui-needs.md#slimeengines-own)); uwui's first stage builds the caps of motion.
+- **Of the window's lifecycle, uwui hears the focus alone** ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
+  A suspend, a resume and low memory are not given: winit 0.30 gives them on phones and the web alone, nowhere the engine runs.
+  A target removed, lost or made again is not given: nothing in uwui reads them yet, and the engine's target goes only as the run ends.
+  Whether a target is covered is not given: nothing in uwui draws it otherwise; the engine holds a covered window's frames itself.
+  The focus's loss ends a drag and Alt alone; a press of a button held as the focus left still presses it at the release that the platform makes.
+  Followed at M6d.7, the system's notice of a resume and several windows; a host on a phone for the rest.
 - **A modal root reaches its own target alone, and the engine gives the pointer's moves of a frame as one** ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md), [ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md), [ADR-0258](adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md)).
   A modal root blocks its own target alone: a dialog in a window of its own, or panels torn off into windows, would need one that blocks a parent window or every window, which nothing reads yet.
   A target's record of its frames, its time and whether it holds a change, is kept as long as the interface: a target removed waits for M6d.7, the first host whose targets go during a run ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).

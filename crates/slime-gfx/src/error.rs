@@ -100,9 +100,10 @@ pub enum GfxError {
         /// wgpu's message.
         message: String,
     },
-    /// The window's surface was lost for good: after a loss, it could not be created again, or it
-    /// was lost again each time it was. Nothing can be drawn into the window any more.
-    #[error("the window's surface was lost for good: {message}")]
+    /// The window's surface was given up: after a loss, it could not be created again, or it was
+    /// lost again each time it was. Nothing can be drawn into the window until it is made again
+    /// ([`Surface::make_again`](crate::Surface::make_again)).
+    #[error("the window's surface was given up: {message}")]
     SurfaceLost {
         /// Why: the error of creating it again, or the losses that followed; wgpu's message when
         /// the graphics API refused to configure it.

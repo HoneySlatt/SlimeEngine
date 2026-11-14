@@ -5,10 +5,10 @@
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
-use uwui::host::{Person, TargetId};
+use uwui::host::{Event, Input, Person, TargetId};
 use uwui::style::{FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
-use uwui::time::{FrameShown, Instant};
+use uwui::time::{EventTime, FrameShown, Instant};
 use uwui::tree::{
     Along, Element, ElementId, ItemMark, Layer, LayoutDirection, Place, RootSettings, Side, Ui,
 };
@@ -174,6 +174,24 @@ fn alt_pressed_and_let_go_alone_reaches_the_bar_and_leaves_it() {
     window.press(NamedKey::Alt);
     window.press(NamedKey::Tab);
     assert!(!window.key(NamedKey::Alt, ButtonState::Released));
+}
+
+/// Alt pressed, then the window's focus lost, as Alt and Tab leave it: the release that the
+/// platform makes for Alt, or the one that comes once the focus is back, reaches no bar
+/// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+#[test]
+fn alt_let_go_after_the_window_lost_the_focus_reaches_no_bar() {
+    let mut window = Window::new();
+    window.ui.set_focus(Some(window.button));
+    window.press(NamedKey::Alt);
+    let lost = Event::new(
+        TargetId::MAIN,
+        EventTime::simulated(Instant::ZERO),
+        Input::Focus(false),
+    );
+    assert!(!window.ui.event(lost).taken());
+    assert!(!window.key(NamedKey::Alt, ButtonState::Released));
+    assert_eq!(window.ui.focus(), Some(window.button));
 }
 
 #[test]

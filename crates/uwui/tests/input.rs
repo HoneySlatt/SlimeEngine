@@ -262,6 +262,50 @@ fn scrolling_into_view_counts_logical_pixels_and_a_list_not_laid_out_shows_a_row
     assert_eq!(ui.scroll(scroll), Some([0.0, 6.0 * 40.0 - 100.0]));
 }
 
+/// A drag in progress when the window loses the focus is given up, as Escape gives it up: the
+/// release that the platform then makes, wherever the pointer is, drops nothing
+/// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+#[test]
+fn a_drag_is_given_up_when_the_window_loses_the_focus() {
+    use uwui::host::{Event, Input};
+    use uwui::time::{EventTime, Instant};
+    let mut ui = Ui::new(Fonts::new());
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
+    let column = |s: StyleBuilder| s.direction(FlexDirection::Column);
+    ui.build(root, 0, |children| {
+        children.add("column", Element::container().style(column), |children| {
+            let source = Element::button("")
+                .style(|s| sized(s, 100.0, 40.0))
+                .draggable();
+            children.add("source", source, |_| {});
+            let target = Element::container()
+                .style(|s| sized(s, 100.0, 40.0))
+                .named("target")
+                .drop_target();
+            children.add("target", target, |_| {});
+        });
+    });
+    ui.frame(TargetId::MAIN);
+    ui.pointer_moved(50.0, 20.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(50.0, 70.0);
+    assert!(ui.dragging().is_some());
+    let lost = Event::new(
+        TargetId::MAIN,
+        EventTime::simulated(Instant::ZERO),
+        Input::Focus(false),
+    );
+    let _ = ui.event(lost);
+    assert_eq!(ui.dragging(), None);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    assert!(
+        !ui.take_actions()
+            .iter()
+            .any(|action| matches!(action.kind, ActionKind::Dropped { .. })),
+        "no drop"
+    );
+}
+
 /// A draggable element pressed and moved past a few pixels is dragged rather than pressed, onto the
 /// target of drops under the pointer, where in it as the pointer stands; released there, it drops;
 /// Escape, or a release over nothing, gives it up; an agent drops it as a person would

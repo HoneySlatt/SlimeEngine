@@ -37,7 +37,7 @@ pub(super) struct Interaction {
     /// Each known target's input, made with its first root, or with the first event or reading of
     /// [`TargetId::MAIN`].
     targets: Vec<(TargetId, TargetInput)>,
-    /// The target of the last key or button: what names no element follows it.
+    /// The target of the last key, button or focus given: what names no element follows it.
     pub(super) active: TargetId,
     /// The actions that the program has not taken yet.
     pub(super) actions: Vec<Action>,
@@ -218,6 +218,17 @@ impl Ui {
         self.interaction.of_mut(t).pointer = None;
         self.hover(t);
         self.rest_on(t, None);
+    }
+
+    /// What [`Input::Focus`](crate::host::Input::Focus) does when the target loses the system's
+    /// focus: Alt down is no longer alone, and a drag in progress is given up.
+    pub(super) fn focus_lost_input(&mut self, t: TargetId) {
+        let input = self.interaction.of_mut(t);
+        input.alt_alone = false;
+        if input.drag.is_some_and(|(_, _, started)| started) {
+            input.drag = None;
+            input.captured = None;
+        }
     }
 
     /// What [`Input::PointerButton`](crate::host::Input::PointerButton) does; gives whether the
@@ -1040,8 +1051,8 @@ impl Ui {
         self.interaction.of(target).focus
     }
 
-    /// The target of the last key or button that the interface was given, [`TargetId::MAIN`]
-    /// until then. What names no element follows it: the focus that [`Ui::focus`] reads and
+    /// The target of the last key or button that the interface was given, or of the window's focus
+    /// given ([`Input::Focus`](crate::host::Input::Focus)), [`TargetId::MAIN`] until then. What names no element follows it: the focus that [`Ui::focus`] reads and
     /// [`Ui::set_focus`] takes; the modifiers held ([`Ui::held_modifiers`]); the palette of
     /// commands and the sheet of shortcuts, which open over its first root; the program's clipboard
     /// ([`Ui::write_clipboard`], [`Ui::read_clipboard`]); an action without an element

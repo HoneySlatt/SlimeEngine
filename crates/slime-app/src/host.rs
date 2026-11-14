@@ -237,6 +237,8 @@ pub struct Context {
     /// Whether frames run only when something asks for one: `AppConfig::on_demand`, then as the
     /// program sets it.
     on_demand: bool,
+    /// Whether the program asked the window's surface given up at the end of this frame.
+    lose_surface: bool,
 }
 
 impl Context {
@@ -254,6 +256,7 @@ impl Context {
             frame_requested: false,
             frame_due: None,
             on_demand,
+            lose_surface: false,
         }
     }
 
@@ -305,6 +308,22 @@ impl Context {
     /// The run's [`Waker`], with which another thread asks it for a frame: a load that ended.
     pub fn waker(&self) -> Waker {
         self.waker.clone()
+    }
+
+    /// Gives the window's surface up at the end of this frame, as a loss that comes again each
+    /// time would ([`Surface::lose`](slime_gfx::Surface::lose)): for the tests and the tools that
+    /// check how a program goes on after a lost surface, as [`Gpu::lose`] does for a device. The
+    /// run then holds its frames, makes the surface again after a wait, and goes on; the fourth
+    /// surface given up within five minutes stops it
+    /// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+    /// Headless, it does nothing.
+    pub fn lose_surface(&mut self) {
+        self.lose_surface = true;
+    }
+
+    /// Whether the program asked the surface given up since the last call, which forgets it.
+    pub(crate) fn take_lose_surface(&mut self) -> bool {
+        std::mem::take(&mut self.lose_surface)
     }
 
     /// Asks the engine to stop. The current frame finishes, then the presentation's and the

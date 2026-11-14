@@ -41,8 +41,8 @@ impl Ui {
     /// Gives the interface an input event that came to `event.target` at `event.time`, and answers
     /// at once whether it took it, which a game then leaves ([`Input`] says what each does). The
     /// interface's time moves to the event's, never back, so that what it starts, the pointer's
-    /// rest before a tooltip shows or a submenu opens, starts then. A key or a button makes its
-    /// target the active one ([`Ui::active_target`]).
+    /// rest before a tooltip shows or a submenu opens, starts then. A key, a button or the window's
+    /// focus given makes its target the active one ([`Ui::active_target`]).
     ///
     /// An event reaches the roots of its own target alone. The interface knows a target from its
     /// first root, [`TargetId::MAIN`] from the start: an event for a target that it does not know
@@ -76,6 +76,14 @@ impl Ui {
             Input::Wheel(delta) => self.wheel_input(t, delta),
             Input::Modifiers(modifiers) => {
                 self.interaction.of_mut(t).modifiers = modifiers;
+                false
+            }
+            Input::Focus(true) => {
+                self.interaction.active = t;
+                false
+            }
+            Input::Focus(false) => {
+                self.focus_lost_input(t);
                 false
             }
             Input::Key(key) => {

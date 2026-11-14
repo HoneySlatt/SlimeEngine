@@ -1121,3 +1121,38 @@ fn less_motion_asked_during_a_transition_asks_for_its_targets_frame() {
     assert_eq!(red(&ui, buttons[1]), 1.0, "ended at once");
     assert!(ui.needs_frame(B), "its end waits for `b`'s frame");
 }
+
+/// The window's focus given to a target makes it the active one; taken, the active target stays,
+/// each target keeps the element in focus, and the pointer keeps its place: a press after the
+/// focus came back, with no move, reaches what lies under it
+/// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+#[test]
+fn the_windows_focus_makes_its_target_active_and_its_loss_keeps_the_focus_and_the_pointer() {
+    let Two {
+        mut ui,
+        buttons,
+        fields,
+        ..
+    } = two_targets();
+    assert!(click(&mut ui, A, 50.0, 60.0));
+    assert_eq!(ui.active_target(), A);
+    // Given to `b`, which nothing pressed yet: `b` is active.
+    assert!(!give(&mut ui, B, Input::Focus(true)).taken());
+    assert_eq!(ui.active_target(), B);
+    // Taken from `b` and given back to `a`: `a` is active, its field still in focus.
+    assert!(!give(&mut ui, B, Input::Focus(false)).taken());
+    assert_eq!(ui.active_target(), B, "a loss leaves the active target");
+    assert!(!give(&mut ui, A, Input::Focus(false)).taken());
+    assert_eq!(ui.focus_in(A), Some(fields[0]));
+    assert!(!give(&mut ui, A, Input::Focus(true)).taken());
+    assert_eq!(ui.active_target(), A);
+    assert_eq!(ui.focus(), Some(fields[0]));
+    // The pointer over `a`'s button, the focus lost and given back, then a press with no move.
+    let _ = give(&mut ui, A, Input::PointerMoved { x: 50.0, y: 20.0 });
+    let _ = ui.take_actions();
+    let _ = give(&mut ui, A, Input::Focus(false));
+    let _ = give(&mut ui, A, Input::Focus(true));
+    assert!(give(&mut ui, A, primary(ButtonState::Pressed)).taken());
+    assert!(give(&mut ui, A, primary(ButtonState::Released)).taken());
+    assert!(ui.take_actions().contains(&press(buttons[0])));
+}

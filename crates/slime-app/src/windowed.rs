@@ -28,6 +28,11 @@ const SIGNAL_WAIT: Duration = Duration::from_millis(100);
 /// The shortest time suspended that the log tells: what parts the two clocks while the machine is
 /// awake is far below it.
 const SUSPEND_TOLD: Duration = Duration::from_secs(1);
+/// The first wait before a window's surface given up is made again; each attempt that fails
+/// doubles it, up to `LONGEST_REMAKE_WAIT`.
+const FIRST_REMAKE_WAIT: Duration = Duration::from_secs(1);
+/// The longest wait between two attempts to make a surface given up again.
+const LONGEST_REMAKE_WAIT: Duration = Duration::from_secs(16);
 
 pub(crate) fn run_windowed(
     simulation: &mut impl Simulation,
@@ -63,6 +68,8 @@ pub(crate) fn run_windowed(
         resting: false,
         inputs: InputWait::default(),
         input: crate::interface::WindowInput::default(),
+        occluded: false,
+        remake: Remake::default(),
         wanted: true,
         change_due: None,
         started: false,
@@ -118,6 +125,11 @@ struct WindowedDriver<'a, S, P> {
     /// What the presentation's interface is given of the window's events: the pointer's moves of
     /// a frame as one.
     input: crate::interface::WindowInput,
+    /// Whether the system says that the window is covered whole (`Event::Occluded`), on X11 and
+    /// macOS: it then holds its frames, as a hidden one.
+    occluded: bool,
+    /// The window's surface given up, and when the run makes it again.
+    remake: Remake,
     /// Whether something asked for a frame that has not run yet, when frames run on demand.
     wanted: bool,
     /// When the presentation's interface changes on its own, which a frame then shows, when frames
@@ -171,15 +183,14 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         }
         self.redraw_asked = None;
         self.asked_from_outside = false;
+        if self.started {
+            self.follow_surface(Instant::now());
+        }
         if !self.started
             || self.stop.is_some()
             || self
                 .frames
-                .check_stop(
-                    &mut self.host.context,
-                    self.surface.as_ref(),
-                    self.restore_lost_device,
-                )
+                .check_stop(&mut self.host.context, self.restore_lost_device)
                 .is_some()
         {
             return;
@@ -209,6 +220,11 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
             now - self.last_frame,
             self.surface.as_mut(),
         );
+        if self.host.context.take_lose_surface()
+            && let Some(surface) = &mut self.surface
+        {
+            surface.lose();
+        }
         // What the interface asks of the window and the clipboard, as the frame left it, whether
         // or not it drew an image, a window hidden or covered included: the pointer's shape, the
         // input method, and the reads that the frame asked, the editor's paste among them,
@@ -258,12 +274,57 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         }
     }
 
-    /// Whether the window has no area to draw into, as a minimized window on Windows.
-    fn window_is_empty(&self) -> bool {
-        self.host.context.window().is_some_and(|window| {
+    /// Whether the window holds its frames whatever the compositor says: it has no area to draw
+    /// into, as a minimized window on Windows; the system says that it is covered whole, on X11 and
+    /// macOS; or its surface was given up, until it is made again.
+    fn holds_frames(&self) -> bool {
+        let empty = self.host.context.window().is_some_and(|window| {
             let size = window.inner_size();
             size.width == 0 || size.height == 0
-        })
+        });
+        empty || self.occluded || self.remake.waiting()
+    }
+
+    /// Notices a surface that `slime-gfx` gave up, and makes it again once due, rather than ending
+    /// the run; stops the run once the surfaces given up, and the attempts that failed, pass the
+    /// budget (`Remake`).
+    fn follow_surface(&mut self, now: Instant) {
+        let Some(surface) = &mut self.surface else {
+            return;
+        };
+        if surface.check().is_ok() {
+            return;
+        }
+        if !self.remake.waiting() {
+            if !self.remake.given_up(now) {
+                tracing::error!(
+                    "the window's surface was given up again after {MAX_RESTORES} within {} \
+                     minutes: the run stops",
+                    RESTORE_WINDOW.as_secs() / 60
+                );
+                self.host.context.exit_because(ExitReason::SurfaceLost);
+                return;
+            }
+            tracing::warn!("the window holds its frames until its surface is made again");
+        }
+        if !self.remake.due(now) {
+            return;
+        }
+        match surface.make_again() {
+            Ok(()) => {
+                self.remake.made();
+                // Its first frame runs even if the window holds its frames, as after a new device.
+                self.asked_from_outside = true;
+                self.wanted = true;
+            }
+            Err(error) => {
+                tracing::warn!(%error, "the window's surface cannot be made again yet");
+                if !self.remake.failed(now) {
+                    tracing::error!("the run stops: the window's surface cannot be made again");
+                    self.host.context.exit_because(ExitReason::SurfaceLost);
+                }
+            }
+        }
     }
 
     /// What the loop does while the window holds its frames: a redraw asked for that has not come,
@@ -299,11 +360,45 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         LoopControl::WaitUntil(Instant::now())
     }
 
+    /// When the loop wakes next, a surface given up apart: once the frame asked for is due, or
+    /// when something asks while the window holds its frames; never while frames run on demand and
+    /// nothing asks for one.
+    fn next_wake(&mut self) -> LoopControl {
+        let now = Instant::now();
+        let woken = self.host.context.waker().take();
+        self.asked_from_outside |= woken;
+        if self.host.context.on_demand() {
+            self.wanted |= woken
+                | self.host.context.take_frame_request()
+                | self.change_due.is_some_and(|due| due <= now);
+            if !self.wanted {
+                // An event, a wake, a signal, the tool's end or the interface's change runs this
+                // again.
+                self.resting = true;
+                return self
+                    .change_due
+                    .map_or(LoopControl::Wait, LoopControl::WaitUntil);
+            }
+        }
+        if self.redraw_asked.is_none() && !self.holds_frames() {
+            if now < self.next_frame {
+                return LoopControl::WaitUntil(self.next_frame);
+            }
+            // The frame runs when the redraw arrives, which wakes the loop. Nothing else needs a
+            // deadline: a termination signal, the tool's end and the development channel wake it.
+            if let Some(window) = self.host.context.window() {
+                window.request_redraw();
+                self.redraw_asked = Some(now);
+            }
+        }
+        self.held(now)
+    }
+
     /// When the GPU device is lost and the game chose to replace it, lets the presentation drop its
     /// objects of the lost device (`Presentation::gpu_lost`), releases the run's own, opens a new
     /// device for the window and lets the presentation create its objects again
     /// (`Presentation::gpu_restored`), between frames. Does nothing when the run is stopping
-    /// anyway, or the window's surface was lost for good. Gives up, leaving the loss to stop the
+    /// anyway, or while the window's surface is given up. Gives up, leaving the loss to stop the
     /// run, once `MAX_RESTORES` devices were opened within `RESTORE_WINDOW`; and when no device
     /// opens, stops the run with that error.
     fn restore(&mut self) {
@@ -409,6 +504,19 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         if let (Event::Resized(size), Some(surface)) = (&event, &mut self.surface) {
             surface.resize(size.width, size.height);
         }
+        if let Event::Occluded(occluded) = event {
+            self.occluded = occluded;
+        }
+        // What may change the surface makes a surface given up again at once.
+        if matches!(
+            event,
+            Event::Resized(_)
+                | Event::ScaleFactorChanged { .. }
+                | Event::Focused(true)
+                | Event::Occluded(false)
+        ) {
+            self.remake.soon(Instant::now());
+        }
         // What a screen reader asks reaches the interface alone.
         #[cfg(feature = "accessibility")]
         if let Event::Accessibility(asked) = &event {
@@ -448,6 +556,7 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         // The compositor's signal came.
         self.checked_hold = false;
         let now = Instant::now();
+        self.remake.soon(now);
         if self
             .redraw_asked
             .is_some_and(|asked| now - asked >= SIGNAL_WAIT)
@@ -469,45 +578,19 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         self.end_rest();
         if self.started {
             self.restore();
+            self.follow_surface(Instant::now());
         }
         if self.stop.is_none() {
-            self.stop = self.frames.check_stop(
-                &mut self.host.context,
-                self.surface.as_ref(),
-                self.restore_lost_device,
-            );
+            self.stop = self
+                .frames
+                .check_stop(&mut self.host.context, self.restore_lost_device);
         }
         if self.stop.is_some() {
             return LoopControl::Exit;
         }
-        let now = Instant::now();
-        let woken = self.host.context.waker().take();
-        self.asked_from_outside |= woken;
-        if self.host.context.on_demand() {
-            self.wanted |= woken
-                | self.host.context.take_frame_request()
-                | self.change_due.is_some_and(|due| due <= now);
-            if !self.wanted {
-                // An event, a wake, a signal, the tool's end or the interface's change runs this
-                // again.
-                self.resting = true;
-                return self
-                    .change_due
-                    .map_or(LoopControl::Wait, LoopControl::WaitUntil);
-            }
-        }
-        if self.redraw_asked.is_none() && !self.window_is_empty() {
-            if now < self.next_frame {
-                return LoopControl::WaitUntil(self.next_frame);
-            }
-            // The frame runs when the redraw arrives, which wakes the loop. Nothing else needs a
-            // deadline: a termination signal, the tool's end and the development channel wake it.
-            if let Some(window) = self.host.context.window() {
-                window.request_redraw();
-                self.redraw_asked = Some(now);
-            }
-        }
-        self.held(now)
+        // A surface given up wakes the loop to be made again.
+        let control = self.next_wake();
+        sooner(control, self.remake.next)
     }
 
     fn exiting(&mut self) {
@@ -527,7 +610,11 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         if let Some(Err(error)) = self.host.context.gpu().map(Gpu::check) {
             self.error.get_or_insert(RunError::Gfx(error));
         }
-        if let Some(Err(error)) = self.surface.as_ref().map(Surface::check) {
+        // A surface given up is the run's error only when it stopped the run: one that waits to be
+        // made again as the run stops for another reason is not.
+        if self.host.context.exit_reason() == Some(ExitReason::SurfaceLost)
+            && let Some(Err(error)) = self.surface.as_ref().map(Surface::check)
+        {
             self.error.get_or_insert(RunError::Gfx(error));
         }
         // The surface keeps the window alive: release it, the GPU and the window while the
@@ -593,6 +680,78 @@ fn is_input(event: &Event) -> bool {
             | Event::MouseWheel(_)
             | Event::Ime(_)
     )
+}
+
+/// What the run does about a window's surface that `slime-gfx` gave up
+/// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`):
+/// it makes it again at the next event that may change it, or after a wait that doubles from
+/// `FIRST_REMAKE_WAIT`, never at every frame; and stops the run at the surface given up, or the
+/// attempt that failed, that passes `MAX_RESTORES` within `RESTORE_WINDOW`, the device's rule.
+#[derive(Debug, Default)]
+struct Remake {
+    /// When surfaces were given up, or failed to be made again, within `RESTORE_WINDOW`.
+    losses: Vec<Instant>,
+    /// When the surface given up is made again next; none while the surface shows images.
+    next: Option<Instant>,
+    /// The wait after the last attempt.
+    wait: Duration,
+}
+
+impl Remake {
+    /// Counts a loss at `now`: whether the run goes on, the budget not spent.
+    fn count(&mut self, now: Instant) -> bool {
+        self.losses
+            .retain(|&lost| now.duration_since(lost) < RESTORE_WINDOW);
+        self.losses.push(now);
+        self.losses.len() <= MAX_RESTORES
+    }
+
+    /// The surface was found given up at `now`: whether the run goes on. The first attempt to make
+    /// it again comes `FIRST_REMAKE_WAIT` later.
+    fn given_up(&mut self, now: Instant) -> bool {
+        self.wait = FIRST_REMAKE_WAIT;
+        self.next = Some(now + self.wait);
+        self.count(now)
+    }
+
+    /// An attempt at `now` failed: whether the run goes on. The next waits twice as long.
+    fn failed(&mut self, now: Instant) -> bool {
+        self.wait = (self.wait * 2).min(LONGEST_REMAKE_WAIT);
+        self.next = Some(now + self.wait);
+        self.count(now)
+    }
+
+    /// The surface was made again.
+    fn made(&mut self) {
+        self.next = None;
+    }
+
+    /// An event at `now` that may change the surface, the window resized or shown again: the
+    /// next attempt comes at once.
+    fn soon(&mut self, now: Instant) {
+        if let Some(next) = &mut self.next {
+            *next = (*next).min(now);
+        }
+    }
+
+    /// Whether the surface is given up, and waits to be made again.
+    fn waiting(&self) -> bool {
+        self.next.is_some()
+    }
+
+    /// Whether an attempt is due at `now`.
+    fn due(&self, now: Instant) -> bool {
+        self.next.is_some_and(|next| next <= now)
+    }
+}
+
+/// `control`, woken at `at` at the latest, unless it ends the loop.
+fn sooner(control: LoopControl, at: Option<Instant>) -> LoopControl {
+    match (control, at) {
+        (LoopControl::Exit, _) | (_, None) => control,
+        (LoopControl::Wait, Some(at)) => LoopControl::WaitUntil(at),
+        (LoopControl::WaitUntil(due), Some(at)) => LoopControl::WaitUntil(due.min(at)),
+    }
 }
 
 /// When the frame after one that was due at `due` and started at `started` is due.
@@ -716,6 +875,79 @@ mod tests {
         ui.frame(TargetId::MAIN);
         assert!(interface_asks(&ui, true));
         assert!(interface_asks(&ui, false));
+    }
+
+    #[test]
+    fn a_surface_given_up_is_made_again_after_waits_that_double_and_an_event_hastens_it() {
+        let start = Instant::now();
+        let mut remake = Remake::default();
+        assert!(!remake.waiting());
+        assert!(remake.given_up(start));
+        assert!(remake.waiting());
+        assert!(!remake.due(start));
+        assert!(remake.due(start + FIRST_REMAKE_WAIT));
+        // Each attempt that fails waits twice as long, up to the longest wait.
+        let mut at = start + FIRST_REMAKE_WAIT;
+        let mut waits = Vec::new();
+        for _ in 0..6 {
+            // Within the budget, whatever it holds.
+            remake.losses.clear();
+            assert!(remake.failed(at));
+            let next = remake.next.expect("waiting");
+            waits.push(next - at);
+            at = next;
+        }
+        let seconds = waits.iter().map(Duration::as_secs).collect::<Vec<_>>();
+        assert_eq!(seconds, [2, 4, 8, 16, 16, 16]);
+        // An event that may change the surface makes the next attempt due at once.
+        remake.soon(at);
+        assert!(remake.due(at));
+        remake.made();
+        assert!(!remake.waiting());
+        // Nothing to hasten once it shows images.
+        remake.soon(at);
+        assert!(!remake.waiting());
+    }
+
+    #[test]
+    fn the_fourth_surface_given_up_within_five_minutes_stops_the_run() {
+        let start = Instant::now();
+        let mut remake = Remake::default();
+        for loss in 0..3 {
+            assert!(remake.given_up(start + Duration::from_secs(loss)), "{loss}");
+            remake.made();
+        }
+        assert!(!remake.given_up(start + Duration::from_secs(3)));
+        // Losses older than five minutes no longer count; a failed attempt counts as one.
+        let later = start + RESTORE_WINDOW + Duration::from_secs(2);
+        let mut remake = Remake::default();
+        assert!(remake.given_up(start));
+        assert!(remake.failed(start + Duration::from_secs(1)));
+        assert!(remake.given_up(later));
+        assert!(remake.failed(later));
+        assert!(remake.failed(later));
+        assert!(!remake.failed(later));
+    }
+
+    #[test]
+    fn the_loop_wakes_to_make_the_surface_again() {
+        let now = Instant::now();
+        let soon = now + Duration::from_millis(5);
+        let late = now + Duration::from_secs(1);
+        assert_eq!(sooner(LoopControl::Wait, None), LoopControl::Wait);
+        assert_eq!(
+            sooner(LoopControl::Wait, Some(soon)),
+            LoopControl::WaitUntil(soon)
+        );
+        assert_eq!(
+            sooner(LoopControl::WaitUntil(late), Some(soon)),
+            LoopControl::WaitUntil(soon)
+        );
+        assert_eq!(
+            sooner(LoopControl::WaitUntil(soon), Some(late)),
+            LoopControl::WaitUntil(soon)
+        );
+        assert_eq!(sooner(LoopControl::Exit, Some(soon)), LoopControl::Exit);
     }
 
     #[test]

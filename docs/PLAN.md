@@ -25,8 +25,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     done, M6d.9a1a to [M6d.9a1b3b1](stage-6d.md#m6d9a1b3b1--lists); in progress,
     [M6d.9a1b3b2](#m6d9a1b3b2--the-editors-journal).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5a to M6d.5d2, done, M6d.5c and M6d.5d whole;
-    in progress, [M6d.5e1](#m6d5e1--the-lifecycle); next, M6d.5e2, once track A is between
-    milestones.
+    in progress, [M6d.5e1](#m6d5e1--the-lifecycle); next, M6d.5e2.
   - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249.
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
@@ -59,18 +58,14 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 
 ## M6d.5e1 — The lifecycle
 
-Started on 2026-11-14 ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)), the first half of
-[M6d.5e](stage-6d.md#m6d5e--slime-app-a-host-through-the-api-alone).
+Started on 2026-11-14 ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
 
 - **Goal.** The window's lifecycle reaches uwui, or rests the engine, where winit gives it.
 - **Crates.** `uwui`, `slime-platform`, `slime-gfx`, `slime-app`.
-- **Delivers.** `Input::Focus`, the focus's loss reported before the platform's releases; a lost
-  surface made again rather than ending the run, within a budget of time; a covered window at
-  rest; `Ui::set_preferences` documented as the host's door; ADR-0249's column of the engine
-  corrected.
-- **Done when.** Alt let go after the focus left opens no bar of menus; a surface lost on purpose is
-  made again and the run goes on; the editor's and the game's sessions, rest and input to present
-  are unchanged; CI is green.
+- **Delivers.** `Input::Focus`, before the platform's releases; a lost surface made again within
+  a budget; a covered window at rest; the preferences' door; ADR-0249's engine column corrected.
+- **Done when.** Alt let go after the focus left opens no bar; a surface lost on purpose is made
+  again; sessions, rest and input to present unchanged; CI green.
 - **Measured.** Rest; input to present.
 
 ## M6d.9a1b3b2 — The editor's journal
@@ -187,10 +182,11 @@ owner's save alone. After Stage 6e's first milestone, a check that names *Hunna 
   following a pause made from the dev overlay, and Stop, the game's end seen at once.
 - **A screen reader's request on its window** (M6d.5d1): Narrator in the Windows virtual machine
   pressing a button and setting a field of the `interface` example.
-- **A covered window at rest** (M6d.5c3b): *Hunna Wood* paused, its dev overlay open, the pointer
-  leaving its window as another covers it, in the Windows virtual machine and the macOS one: the
-  game asking no frame while covered, and drawing again once shown.
+- **Focus** (M6d.5e1): the editor, on Linux and in the Windows virtual machine, left by Alt and
+  Tab, Alt held or mid-drag: no bar in focus, nothing dropped.
+- **Focus** (M6d.5e1): the editor, on Linux and in the Windows virtual machine, left by Alt and
+  Tab, Alt held or mid-drag: no bar in focus, nothing dropped.
 
 ## Known debt
 
-The known debt still open, 192 items, is in [`debt.md`](debt.md).
+The known debt still open, 193 items, is in [`debt.md`](debt.md).

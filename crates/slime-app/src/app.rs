@@ -170,10 +170,12 @@ impl Default for AppConfig {
 ///   allows one attempt per process, even a failed one), or the event loop fails.
 /// - With a window, [`RunError::Gfx`]: no GPU can draw into the window, the GPU device was lost
 ///   during the run (`GfxError::DeviceLost`: the driver crashed or was reset, the GPU was removed,
-///   or it ran out of memory), or the window's surface was lost for good (`GfxError::SurfaceLost`:
-///   it could not be created again after a loss, or was lost again each time). After a loss, the
-///   run stops like after an exit request: the frame in progress finishes, without drawing, and
-///   the `stop` methods are called. A game that sets [`AppConfig::restore_lost_device`] goes on
+///   or it ran out of memory), or the window's surface was given up a fourth time within five
+///   minutes (`GfxError::SurfaceLost`: after a loss, it could not be created again, or was lost
+///   again each time). A surface given up before that is made again after a wait, the window
+///   holding its frames meanwhile (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+///   After a loss that stops it, the run stops like after an exit request: the frame in progress
+///   finishes, without drawing, and the `stop` methods are called. A game that sets [`AppConfig::restore_lost_device`] goes on
 ///   with a new device instead ([`Presentation::gpu_lost`], [`Presentation::gpu_restored`]): its
 ///   run returns `GfxError::DeviceLost` at a loss that comes after three new devices within five
 ///   minutes, and `GfxError::CannotRestore`, or the error of opening a device, when none replaces
@@ -237,7 +239,7 @@ fn run_headless(simulation: &mut impl Simulation, config: &AppConfig) -> Result<
     // The first frame runs at once.
     let mut wanted = true;
     let reason = loop {
-        if let Some(reason) = frames.check_stop(&mut host.context, None, false) {
+        if let Some(reason) = frames.check_stop(&mut host.context, false) {
             break reason;
         }
         if let Some(period) = period {
@@ -319,17 +321,13 @@ impl Frames {
     }
 
     /// Why no further frame must run, if that is the case. A termination signal received since the
-    /// last check, or the loss of the GPU or of the window's `surface`, is recorded in `ctx` first,
-    /// as the reason the run stops; not the loss of the GPU when the run can still replace it, as
-    /// `restorable` says, which it does before the next frame. From then on, the game also sees a
+    /// last check, or the loss of the GPU, is recorded in `ctx` first, as the reason the run
+    /// stops; not the loss of the GPU when the run can still replace it, as `restorable` says,
+    /// which it does before the next frame. A window's surface given up is the windowed driver's
+    /// to make again, which records it here once it gives up. From then on, the game also sees a
     /// loss as an exit request; it sees a signal as one as soon as it arrives
     /// (`Context::exit_requested`).
-    pub(crate) fn check_stop(
-        &self,
-        ctx: &mut Context,
-        surface: Option<&Surface>,
-        restorable: bool,
-    ) -> Option<&'static str> {
+    pub(crate) fn check_stop(&self, ctx: &mut Context, restorable: bool) -> Option<&'static str> {
         if signal::received() {
             ctx.exit_because(ExitReason::Signal);
         }
@@ -339,9 +337,6 @@ impl Frames {
         }
         if !restorable && ctx.gpu().is_some_and(|gpu| gpu.check().is_err()) {
             ctx.exit_because(ExitReason::DeviceLost);
-        }
-        if surface.is_some_and(|surface| surface.check().is_err()) {
-            ctx.exit_because(ExitReason::SurfaceLost);
         }
         match ctx.exit_reason() {
             Some(ExitReason::Requested) => Some("the application requested an exit"),

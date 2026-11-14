@@ -21,7 +21,7 @@ pub enum RunError {
     Platform(#[from] PlatformError),
     /// The GPU could not be opened to draw into the window, the GPU device was lost during the run
     /// (`GfxError::DeviceLost`) and no new one replaced it (`GfxError::CannotRestore`, when the
-    /// game asked for one), or the window's surface was lost for good
+    /// game asked for one), or the window's surface was given up a fourth time within five minutes
     /// (`GfxError::SurfaceLost`).
     #[error("cannot draw into the window")]
     Gfx(#[from] GfxError),

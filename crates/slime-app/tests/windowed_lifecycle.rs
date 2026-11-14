@@ -49,7 +49,7 @@ mod linux {
     use slime_world::World;
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
-    const SCENARIOS: [&str; 16] = [
+    const SCENARIOS: [&str; 19] = [
         "calls",
         "spans",
         "start-error",
@@ -66,6 +66,9 @@ mod linux {
         "error-in-render",
         "panic-in-render",
         "rests",
+        "surface-lost",
+        "surface-lost-again",
+        "surface-lost-at-exit",
     ];
     /// When this variable is set, the program runs `SCALED_SCENARIOS` instead of `SCENARIOS`, as
     /// `scripts/check.sh` does in a compositor at scale 2. Such a compositor reports its scale
@@ -309,6 +312,19 @@ mod linux {
                 );
             }
             println!("call render {index}");
+            // The window's surface given up at the end of the frame, once, at every frame, or as
+            // the run ends.
+            let surface_lost = match self.scenario {
+                "surface-lost" | "surface-lost-at-exit" => index == STOP_FRAME,
+                "surface-lost-again" => index >= STOP_FRAME,
+                _ => false,
+            };
+            if surface_lost {
+                ctx.lose_surface();
+            }
+            if self.scenario == "surface-lost-at-exit" && index == STOP_FRAME {
+                ctx.request_exit();
+            }
             if self.scenario == "error-in-render" && index == STOP_FRAME {
                 ctx.exit_with_error("the frame failed");
             }
@@ -382,6 +398,9 @@ mod linux {
                 config.frame_limit = Some(STOP_FRAME + 30);
             }
             "rests" => config.frame_limit = Some(REST_FRAME + 10),
+            "surface-lost" | "surface-lost-again" | "surface-lost-at-exit" => {
+                config.frame_limit = Some(STOP_FRAME + 10);
+            }
             "oversize" => {
                 // More than half as wide as the largest image the device accepts (LARGEST_IMAGE),
                 // which the compositor at scale 2 doubles past it, no window being as wide; low,
@@ -468,6 +487,9 @@ mod linux {
                 "lost-in-gpu-restored" => check_lost_in_gpu_restored(&lines),
                 "error-in-render" => check_error_in_render(&lines),
                 "rests" => check_rests(&lines),
+                "surface-lost" => check_surface_lost(&lines),
+                "surface-lost-again" => check_surface_lost_again(&lines),
+                "surface-lost-at-exit" => check_surface_lost_at_exit(&lines),
                 "resized" => check_resized(&lines),
                 "resized-while-submitting" => {
                     check_resized(&lines);
@@ -979,6 +1001,64 @@ mod linux {
             calls.iter().filter(|call| call[0] == "stop").count(),
             1,
             "{lines:?}"
+        );
+    }
+
+    /// The frames that drew into the window, by their index.
+    fn renders(lines: &[&str]) -> Vec<u64> {
+        calls(lines)
+            .iter()
+            .filter(|call| call[0] == "render")
+            .map(|call| call[1].parse().expect("a frame's index"))
+            .collect()
+    }
+
+    /// A surface given up is made again after a wait, rather than ending the run, which draws
+    /// again and goes on to its end
+    /// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+    fn check_surface_lost(lines: &[&str]) {
+        let renders = renders(lines);
+        assert!(
+            renders.iter().any(|&index| index > STOP_FRAME),
+            "frames are drawn after the surface is made again: {lines:?}"
+        );
+        assert!(
+            lines.contains(&"result Ok"),
+            "the run goes on to its end: {lines:?}"
+        );
+    }
+
+    /// A surface given up at every frame that draws: made again three times, then the fourth
+    /// stops the run, with `SurfaceLost`.
+    fn check_surface_lost_again(lines: &[&str]) {
+        let after = renders(lines)
+            .into_iter()
+            .filter(|&index| index >= STOP_FRAME)
+            .count();
+        assert_eq!(
+            after, 4,
+            "the frame that lost it, then three more: {lines:?}"
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.starts_with("result Gfx(SurfaceLost")),
+            "the run returns SurfaceLost: {lines:?}"
+        );
+        let calls = calls(lines);
+        assert_eq!(
+            calls.iter().filter(|call| call[0] == "stop").count(),
+            1,
+            "{lines:?}"
+        );
+    }
+
+    /// A run that stops while its surface is given up, for another reason, returns that reason's
+    /// result, not the surface's loss.
+    fn check_surface_lost_at_exit(lines: &[&str]) {
+        assert!(
+            lines.contains(&"result Ok"),
+            "an exit asked returns Ok: {lines:?}"
         );
     }
 

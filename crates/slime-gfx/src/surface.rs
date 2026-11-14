@@ -90,8 +90,8 @@ pub struct Surface {
     stale: bool,
     /// How many times in a row the surface was lost, with no image acquired in between.
     losses_in_a_row: u32,
-    /// Why the surface is lost for good, once it is: it could not be created again, or was lost
-    /// again each time it was.
+    /// Why the surface was given up, until it is made again: it could not be created again, or was
+    /// lost again each time it was.
     lost: Option<String>,
     /// Whether the [`SurfaceFrame`] of the last image acquired still exists.
     frame_outstanding: Arc<AtomicBool>,
@@ -317,9 +317,9 @@ impl Surface {
     /// occluded (on platforms that report it), when the surface is still outdated after being
     /// configured again, after the surface was lost or could not be configured (the graphics API
     /// refused the window, which it does when the window or the display goes away), in which case
-    /// it is created again for the next call (`docs/adr/0025-giving-up-a-lost-surface.md`), once
-    /// the surface is lost for good ([`check`](Self::check)), and once the device is lost. These
-    /// cases are logged at the `debug` level, except a size of zero and a surface lost for good
+    /// it is created again for the next call (`docs/adr/0025-giving-up-a-lost-surface.md`), while
+    /// the surface is given up ([`check`](Self::check)), and once the device is lost. These
+    /// cases are logged at the `debug` level, except a size of zero and a surface given up
     /// (not logged again) and the loss of the surface (`warn`, or `error` for the loss that gives
     /// it up).
     ///
@@ -478,14 +478,16 @@ impl Surface {
         true
     }
 
-    /// Whether the surface can still show images. It cannot once it is lost for good: after a loss,
-    /// it could not be created again, or it was lost again each time it was. [`acquire`](Self::acquire)
-    /// then returns `None`, and a run built on `slime-app` stops like after a lost device
-    /// (`docs/adr/0025-giving-up-a-lost-surface.md`).
+    /// Whether the surface can still show images. It cannot once it is given up: after a loss, it
+    /// could not be created again, or it was lost again each time it was. [`acquire`](Self::acquire)
+    /// then returns `None` until [`make_again`](Self::make_again); a run built on `slime-app`
+    /// holds its frames meanwhile, and stops at the fourth surface given up within five minutes
+    /// (`docs/adr/0025-giving-up-a-lost-surface.md`,
+    /// `docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
     ///
     /// # Errors
     ///
-    /// [`GfxError::SurfaceLost`] once the surface is lost for good, with the reason.
+    /// [`GfxError::SurfaceLost`] while the surface is given up, with the reason.
     pub fn check(&self) -> Result<(), GfxError> {
         match &self.lost {
             Some(message) => Err(GfxError::SurfaceLost {
@@ -493,6 +495,44 @@ impl Surface {
             }),
             None => Ok(()),
         }
+    }
+
+    /// Makes a surface given up again, as [`check`](Self::check) reports it, so that it shows
+    /// images again: a run built on `slime-app` calls it after a wait, rather than stopping at the
+    /// first surface given up
+    /// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+    /// It counts its losses afresh, and is configured at the next [`acquire`](Self::acquire). Does
+    /// nothing to a surface that was not given up.
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::SurfaceLost`] when the graphics API cannot create it: it stays given up.
+    pub fn make_again(&mut self) -> Result<(), GfxError> {
+        if self.lost.is_none() {
+            return Ok(());
+        }
+        match self.instance.create_surface(Arc::clone(&self.window)) {
+            Ok(surface) => {
+                tracing::warn!("the window's surface, given up, was made again");
+                self.release_image();
+                self.surface = surface;
+                self.stale = true;
+                self.losses_in_a_row = 0;
+                self.lost = None;
+                Ok(())
+            }
+            Err(error) => Err(GfxError::SurfaceLost {
+                message: format!("it cannot be made again: {error}"),
+            }),
+        }
+    }
+
+    /// Gives the surface up on purpose, as a loss that comes again each time would: it shows no
+    /// image until [`make_again`](Self::make_again), and [`check`](Self::check) reports it. For
+    /// the tests and tools that check how a program goes on after a lost surface, as
+    /// [`Gpu::lose`] does for a device.
+    pub fn lose(&mut self) {
+        self.give_up("the program lost it on purpose".to_owned());
     }
 
     /// Creates the surface again after a loss, or gives it up when that fails or when the losses
@@ -524,7 +564,7 @@ impl Surface {
     }
 
     fn give_up(&mut self, message: String) {
-        tracing::error!(%message, "the window's surface was lost for good");
+        tracing::error!(%message, "the window's surface was given up");
         self.lost = Some(message);
     }
 }

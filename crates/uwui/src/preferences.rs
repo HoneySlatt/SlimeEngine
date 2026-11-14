@@ -1,8 +1,12 @@
 //! What the user chose over every look, which the interface applies to what it styles: the size of
 //! text and less motion (`docs/adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md`).
 //!
-//! A program gives them with [`Ui::set_preferences`](crate::tree::Ui::set_preferences), from its
-//! own settings or from the system's. Density and more contrast are not here: they choose the
+//! [`Ui::set_preferences`](crate::tree::Ui::set_preferences) is the host's API's door for them: a
+//! host gives the system's through it, and a program its user's choice, which comes before the
+//! system's; the reader of the system's preferences, at uwui's first stage, combines the two
+//! (`docs/adr/0226-an-application-started-in-one-call-each-root-given-its-look.md`,
+//! `docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+//! Until then, the last given holds. Density and more contrast are not here: they choose the
 //! look's themes, which reach what code writes by the themes' names only, so that a length or a
 //! colour that code writes as a number stays the author's.
 

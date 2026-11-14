@@ -152,8 +152,10 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   (`docs/adr/0143-what-agents-see-of-the-interface.md`), which the presentation draws in `render`
   itself (`InterfaceRenderer`, below), and to which the dev overlay adds its panels as roots
   (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`); the run connects it to the window:
-  each event goes to the interface first, as uwui's host event (`Ui::event`), but the pointer's
-  moves, which the game sees first and the interface as one, the last of a frame; and to
+  each event goes to the interface first, as uwui's host event (`Ui::event`), the window's focus
+  included, which reaches it before the releases that the platform makes as the focus leaves, but
+  the pointer's moves, which the game sees first and the interface as one, the last of a frame;
+  and to
   `on_event` and the game's input only when the interface did not take it, but a key or a button
   let go, which always reaches the input; the interface, once given, must be the same one at
   every call; the
@@ -211,8 +213,9 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
     so the display never makes a frame wait (`docs/adr/0021-frame-pacing.md`). On Wayland, a frame
     also waits for the compositor's signal that the window can show a new image, which comes in
     step with the display while the window shows. The window *holds its frames* while that signal
-    has not come, as for a hidden window, or while its size is zero, as a minimized window's on
-    Windows: the loop then wakes on no schedule of its own, and runs a frame only for what asks
+    has not come, as for a hidden window, while its size is zero, as a minimized window's on
+    Windows, while the system says that it is covered whole, on X11 without a compositing manager
+    and on macOS, or while its surface is given up: the loop then wakes on no schedule of its own, and runs a frame only for what asks
     from outside, an event, a wake or the development channel, after a short wait, and once, at
     the start of a hold, to check that its last image reached the compositor; each such frame
     represents one period of the schedule at most (`docs/adr/0187-a-hidden-window-at-rest.md`). With `PresentMode::Fifo`, every image is shown
@@ -236,11 +239,15 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   - It returns a `RunError`: `Init` when a `start` fails, `App` when `gpu_restored` failed or the
     game passed an error to `exit_with_error`, `Platform` when the window cannot be opened (for
     example without a display server) or its event loop fails, `Gfx` when no GPU can draw into the
-    window or when the GPU device or the window's surface is lost for good during the run. After a
-    loss, the run stops like after an exit request, both `stop` methods included
-    (`docs/adr/0022-losing-the-gpu-device.md`, `docs/adr/0025-giving-up-a-lost-surface.md`),
-    unless the game set `AppConfig::restore_lost_device`: the run then opens a new device and goes
-    on. It gives up at a loss that comes after three new devices within five minutes, and when no
+    window or when the GPU device or the window's surface is lost for good during the run. A
+    surface that `slime-gfx` gives up is made again after a wait, the window holding its frames
+    meanwhile; the fourth given up within five minutes is lost for good
+    (`docs/adr/0025-giving-up-a-lost-surface.md`,
+    `docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`);
+    `Context::lose_surface` gives it up on purpose, for tests, as `Gpu::lose` loses a device.
+    After a loss for good, the run stops like after an exit request, both `stop` methods included
+    (`docs/adr/0022-losing-the-gpu-device.md`), unless the device was lost and the game set
+    `AppConfig::restore_lost_device`: the run then opens a new device and goes on. It gives up at a loss that comes after three new devices within five minutes, and when no
     device should or can replace the lost one; it does not try when it is stopping anyway. A loss
     that the presentation meets, an error of a lost device that it passes to
     `Context::exit_with_error` or returns from `gpu_restored`, is the run's to handle, as one the

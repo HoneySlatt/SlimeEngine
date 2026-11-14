@@ -1794,7 +1794,8 @@ Each root draws on a *target*, a window, a region of the host's image or a textu
 settings name; a layer draws on the target of the root that it opens over. An event reaches the
 roots of its own target alone, and each target keeps its own pointer, hover, focus, modal roots
 and outputs: a modal root blocks its own target. What names no element follows the *active
-target*, that of the last key or button, as `Ui::active_target`'s documentation lists. The engine
+target*, that of the last key or button or of the window's focus, as `Ui::active_target`'s
+documentation lists. The engine
 has one window, and gives everything on `TargetId::MAIN`
 ([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md),
 [ADR-0257](adr/0257-targets-known-from-their-first-root-a-moved-root-below-its-new-targets-modal-root.md)).
@@ -1999,7 +2000,7 @@ that asks for it anew ([ADR-0084](adr/0084-what-the-world-draws.md),
 
 Nothing may hold the lost device when the new one opens: Direct3D 12 opens no device on an
 adapter while a removed one exists in the process. The run does not restore when it is stopping
-anyway or its window's surface was lost for good; after three new devices within five minutes, or
+anyway or while its window's surface is given up; after three new devices within five minutes, or
 when none opens, it gives up and stops, `run` returning `GfxError::DeviceLost`,
 `GfxError::CannotRestore` or the error that opening a device gave. A program without
 `slime-app` replaces its device with `Gpu::restore`, or `Surface::restore` for a window.
@@ -2012,9 +2013,12 @@ and the presentation that meets it passes it to `Context::exit_with_error`, or r
 `gpu_restored`, which leaves it to the run: the run restores between frames whatever found the loss
 ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)).
 
-The window's surface can be lost for good as well, when it cannot be created again after a loss or
-is lost again each time it is: `Surface::check` reports it, and the run stops the same way with
-`GfxError::SurfaceLost` ([ADR-0025](adr/0025-giving-up-a-lost-surface.md)).
+`slime-gfx` gives the window's surface up when it cannot be created again after a loss, or is
+lost again each time it is: `Surface::check` reports it ([ADR-0025](adr/0025-giving-up-a-lost-surface.md)).
+The run then holds its frames, as for a hidden window, and makes the surface again with
+`Surface::make_again`, at the next event that may change it or after a wait that doubles from one
+second; the fourth surface given up within five minutes, or attempt that failed, stops it the same
+way with `GfxError::SurfaceLost` ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
 
 ### Termination signals
 

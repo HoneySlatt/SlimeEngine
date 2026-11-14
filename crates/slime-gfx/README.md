@@ -194,8 +194,10 @@ fn main() -> Result<(), GfxError> {
 - `Surface::acquire` gives the `SurfaceFrame` to draw a window's next image into, and
   `SurfaceFrame::present` shows it, as its `PresentMode` says (ADR-0021). The surface releases the
   last image when it is dropped or restored, so that an image that a panic or a lost device left
-  held does not crash the program (ADR-0103). Applications built on `slime-app` do not call these:
-  the engine does.
+  held does not crash the program (ADR-0103). A surface lost is created again; one lost again each
+  time, or that cannot be created, is given up (`Surface::check`, ADR-0025), until
+  `Surface::make_again` makes it again (ADR-0264); `Surface::lose` gives it up on purpose, for
+  tests and tools. Applications built on `slime-app` do not call these: the engine does.
 - `GfxError`: why the GPU could not be opened or used.
 
 The documentation of each item holds its contracts: its formats, limits, errors and panics, and

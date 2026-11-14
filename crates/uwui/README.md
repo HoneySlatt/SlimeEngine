@@ -99,8 +99,10 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   pointer, the wheel, the modifiers, the keys and input methods, in the types of `slime-input`,
   each event with its *target*, where it came, and its time, each answered at once, taken or not,
   which a game then leaves; the moves of a frame gathered by the host, as one; the platform's
-  copy, cut and paste, the answer to a read of the clipboard, and an input method's deletion
-  around the caret. After each frame and each event that it took, the host reads what each target
+  copy, cut and paste, the answer to a read of the clipboard, an input method's deletion around
+  the caret, and the window's focus given or taken, which ends a drag and Alt alone
+  (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+  After each frame and each event that it took, the host reads what each target
   shows and asks (`Ui::outputs`), only what changed: the pointer's shape; the input method on as a
   field's input starts, off once no field holds the focus; the caret's box; the text to write on
   the clipboard and the reads of it asked, numbered, each answered by an event. The outputs are
@@ -111,7 +113,7 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   (`docs/adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md`). Each root
   draws on its target (`RootSettings::target`), a layer on its root's; each target keeps its own
   input and outputs; what names no element follows the active target, that of the last key or
-  button (`Ui::active_target`)
+  button or of the window's focus (`Ui::active_target`)
   (`docs/adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md`).
   Each target draws its own frame (`Ui::frame(target)`), at its own time, and asks for it when it
   changes (`docs/adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md`). With the feature `test-input`, which tests

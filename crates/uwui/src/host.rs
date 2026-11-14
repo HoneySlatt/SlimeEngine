@@ -23,7 +23,7 @@
 //! image, a texture. Every event and output names its target, and each root its own
 //! ([`RootSettings::target`](crate::tree::RootSettings::target)). Each target keeps its own
 //! pointer, hover, focus, modal roots and layers, and its own outputs; the *active target*, that
-//! of the last key or button, serves what names no element
+//! of the last key or button or of the window's focus, serves what names no element
 //! ([`Ui::active_target`](crate::tree::Ui::active_target),
 //! `docs/adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md`).
 //! An event for a target that the interface does not know, one that never had a root, is answered
@@ -35,6 +35,10 @@
 //! pointer gives them; a host whose platform counts in logical pixels multiplies by the scale.
 //! Places in a field's text are counted in the unit that the host names ([`TextUnit`]): uwui holds
 //! text in UTF-8 and converts.
+//!
+//! The system's preferences that the interface reads, the size of text and less motion, come
+//! through [`Ui::set_preferences`](crate::tree::Ui::set_preferences), a host's and a program's
+//! door alike ([`crate::preferences`]).
 //!
 //! The clipboard is the host's. uwui asks it to write a text and to read one through the outputs,
 //! and takes each read's answer as an event, [`Input::ClipboardText`], so that a host whose
@@ -128,6 +132,18 @@ pub enum Input<'a> {
     Wheel(ScrollDelta),
     /// The modifier keys held changed: shortcuts are read with them. Never taken.
     Modifiers(Modifiers),
+    /// The target was given the system's keyboard focus (`true`), or it went to another window or
+    /// program (`false`). Given, it makes its target the active one
+    /// ([`Ui::active_target`](crate::tree::Ui::active_target)), as a key or a button there does.
+    /// Taken, it ends what a key or a button let go in another window would end wrongly: Alt let
+    /// go alone no longer reaches a bar of menus, and a drag in progress is given up, as Escape
+    /// gives it up. The element in focus keeps the focus, and takes the keys again once its
+    /// target has the focus back; the pointer keeps its place, and the active target stays. A host
+    /// gives the loss before the releases of the keys and buttons still held that its platform
+    /// makes, so that the interface hears it first
+    /// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+    /// Never taken.
+    Focus(bool),
     /// A key went down or up. A press, or a repeat, reaches first the field that holds the focus,
     /// which takes what it types and edits with; then it gives the command of a shortcut whose
     /// chord it is, in the scopes of the focus, innermost first, then `global`

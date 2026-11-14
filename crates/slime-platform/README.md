@@ -78,7 +78,7 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   Windows' own.
 - `Event` is what happened to the window, or input it received. It is `#[non_exhaustive]`: new
   kinds of events will be added. Key events pair up the same way on every platform: a key still
-  down when the window loses the keyboard focus is released just before `Focused(false)`, and a
+  down when the window loses the keyboard focus is released just after `Focused(false)`, and a
   key already down when the window gains the focus is not reported until it is pressed again. On
   X11 and Windows, "already down" is judged when the event loop handles the focus gain, which on
   X11 can come after the application has initialized, so a key pressed in between is not
@@ -89,12 +89,15 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   go of first is released only then, with the other (Windows 11 reports the second Shift's press
   as an auto-repeat, so only the first Shift's press and release are reported).
   Mouse button events pair up too: a button still down when the window loses the keyboard focus
-  is released just before `Focused(false)`, since on Windows its real release goes to another
+  is released just after `Focused(false)`, since on Windows its real release goes to another
   window, and a later real release is not reported.
   `ModifiersChanged` reports the modifier keys held as a whole (`Modifiers`: Shift, Control, Alt,
   Super), once per change: those held when the window gains the focus are reported, and those still
   held when it loses the focus are reported released, before the keys. A shortcut such as Ctrl+S
   is a press of S while the modifiers last reported hold Control.
+  `Occluded` tells that the window is covered whole, or shows again, where the platform tells it:
+  on X11 without a compositing manager and on macOS; `slime-app` then holds the window's frames
+  (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
 - Input types, which `slime-input` holds and this crate re-exports and translates winit's events
   into (`docs/adr/0142-input-and-focus.md`): `KeyEvent` describes a key twice: by `physical`
   position, whatever the layout (`KeyCode`, named after the W3C UI Events `code` values such as

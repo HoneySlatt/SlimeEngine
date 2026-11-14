@@ -378,7 +378,7 @@ pub trait Presentation {
     /// within five minutes, as a device lost again soon after each new one, when the device was
     /// lost because memory ran out, when only a CPU adapter is left where the lost device was a
     /// GPU's, or when no device opens ([`Surface::restore`](slime_gfx::Surface::restore)); nor when
-    /// the run is stopping anyway, or the window's surface was lost for good. When no device opens
+    /// the run is stopping anyway, or while the window's surface is given up. When no device opens
     /// after `gpu_lost`, [`Context::gpu`] is `None` from then on, `stop` included.
     ///
     /// # Errors
