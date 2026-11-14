@@ -2167,7 +2167,9 @@ The second half of M6d.5e ([ADR-0264](adr/0264-the-lifecycle-before-each-targets
 - **Delivers.** A target's size and scale given by its host; `RootSettings` without a size nor a
   scale; a layer's place kept apart; the rule for roots stacked on one target; a size of zero and
   one larger than the image defined; the editor, the dev overlay, *Hunna Wood*, the examples and
-  the benchmarks sized by their target; designed at its start, its shape put to the owner.
+  the benchmarks sized by their target; designed at its start, its shape put to the owner. Its ADR
+  corrects two cells of the engine's column that ADR-0264 left: the scale, which the run reads,
+  and a covered window on X11 under a compositing manager, which holds nothing.
 - **Done when.** No presentation reads the window's size or scale for its interface; the editor's
   and the game's sessions are unchanged; a still frame allocates as before; CI is green; M6d.5 is
   whole.

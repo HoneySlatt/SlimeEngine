@@ -1052,8 +1052,8 @@ impl Ui {
     }
 
     /// The target of the last key or button that the interface was given, or of the window's focus
-    /// given ([`Input::Focus`](crate::host::Input::Focus)), [`TargetId::MAIN`] until then. What names no element follows it: the focus that [`Ui::focus`] reads and
-    /// [`Ui::set_focus`] takes; the modifiers held ([`Ui::held_modifiers`]); the palette of
+    /// given ([`Input::Focus`](crate::host::Input::Focus)), [`TargetId::MAIN`] until then. What
+    /// names no element follows it: the focus that [`Ui::focus`] reads and [`Ui::set_focus`] takes; the modifiers held ([`Ui::held_modifiers`]); the palette of
     /// commands and the sheet of shortcuts, which open over its first root; the program's clipboard
     /// ([`Ui::write_clipboard`], [`Ui::read_clipboard`]); an action without an element
     /// ([`Ui::act`]). A focus that the program gives does not change it

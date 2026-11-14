@@ -7,8 +7,10 @@
 //! run gives up, lost in the order a driver reports it, the device invalid before its loss is
 //! recorded, lost again while the presentation creates its objects anew, or lost where the
 //! presentation's own call finds it and stops the run with it, a presentation that stops the run
-//! with an error or panics after drawing, and a window resized during the run, alone or while
-//! another thread submits work to the GPU, as threads that load a scene do.
+//! with an error or panics after drawing, the window's surface given up and made again, given up
+//! at every frame until the run stops, or given up as the run ends, and a window resized during
+//! the run, alone or while another thread submits work to the GPU, as threads that load a scene
+//! do.
 //! `scripts/check.sh` runs it in a headless Weston with lavapipe whose output refreshes at 240 Hz,
 //! since on Wayland the redraws that the presentation asks for wait for the compositor's signal,
 //! which then comes every 4.2 ms, and the burst of redraws must run frames ahead of their schedule
@@ -822,12 +824,9 @@ mod linux {
         );
     }
 
-    /// Set on demand, the run runs no frame until the wake, then goes on with its frames once set
-    /// on their schedule again; the frame that the wake runs represents the time since the wake.
-    fn check_rests(lines: &[&str]) {
-        assert!(lines.contains(&"result Ok"), "the run succeeds: {lines:?}");
-        // Each update's frame, the time it ran at and the time it represents, in microseconds.
-        let updates: Vec<[u64; 3]> = calls(lines)
+    /// Each update's frame, the time it ran at and the time it represents, in microseconds.
+    fn updates(lines: &[&str]) -> Vec<[u64; 3]> {
+        calls(lines)
             .iter()
             .filter(|call| call[0] == "update")
             .map(|call| {
@@ -842,7 +841,14 @@ mod linux {
                     number(call[3], "delta="),
                 ]
             })
-            .collect();
+            .collect()
+    }
+
+    /// Set on demand, the run runs no frame until the wake, then goes on with its frames once set
+    /// on their schedule again; the frame that the wake runs represents the time since the wake.
+    fn check_rests(lines: &[&str]) {
+        assert!(lines.contains(&"result Ok"), "the run succeeds: {lines:?}");
+        let updates = updates(lines);
         assert_eq!(
             updates.len(),
             usize::try_from(REST_FRAME + 10).expect("a count"),
@@ -1021,6 +1027,17 @@ mod linux {
         assert!(
             renders.iter().any(|&index| index > STOP_FRAME),
             "frames are drawn after the surface is made again: {lines:?}"
+        );
+        // The frame that ends the hold represents one period of the schedule at most, as after a
+        // hidden window's (ADR-0187), not the second that the surface waited.
+        let after = updates(lines)
+            .into_iter()
+            .find(|&[index, _, _]| index == STOP_FRAME + 1)
+            .expect("a frame after the loss");
+        assert!(
+            after[2] <= MAX_DELTA_AFTER_REST_MICROS,
+            "the frame after the hold represents {} µs: {lines:?}",
+            after[2]
         );
         assert!(
             lines.contains(&"result Ok"),

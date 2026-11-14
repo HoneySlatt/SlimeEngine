@@ -137,8 +137,10 @@ pub enum Input<'a> {
     /// ([`Ui::active_target`](crate::tree::Ui::active_target)), as a key or a button there does.
     /// Taken, it ends what a key or a button let go in another window would end wrongly: Alt let
     /// go alone no longer reaches a bar of menus, and a drag in progress is given up, as Escape
-    /// gives it up. The element in focus keeps the focus, and takes the keys again once its
-    /// target has the focus back; the pointer keeps its place, and the active target stays. A host
+    /// gives it up. A button pressed as the focus leaves is still pressed at the release that the
+    /// platform makes, and a surface that held the pointer still gets it. The element in focus
+    /// keeps the focus, and takes the keys again once its target has the focus back; the pointer
+    /// keeps its place, and the active target stays. A host
     /// gives the loss before the releases of the keys and buttons still held that its platform
     /// makes, so that the interface hears it first
     /// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).

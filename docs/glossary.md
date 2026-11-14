@@ -688,9 +688,11 @@ set; steps asked for while paused run all the same (`Context::hold`,
 [ADR-0122](adr/0122-the-development-channel.md)).
 
 **Holds its frames (window).** A window whose redraw asked for has not come, on Wayland until the
-*frame callback*, or whose size is zero, as a minimized window's on Windows. Meanwhile the loop wakes
-on no schedule of its own, and runs a frame only for what asks from outside, an event, a wake or
-the development channel ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
+*frame callback*, whose size is zero, as a minimized window's on Windows, that the system says is
+covered whole, on X11 and macOS, or whose surface is given up. Meanwhile the loop wakes on no
+schedule of its own, but to make the surface again, and runs a frame only for what asks from
+outside, an event, a wake or the development channel
+([ADR-0187](adr/0187-a-hidden-window-at-rest.md), [ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
 
 **Host.** What runs a game's *simulation*, and its *presentation* when it has one: it owns the loop,
 the world, *game time* and *real time*, the input, the *commands* queued and the decision to stop

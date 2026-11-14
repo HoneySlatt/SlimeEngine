@@ -153,14 +153,12 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   itself (`InterfaceRenderer`, below), and to which the dev overlay adds its panels as roots
   (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`); the run connects it to the window:
   each event goes to the interface first, as uwui's host event (`Ui::event`), the window's focus
-  included, which reaches it before the releases that the platform makes as the focus leaves, but
-  the pointer's moves, which the game sees first and the interface as one, the last of a frame;
-  and to
-  `on_event` and the game's input only when the interface did not take it, but a key or a button
-  let go, which always reaches the input; the interface, once given, must be the same one at
-  every call; the
-  interface gets the run's waker, and the times of the host's clock,
-  which counts a suspend: each event's reception and each frame's start, uncapped
+  included, which reaches it before the keys and buttons that the platform releases as the focus
+  leaves, but the pointer's moves, which the game sees first and the interface as one, the last
+  of a frame; and to `on_event` and the game's input only when the interface did not take it,
+  but a key or a button let go, which always reaches the input; the interface, once given, must
+  be the same one at every call; the interface gets the run's waker, and the times of the host's
+  clock, which counts a suspend: each event's reception and each frame's start, uncapped
   (`docs/adr/0227-the-time-that-motion-reads.md`,
   `docs/adr/0251-the-engines-host-clock-and-its-times.md`); after each frame, an image drawn or
   not, and right after each event that the interface took, the run does what the interface's
@@ -215,10 +213,12 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
     step with the display while the window shows. The window *holds its frames* while that signal
     has not come, as for a hidden window, while its size is zero, as a minimized window's on
     Windows, while the system says that it is covered whole, on X11 without a compositing manager
-    and on macOS, or while its surface is given up: the loop then wakes on no schedule of its own, and runs a frame only for what asks
-    from outside, an event, a wake or the development channel, after a short wait, and once, at
-    the start of a hold, to check that its last image reached the compositor; each such frame
-    represents one period of the schedule at most (`docs/adr/0187-a-hidden-window-at-rest.md`). With `PresentMode::Fifo`, every image is shown
+    and on macOS, or while its surface is given up: the loop then wakes on no schedule of its own,
+    but to make the surface again, and runs a frame only for what asks from outside, an event, a
+    wake or the development channel, after a short wait, and once, at the start of a hold that
+    waits for the compositor's signal, to check that its last image reached the compositor; each
+    such frame, and the one that ends the hold, represents one period of the schedule at most
+    (`docs/adr/0187-a-hidden-window-at-rest.md`). With `PresentMode::Fifo`, every image is shown
     in step with the display, which can block a frame: up to one second when the compositor
     rarely shows a hidden window.
   - On demand, with a window or without: `AppConfig::on_demand` runs a frame only when something

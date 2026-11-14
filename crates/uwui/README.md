@@ -66,8 +66,9 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   `theme::ACCENT` and the others. Density and high contrast reach a token through the themes that
   give its name, never a number written in code
   (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`).
-- `preferences::Preferences` is what the user chose over every look, which a program gives with
-  `Ui::set_preferences`: the size of text, a curve (`preferences::TextSize`), scales every text's
+- `preferences::Preferences` is what the user chose over every look, which a host gives with
+  `Ui::set_preferences` from the system's, and a program from its user's choice, which comes
+  first (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`): the size of text, a curve (`preferences::TextSize`), scales every text's
   size but icons', whoever wrote it, and a list's rows, whole in pixels of the screen; less motion
   ends transitions at once. Density and more contrast are not preferences: they choose the look's
   themes, which reach what code writes by the themes' names only, so that a length or a color that

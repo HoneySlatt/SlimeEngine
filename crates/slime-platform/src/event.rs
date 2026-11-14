@@ -32,10 +32,11 @@ pub enum Event {
     /// The scheme of colors that the system prefers changed, where the platform tells it
     /// ([`Window::color_scheme`](crate::Window::color_scheme)).
     ColorSchemeChanged(ColorScheme),
-    /// The window gained (`true`) or lost (`false`) the keyboard focus. The modifiers, keys and
-    /// mouse buttons still down when the focus is lost are released just after, so that what reads
-    /// them knows that the person did not let them go in this window: see [`Key`](Self::Key) and
-    /// [`MouseButton`](Self::MouseButton)
+    /// The window gained (`true`) or lost (`false`) the keyboard focus. The keys and mouse buttons
+    /// still down when the focus is lost are released just after, so that what reads them knows
+    /// that the person did not let them go in this window: see [`Key`](Self::Key) and
+    /// [`MouseButton`](Self::MouseButton). The modifiers come released just before, as winit
+    /// reports them on every platform ([`ModifiersChanged`](Self::ModifiersChanged))
     /// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
     Focused(bool),
     /// The window was covered whole (`true`), or shows again (`false`), where the platform tells
@@ -71,8 +72,9 @@ pub enum Event {
     /// Only changes are reported: two of these events in a row hold different states. The modifiers
     /// held when the window gains the keyboard focus are reported, unlike the keys held then (see
     /// [`Key`](Self::Key)), next to [`Focused(true)`](Self::Focused). When the window loses the
-    /// focus, modifiers still held are reported released, after [`Focused(false)`](Self::Focused)
-    /// and before the keys still down.
+    /// focus, winit reports the modifiers still held released, just before
+    /// [`Focused(false)`](Self::Focused), on every platform; those it did not are reported released
+    /// just after, before the keys still down.
     ModifiersChanged(Modifiers),
     /// A mouse button went down over the window, or went up after going down there, possibly
     /// with the cursor outside the window by then.
@@ -723,16 +725,22 @@ mod tests {
 
     #[test]
     fn modifiers_still_held_are_released_when_the_focus_is_lost() {
+        // winit, on every platform, reports the modifiers released itself, before the loss.
         let mut translator = Translator::default();
+        events(&mut translator, changed(ModifiersState::SHIFT));
+        assert_eq!(
+            events(&mut translator, changed(ModifiersState::empty())),
+            [held(false, false)]
+        );
+        assert_eq!(
+            events(&mut translator, WindowEvent::Focused(false)),
+            [Event::Focused(false)]
+        );
+        // Without that report, the translator releases them after the loss.
         events(&mut translator, changed(ModifiersState::SHIFT));
         assert_eq!(
             events(&mut translator, WindowEvent::Focused(false)),
             [Event::Focused(false), held(false, false)]
-        );
-        // The release that winit reports itself on every platform then changes nothing.
-        assert_eq!(
-            events(&mut translator, changed(ModifiersState::empty())),
-            []
         );
     }
 

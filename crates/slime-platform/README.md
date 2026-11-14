@@ -93,7 +93,8 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   window, and a later real release is not reported.
   `ModifiersChanged` reports the modifier keys held as a whole (`Modifiers`: Shift, Control, Alt,
   Super), once per change: those held when the window gains the focus are reported, and those still
-  held when it loses the focus are reported released, before the keys. A shortcut such as Ctrl+S
+  held when it loses the focus are reported released, just before `Focused(false)`, as winit
+  reports them, and before the keys. A shortcut such as Ctrl+S
   is a press of S while the modifiers last reported hold Control.
   `Occluded` tells that the window is covered whole, or shows again, where the platform tells it:
   on X11 without a compositing manager and on macOS; `slime-app` then holds the window's frames

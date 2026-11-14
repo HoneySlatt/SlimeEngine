@@ -468,8 +468,11 @@ system then runs its own loop, in which `about_to_wait` is not called.
 
 Before each image is presented, the frame calls `Window::pre_present_notify`: on Wayland, the next
 redraw then waits for the compositor's frame callback, its signal that the window can show a new
-image. The window *holds its frames* while a redraw asked for has not come, or while its size is
-zero, as a minimized window's on Windows. Meanwhile the loop waits without a deadline: the
+image. The window *holds its frames* while a redraw asked for has not come, while its size is
+zero, as a minimized window's on Windows, while the system says that it is covered whole, on X11
+without a compositing manager and on macOS, or while its surface is given up
+([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)). Meanwhile the loop waits without a deadline, but the time at which a
+surface given up is made again: the
 schedule and the program's own requests run no frame, and what asks from outside, an event, a wake
 of the run's `Waker`, a device restored, or the development channel's work that waits for frames,
 runs one from `about_to_wait`, `SIGNAL_WAIT` after the redraw was asked, or after the last frame
@@ -910,7 +913,7 @@ sees whether there is an image to draw:
 | Outdated configuration | Configured again, then one more try; no image this frame if still outdated |
 | Suboptimal image | Drawn and presented, then configured again |
 | Image not ready in time (Vulkan), window occluded | No image this frame; on Direct3D 12, wgpu waits up to one second for a late image, then returns it, and the frame is drawn late; on Windows with Vulkan, an image that wgpu handed out but that is still not free after one second loses the device, and the run stops |
-| Surface lost, or a configuration the graphics API refuses | Created again from the window; no image this frame. Lost for good (it cannot be created again, or is lost again each time): no image, and the run stops before the next frame, like after a lost device |
+| Surface lost, or a configuration the graphics API refuses | Created again from the window; no image this frame. Given up (it cannot be created again, or is lost again each time): no image; the window holds its frames, and the run makes the surface again after a wait; the fourth given up within five minutes stops it, like a lost device ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)) |
 | Device lost (see [Losing the GPU](#losing-the-gpu)) | No image; the run stops before the next frame. An image acquired before the loss was found is released instead of presented, so that the surface can be dropped |
 
 How the window shows the images is the *present mode* (`AppConfig::present_mode`). With Mailbox,
@@ -2000,7 +2003,7 @@ that asks for it anew ([ADR-0084](adr/0084-what-the-world-draws.md),
 
 Nothing may hold the lost device when the new one opens: Direct3D 12 opens no device on an
 adapter while a removed one exists in the process. The run does not restore when it is stopping
-anyway or while its window's surface is given up; after three new devices within five minutes, or
+anyway, and waits while its window's surface is given up, until it is made again; after three new devices within five minutes, or
 when none opens, it gives up and stops, `run` returning `GfxError::DeviceLost`,
 `GfxError::CannotRestore` or the error that opening a device gave. A program without
 `slime-app` replaces its device with `Gpu::restore`, or `Surface::restore` for a window.

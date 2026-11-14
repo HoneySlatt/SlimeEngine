@@ -144,12 +144,15 @@ impl Default for AppConfig {
 ///   [`Presentation::render`], whose image the engine then shows as [`AppConfig::present_mode`]
 ///   says. Between frames, the loop sleeps until the next frame is due or an event arrives. On
 ///   Wayland, a frame also waits for the compositor's signal that the window can show a new image.
-///   While that signal has not come, as for a hidden window, or while the window's size is zero,
-///   as a minimized window's on Windows, the window *holds its frames*: the loop wakes on no
-///   schedule of its own, and runs a frame only for what asks from outside, an event, a wake or the
-///   development channel, after a short wait, each such frame representing one period of the
-///   schedule at most (`docs/adr/0187-a-hidden-window-at-rest.md`). Each event is passed to the presentation's interface ([`Presentation::ui`]), then, unless the
-///   interface took it, to [`Presentation::on_event`], then to the host's input. After each frame
+///   While that signal has not come, as for a hidden window, while the window's size is zero, as a
+///   minimized window's on Windows, while the system says that it is covered whole, on X11
+///   without a compositing manager and on macOS, or while its surface is given up, the window
+///   *holds its frames*: the loop wakes on no schedule of its own, but to make the surface again,
+///   and runs a frame only for what asks from outside, an event, a wake or the development
+///   channel, after a short wait, each such frame, and the one that ends the hold, representing one
+///   period of the schedule at most (`docs/adr/0187-a-hidden-window-at-rest.md`). Each event is
+///   passed to the presentation's interface ([`Presentation::ui`]), then, unless the interface took
+///   it, to [`Presentation::on_event`], then to the host's input. After each frame
 ///   drawn, the window shows the pointer's shape that the interface asks, and allows the input
 ///   method while one of its fields takes text.
 ///
@@ -173,7 +176,8 @@ impl Default for AppConfig {
 ///   or it ran out of memory), or the window's surface was given up a fourth time within five
 ///   minutes (`GfxError::SurfaceLost`: after a loss, it could not be created again, or was lost
 ///   again each time). A surface given up before that is made again after a wait, the window
-///   holding its frames meanwhile (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+///   holding its frames meanwhile
+///   (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
 ///   After a loss that stops it, the run stops like after an exit request: the frame in progress
 ///   finishes, without drawing, and the `stop` methods are called. A game that sets [`AppConfig::restore_lost_device`] goes on
 ///   with a new device instead ([`Presentation::gpu_lost`], [`Presentation::gpu_restored`]): its

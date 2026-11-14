@@ -103,10 +103,10 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   On Wayland, a hidden window draws when the compositor sends it a frame callback: never in Weston, once a second in niri ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
   On X11 and macOS, a window covered whole holds its frames once the system says so ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)); under a compositing manager, Xwayland included, the X server reports every window visible, and the window keeps drawing. Windows tells no covered window through winit; DXGI's notice of occlusion is M6d.7's. Checked by hand alone: nothing in CI covers a window.
   On Windows, a minimized window, of size zero, draws nothing and wakes not at all (ADR-0187); not checked in the virtual machine yet.
-- **A window that holds its frames** ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)), hidden on Wayland or minimized on Windows, runs a frame only for what asks from outside.
+- **A window that holds its frames** ([ADR-0187](adr/0187-a-hidden-window-at-rest.md), [ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)), hidden on Wayland, minimized on Windows, covered on X11 and macOS, or while its surface is given up, runs a frame only for what asks from outside.
   A run with a frame limit (`--frames`) does not reach it while hidden.
   A game that must go on while hidden, a server's or a multiplayer game's, cannot.
-  A capture asked of a minimized window on Windows, or while the window's surface is given up and waits to be made again, is never answered, and runs a frame every 100 ms until the window shows.
+  A capture asked of a minimized window on Windows, or of a covered one, is never answered, and runs a frame every 100 ms until the window shows; one asked while the surface is given up waits until it is made again.
   A hidden window wakes once at the start of each hold, for a frame that finds a device lost before the run knew it, whose last image never reached the compositor.
 - **wgpu's errors panic, in release builds too** (ADR-0016): a use of wgpu that it rejects is treated as a bug.
   Logging the error and dropping the frame is to consider before games ship.
@@ -808,7 +808,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **A modal root reaches its own target alone, and the engine gives the pointer's moves of a frame as one** ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md), [ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md), [ADR-0258](adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md)).
   A modal root blocks its own target alone: a dialog in a window of its own, or panels torn off into windows, would need one that blocks a parent window or every window, which nothing reads yet.
   A target's record of its frames, its time and whether it holds a change, is kept as long as the interface: a target removed waits for M6d.7, the first host whose targets go during a run ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
-  The active target is the one of the last key or button, not yet the target that holds the system's focus; a write of the program's own, without a person's gesture, goes to the window that the person last touched.
+  The active target is the one of the last key, button or system's focus given; a write of the program's own, without a person's gesture, goes to that window.
   The engine has one window: it holds one move of the pointer, without a target, the owner's choice; a host of several windows holds one for each.
   The engine holds the pointer's last move until another event or the frame: what the editor's viewport measures along the path, a drag's threshold and an orbit's length, sees one move for each frame, so a move out and back within a frame counts for nothing.
   A host that gives every move pays a hit test for each.
@@ -817,7 +817,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The moves between two frames, the wheel's phase, a field's purpose, the pointer's entering and whether the cursor shows are not built: no code reads them.
   The surrounding text is not told as an output after each change, and whether a point is uwui's tells no kind of region, a bar's caption, edges or buttons: their readers are M6d.8's input methods and M6d.7's decorations ([ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)).
   A question over a field of 4,000 bytes whose long word follows text of two directions costs about 0.2 ms, ten times as much as over one direction, the character at a point included; the cause, found neither in uwui nor yet in parley, is not known ([`measurements.md`](measurements.md#m6d5c2-the-clipboard-and-the-hosts-questions)).
-  Followed at [M6d.5e1](PLAN.md#m6d5e1--the-lifecycle), the system's focus; M6d.7, a target removed, several windows and a layer's own; the pen, inertial scrolling and the hosts of Android and the web, which read the rest.
+  Followed at M6d.7, a target removed, several windows and a layer's own; the pen, inertial scrolling and the hosts of Android and the web, which read the rest.
 - **Starting many transitions at once looks each one up in the list of those under way** ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)).
   `Ui`'s styling and a section's reveal search the list of transitions under way before adding an element to it: a change of look that starts a transition on each of the editor's 12,487 elements makes about 78 million comparisons, inside the frame of the change that `ui.tree.look` times.
   Its share of that frame is not measured; found by M6d.5c3b's closing review, outside its change.

@@ -29,10 +29,8 @@ const SIGNAL_WAIT: Duration = Duration::from_millis(100);
 /// awake is far below it.
 const SUSPEND_TOLD: Duration = Duration::from_secs(1);
 /// The first wait before a window's surface given up is made again; each attempt that fails
-/// doubles it, up to `LONGEST_REMAKE_WAIT`.
+/// doubles it.
 const FIRST_REMAKE_WAIT: Duration = Duration::from_secs(1);
-/// The longest wait between two attempts to make a surface given up again.
-const LONGEST_REMAKE_WAIT: Duration = Duration::from_secs(16);
 
 pub(crate) fn run_windowed(
     simulation: &mut impl Simulation,
@@ -56,7 +54,7 @@ pub(crate) fn run_windowed(
         surface: None,
         present_mode: config.present_mode,
         restore_lost_device: config.restore_lost_device,
-        restores: Vec::new(),
+        restores: Budget::default(),
         frame_period: Duration::from_secs(1) / config.max_frame_rate,
         last_frame: now,
         clock: HostClock::new(),
@@ -70,6 +68,7 @@ pub(crate) fn run_windowed(
         input: crate::interface::WindowInput::default(),
         occluded: false,
         remake: Remake::default(),
+        holding: false,
         wanted: true,
         change_due: None,
         started: false,
@@ -93,7 +92,7 @@ struct WindowedDriver<'a, S, P> {
     /// gives up replacing it.
     restore_lost_device: bool,
     /// When the run opened the devices that replaced lost ones, within `RESTORE_WINDOW`.
-    restores: Vec<Instant>,
+    restores: Budget,
     /// The interval at which frames are scheduled, from `AppConfig::max_frame_rate`.
     frame_period: Duration,
     last_frame: Instant,
@@ -130,6 +129,9 @@ struct WindowedDriver<'a, S, P> {
     occluded: bool,
     /// The window's surface given up, and when the run makes it again.
     remake: Remake,
+    /// Whether the window held its frames, for one of the reasons that `holds_frames` gives,
+    /// since the last frame: the frame that ends the hold represents one period at most.
+    holding: bool,
     /// Whether something asked for a frame that has not run yet, when frames run on demand.
     wanted: bool,
     /// When the presentation's interface changes on its own, which a frame then shows, when frames
@@ -196,6 +198,9 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
             return;
         }
         let now = Instant::now();
+        if std::mem::take(&mut self.holding) {
+            self.end_hold(now);
+        }
         // The interface shows the frame at its start: the engine reads no time of presentation
         // yet (M6d.7).
         let shown = self.clock.now();
@@ -293,6 +298,8 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
             return;
         };
         if surface.check().is_ok() {
+            // Made again, or never given up: nothing to wake for.
+            self.remake.made();
             return;
         }
         if !self.remake.waiting() {
@@ -313,6 +320,8 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         match surface.make_again() {
             Ok(()) => {
                 self.remake.made();
+                // An input's wait would hold the surface's wait, which is not a frame's.
+                self.inputs.forget();
                 // Its first frame runs even if the window holds its frames, as after a new device.
                 self.asked_from_outside = true;
                 self.wanted = true;
@@ -380,7 +389,9 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
                     .map_or(LoopControl::Wait, LoopControl::WaitUntil);
             }
         }
-        if self.redraw_asked.is_none() && !self.holds_frames() {
+        let holds = self.holds_frames();
+        self.holding |= holds;
+        if self.redraw_asked.is_none() && !holds {
             if now < self.next_frame {
                 return LoopControl::WaitUntil(self.next_frame);
             }
@@ -416,9 +427,7 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
             return;
         }
         let now = Instant::now();
-        self.restores
-            .retain(|&opened| now.duration_since(opened) < RESTORE_WINDOW);
-        if self.restores.len() >= MAX_RESTORES {
+        if !self.restores.left(now) {
             tracing::error!(
                 %loss,
                 "the GPU device was lost again after {MAX_RESTORES} new ones within {} minutes: \
@@ -439,7 +448,7 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         let surface = self.surface.take().expect("checked above");
         match surface.restore(lost) {
             Ok((gpu, surface)) => {
-                self.restores.push(now);
+                self.restores.spend(now);
                 // An input's wait would hold the new device's opening, which is not a frame's.
                 self.inputs.forget();
                 // The new device's first frame runs even if the window holds its frames: a frame
@@ -682,28 +691,53 @@ fn is_input(event: &Event) -> bool {
     )
 }
 
+/// How many losses of one kind the run recovers from within `RESTORE_WINDOW`: the devices that it
+/// replaced, or the surfaces given up and the attempts to make one again that failed. The one that
+/// would pass `MAX_RESTORES` stops the run.
+#[derive(Debug, Default)]
+struct Budget {
+    /// When each was spent, within `RESTORE_WINDOW`.
+    spent: Vec<Instant>,
+}
+
+impl Budget {
+    /// Whether one more may be spent at `now`.
+    fn left(&mut self, now: Instant) -> bool {
+        self.spent
+            .retain(|&spent| now.duration_since(spent) < RESTORE_WINDOW);
+        self.spent.len() < MAX_RESTORES
+    }
+
+    /// Spends one at `now`.
+    fn spend(&mut self, now: Instant) {
+        self.spent.push(now);
+    }
+}
+
 /// What the run does about a window's surface that `slime-gfx` gave up
 /// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`):
-/// it makes it again at the next event that may change it, or after a wait that doubles from
-/// `FIRST_REMAKE_WAIT`, never at every frame; and stops the run at the surface given up, or the
-/// attempt that failed, that passes `MAX_RESTORES` within `RESTORE_WINDOW`, the device's rule.
+/// it makes it again after `FIRST_REMAKE_WAIT`, or at once at an event that may change it, the
+/// window resized or shown again; after an attempt that failed, only after a wait that doubles,
+/// never at every frame. Each surface given up and each attempt that failed spends the budget
+/// that a device's restores spend, apart from them.
 #[derive(Debug, Default)]
 struct Remake {
-    /// When surfaces were given up, or failed to be made again, within `RESTORE_WINDOW`.
-    losses: Vec<Instant>,
+    /// The surfaces given up and the attempts that failed.
+    budget: Budget,
     /// When the surface given up is made again next; none while the surface shows images.
     next: Option<Instant>,
     /// The wait after the last attempt.
     wait: Duration,
+    /// Whether an attempt failed since the surface was given up: events no longer hasten the next.
+    failed: bool,
 }
 
 impl Remake {
-    /// Counts a loss at `now`: whether the run goes on, the budget not spent.
-    fn count(&mut self, now: Instant) -> bool {
-        self.losses
-            .retain(|&lost| now.duration_since(lost) < RESTORE_WINDOW);
-        self.losses.push(now);
-        self.losses.len() <= MAX_RESTORES
+    /// Spends the budget at `now`: whether the run goes on.
+    fn spend(&mut self, now: Instant) -> bool {
+        let left = self.budget.left(now);
+        self.budget.spend(now);
+        left
     }
 
     /// The surface was found given up at `now`: whether the run goes on. The first attempt to make
@@ -711,25 +745,29 @@ impl Remake {
     fn given_up(&mut self, now: Instant) -> bool {
         self.wait = FIRST_REMAKE_WAIT;
         self.next = Some(now + self.wait);
-        self.count(now)
+        self.failed = false;
+        self.spend(now)
     }
 
     /// An attempt at `now` failed: whether the run goes on. The next waits twice as long.
     fn failed(&mut self, now: Instant) -> bool {
-        self.wait = (self.wait * 2).min(LONGEST_REMAKE_WAIT);
+        self.wait *= 2;
         self.next = Some(now + self.wait);
-        self.count(now)
+        self.failed = true;
+        self.spend(now)
     }
 
-    /// The surface was made again.
+    /// The surface shows images again.
     fn made(&mut self) {
         self.next = None;
     }
 
-    /// An event at `now` that may change the surface, the window resized or shown again: the
-    /// next attempt comes at once.
+    /// An event at `now` that may change the surface: the next attempt comes at once, unless one
+    /// failed since the surface was given up.
     fn soon(&mut self, now: Instant) {
-        if let Some(next) = &mut self.next {
+        if let Some(next) = &mut self.next
+            && !self.failed
+        {
             *next = (*next).min(now);
         }
     }
@@ -878,7 +916,7 @@ mod tests {
     }
 
     #[test]
-    fn a_surface_given_up_is_made_again_after_waits_that_double_and_an_event_hastens_it() {
+    fn a_surface_given_up_is_made_again_after_a_wait_that_an_event_hastens() {
         let start = Instant::now();
         let mut remake = Remake::default();
         assert!(!remake.waiting());
@@ -886,27 +924,36 @@ mod tests {
         assert!(remake.waiting());
         assert!(!remake.due(start));
         assert!(remake.due(start + FIRST_REMAKE_WAIT));
-        // Each attempt that fails waits twice as long, up to the longest wait.
-        let mut at = start + FIRST_REMAKE_WAIT;
-        let mut waits = Vec::new();
-        for _ in 0..6 {
-            // Within the budget, whatever it holds.
-            remake.losses.clear();
-            assert!(remake.failed(at));
-            let next = remake.next.expect("waiting");
-            waits.push(next - at);
-            at = next;
-        }
-        let seconds = waits.iter().map(Duration::as_secs).collect::<Vec<_>>();
-        assert_eq!(seconds, [2, 4, 8, 16, 16, 16]);
-        // An event that may change the surface makes the next attempt due at once.
-        remake.soon(at);
-        assert!(remake.due(at));
+        // An event that may change the surface makes the attempt due at once.
+        let soon = start + Duration::from_millis(10);
+        remake.soon(soon);
+        assert!(remake.due(soon));
         remake.made();
         assert!(!remake.waiting());
         // Nothing to hasten once it shows images.
-        remake.soon(at);
+        remake.soon(soon);
         assert!(!remake.waiting());
+    }
+
+    #[test]
+    fn after_an_attempt_that_failed_the_wait_doubles_and_no_event_hastens_it() {
+        let start = Instant::now();
+        let mut remake = Remake::default();
+        assert!(remake.given_up(start));
+        let first = start + FIRST_REMAKE_WAIT;
+        assert!(remake.failed(first));
+        assert_eq!(remake.next, Some(first + FIRST_REMAKE_WAIT * 2));
+        // A burst of redraws or resizes spends no attempt meanwhile.
+        remake.soon(first);
+        assert!(!remake.due(first));
+        let second = first + FIRST_REMAKE_WAIT * 2;
+        assert!(remake.failed(second));
+        assert_eq!(remake.next, Some(second + FIRST_REMAKE_WAIT * 4));
+        // Given up again after it was made again, events hasten it again.
+        remake.made();
+        assert!(!remake.given_up(second), "the fourth spent stops the run");
+        remake.soon(second);
+        assert!(remake.due(second));
     }
 
     #[test]

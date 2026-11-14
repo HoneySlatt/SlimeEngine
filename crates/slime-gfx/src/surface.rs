@@ -564,7 +564,7 @@ impl Surface {
     }
 
     fn give_up(&mut self, message: String) {
-        tracing::error!(%message, "the window's surface was given up");
+        tracing::error!(reason = %message, "the window's surface was given up");
         self.lost = Some(message);
     }
 }

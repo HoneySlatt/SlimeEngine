@@ -34,13 +34,27 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   layer standing on its root's. Each target keeps its own pointer, hover, focus, modal roots and
   outputs; a modal root blocks its own target alone. Each target draws its own frame at its own
   time, which its motions and waiting bars read, and asks for a frame when it holds a change
-  (ADR-0258); a root moved to another target ends its transitions. The active target, that of the last key or button (`Ui::active_target`), holds the focus
+  (ADR-0258); a root moved to another target ends its transitions. The active target, that of the last key or button or of the window's focus
+  (`Ui::active_target`), holds the focus
   that `Ui::focus` reads, and takes the program's clipboard, the palette of commands and an action
   without an element; `Ui::focus_in` reads any target's focus. `Ui::set_root` moves a root to
   another target, letting go of what the old one held.
+- uwui takes the window's focus as an event, `uwui::host::Input::Focus` (ADR-0264): given, it
+  makes its target the active one; taken, it ends a drag in progress and Alt pressed alone, so
+  that leaving the editor with Alt and Tab no longer gives its bar of menus the focus.
+- A window covered whole holds its frames, as a hidden one, where the system tells it: on X11
+  without a compositing manager and on macOS (`slime_platform::Event::Occluded`, ADR-0264).
+- `Surface::make_again` and `Surface::lose` in `slime-gfx`, `Context::lose_surface` in
+  `slime-app`, and a button of *Hunna Wood*'s dev overlay that gives the window's surface up on
+  purpose (ADR-0264).
 
 ### Changed
 
+- A window's surface given up no longer ends the run (ADR-0264): the window holds its frames, and
+  the run makes the surface again after a second, or at once when the window is resized or shown
+  again; the fourth given up within five minutes stops it with `GfxError::SurfaceLost`.
+- `slime-platform` reports a window's loss of the focus before the keys and buttons that it
+  releases then (ADR-0264).
 - Screen readers read the engine's windows as made with the toolkit `uwui`, no longer
   `SlimeEngine` (ADR-0262). The log of their requests is `uwui_accesskit`'s:
   `SLIME_LOG=uwui_accesskit=debug`.
