@@ -260,16 +260,9 @@ fn the_window_s_node_is_the_host_s_made_only_when_an_update_holds_it() {
     assert_eq!(made.get(), 2);
     tree.update_and_process_changes(resized, &mut Changes::default());
     assert_eq!(tree.state().root().children().count(), 3);
-    // A modal root changes the top: made again.
-    let dialog = ui.add_root(
-        "dialog",
-        RootSettings {
-            modal: true,
-            ..ui.root_settings(root).expect("a root")
-        },
-        |s| s,
-    );
-    ui.build(dialog, 0, |children| {
+    // A root added changes the top: made again.
+    let panel = ui.add_root("panel", ui.root_settings(root).expect("a root"), |s| s);
+    ui.build(panel, 0, |children| {
         children.add("ok", Element::button("OK"), |_| {});
     });
     ui.frame(TargetId::MAIN);
@@ -279,6 +272,25 @@ fn the_window_s_node_is_the_host_s_made_only_when_an_update_holds_it() {
     );
     assert_eq!(made.get(), 3);
     assert_eq!(tree.state().root().children().count(), 4);
+}
+
+#[test]
+fn without_an_interface_the_window_s_node_is_made_once() {
+    let mut readers = ScreenReaderTree::new(TargetId::MAIN);
+    readers.tree_requested();
+    let made = std::cell::Cell::new(0);
+    for _ in 0..3 {
+        let update = readers.update(None, false, || {
+            made.set(made.get() + 1);
+            window(SIZE)
+        });
+        assert!(update.is_some(), "a screen reader reads");
+    }
+    assert_eq!(
+        made.get(),
+        1,
+        "the window alone, whole at first, unchanged then"
+    );
 }
 
 #[test]
@@ -1055,7 +1067,6 @@ fn a_request_on_another_tree_or_on_another_window_s_element_does_nothing() {
         ScreenReaderTree::new(TargetId::MAIN),
         ScreenReaderTree::new(other),
     );
-    assert_eq!(other_window.target(), other);
     // The main window's tree takes no request on the other window's button, nor on a tree of
     // another id.
     main_window.act(&mut ui, &click(go, TreeId::ROOT));

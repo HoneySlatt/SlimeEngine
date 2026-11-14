@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) (the
   crate's name left to M6d.10; late answers numbered) and
   [0249](0249-the-hosts-api-its-items-and-their-table.md) (each accessibility update numbered; a
-  screen reader's action with the number of its update)
+  screen reader's action with the number of its update); amended by
+  [0262](0262-uwui-accesskits-api-one-tree-per-window-the-hosts-node-made-when-needed.md)
 - Date: 2026-11-14
 
 ## Context

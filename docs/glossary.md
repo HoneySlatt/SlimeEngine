@@ -1948,9 +1948,9 @@ stays. A program gives it as `uwui::preferences::Preferences`, with less motion.
 **uwui.** The owner's UI framework, the base of the engine's interfaces and of *applications*: a
 retained tree of elements, its layout, text, input and widgets, embedded in a *host (uwui)*
 that calls it ([ADR-0132](adr/0132-the-engines-ui-framework.md),
-[ADR-0181](adr/0181-uwuis-scope.md)). Its crates are `uwui`, `uwui-render`, `uwui-kdl` and `uwui-macros`
-([ADR-0179](adr/0179-the-framework-named-uwui.md)); they move to a repository of their own at
-Stage 6d.
+[ADR-0181](adr/0181-uwuis-scope.md)). Its crates are `uwui`, `uwui-accesskit`, `uwui-agent`,
+`uwui-render`, `uwui-kdl` and `uwui-macros` ([ADR-0179](adr/0179-the-framework-named-uwui.md));
+they move to a repository of their own at Stage 6d.
 
 **Value (reflection).** A reflected value as plain data, without its Rust type: booleans, integers,
 floats of either width, text, structs, enums, options, lists, references to assets and entities

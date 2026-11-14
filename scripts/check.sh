@@ -127,11 +127,31 @@ if runs lint; then
         exit 1
     fi
     # uwui-accesskit names no engine crate either, its tests none but slime-color, the color of a
-    # color well, which leaves with uwui (ADR-0261).
+    # color well, which leaves with uwui (ADR-0262).
     uwui_accesskit_dependencies=$(cargo tree --locked -p uwui-accesskit -e normal,dev --target all \
         --depth 1 --prefix none)
     if grep -E '^slime-' <<< "$uwui_accesskit_dependencies" | grep -v '^slime-color '; then
         echo "uwui-accesskit depends on the engine crates above"
+        exit 1
+    fi
+    # Each crate under MIT OR Apache-2.0 holds both licences' texts, and LICENSE.md names it among
+    # those that the engine's notice does not cover, or LICENSE.md would leave it under that notice.
+    licensed_crates=0
+    for manifest in crates/*/Cargo.toml; do
+        grep -q '^license = "MIT OR Apache-2.0"$' "$manifest" || continue
+        licensed_crates=$((licensed_crates + 1))
+        crate=$(dirname "$manifest")
+        for file in LICENSE-MIT LICENSE-APACHE; do
+            [ -f "$crate/$file" ] || { echo "$crate is under MIT OR Apache-2.0 but holds no $file"; exit 1; }
+        done
+        grep -q -F "\`$crate\`" LICENSE.md || {
+            echo "LICENSE.md does not name $crate among the crates under MIT OR Apache-2.0"
+            exit 1
+        }
+    done
+    # uwui's own crate is among them: a manifest's line written otherwise would skip them all.
+    if ! grep -q '^license = "MIT OR Apache-2.0"$' crates/uwui/Cargo.toml || [ "$licensed_crates" -eq 0 ]; then
+        echo "no crate's manifest reads as MIT OR Apache-2.0: the check above would pass on any"
         exit 1
     fi
     # uwui reads its documents in KDL, without the engine's reflection: neither slime-reflect nor
@@ -483,14 +503,15 @@ if runs headless; then
     done
 
     step "The game holds no adapter for screen readers nor uwui-accesskit, which games leave out until Stage 7 (ADR-0146, ADR-0261)"
-    # The examples, through their dev-dependencies, turn the `accessibility` feature on: their tree
-    # holds both crates, or the search below would pass on any build. Each tree is read first, so
-    # that a failure of cargo stops the check rather than passing it.
+    # The game with slime-app's `accessibility` feature turned on holds both crates, or the search
+    # below would pass on any build. Each tree is read first, so that a failure of cargo stops the
+    # check rather than passing it.
     screen_reader_crates=(accesskit_winit uwui-accesskit)
-    examples_crates=$(cargo tree --locked -p slime-examples -e normal,dev --target all --prefix none)
+    control_crates=$(cargo tree --locked -p hunnawood --features=default,slime-app/accessibility \
+        -e normal --target all --prefix none)
     for crate in "${screen_reader_crates[@]}"; do
-        if ! grep -q "^$crate " <<< "$examples_crates"; then
-            echo "the examples' tree holds no $crate: the check would pass on any build"
+        if ! grep -q "^$crate " <<< "$control_crates"; then
+            echo "the game with slime-app's accessibility holds no $crate: the check would pass on any build"
             exit 1
         fi
     done

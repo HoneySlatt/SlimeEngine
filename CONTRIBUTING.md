@@ -347,7 +347,7 @@ overlay ([`docs/PLAN.md`](docs/PLAN.md)). To try one, start Orca (`orca`, or the
 of accessibility), then the `interface` example, or the `world` example, whose panels F2, F3 and
 F6 reach. A
 program costs nothing until a screen reader asks for its tree. With
-`SLIME_LOG=info,zbus=warn,slime_app::accessibility=debug`, the log says each action that a screen
+`SLIME_LOG=info,zbus=warn,uwui_accesskit=debug`, the log says each action that a screen
 reader asks.
 
 ### Measuring
@@ -642,7 +642,7 @@ SlimeEngine is to be licensed under a licence of its own, with a royalty above a
 ([ADR-0214](docs/adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)). Contributions of
 code are not accepted before 0.14; from then, under a contributor licence agreement, by which the
 contributor keeps the copyright and grants the owner the right to use, sell and license it again.
-uwui's crates, `crates/uwui`, `crates/uwui-agent`, `crates/uwui-kdl`, `crates/uwui-macros` and
-`crates/uwui-render`, are under MIT OR Apache-2.0, and take
+uwui's crates, `crates/uwui`, `crates/uwui-accesskit`, `crates/uwui-agent`, `crates/uwui-kdl`,
+`crates/uwui-macros` and `crates/uwui-render`, are under MIT OR Apache-2.0, and take
 contributions under both, without further terms. The examples are under MIT-0, code made to be
 copied into games ([ADR-0219](docs/adr/0219-test-games-in-place-of-hunna-wood.md)).

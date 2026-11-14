@@ -5,7 +5,7 @@ given back to the interface ([ADR-0146](../../docs/adr/0146-screen-readers.md),
 [ADR-0261](../../docs/adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md),
 [ADR-0262](../../docs/adr/0262-uwui-accesskits-api-one-tree-per-window-the-hosts-node-made-when-needed.md)).
 Any host of uwui uses it beside its own AccessKit adapter; the engine's is `slime-app`, with its
-`accessibility` feature. MIT OR Apache-2.0, as uwui's crates.
+`accessibility` feature.
 
 ## Role
 
@@ -37,9 +37,11 @@ The crate's rustdoc holds the contracts and an example of a host.
 `src/tests.rs` builds interfaces in uwui's test font, translates them, and builds AccessKit's tree
 from the updates with `accesskit_consumer`, as the adapters do, which panics on an update that is
 not one. They cover the widgets' roles, states and values, the requests, a modal root, an
-interface that comes and goes, the window's reader let go, and random changes whose updates keep
-the tree whole. `scripts/screen-reader-check.sh` reads the `interface` example's window through
-AT-SPI, as a screen reader does, in `scripts/check.sh windowed`.
+interface that comes and goes, the window's reader let go, the window's node made only when an
+update holds it, and random changes whose updates keep the tree whole. `slime-app`'s own tests
+check that the window's node follows its size. `scripts/screen-reader-check.sh` reads the
+`interface` example's window through AT-SPI, as a screen reader does, in `scripts/check.sh
+windowed`.
 
 ## Dependencies
 
@@ -52,5 +54,5 @@ refuses a reader, each request at the debug level. Its tests: `accesskit_consume
 - Hold the platform's adapter, or know the window: its host does, and makes the window's node.
 - Depend on an engine crate; its tests on none but `slime-color`, which leaves with uwui.
   `scripts/check.sh lint` checks it.
-- Be built into a game: games leave screen readers out until Stage 7, which `scripts/check.sh lint`
-  checks.
+- Be built into a game: games leave screen readers out until Stage 7, which `scripts/check.sh
+  headless` checks.

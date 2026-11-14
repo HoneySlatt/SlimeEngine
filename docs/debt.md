@@ -867,6 +867,8 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A text that its builder names gives screen readers its name, not its words.
   A caret at the end of a line that breaks within the text is placed at the start of the next, its side lost.
   Screen readers scroll by an item or by what shows, not to an offset.
+  A window's title set while the program runs does not reach its node: `slime-app` keeps the title it opened with.
+  A host that gives `uwui-accesskit`'s tree another interface leaves the window's reader in the one it left, which keeps it until it goes, of 64 at most; `slime-app`'s presentations give one interface for a run ([ADR-0262](adr/0262-uwui-accesskits-api-one-tree-per-window-the-hosts-node-made-when-needed.md)).
   `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once AccessKit's adapter moves to zbus 6.
   Followed at [M6d.8](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility), the desktop host's accessibility; a target's tree grafted into another's, with its first reader, a target drawn in another's image.
 - **uwui's reader of KDL** ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).

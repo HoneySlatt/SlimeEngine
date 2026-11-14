@@ -1,6 +1,8 @@
 # 0262. uwui-accesskit's API: one tree per window, the host's node made when needed
 
-- Status: Accepted
+- Status: Accepted; amends
+  [0261](0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)
+  (`slime-color` in the crate's tests, which otherwise depends on no engine crate)
 - Date: 2026-11-14
 
 ## Context
@@ -17,8 +19,8 @@ The facts, read in the repository on 2026-11-14:
   size, `slime-platform`'s window and its three events of screen readers (the tree asked, an
   action, no reader any more).
 - AccessKit's adapters, on every platform, give a host the same three events.
-- The window's node, the tree's root, was built at each frame, then given only when the update
-  held it: a whole update, the top changed, or the window resized.
+- The translation kept the window's title and last size, and built the window's node, the tree's
+  root, only when the update held it: a whole update, the top changed, or the window resized.
 - The tests name `slime_color::LinearColor` for a color well: uwui names it in its API without
   re-exporting it. `slime-color` leaves with uwui; `uwui-render` already depends on it.
 
@@ -38,9 +40,11 @@ events:
 The crate keeps whether a screen reader reads, so that a host is a few lines.
 
 **The window's node is the host's, made when needed.** `window` is an `impl FnOnce() -> Node`,
-called only when the update holds the node: whole, the top changed, or `window_changed`, which the
-host sets when what the node says changed, a size or a title. The crate sets its children to the
-target's top. A host keeps its adapter, its window's title and size.
+called only when the update holds the node, as before: whole, the top changed, or
+`window_changed`, which the host sets when what the node says changed since the last update it
+gave, a size or a title. The crate sets its children to the target's top. A host keeps its
+adapter, its window's title and size. The update is `#[must_use]`: one that does not reach the
+adapter leaves the next naming nodes that AccessKit never received.
 
 **What the tree says of itself.** Its toolkit is `uwui`, its version the crate's.
 
@@ -48,11 +52,15 @@ target's top. A host keeps its adapter, its window's title and size.
 ([ADR-0008](0008-errors-logging-and-assertions.md)): a warning once when the interface refuses a
 reader, each request at the debug level. Its tests take `slime-color` as a dev-dependency; the
 crate names no other engine crate, which `scripts/check.sh lint` checks, as for `uwui-render`.
-These two are the owner's choices of 2026-11-14.
+These two are the owner's choices of 2026-11-14; the second amends ADR-0261's "the crate depends on
+no engine crate", for its tests alone.
 
 ## Alternatives considered
 
-- **The window's node built at each frame** and given: a node and a string made for nothing at
+- **The window's title and size kept by the crate**, which builds the node, as the translation
+  did in `slime-app`: the crate would decide what a window's node says, its role, name and bounds,
+  and grow a field for each property that a host adds, a description or a window's state.
+- **The node given at each update**, built by the host: a node and a string made for nothing at
   each frame of a window read by a screen reader.
 - **The node's changes found by comparing nodes**: the node built at each frame to compare it.
 - **Whether a screen reader reads left to the host**: each host would repeat the same flag and
@@ -71,5 +79,7 @@ These two are the owner's choices of 2026-11-14.
   `slime-platform`'s events and updates. It depends on `uwui-accesskit` with its feature, no longer
   on `accesskit`.
 - Screen readers read the toolkit as `uwui` instead of `SlimeEngine`.
-- `scripts/check.sh lint` checks that the game, built with its default features or for shipping,
-  holds neither `uwui-accesskit` nor AccessKit's adapter.
+- `scripts/check.sh` checks, in its `headless` part, that the game, built with its default
+  features or for shipping, holds neither `uwui-accesskit` nor AccessKit's adapter.
+- A host that gives the tree another interface leaves the window's reader of meaning in the one it
+  left, which keeps it until it goes; `slime-app` gives one interface for a run.

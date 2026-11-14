@@ -9,7 +9,7 @@ use slime_platform::{Accessibility, PhysicalSize, Window};
 use uwui::host::TargetId;
 use uwui::tree::Ui;
 use uwui_accesskit::ScreenReaderTree;
-use uwui_accesskit::accesskit::{Node, Rect, Role};
+use uwui_accesskit::accesskit::{Node, Rect, Role, TreeUpdate};
 
 /// What screen readers read of a window: its tree, and what the window's node holds.
 pub(crate) struct ScreenReaders {
@@ -17,7 +17,7 @@ pub(crate) struct ScreenReaders {
     tree: ScreenReaderTree,
     /// The window's title, its node's name.
     title: String,
-    /// The window's content area at the last update, its node's bounds.
+    /// The window's content area at the last update given, its node's bounds.
     size: PhysicalSize,
 }
 
@@ -55,12 +55,21 @@ impl ScreenReaders {
     /// screen reader reads it: after a frame. The window's node is given again when its size
     /// changed.
     pub(crate) fn update(&mut self, window: &Window, ui: Option<&mut Ui>) {
-        let size = window.inner_size();
-        let resized = std::mem::replace(&mut self.size, size) != size;
-        let title = &self.title;
-        if let Some(update) = self.tree.update(ui, resized, || window_node(title, size)) {
+        if let Some(update) = self.next_update(ui, window.inner_size()) {
             window.update_accessibility(update);
         }
+    }
+
+    /// The update of what changed in what `ui` means, for a window's content area of `size`. The
+    /// size is kept only once an update gave it: one that the tree did not give, the interface
+    /// refusing a reader, is given by the next.
+    fn next_update(&mut self, ui: Option<&mut Ui>, size: PhysicalSize) -> Option<TreeUpdate> {
+        let title = &self.title;
+        let update = self
+            .tree
+            .update(ui, size != self.size, || window_node(title, size))?;
+        self.size = size;
+        Some(update)
     }
 }
 
@@ -75,4 +84,68 @@ fn window_node(title: &str, size: PhysicalSize) -> Node {
         y1: f64::from(size.height),
     });
     window
+}
+
+#[cfg(test)]
+mod tests {
+    use uwui::text::Fonts;
+    use uwui_accesskit::accesskit::NodeId;
+
+    use super::*;
+
+    /// A window's content area of `width` by 300 pixels.
+    fn size(width: u32) -> PhysicalSize {
+        PhysicalSize { width, height: 300 }
+    }
+
+    /// The width that `update` gives the window's node, none where it holds no node of the window.
+    fn window_width(update: &TreeUpdate) -> Option<f64> {
+        update
+            .nodes
+            .iter()
+            .find(|(id, _)| *id == NodeId(0))
+            .and_then(|(_, node)| node.bounds())
+            .map(|bounds| bounds.x1)
+    }
+
+    #[test]
+    fn the_window_s_node_follows_its_size() {
+        let mut ui = Ui::new(Fonts::new());
+        let mut readers = ScreenReaders::new("Example");
+        readers.tree.tree_requested();
+        let first = readers
+            .next_update(Some(&mut ui), size(400))
+            .expect("an update");
+        assert_eq!(window_width(&first), Some(400.0));
+        let same = readers
+            .next_update(Some(&mut ui), size(400))
+            .expect("an update");
+        assert_eq!(window_width(&same), None, "nothing changed");
+        let larger = readers
+            .next_update(Some(&mut ui), size(800))
+            .expect("an update");
+        assert_eq!(window_width(&larger), Some(800.0));
+    }
+
+    #[test]
+    fn a_size_that_no_update_gave_is_given_by_the_next() {
+        let mut ui = Ui::new(Fonts::new());
+        let mut readers = ScreenReaders::new("Example");
+        readers.tree.tree_requested();
+        let first = readers
+            .next_update(Some(&mut ui), size(400))
+            .expect("an update");
+        assert_eq!(window_width(&first), Some(400.0));
+        // Another interface, which holds as many readers as it can, refuses the window one: no
+        // update, though the window was resized meanwhile.
+        let mut full = Ui::new(Fonts::new());
+        while full.add_meaning_reader(TargetId::MAIN).is_some() {}
+        assert!(readers.next_update(Some(&mut full), size(800)).is_none());
+        // The first interface again, whose reader the window still holds: its node at the size
+        // that no update gave.
+        let back = readers
+            .next_update(Some(&mut ui), size(800))
+            .expect("an update");
+        assert_eq!(window_width(&back), Some(800.0));
+    }
 }

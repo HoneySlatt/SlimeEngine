@@ -110,12 +110,6 @@ impl ScreenReaderTree {
         }
     }
 
-    /// The target that the window shows.
-    #[must_use]
-    pub fn target(&self) -> TargetId {
-        self.target
-    }
-
     /// A screen reader asked for the tree, AccessKit's adapter's first request: updates are given
     /// from now on, the next whole. The host gives the next update at once, without waiting for a
     /// frame.
@@ -141,14 +135,24 @@ impl ScreenReaderTree {
     /// interface holds as many readers as it can, which is logged once.
     ///
     /// The update is whole when a screen reader asked for the tree, at the first update of a new
-    /// reader of meaning (another interface, whose readers are its own), and when the host began
-    /// or ceased to give an interface, `ui`; without one, the tree is the window's node alone.
+    /// reader of meaning (another interface, whose readers are its own), when the host began or
+    /// ceased to give an interface, `ui`, and when the interface makes its changes whole
+    /// ([`MeaningChanges::whole`]: a modal root opened or closed, marks past their bound); without
+    /// an interface, the tree is the window's node alone.
+    ///
+    /// The update must reach the adapter: the changes it holds are taken, and the next update
+    /// names nodes that only it gave, which AccessKit refuses without it.
+    ///
+    /// A host that gives another interface leaves the window's reader in the one it left, which
+    /// keeps it until that interface goes: an interface holds at most 64 readers
+    /// ([`Ui::add_meaning_reader`]).
     ///
     /// `window` makes the window's node, the tree's root: its role, name and bounds, in pixels of
     /// the window's content area. It is called only when the update holds that node: a whole
     /// update, the target's top changed, or `window_changed`, which the host sets when what the
     /// node says changed since the last update, a size or a title. The node's children are set to
     /// the elements at the target's top, replacing any that `window` gave.
+    #[must_use = "the update must reach the adapter: the next one names nodes that it gives"]
     pub fn update(
         &mut self,
         ui: Option<&mut Ui>,
@@ -162,10 +166,11 @@ impl ScreenReaderTree {
         self.had_interface = ui.is_some();
         let changes = match ui {
             Some(ui) => self.changes(ui, whole)?,
+            // The window alone: its top empty, given when whole.
             None => MeaningChanges {
                 whole,
                 nodes: Vec::new(),
-                top: Some(Vec::new()),
+                top: whole.then(Vec::new),
                 focus: None,
             },
         };
@@ -180,7 +185,86 @@ impl ScreenReaderTree {
     /// since to another window
     /// (`docs/adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md`).
     pub fn act(&self, ui: &mut Ui, request: &ActionRequest) {
-        act(ui, self.target, request);
+        tracing::debug!(?request, "a screen reader asks");
+        if request.target_tree != TreeId::ROOT {
+            return;
+        }
+        let Some((id, None)) = ui.element_by_number(request.target_node.0) else {
+            return;
+        };
+        if ui
+            .root_settings(id)
+            .is_none_or(|settings| settings.target != self.target)
+        {
+            return;
+        }
+        let takes = |ui: &Ui, wanted: ElementAction| {
+            ui.meaning_of(id)
+                .is_some_and(|meaning| meaning.actions.contains(&wanted))
+        };
+        match (request.action, &request.data) {
+            (AccessAction::Click, _) if takes(ui, ElementAction::Press) => ui.act(Action {
+                element: Some(id),
+                kind: ActionKind::Press,
+            }),
+            // A section opened or folded.
+            (AccessAction::Expand | AccessAction::Collapse, _)
+                if takes(ui, ElementAction::Press) =>
+            {
+                ui.set_open(id, request.action == AccessAction::Expand);
+            }
+            // A field clicked takes the focus, as a press of the pointer gives it.
+            (AccessAction::Click | AccessAction::Focus, _) => ui.set_focus(Some(id)),
+            // The boxes that scroll around it moved so that it shows (`docs/adr/0167-the-hierarchy.md`).
+            (AccessAction::ScrollIntoView, _) => ui.scroll_into_view(id),
+            (AccessAction::SetValue, Some(ActionData::Value(text))) => {
+                ui.set_value(id, text);
+            }
+            (AccessAction::SetValue, Some(ActionData::NumericValue(number))) => {
+                ui.set_value(id, &number.to_string());
+            }
+            // A slider moved by a step.
+            (AccessAction::Increment | AccessAction::Decrement, _)
+                if takes(ui, ElementAction::SetValue) =>
+            {
+                let Some(meaning) = ui.meaning_of(id) else {
+                    return;
+                };
+                let (Some(value), Some(range)) = (
+                    meaning.value.and_then(|value| value.parse::<f64>().ok()),
+                    meaning.range,
+                ) else {
+                    return;
+                };
+                let step = if range.step > 0.0 {
+                    range.step
+                } else {
+                    (range.max - range.min) / 100.0
+                };
+                let towards = if request.action == AccessAction::Increment {
+                    step
+                } else {
+                    -step
+                };
+                ui.set_value(id, &(value + towards).to_string());
+            }
+            (AccessAction::SetTextSelection, Some(ActionData::SetTextSelection(selection)))
+                if takes(ui, ElementAction::SetValue) =>
+            {
+                select(ui, id, selection);
+            }
+            (
+                AccessAction::ScrollUp
+                | AccessAction::ScrollDown
+                | AccessAction::ScrollLeft
+                | AccessAction::ScrollRight,
+                data,
+            ) if takes(ui, ElementAction::Scroll) => {
+                let page = matches!(data, Some(ActionData::ScrollUnit(ScrollUnit::Page)));
+                scroll_by(ui, id, request.action, page);
+            }
+            _ => {}
+        }
     }
 
     /// What changed in `ui`'s meaning for the window's reader, whole for `whole`: the whole tree
@@ -494,89 +578,6 @@ fn rect(rect: Rect) -> AccessRect {
         y0: f64::from(rect.y),
         x1: f64::from(rect.x + rect.width),
         y1: f64::from(rect.y + rect.height),
-    }
-}
-
-/// Does what `request` asks of the element it names in `ui`, for a window that shows `target`
-/// ([`ScreenReaderTree::act`]).
-fn act(ui: &mut Ui, target: TargetId, request: &ActionRequest) {
-    tracing::debug!(?request, "a screen reader asks");
-    if request.target_tree != TreeId::ROOT {
-        return;
-    }
-    let Some((id, None)) = ui.element_by_number(request.target_node.0) else {
-        return;
-    };
-    if ui
-        .root_settings(id)
-        .is_none_or(|settings| settings.target != target)
-    {
-        return;
-    }
-    let takes = |ui: &Ui, wanted: ElementAction| {
-        ui.meaning_of(id)
-            .is_some_and(|meaning| meaning.actions.contains(&wanted))
-    };
-    match (request.action, &request.data) {
-        (AccessAction::Click, _) if takes(ui, ElementAction::Press) => ui.act(Action {
-            element: Some(id),
-            kind: ActionKind::Press,
-        }),
-        // A section opened or folded.
-        (AccessAction::Expand | AccessAction::Collapse, _) if takes(ui, ElementAction::Press) => {
-            ui.set_open(id, request.action == AccessAction::Expand);
-        }
-        // A field clicked takes the focus, as a press of the pointer gives it.
-        (AccessAction::Click | AccessAction::Focus, _) => ui.set_focus(Some(id)),
-        // The boxes that scroll around it moved so that it shows (`docs/adr/0167-the-hierarchy.md`).
-        (AccessAction::ScrollIntoView, _) => ui.scroll_into_view(id),
-        (AccessAction::SetValue, Some(ActionData::Value(text))) => {
-            ui.set_value(id, text);
-        }
-        (AccessAction::SetValue, Some(ActionData::NumericValue(number))) => {
-            ui.set_value(id, &number.to_string());
-        }
-        // A slider moved by a step.
-        (AccessAction::Increment | AccessAction::Decrement, _)
-            if takes(ui, ElementAction::SetValue) =>
-        {
-            let Some(meaning) = ui.meaning_of(id) else {
-                return;
-            };
-            let (Some(value), Some(range)) = (
-                meaning.value.and_then(|value| value.parse::<f64>().ok()),
-                meaning.range,
-            ) else {
-                return;
-            };
-            let step = if range.step > 0.0 {
-                range.step
-            } else {
-                (range.max - range.min) / 100.0
-            };
-            let towards = if request.action == AccessAction::Increment {
-                step
-            } else {
-                -step
-            };
-            ui.set_value(id, &(value + towards).to_string());
-        }
-        (AccessAction::SetTextSelection, Some(ActionData::SetTextSelection(selection)))
-            if takes(ui, ElementAction::SetValue) =>
-        {
-            select(ui, id, selection);
-        }
-        (
-            AccessAction::ScrollUp
-            | AccessAction::ScrollDown
-            | AccessAction::ScrollLeft
-            | AccessAction::ScrollRight,
-            data,
-        ) if takes(ui, ElementAction::Scroll) => {
-            let page = matches!(data, Some(ActionData::ScrollUnit(ScrollUnit::Page)));
-            scroll_by(ui, id, request.action, page);
-        }
-        _ => {}
     }
 }
 
