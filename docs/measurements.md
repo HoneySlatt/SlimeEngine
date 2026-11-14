@@ -4062,3 +4062,29 @@ Both series ran before the closing review's fixes: a later round's pages then ea
 the whole budget again, where they now share what is left of it, and a page resumed by indices
 where it now resumes by its elements' places. Neither fix adds work to a page from the list's
 start, which the series measure; the frames were not measured again.
+
+How long CI's jobs took on `9ca2f80`, the commit that reads long lists by pages, on 2026-11-14:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 1 s |
+| `check (headless)` | 12 min 51 s |
+| `check (windowed)` | 9 min 24 s |
+| `check (game)` | 11 min 23 s |
+| `check (gles)` | 4 min 14 s |
+| `windows (tests)` | 15 min 34 s |
+| `windows (render)` | 5 min 4 s |
+| `windows (game)` | 10 min 38 s |
+| `windows-release` | 16 min 9 s |
+| `compositors (weston)` | 12 min 18 s |
+| `compositors (sway)` | 15 min 11 s |
+| `compositors (kwin)` | 14 min 5 s |
+| `compositors (mutter)` | 12 min 56 s |
+| `compositors (x11)` | 17 min 30 s |
+| Docs' `links` | 18 s |
+
+Every job stays within its limit of 20 minutes. `compositors (x11)` is the longest, with 2 min 30 s
+of margin: it took 12 min 3 s at M6d.9a1b3a, then 12 min 40 s, 15 min 9 s and 14 min 55 s over
+track B's three parts since, and this part adds no test of its own to it. `windows-release` keeps
+3 min 51 s. The part adds some 20 tests to `uwui-agent`, `uwui`, `slime-world`,
+`slime-channel`, `slime-app` and `slime-mcp`, one of them a run of `slime-app`'s channel.

@@ -141,8 +141,8 @@ in git.
   ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)):
   done, [M6d.9a1b3a](#m6d9a1b3a--the-interfaces-family-in-uwui), on the same day; then
   [M6d.9a1b3b](#m6d9a1b3b--long-lists), cut in two on 2026-11-14
-  ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)): in progress,
-  [M6d.9a1b3b1](#m6d9a1b3b1--lists); then
+  ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)): done,
+  [M6d.9a1b3b1](#m6d9a1b3b1--lists), on the same day; then
   [M6d.9a1b3b2](#m6d9a1b3b2--the-editors-journal); then
   [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
@@ -2475,7 +2475,40 @@ the lists first, then the editor's journal, whose first entry holds the level on
 
 ### M6d.9a1b3b1 — Lists
 
-In progress, its card in [`PLAN.md`](PLAN.md#m6d9a1b3b1--lists).
+The first half of M6d.9a1b3b, started on 2026-11-14, designed in
+[ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md),
+under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Entities, elements and the log read by pages.
+- **Crates.** `uwui-agent`, `uwui`, `slime-world`, `slime-channel`, `slime-app`, `slime-mcp`.
+- **Delivers.** ADR-0260's cursor, bounds and cut texts; faults' codes both ways and `STALE`;
+  `world` 2, `interface` 3; the MCP server's lists paged.
+- **Done when.** A list passes an element larger than the tool's line; a world replaced makes its
+  cursor stale; seven agents listing keep the frame's start in budget; CI is green.
+- **Measured.** At rest, with the owner's go: a page of a thousand elements; seven agents' frames.
+- **Result.** Done on 2026-11-14, CI green on `9ca2f80`
+  ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md),
+  [ADR-0263](adr/0263-the-cursor-of-elements-anchored-on-its-next-sibling-what-a-list-may-skip-the-slots-read.md)):
+  - `uwui-agent`'s module `page`: what bounds a page, by count, bytes of JSON within the tool's
+    line and a share of time past a floor of visits; the cursor, bound to the process and to its
+    maker; texts cut to fit; the fault `STALE`. The welcome gives the carrier the tool's limits.
+  - `uwui` lists elements by pages: its cursor holds each element from the root down with its next
+    sibling, and a page resumes after each where it stands now. `slime-world` gives
+    `entities_after` and each world's number. `slime-channel` carries every fault's code both
+    ways and gives each request its page. `slime-app` pages the entities and the log, each page
+    within its share of the frame's start. The MCP server gathers the game's pages for an agent,
+    `next` first.
+  - Measured ([`measurements.md`](measurements.md#m6d9a1b3b1-lists)): a page of a thousand
+    elements falls from some 1.7 ms to some 0.39 ms; with seven agents listing, a frame from
+    some 4.1 ms to 1.7 ms, the frame's start within its budget.
+  - Two closing reviews. The first found the walk of elements resumed by indices, which listed
+    elements twice when rows were added above and never ended in a list that grows at its top;
+    fixed, with five lesser points. The second found rows removed above the cursor skipping as
+    many after it, which the next sibling's anchor fixed (ADR-0263). 39 mutations of the new
+    code each fail a test, one by never ending.
+  - Left for later ([`debt.md`](debt.md)): answers that may grow and are not paged, a page's
+    cost counted twice, the process's number on the web, the depth past which a cursor of elements
+    passes a short line, siblings reordered that a list may skip or double.
 
 ### M6d.9a1b3b2 — The editor's journal
 
