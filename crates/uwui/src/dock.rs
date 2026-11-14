@@ -751,8 +751,10 @@ impl Dock {
         let Some(settings) = ui.root_settings(slot) else {
             return;
         };
+        // The stack's box, read at the scale it was laid out at; the window's middle, at the size
+        // that its next frame lays out.
+        let scale = ui.laid_out_size(settings.target).scale();
         let size = ui.coming_size(settings.target);
-        let scale = size.scale();
         for floating in &mut self.layout.floating {
             if floating.size != [0.0; 2] {
                 continue;

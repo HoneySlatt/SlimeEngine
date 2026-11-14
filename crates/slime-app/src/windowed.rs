@@ -71,6 +71,7 @@ pub(crate) fn run_windowed(
         holding: false,
         wanted: true,
         change_due: None,
+        scale_refused: false,
         started: false,
         stop: None,
         error: None,
@@ -138,6 +139,8 @@ struct WindowedDriver<'a, S, P> {
     /// run on demand: a tooltip that shows, a notification that ends (`Ui::next_frame_due`); or when
     /// the presentation asked for a frame (`Context::request_frame_at`), the earlier.
     change_due: Option<Instant>,
+    /// Whether the window's scale was refused for its interface, which the log says once.
+    scale_refused: bool,
     /// Whether both `start` methods succeeded, which makes both `stop` methods due at the end.
     started: bool,
     /// Why the loop is ending, once it has been decided.
@@ -272,18 +275,26 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
 
     /// The size of the window's target: its images', which may be smaller than the window
     /// (`Surface::size`), at the window's scale. None while the window has no area, its target then
-    /// keeping its last size, or before the window and its surface exist
+    /// keeping its last size, for a scale that `TargetSize` refuses, logged once, or before the
+    /// window and its surface exist
     /// (`docs/adr/0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md`).
-    fn target_size(&self) -> Option<TargetSize> {
+    fn target_size(&mut self) -> Option<TargetSize> {
         let (surface, window) = (self.surface.as_ref()?, self.host.context.window()?);
-        match TargetSize::new(surface.size(), window.scale_factor() as f32) {
-            Ok(size) => Some(size),
+        let scale = window.scale_factor();
+        match TargetSize::new(surface.size(), scale as f32) {
+            Ok(size) => {
+                self.scale_refused = false;
+                Some(size)
+            }
             Err(TargetSizeError::Empty) => None,
             Err(error @ TargetSizeError::Scale) => {
-                tracing::warn!(
-                    scale = window.scale_factor(),
-                    "the window's scale is refused, its interface kept at the last: {error}"
-                );
+                // Once, not at every frame, until a scale is taken again.
+                if !std::mem::replace(&mut self.scale_refused, true) {
+                    tracing::warn!(
+                        scale,
+                        "the window's scale is refused, its interface kept at the last: {error}"
+                    );
+                }
                 None
             }
         }

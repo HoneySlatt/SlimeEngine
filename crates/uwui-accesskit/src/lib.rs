@@ -609,11 +609,9 @@ fn scroll_by(ui: &mut Ui, id: ElementId, action: AccessAction, page: bool) {
     let Some(settings) = ui.root_settings(id) else {
         return;
     };
-    // The scale that its host last gave its target, which its bounds were laid out at once its
-    // frame ran: a screen reader acts between frames.
-    let scale = ui
-        .target_size(settings.target)
-        .map_or(1.0, |size| size.scale());
+    // The scale that its bounds were laid out at, which a size given since leaves until the
+    // target's next frame.
+    let scale = ui.laid_out_size(settings.target).scale();
     let shown = ui
         .meaning_of(id)
         .and_then(|meaning| meaning.bounds)

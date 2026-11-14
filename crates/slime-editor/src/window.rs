@@ -594,12 +594,10 @@ impl Model {
         Gizmo::of(world, &selection, self.space, &camera, rect.height / scale)
     }
 
-    /// Pixels of the screen per logical pixel, as the host last gave the window's (its interface's
-    /// target's, `Ui::set_target_size`); 1 before it gave one.
+    /// Pixels of the screen per logical pixel, as the window was last laid out, which its boxes
+    /// are in (`Ui::laid_out_size`); 1 before its first frame.
     pub(crate) fn scale(&self) -> f32 {
-        self.ui
-            .target_size(TargetId::MAIN)
-            .map_or(1.0, |size| size.scale())
+        self.ui.laid_out_size(TargetId::MAIN).scale()
     }
 
     /// The ray from the camera of `pane` through `at`, in logical pixels from its viewport's
@@ -1954,8 +1952,6 @@ pub struct Offscreen {
     gpu: Gpu,
     drawing: Drawing,
     target: RenderTarget,
-    /// The window's pixels per logical pixel.
-    scale: f32,
     /// What the last frame drew.
     display: DisplayList,
     /// When the last frame ran, which the next one advances the program's time from.
@@ -2027,7 +2023,6 @@ impl Offscreen {
             gpu: gpu.clone(),
             drawing,
             target,
-            scale,
             display: DisplayList::new(),
             last: Instant::now(),
             level: None,
@@ -2177,7 +2172,9 @@ impl Offscreen {
                         &self.gpu,
                         &mut self.drawing.renderer,
                         (level, viewport),
-                        &self.model.marks(pane, self.host.world(), self.scale),
+                        &self
+                            .model
+                            .marks(pane, self.host.world(), self.model.scale()),
                         &self.model.panes[pane],
                         self.host.world(),
                         size,
@@ -3104,6 +3101,21 @@ mod tests {
     /// The left button over the viewport: a click, a drag that draws a marquee, and Alt and a click,
     /// each asking what is drawn there, and what the viewport found selected in the core
     /// (`docs/adr/0159-picking-and-the-selection.md`).
+    /// The window acts on what the user did at the scale its boxes were laid out at, until the
+    /// frame that lays them out at the scale that its host gave since
+    /// (`docs/adr/0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md`).
+    #[test]
+    fn the_window_acts_at_the_scale_its_boxes_were_laid_out_at() {
+        let mut yard = Yard::new("acts-at-laid-out-scale");
+        let viewport = yard.model.viewport_rect(0).expect("laid out");
+        let doubled = TargetSize::new([SIZE[0] * 2, SIZE[1] * 2], 2.0).expect("a size");
+        yard.model.ui.set_target_size(TargetId::MAIN, doubled);
+        assert_eq!(yard.model.viewport_rect(0), Some(viewport));
+        assert_eq!(yard.model.scale(), 1.0);
+        yard.model.frame(yard.host.world());
+        assert_eq!(yard.model.scale(), 2.0);
+    }
+
     #[test]
     fn the_left_button_over_the_viewport_asks_what_is_drawn_there_and_selects_it() {
         let mut yard = Yard::new("pick");

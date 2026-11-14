@@ -1461,3 +1461,23 @@ fn random_layouts_are_written_and_read_back_bit_for_bit() {
         );
     }
 }
+
+#[test]
+fn a_panel_floated_as_the_scale_changes_keeps_its_stack_s_logical_place() {
+    let (mut ui, mut dock, slot) = docked(editor());
+    let history = dock
+        .slot("history")
+        .and_then(|slot| ui.rect(slot))
+        .expect("shown");
+    // The window moves to a screen of twice the pixels, the same logical size, as the panel
+    // floats: its stack's box, laid out at scale 1, is read at that scale.
+    let doubled = TargetSize::new([1600, 1200], 2.0).expect("a size");
+    ui.set_target_size(TargetId::MAIN, doubled);
+    assert!(dock.move_panel("history", &Target::Float));
+    frame(&mut ui, &mut dock, slot);
+    let floating = &dock.layout().floating[0];
+    assert!(
+        (floating.size[0] - history.width).abs() < 1.0,
+        "{floating:?} {history:?}"
+    );
+}

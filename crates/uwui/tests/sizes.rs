@@ -3,13 +3,13 @@
 //! (`docs/adr/0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md`).
 
 use slime_color::LinearColor;
-use slime_input::{ButtonState, MouseButton};
+use slime_input::{ButtonState, MouseButton, ScrollDelta};
 use uwui::Rect;
 use uwui::action::{Action, ActionKind};
 use uwui::host::{Person, TargetId, TargetSize};
 use uwui::style::{Dimension, StyleBuilder};
 use uwui::text::Fonts;
-use uwui::tree::{Element, ElementId, RootSettings, Ui};
+use uwui::tree::{Along, Element, ElementId, Layer, Place, RootSettings, Side, Ui};
 
 const MAIN: TargetId = TargetId::MAIN;
 
@@ -173,4 +173,118 @@ fn a_root_over_another_takes_the_pointer_where_it_would_take_a_press_and_lets_it
     assert_eq!(ui.element_at(MAIN, 300.0, 200.0), Some(upper));
     assert!(!ui.covers(MAIN, 300.0, 200.0));
     assert!(ui.covers(MAIN, 300.0, 50.0));
+}
+
+#[test]
+fn a_layer_moved_with_its_root_to_a_target_laid_out_at_another_scale_takes_its_scale() {
+    let (mut ui, root, panel) = one_root();
+    let other = TargetId(2);
+    ui.set_target_size(other, size([800, 600], 2.0));
+    ui.frame(other);
+    let layer = Layer {
+        place: Place::Beside {
+            element: panel,
+            side: Side::Below,
+            along: Along::Start,
+        },
+        modal: false,
+        dismiss: false,
+    };
+    let menu = ui.open_layer("menu", layer, |s| s);
+    let mut item = None;
+    ui.build(menu, 0, |children| {
+        let boxed = Element::container().style(|s| sized(s, 80.0, 30.0));
+        item = Some(children.add("item", boxed, |_| {}));
+    });
+    ui.frame(MAIN);
+    ui.set_root(root, RootSettings::on(other));
+    ui.frame(other);
+    assert_eq!(ui.rect(panel), Some(Rect::new(0.0, 0.0, 200.0, 100.0)));
+    let item = ui.rect(item.expect("built")).expect("laid out");
+    assert_eq!((item.width, item.height), (160.0, 60.0));
+}
+
+#[test]
+fn a_root_set_modal_after_it_was_added_changes_nothing() {
+    let Stacked {
+        mut ui,
+        lower_box,
+        upper,
+        ..
+    } = stacked();
+    let modal = RootSettings {
+        modal: true,
+        ..RootSettings::on(MAIN)
+    };
+    ui.set_root(upper, modal);
+    ui.frame(MAIN);
+    assert_eq!(ui.element_at(MAIN, 300.0, 50.0), Some(lower_box));
+    assert!(ui.covers(MAIN, 300.0, 50.0));
+    assert_eq!(ui.root_settings(upper).map(|root| root.modal), Some(false));
+}
+
+#[test]
+fn the_wheel_over_an_upper_roots_box_that_scrolls_scrolls_it() {
+    let mut ui = Ui::new(Fonts::new());
+    ui.set_target_size(MAIN, size([400, 300], 1.0));
+    let grey = LinearColor::rgba(0.5, 0.5, 0.5, 1.0);
+    let lower = ui.add_root("lower", RootSettings::on(MAIN), |s| s);
+    let mut below = None;
+    ui.build(lower, 0, |children| {
+        let scroll = Element::scroll().style(|s| sized(s, 400.0, 300.0).background(grey));
+        below = Some(children.add("scroll", scroll, |children| {
+            let tall = Element::container().style(|s| sized(s, 400.0, 1000.0));
+            children.add("content", tall, |_| {});
+        }));
+    });
+    let upper = ui.add_root("upper", RootSettings::on(MAIN), |s| s);
+    let mut above = None;
+    ui.build(upper, 0, |children| {
+        let scroll = Element::scroll().style(|s| sized(s, 200.0, 200.0));
+        above = Some(children.add("scroll", scroll, |children| {
+            let tall = Element::container().style(|s| sized(s, 200.0, 1000.0));
+            children.add("content", tall, |_| {});
+        }));
+    });
+    ui.frame(MAIN);
+    ui.pointer_moved(50.0, 100.0);
+    // Turned down, the content goes up: its offset grows.
+    assert!(ui.wheel(ScrollDelta::Lines { x: 0.0, y: -1.0 }));
+    let scrolled = |id: Option<ElementId>| ui.scroll(id.expect("built")).unwrap_or_default();
+    assert!(scrolled(above)[1] > 0.0, "the upper box scrolls");
+    assert_eq!(scrolled(below), [0.0; 2], "the lower stays");
+}
+
+#[test]
+fn a_drop_reaches_a_target_below_an_upper_root_that_draws_nothing_there() {
+    let mut ui = Ui::new(Fonts::new());
+    ui.set_target_size(MAIN, size([400, 300], 1.0));
+    let lower = ui.add_root("lower", RootSettings::on(MAIN), |s| {
+        s.padding(uwui::style::Sides {
+            start: 0.0,
+            end: 0.0,
+            top: 100.0,
+            bottom: 0.0,
+        })
+    });
+    let mut target = None;
+    ui.build(lower, 0, |children| {
+        let drop = Element::container()
+            .style(|s| sized(s, 100.0, 40.0))
+            .drop_target();
+        target = Some(children.add("target", drop, |_| {}));
+    });
+    let upper = ui.add_root("upper", RootSettings::on(MAIN), |s| s);
+    ui.build(upper, 0, |children| {
+        let source = Element::button("")
+            .style(|s| sized(s, 100.0, 40.0))
+            .draggable();
+        children.add("source", source, |_| {});
+    });
+    ui.frame(MAIN);
+    ui.pointer_moved(50.0, 20.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(50.0, 120.0);
+    let dragging = ui.dragging().expect("a drag");
+    assert_eq!(dragging.target, target);
 }

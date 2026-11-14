@@ -508,14 +508,8 @@ fn a_tree_of_elements_is_drawn_where_its_layout_places_it_and_mirrored_from_righ
         let mut ui = Ui::new(fonts());
         ui.set_target_size(
             uwui::host::TargetId::MAIN,
-            TargetSize::new(
-                [
-                    (WIDTH as f32 / 2.0 * 2.0) as u32,
-                    (HEIGHT as f32 / 2.0 * 2.0) as u32,
-                ],
-                2.0,
-            )
-            .expect("a size"),
+            // The image's pixels, at two pixels a logical pixel.
+            TargetSize::new([WIDTH, HEIGHT], 2.0).expect("a size"),
         );
         let settings = RootSettings {
             direction,

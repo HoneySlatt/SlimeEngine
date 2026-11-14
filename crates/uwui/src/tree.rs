@@ -1090,12 +1090,8 @@ pub enum LayoutDirection {
 /// list into, which it fills, at its target's size and scale ([`Ui::set_target_size`]); how it lays
 /// out its lines; whether it is modal.
 ///
-/// Roots are stacked in the order they are added, the last on top, drawn last. The pointer reaches
-/// the top root that would take a press at its point: where it draws, its scroll bars included, or
-/// where an element under the point takes the pointer or is a surface; elsewhere it goes on to the
-/// roots below, and where none would take it, the top root's deepest box holds it. A layer, a
-/// popup, a menu or a panel placed over a root, takes it wherever its box lies; a modal root takes
-/// it everywhere on its target ([`Ui::element_at`]).
+/// Roots are stacked in the order they are added, the last on top, drawn last; a root over another
+/// takes the pointer where it acts, and lets it through elsewhere, as [`Ui::element_at`] says.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RootSettings {
     /// The direction of its lines.
@@ -1529,13 +1525,15 @@ impl Ui {
             self.move_to_target(&group, from, settings.target);
         }
         let node = self.node_mut(root).expect("a root of this interface");
-        let before = node
-            .root
-            .replace(settings)
-            .expect("a root of this interface");
-        let rescaled =
-            self.laid_out_size(from).scale() != self.laid_out_size(settings.target).scale();
-        if rescaled || before.direction != settings.direction {
+        let before = node.root.expect("a root of this interface");
+        // Whether it is modal was settled as it was added.
+        let settings = RootSettings {
+            modal: before.modal,
+            ..settings
+        };
+        node.root = Some(settings);
+        // A move to a target of another scale marked it whole already.
+        if before.direction != settings.direction {
             // Every length that taffy holds, and every primitive, is in pixels of the screen, and
             // every corner and shadow mirrored by the direction.
             self.mark_all(root);
@@ -2580,7 +2578,7 @@ impl Ui {
     }
 
     /// The height of the rows of `id`, a list, in pixels of the screen: its element's, in logical
-    /// pixels, grown by the user's size of text at the list's own text and by its root's scale,
+    /// pixels, grown by the user's size of text at the list's own text and by its target's scale,
     /// whole, so that rows never overlap nor leave a gap; one pixel at least for rows of some
     /// height. Every reader of a row's height reads it here.
     pub(crate) fn row_pixels(&self, id: ElementId) -> Option<f32> {

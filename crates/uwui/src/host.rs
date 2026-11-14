@@ -81,7 +81,8 @@ pub enum TargetSizeError {
     /// while it has none, its target keeping the size it had.
     #[error("a target's width and height are one pixel at least")]
     Empty,
-    /// A scale that is not a finite number above zero.
+    /// A scale that is not a finite number above zero, or so small that a side in logical pixels
+    /// is past every number.
     #[error("a target's scale is a finite number above zero")]
     Scale,
 }
@@ -92,15 +93,19 @@ impl TargetSize {
     /// # Errors
     ///
     /// [`TargetSizeError::Empty`] for a side of zero; [`TargetSizeError::Scale`] for a scale that
-    /// is not a finite number above zero.
+    /// is not a finite number above zero, or that makes a side in logical pixels infinite.
     pub fn new(pixels: [u32; 2], scale: f32) -> Result<Self, TargetSizeError> {
         if pixels.contains(&0) {
             return Err(TargetSizeError::Empty);
         }
-        if !(scale.is_finite() && scale > 0.0) {
+        let size = Self { pixels, scale };
+        // A scale so small that a side in logical pixels is past every number is refused too.
+        if !(scale.is_finite() && scale > 0.0)
+            || !size.logical().iter().all(|side| side.is_finite())
+        {
             return Err(TargetSizeError::Scale);
         }
-        Ok(Self { pixels, scale })
+        Ok(size)
     }
 
     /// The size of a target whose host gave none: one pixel, at scale 1.

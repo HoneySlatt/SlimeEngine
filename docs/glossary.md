@@ -1479,11 +1479,11 @@ colours of its own palette that its sheet names, surfaces, borders and texts, by
 roles.
 
 **Root (interface).** An area that an interface lays its *elements* out on: it fills its *target*,
-at the size and scale that the target's host gives, in the direction of its lines
+or lies within it for a *layer*, at the size and scale that the target's host gives, in the direction of its lines
 (`uwui::tree::RootSettings`); a root laid out from right to left is mirrored
 ([ADR-0140](adr/0140-the-tree-of-elements.md),
 [ADR-0268](adr/0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md)).
-A root over another takes the pointer where it would take a press, and lets it through elsewhere.
+A root over another takes the pointer where it acts, a press, the wheel or a drop, and lets it through elsewhere.
 
 **Root's clock (interface).** The time and the *speed* that the host gives a *root* at each frame:
 the host's clock at speed 1 by default, a game's time paused or slowed. The application's motion

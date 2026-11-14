@@ -49,7 +49,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   purpose (ADR-0264).
 - Each uwui target is given its size by its host (ADR-0268): `uwui::host::TargetSize`, its image's
   pixels and its scale, which `TargetSize::new` checks, given by `Ui::set_target_size` and read by
-  `Ui::target_size`; every root on the target fills it. `Surface::size` in `slime-gfx` gives the
+  `Ui::target_size`, the size that its roots were last laid out at by `Ui::laid_out_size`; every
+  root on the target fills it. `Surface::size` in `slime-gfx` gives the
   window's images' size.
 
 ### Changed
@@ -57,10 +58,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `RootSettings` holds a root's direction, whether it is modal and its target alone
   (ADR-0268): its size and scale are its target's, `RootSettings::on(target)` makes one, and
   `add_root` and `set_root` no longer panic on a scale. A root over another takes the pointer
-  where it would take a press, and lets it through to the roots below elsewhere. `slime-app`
-  gives the window's images' size and scale at each frame; `Overlay::set_window` is gone, a panel
-  opened before the window's size is known opening at the next `Overlay::take_actions`.
-
+  where it acts, a press, the wheel or a drop, and lets it through to the roots below elsewhere.
+  `slime-app` gives the window's images' size and scale at each frame; `Overlay::set_window` is
+  gone, a panel opened before the window's size is known opening at the next
+  `Overlay::take_actions`.
 - A window's surface given up no longer ends the run (ADR-0264): the window holds its frames, and
   the run makes the surface again after a second, or at once when the window is resized or shown
   again; the fourth given up within five minutes stops it with `GfxError::SurfaceLost`.

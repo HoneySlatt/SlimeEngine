@@ -4211,3 +4211,33 @@ of margin: it took 17 min 42 s at M6d.5e1 and 12 min 51 s at M6d.9a1b3b1, and th
 some 15 tests of `slime-editor`, `uwui-agent`, `slime-channel` and `slime-mcp`, one of them
 reading a journal of some 18 MiB by pages in about two seconds, and the MCP server's session
 test pages of the journal. `windows-release` keeps 3 min 54 s; `compositors (x11)` 4 min 51 s.
+
+## M6d.5e2, each target's size and scale from its host
+
+The editor's and the game's starts, on 2026-11-14, by `scripts/start-times.sh`'s runs on lavapipe
+in a headless Weston, warm, 10 runs each: the code before, `2dd530f`, and after, `313e4ed`, built
+apart and run in turn, before then after, twice; no game, build nor other measure running, the
+load of 6 to 17 that lavapipe's own threads make. The start, to the first image, and the level
+drawn whole, each pair the two series:
+
+| Program | Start before | Start after | Level drawn whole before | Level drawn whole after |
+|---|---|---|---|---|
+| The editor, on the yard | 438.4 ms, 450.5 ms | 449.4 ms, 448.8 ms | 427.6 ms, 440.6 ms | 437.4 ms, 432.0 ms |
+| The zone's editor | 320.9 ms, 347.1 ms | 332.1 ms, 326.7 ms | 1445.1 ms, 1462.0 ms | 1472.5 ms, 1467.6 ms |
+| *Hunna Wood* | 581.7 ms, 578.6 ms | 575.9 ms, 579.7 ms | 1185.5 ms, 1113.8 ms (zone drawn) | 1230.1 ms, 1123.2 ms (zone drawn) |
+
+What it says: the starts are as before, within the series' noise, which moves a series by up to
+26 ms between two runs of the same build. A frame standing still allocates less than before: a
+box's scroll bars, which the pointer asks for at each move over stacked roots, are kept without an
+allocation, and a frame that draws them holds their primitives at their exact count. The
+benchmarks' counters, written again by `--write-counters`:
+
+| Benchmark | Allocations of a frame standing still, before and after | Its bytes, before and after |
+|---|---|---|
+| `ui.tree.editor` | 31, 28 | 4 565 992, 4 565 512 |
+| `ui.tree.list.100k` | 16, 15 | 38 616, 38 456 |
+| `devui.world_panel.100k` | 66, 65 | 37 562, 37 402 |
+| `editor.hierarchy.100k` | 19, 18 | 72 904, 72 744 |
+| `editor.window.entities`, 10k and 100k | 71, 70 | not counted |
+
+The host giving the same size at every frame costs a comparison.

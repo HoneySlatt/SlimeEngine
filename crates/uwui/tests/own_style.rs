@@ -41,7 +41,7 @@ flat {
 }
 "##;
 
-/// A root of 400 × 300 logical pixels at scale 1, from left to right.
+/// A root on the main target, from left to right.
 fn settings() -> RootSettings {
     RootSettings {
         direction: LayoutDirection::LeftToRight,

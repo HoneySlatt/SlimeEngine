@@ -792,7 +792,8 @@ fn a_root_turned_to_the_other_direction_draws_every_element_again_mirrored() {
 
 #[test]
 fn a_target_of_no_scale_or_no_area_is_refused() {
-    for scale in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+    // A scale so small that the size in logical pixels is past every number.
+    for scale in [0.0, -1.0, f32::NAN, f32::INFINITY, 1e-40] {
         assert_eq!(
             TargetSize::new([400, 300], scale),
             Err(TargetSizeError::Scale),

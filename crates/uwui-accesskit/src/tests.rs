@@ -1178,3 +1178,52 @@ fn described(tree: &Tree) -> Vec<String> {
     found.sort();
     found
 }
+
+#[test]
+fn a_page_asked_before_the_frame_of_a_new_scale_scrolls_by_what_shows() {
+    let mut ui = Ui::new(Fonts::new());
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
+    let root = ui.add_root("main", RootSettings::on(TargetId::MAIN), |s| s);
+    let mut scroll = None;
+    ui.build(root, 0, |children| {
+        let boxed = Element::scroll().style(|s| {
+            s.width(Dimension::Pixels(100.0))
+                .height(Dimension::Pixels(50.0))
+        });
+        scroll = Some(children.add("scroll", boxed, |children| {
+            let content = Element::container().style(|s| {
+                s.width(Dimension::Pixels(600.0))
+                    .height(Dimension::Pixels(200.0))
+                    .shrink(0.0)
+            });
+            children.add("content", content, |_| {});
+        }));
+    });
+    ui.frame(TargetId::MAIN);
+    let scroll = scroll.expect("built");
+    // The window moves to a screen of twice the pixels; a screen reader asks before its frame.
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([800, 600], 2.0).expect("a size"),
+    );
+    let target = whole(&mut ui)
+        .nodes
+        .into_iter()
+        .find(|node| node.meaning.id == scroll)
+        .map(|node| NodeId(node.number))
+        .expect("an element");
+    act(
+        &mut ui,
+        TargetId::MAIN,
+        &ActionRequest {
+            action: AccessAction::ScrollDown,
+            target_tree: TreeId::ROOT,
+            target_node: target,
+            data: Some(ActionData::ScrollUnit(ScrollUnit::Page)),
+        },
+    );
+    assert_eq!(ui.scroll(scroll), Some([0.0, 50.0]));
+}

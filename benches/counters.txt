@@ -2,20 +2,20 @@
 # counts and its value, parted by tabs (docs/adr/0186-counters-and-ratios-in-ci.md). A change
 # that changes a counter on purpose writes this file again in the same commit:
 #   cargo run -p slime-benches -- --write-counters [<name>...]
-devui.world_panel.100k	allocations of a frame standing still	66
-devui.world_panel.100k	bytes allocated by a frame standing still	37562
+devui.world_panel.100k	allocations of a frame standing still	65
+devui.world_panel.100k	bytes allocated by a frame standing still	37402
 devui.world_panel.100k	elements	57
 devui.world_panel.100k	elements visited by a frame standing still	114
 devui.world_panel.100k	items of a frame standing still	77
-editor.hierarchy.100k	allocations of a frame standing still	19
+editor.hierarchy.100k	allocations of a frame standing still	18
 editor.hierarchy.100k	allocations of a pointer's move to another row	0
-editor.hierarchy.100k	bytes allocated by a frame standing still	72904
+editor.hierarchy.100k	bytes allocated by a frame standing still	72744
 editor.hierarchy.100k	bytes allocated by a pointer's move to another row	0
 editor.hierarchy.100k	elements	319
 editor.hierarchy.100k	elements visited by a frame standing still	638
 editor.hierarchy.100k	items of a frame standing still	142
-editor.window.entities	allocations of a frame standing still, 100k	71
-editor.window.entities	allocations of a frame standing still, 10k	71
+editor.window.entities	allocations of a frame standing still, 100k	70
+editor.window.entities	allocations of a frame standing still, 10k	70
 editor.window.entities	elements visited by a frame standing still, 100k	492
 editor.window.entities	elements visited by a frame standing still, 10k	492
 editor.window.entities	elements, 100k	246
@@ -98,30 +98,30 @@ ui.kdl.read	bytes taken reading the most nodes document	150994752
 ui.kdl.read	bytes that the large document holds	24117248
 ui.kdl.read	bytes that the look document holds	188416
 ui.kdl.read	bytes that the most nodes document holds	50331648
-ui.tree.editor	allocations of a frame after one value of the inspector changed	32088
-ui.tree.editor	allocations of a frame standing still	31
-ui.tree.editor	bytes allocated by a frame after one value of the inspector changed	7147614
-ui.tree.editor	bytes allocated by a frame standing still	4565992
+ui.tree.editor	allocations of a frame after one value of the inspector changed	32085
+ui.tree.editor	allocations of a frame standing still	28
+ui.tree.editor	bytes allocated by a frame after one value of the inspector changed	7147134
+ui.tree.editor	bytes allocated by a frame standing still	4565512
 ui.tree.editor	elements	12487
 ui.tree.editor	elements visited by a frame standing still	24974
 ui.tree.editor	items of a frame standing still	10719
 ui.tree.editor	items of the first frame	10719
-ui.tree.list.100k	allocations of a frame standing still	16
-ui.tree.list.100k	bytes allocated by a frame standing still	38616
+ui.tree.list.100k	allocations of a frame standing still	15
+ui.tree.list.100k	bytes allocated by a frame standing still	38456
 ui.tree.list.100k	elements	164
 ui.tree.list.100k	elements visited by a frame standing still	328
 ui.tree.list.100k	items of a frame standing still	110
-ui.tree.look	allocations of a frame of the transition	96763
+ui.tree.look	allocations of a frame of the transition	96760
 ui.tree.look	allocations of reading the editor's default layout	50
 ui.tree.look	allocations of reading the editor's tables of shortcuts	324
 ui.tree.look	allocations of reading the look's documents	3376
-ui.tree.look	allocations of the first frame at twice the size of text	894720
-ui.tree.look	allocations of the frame after the size of text changed	894229
-ui.tree.look	allocations of the frame of the change	109456
-ui.tree.look	allocations of the frame of the change, own styles naming tokens	109804
-ui.tree.look	bytes allocated by a frame of the transition	22270483
-ui.tree.look	bytes allocated by the frame after the size of text changed	91045534
-ui.tree.look	bytes allocated by the frame of the change	24688729
+ui.tree.look	allocations of the first frame at twice the size of text	894717
+ui.tree.look	allocations of the frame after the size of text changed	894226
+ui.tree.look	allocations of the frame of the change	109453
+ui.tree.look	allocations of the frame of the change, own styles naming tokens	109801
+ui.tree.look	bytes allocated by a frame of the transition	22270003
+ui.tree.look	bytes allocated by the frame after the size of text changed	91045054
+ui.tree.look	bytes allocated by the frame of the change	24688249
 ui.tree.look	elements drawn by a frame of the transition	12487
 ui.tree.look	elements styled by the first frame at twice the size of text	12487
 ui.tree.look	elements styled by the frame after the size of text changed	12487

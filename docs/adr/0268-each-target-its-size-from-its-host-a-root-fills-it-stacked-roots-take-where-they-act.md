@@ -65,8 +65,10 @@ host last gave.
   before the target's first root is kept, without making the target known to input (ADR-0257).
 - The interface keeps the size given and the size its roots were last laid out at. The frame of
   the target makes the given one the laid-out one, and lays each of its roots out again, drawn
-  again whole for another scale. Between the two, what the interface reads of its boxes, the
-  questions and an agent's actions, reads the scale they were laid out at.
+  again whole for another scale. Between the two, what reads the interface's boxes, the questions,
+  an agent's actions, a screen reader's and the program's own, reads the scale they were laid out
+  at (`Ui::laid_out_size`); what lays the next frame out, a palette opened or a panel placed,
+  reads the size given.
 - A size given again unchanged does nothing, and asks for no frame: a host gives it at every frame.
 - Positions stay in the target's physical pixels. ADR-0249's rule "a root's size is in logical
   pixels, with the scale that the host gives" becomes: a target's size is in physical pixels, with
@@ -82,10 +84,12 @@ layer's own record; it lays out within its target's size, its box its content's.
 every layer lies within is its target's, not a fold of the roots' boxes. Laying out and placing
 again after a scroll mirror across one line, the root's own box.
 
-**Stacked roots take where they act**, the owner's choice. Every root that is no layer fills its
-target. One that is neither a layer nor modal takes the point where it would take a press: where it
-draws, its scroll bars included, or where an element under the point takes the pointer or is a
-surface, the test that `Ui::covers` already makes. Elsewhere the point goes on to the roots below;
+**Stacked roots take where they act**, the owner's choices. Every root that is no layer fills its
+target. One that is neither a layer nor modal takes the point where it acts: where it would take a
+press, where it draws, its scroll bars included, or where an element under the point takes the
+pointer or is a surface, the test that `Ui::covers` already makes; and where a box under the point
+scrolls, its content past it, which takes the wheel, or takes drops. Elsewhere the point goes on to
+the roots below;
 where none takes it, the deepest box of the top root that it went through holds it, as a lone root
 holds it today. A layer takes the point wherever its box lies; a modal root everywhere on its
 target. A game's HUD over its pause menu lets the menu's buttons through, without a setting.
@@ -104,7 +108,7 @@ target. A game's HUD over its pause menu lets the menu's buttons through, withou
 
 **The engine.** `slime-app` gives `TargetId::MAIN` its surface's images' size and the window's
 scale at each frame, before the frame's phases, when the presentation has an interface: unchanged,
-it costs a comparison. A scale that `TargetSize` refuses is logged and the last kept. The editor,
+it costs a comparison. A scale that `TargetSize` refuses is logged once and the last kept. The editor,
 the dev overlay, *Hunna Wood* and the examples read their target's size from their interface; the
 overlay opens a panel asked before the size is known at its next `take_actions`. The editor's images
 without a window, the examples' images and the benchmarks give their targets' sizes themselves, as
@@ -145,6 +149,12 @@ On stacked roots:
   menu become layers, which a root's element anchors, against the roots of their own that ADR-0251
   and ADR-0226 open for a game.
 
+On the wheel and drops over stacked roots, found by the closing review:
+
+- **The press alone**: the rule as first written. But a box that scrolls and draws nothing would
+  leave the wheel to the root below, and a target of drops that draws nothing would never be
+  found.
+
 On a size of zero:
 
 - **Laid out at zero**: what the editor did when a frame ran minimized. Its layout then collapses,
@@ -157,9 +167,10 @@ On when the engine gives it:
 
 ## Consequences
 
-- `uwui::host` gains `TargetSize` and `TargetSizeError`; `Ui` gains `set_target_size` and
-  `target_size`. `RootSettings` loses `size`, `scale` and `origin`, gains `on` and `Eq`; `add_root`
-  and `set_root` no longer panic. `slime-gfx`'s `Surface` gains `size`.
+- `uwui::host` gains `TargetSize` and `TargetSizeError`; `Ui` gains `set_target_size`,
+  `target_size` and `laid_out_size`. `RootSettings` loses `size`, `scale` and `origin`, gains `on`
+  and `Eq`; `add_root` and `set_root` no longer panic on a scale, and `set_root` keeps whether a
+  root is modal as it was added. `slime-gfx`'s `Surface` gains `size`.
 - `Overlay::set_window` goes; `slime-devui` no longer depends on `slime-platform`. The editor's
   `frame`, *Hunna Wood*'s overlay and the examples' drawing lose the window's size and scale.
 - No presentation reads the window's size or scale for its interface. *Hunna Wood*'s and the

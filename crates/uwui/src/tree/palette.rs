@@ -62,7 +62,8 @@ impl Ui {
         };
         let (mut field, mut list) = (None, None);
         let hint = hint.to_owned();
-        let surface = self.surface_size(t);
+        // The window at the size that the frame that lays the palette out reads.
+        let surface = self.coming_size(t).logical();
         self.build(root, 0, |children| {
             let palette = super::Element::container()
                 .style(|s| column(s).width(Dimension::Pixels(WIDTH)))
@@ -139,7 +140,8 @@ impl Ui {
                 .map_or_else(|| command.to_owned(), |each| each.name.clone())
         };
         let title = title.to_owned();
-        let surface = self.surface_size(t);
+        // The window at the size that the frame that lays the palette out reads.
+        let surface = self.coming_size(t).logical();
         self.build(root, 0, |children| {
             let sheet = super::Element::container()
                 .style(|s| column(s).width(Dimension::Pixels(WIDTH)))
@@ -213,7 +215,8 @@ impl Ui {
     /// top, so that they lie in its middle; none without a window's root.
     fn own_place(&self, t: TargetId) -> Option<Place> {
         let over = self.window_root(t)?;
-        let surface = self.surface_size(t);
+        // The window at the size that the frame that lays the palette out reads.
+        let surface = self.coming_size(t).logical();
         // Its top start corner, its left or, from right to left, its right.
         let rtl = self.root_settings(over).map(|root| root.direction)
             == Some(super::LayoutDirection::RightToLeft);

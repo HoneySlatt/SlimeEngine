@@ -306,9 +306,8 @@ impl Ui {
             .is_some_and(|held| !matches!(held.layer.place, Place::Floating { .. }))
     }
 
-    /// Gives each layer the target, the scale and the direction of the root that it stands over,
-    /// and the size of that target's surface, and closes those whose anchor is gone. Run before a
-    /// frame lays out.
+    /// Gives each layer the target and the direction of the root that it stands over, whose size
+    /// and scale it takes then, and closes those whose anchor is gone. Run before a frame lays out.
     pub(crate) fn settle_layers(&mut self) {
         for root in self.layers() {
             let Some(held) = self.node(root).and_then(|node| node.layer.as_ref()) else {
@@ -380,7 +379,7 @@ impl Ui {
         let size = [node.layout.size.width, node.layout.size.height];
         let place = held.layer.place;
         let anchor = self.node(place.anchor())?.rect;
-        // Within the window's surface, whose size every layer takes, a submenu's too.
+        // Within the target's surface, which every layer lies within, a submenu too.
         let bounds = Rect::new(0.0, 0.0, settings.size[0] * scale, settings.size[1] * scale);
         let rtl = settings.direction == super::LayoutDirection::RightToLeft;
         let gap = GAP * scale;

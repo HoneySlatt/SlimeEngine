@@ -121,7 +121,7 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   (`host::TargetSize`, `Ui::set_target_size`), at every change; a size given again unchanged does
   nothing, a window without area gives none and keeps its last, a target never given one lays out
   at a pixel. Every root that is no layer fills its target; one over another takes the pointer
-  where it would take a press and lets it through elsewhere
+  where it acts, a press, the wheel or a drop, and lets it through elsewhere
   (`docs/adr/0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md`).
   Each target draws its own frame (`Ui::frame(target)`), at its own time, and asks for it when it
   changes (`docs/adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md`). With the feature `test-input`, which tests

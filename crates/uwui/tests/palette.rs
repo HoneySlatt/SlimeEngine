@@ -551,3 +551,33 @@ fn enter_in_a_composition_is_the_input_methods_and_a_chord_given_again_is_the_la
     assert_eq!(ui.command_chord("save"), None);
     assert_eq!(ui.command_chord("save-all").as_deref(), Some("Ctrl+S"));
 }
+
+#[test]
+fn a_palette_opened_before_the_frame_of_a_new_size_takes_its_height_from_it() {
+    let (mut ui, _) = interface();
+    let many = || -> Vec<PaletteCommand> {
+        (0..60)
+            .map(|number| PaletteCommand {
+                name: format!("Command number {number}"),
+                command: format!("command-{number}"),
+            })
+            .collect()
+    };
+    let list_height = |ui: &Ui| {
+        let list = ui
+            .element_by_path("palette/palette/commands")
+            .expect("its rows");
+        ui.rect(list).expect("laid out").height
+    };
+    ui.open_palette("Type a command", many());
+    ui.frame(TargetId::MAIN);
+    let at_600 = list_height(&ui);
+    key(&mut ui, Key::Named(NamedKey::Escape), None);
+    ui.frame(TargetId::MAIN);
+    // The window grows by 300 pixels; the palette opens before the frame that lays it out.
+    let taller = TargetSize::new([800, 900], 1.0).expect("a size");
+    ui.set_target_size(TargetId::MAIN, taller);
+    ui.open_palette("Type a command", many());
+    ui.frame(TargetId::MAIN);
+    assert_eq!(list_height(&ui), at_600 + 300.0);
+}

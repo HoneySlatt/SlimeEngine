@@ -21,8 +21,8 @@ pub(crate) struct RootBox {
 }
 
 impl Ui {
-    /// Gives `target` its image's size and its scale, which each root on it, and each layer over
-    /// them, fills: a host gives it before the target's first frame, and again whenever either
+    /// Gives `target` its image's size and its scale, which each root on it fills, and each layer
+    /// over them lies within: a host gives it before the target's first frame, and again whenever either
     /// changes, as a window is resized or moved to a screen of another scale. Its roots are laid
     /// out again at the target's next frame ([`Ui::frame`]), drawn again whole for another scale; a
     /// size given again unchanged does nothing, and asks for no frame.
@@ -60,9 +60,10 @@ impl Ui {
             .unwrap_or_else(|| self.laid_out_size(target))
     }
 
-    /// The size that `target`'s roots were last laid out at: what their boxes are in, between a
-    /// size given and the frame that lays them out.
-    pub(crate) fn laid_out_size(&self, target: TargetId) -> TargetSize {
+    /// The size that `target`'s roots were last laid out at, which their boxes are in, between a
+    /// size given and the frame that lays them out: what a program reads to turn a box into
+    /// logical pixels. One pixel at scale 1 before its first frame.
+    pub fn laid_out_size(&self, target: TargetId) -> TargetSize {
         self.frames
             .iter()
             .find(|each| each.target == target)

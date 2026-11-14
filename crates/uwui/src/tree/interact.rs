@@ -1238,9 +1238,10 @@ impl Ui {
     /// target: the deepest drawn there, its clip holding it too, of the top root of that target
     /// that takes the point, a tooltip letting it through; none below a modal root of that target.
     /// A layer takes the point wherever its box holds it, and a modal root everywhere. A root that
-    /// is neither fills its target, and takes the point where it would take a press: where it draws,
-    /// its scroll bars included, or where an element under the point takes the pointer or is a
-    /// surface. Elsewhere the point goes on to the roots below, and where none takes it, the
+    /// is neither fills its target, and takes the point where it acts: where it would take a press,
+    /// where it draws, its scroll bars included, or where an element under the point takes the
+    /// pointer or is a surface; and where a box under the point scrolls, its content past it, or
+    /// takes drops. Elsewhere the point goes on to the roots below, and where none takes it, the
     /// deepest box of the top root that it went through holds it
     /// (`docs/adr/0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md`).
     /// Roots on other targets are not reached.
@@ -1278,7 +1279,7 @@ impl Ui {
             if lowest && through.is_none() {
                 return hit;
             }
-            if self.would_take(hit, x, y) {
+            if self.would_take(hit, x, y) || self.acts_at(hit) {
                 return hit;
             }
             through = through.or(hit);
@@ -1376,6 +1377,25 @@ impl Ui {
                     kind.takes_pointer() || matches!(kind, Kind::Surface { .. })
                 })
                 .is_some()
+    }
+
+    /// Whether `at`, the element under a point, or a box above it acts there beyond a press: a box
+    /// that scrolls, its content past it, takes the wheel; a target of drops takes a drop.
+    fn acts_at(&self, mut at: Option<ElementId>) -> bool {
+        while let Some(id) = at {
+            let Some(node) = self.node(id) else {
+                return false;
+            };
+            let scrolls = matches!(node.element.kind, Kind::Scroll | Kind::List { .. })
+                && crate::layout::scroll_most(self, id)
+                    .iter()
+                    .any(|&most| most > 0.0);
+            if node.element.drop_target || scrolls {
+                return true;
+            }
+            at = node.parent;
+        }
+        false
     }
 
     /// Whether the point `x` and `y` lies on what the interface draws, as its last frame drew it:
@@ -1732,12 +1752,18 @@ impl Ui {
         self.interaction.of_mut(to);
         // The old target draws them no more.
         self.changed_on(from);
+        // At another scale, every length and primitive of theirs is made again.
+        let rescaled = self.laid_out_size(from).scale() != self.laid_out_size(to).scale();
         for &root in group {
             if let Some(settings) = self.node_mut(root).and_then(|node| node.root.as_mut()) {
                 settings.target = to;
             }
             self.draw_on(root, to);
-            self.mark_layout(root);
+            if rescaled {
+                self.mark_all(root);
+            } else {
+                self.mark_layout(root);
+            }
             // It leaves the old target's tree of meaning and joins the new one's whole.
             self.mark_meaning_below(root);
         }

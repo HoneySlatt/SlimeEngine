@@ -7,7 +7,9 @@
   [0249](0249-the-hosts-api-its-items-and-their-table.md) (the lifecycle's rows, the preferences'
   row and the engine's column) and
   [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)
-  (a target removed waits for its reader)
+  (a target removed waits for its reader); amended by
+  [0268](0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md)
+  (the engine's column: the size and scale given, a covered window under a compositing manager)
 - Date: 2026-11-14
 
 ## Context

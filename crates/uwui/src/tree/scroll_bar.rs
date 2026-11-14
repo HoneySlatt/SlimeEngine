@@ -30,13 +30,13 @@ pub(crate) struct Held {
 impl Ui {
     /// The scroll bars of `id`, a box that scrolls or a list, while its content does not fit:
     /// as thick as half its control's size, inside its border, at its end side and its bottom.
-    pub(crate) fn scroll_bars(&self, id: ElementId) -> Vec<Bar> {
+    pub(crate) fn scroll_bars(&self, id: ElementId) -> impl Iterator<Item = Bar> + Clone {
         let scale = self.scale_of(id);
         let Some(node) = self.node(id) else {
-            return Vec::new();
+            return [None; 2].into_iter().flatten();
         };
         if !matches!(node.element.kind, Kind::Scroll | Kind::List { .. }) {
-            return Vec::new();
+            return [None; 2].into_iter().flatten();
         }
         let most = layout::scroll_most(self, id);
         let thickness = node.style.control.size * scale / 2.0;
@@ -51,7 +51,8 @@ impl Ui {
         let rtl =
             self.root_settings(id).map(|root| root.direction) == Some(LayoutDirection::RightToLeft);
         let both = most[0] > 0.0 && most[1] > 0.0;
-        let mut bars = Vec::new();
+        // Two at most, kept without an allocation: the pointer asks at each move.
+        let mut bars = [None; 2];
         for axis in [1, 0] {
             if most[axis] <= 0.0 {
                 continue;
@@ -98,9 +99,10 @@ impl Ui {
             } else {
                 Rect::new(track.x + start, track.y, length, thickness)
             };
-            bars.push(Bar { axis, track, thumb });
+            // The vertical bar first, as they are drawn.
+            bars[1 - axis] = Some(Bar { axis, track, thumb });
         }
-        bars
+        bars.into_iter().flatten()
     }
 
     /// The scroll bar under `x` and `y`, in pixels of the surface: of the element there or of the
@@ -120,7 +122,6 @@ impl Ui {
         while let Some(id) = at {
             if let Some(bar) = self
                 .scroll_bars(id)
-                .into_iter()
                 .find(|bar| super::interact::inside(bar.track, x, y))
             {
                 return Some((id, bar));
@@ -175,7 +176,6 @@ impl Ui {
         let scale = self.scale_of(held.element);
         let Some(bar) = self
             .scroll_bars(held.element)
-            .into_iter()
             .find(|bar| bar.axis == held.axis)
         else {
             return;
@@ -218,14 +218,13 @@ impl Ui {
                 border: fill,
             })
         };
-        self.scroll_bars(id)
-            .into_iter()
-            .flat_map(|bar| {
-                [
-                    filled(bar.track, control.track),
-                    filled(bar.thumb, control.mark),
-                ]
-            })
-            .collect()
+        // Two primitives for each bar, held at their exact count.
+        let bars = self.scroll_bars(id);
+        let mut primitives = Vec::with_capacity(2 * bars.clone().count());
+        for bar in bars {
+            primitives.push(filled(bar.track, control.track));
+            primitives.push(filled(bar.thumb, control.mark));
+        }
+        primitives
     }
 }
