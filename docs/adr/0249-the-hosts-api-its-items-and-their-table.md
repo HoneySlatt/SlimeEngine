@@ -6,8 +6,9 @@
   [0253](0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md) (the moves between two frames, the wheel's phase, a field's
   purpose, the pointer's entering and whether the cursor shows wait for their readers),
   [0255](0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md) (what a copy writes travels in the outputs; the surrounding text as an output and
-  the kinds of a point wait for their readers; macOS asks before a program's read) and
-  [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) (a modal root blocks its own target; a layer's rules follow the root it opens over)
+  the kinds of a point wait for their readers; macOS asks before a program's read),
+  [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) (a modal root blocks its own target; a layer's rules follow the root it opens over) and
+  [0261](0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md) (no number on accessibility updates nor on a screen reader's action)
 - Date: 2026-11-13
 
 ## Context

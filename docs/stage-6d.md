@@ -167,7 +167,7 @@ in git.
   [M6d.5c3](#m6d5c3--the-targets), cut in two on 2026-11-14 ([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)): done,
   [M6d.5c3a](#m6d5c3a--input-and-outputs-per-target) and
   [M6d.5c3b](#m6d5c3b--frames-and-times-per-target), on 2026-11-14, M6d.5c whole; in progress,
-  [M6d.5d](#m6d5d--accesskits-translation-in-uwui); then
+  [M6d.5d](#m6d5d--accesskits-translation-in-uwui), cut in two on 2026-11-14 ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)); then
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
@@ -2067,7 +2067,35 @@ The second half of M6d.5c3 ([ADR-0256](adr/0256-each-root-on-its-target-each-tar
 
 ### M6d.5d — AccessKit's translation in uwui
 
-In progress, its card in [`PLAN.md`](PLAN.md#m6d5d--accesskits-translation-in-uwui).
+The fourth part of M6d.5 ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)).
+
+- **Goal.** Any host of uwui gives screen readers its tree through one crate of uwui's.
+- **Cut in two** at its start, on 2026-11-14 ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)): each reader of meaning its
+  changes and each target its tree, in uwui's core; then the translation moved into
+  `uwui-accesskit`, its name final, MIT OR Apache-2.0, `accesskit` re-exported there. No number on
+  a screen reader's action, which no host can know; the agents' event of changes joins M6d.9a2.
+  The owner's choices.
+
+### M6d.5d1 — Each reader its changes, each target its tree
+
+The first half of M6d.5d; in progress, its card in
+[`PLAN.md`](PLAN.md#m6d5d1--each-reader-its-changes-each-target-its-tree).
+
+### M6d.5d2 — The translation in uwui-accesskit
+
+The second half of M6d.5d ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Any host of uwui gives screen readers its tree through `uwui-accesskit`.
+- **Crates.** `uwui-accesskit`, new; `slime-app`.
+- **Delivers.** `slime-app`'s translation and its tests moved into the crate, over uwui's public
+  meaning, its readers and its targets; `accesskit` re-exported there and dropped from
+  `slime-app`, `accesskit_consumer` its tests'; the window's node and the adapter left to the host.
+- **Done when.** The translation's tests pass in the crate; `scripts/screen-reader-check.sh`
+  passes; `slime-app` holds no translation; the shipping game holds no `uwui-accesskit`; the
+  crate depends on no engine crate; CI is green.
+- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **Measured.** The crate's compiling time; CI's jobs that gain its tests.
 
 ### M6d.5e — slime-app a host through the API alone
 
@@ -2446,7 +2474,9 @@ under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
   `slime-mcp` on it with the engine's families and its own tools, a program started, assets cooked,
   tests run; one way of paging a list for every tool, its cursors passed through untouched, `STALE`
   given to MCP's clients as −32602
-  ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
+  ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)); an event of the interface's changes, which an agent subscribes to,
+  through a reader of meaning of its own
+  ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)).
 - **Done when.** The engine's MCP session tests pass through the library; a session test of uwui's
   server drives an example; CI is green.
 - **Measured.** The engine's answer through MCP against its figure before.

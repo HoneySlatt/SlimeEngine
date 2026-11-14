@@ -7,8 +7,9 @@
   seams that M6d.9a1b keeps); amended by [0249](0249-the-hosts-api-its-items-and-their-table.md)
   (an answer's three states; questions change uwui's caches),
   [0253](0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md) (the moves
-  between two frames wait for their reader) and
-  [0255](0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md) (what a copy writes travels in the outputs)
+  between two frames wait for their reader),
+  [0255](0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md) (what a copy writes travels in the outputs) and
+  [0261](0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md) (the crate's name final; no number on late answers)
 - Date: 2026-11-12
 
 ## Context
