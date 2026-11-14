@@ -18,6 +18,7 @@
 //! failures print once.
 
 #[path = "common/interface.rs"]
+#[expect(dead_code, reason = "this session reads no whole list of elements")]
 mod interface;
 #[path = "common/session.rs"]
 #[expect(dead_code, reason = "this session reads no image")]

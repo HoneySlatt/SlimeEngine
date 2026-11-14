@@ -14,6 +14,7 @@
 //! `cargo test` (`test = false` in Cargo.toml), and has no harness, so that its failures print once.
 
 #[path = "common/interface.rs"]
+#[expect(dead_code, reason = "this session reads no whole list of elements")]
 mod interface;
 #[path = "common/rest.rs"]
 mod rest;

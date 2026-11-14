@@ -31,7 +31,7 @@ use std::path::Path;
 
 use serde_json::json;
 
-use interface::{act, path_of, until};
+use interface::{act, every_element, path_of, until};
 use session::{Session, server};
 
 /// Where the inspector's properties are.
@@ -40,12 +40,9 @@ const PROPERTIES: &str = "main/window/Inspector/split/properties";
 /// The line, as `find_elements` writes it, of the element at `path`; none where no element is
 /// there.
 fn line(session: &mut Session, path: &str) -> Option<String> {
-    let (lines, _) = session.tool("find_elements", json!({}));
-    lines
-        .iter()
-        .flat_map(|text| text.lines())
+    every_element(session, json!({}))
+        .into_iter()
         .find(|line| line.starts_with(&format!("{path} — ")))
-        .map(str::to_owned)
 }
 
 /// Waits until the bar at the bottom tells `told`, what the example read of the last change.
@@ -301,7 +298,7 @@ fn main() {
     act(&mut session, "press", &zone, json!({}));
     told(&mut session, "open zone.scene");
     let (menus, _) = session.tool("find_elements", json!({ "role": "Menu" }));
-    assert_eq!(menus, ["no element"], "the menus closed");
+    assert_eq!(menus, ["no element on this page"], "the menus closed");
 
     // A command that the example tells of in a notification, as a shortcut gives it.
     let (said, _) = session.tool(
@@ -342,7 +339,7 @@ fn main() {
                 .try_tool("find_elements", json!({ "role": "Dialog" }))
                 .0
         },
-        |said| said == &["no element"],
+        |said| said == &["no element on this page"],
     );
 
     // Another tab chosen: its panel shows, the inspector's leaves.

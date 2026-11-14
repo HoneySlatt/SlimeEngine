@@ -127,6 +127,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   wrote an element's own style, with the fields, states and tokens that each wrote, which the MCP
   server's new tool `element_style` shows. A tool or a game of before cannot speak the family to
   one of after.
+- Long lists are read by pages (ADR-0260): `world/entities` (`world` 2) and `interface/elements`
+  (`interface` 3) take an optional `cursor`, `limit` and `bytes`, and an answer gives `next` while
+  more may follow; `Reply::Entities` and `interface::Reply::Elements` lose `more`,
+  `slime_channel::MAX_ENTITIES` and `interface::MAX_ELEMENTS` are gone for
+  `uwui_agent::page::MAX_ITEMS`. `play/logs` (`play` 1) keeps `after`, takes an optional `limit`
+  and `bytes`, and `Reply::Logs` gains `partial` when lines were left for the next page. A page is bounded by a count, by
+  bytes of JSON within the tool's line, and by a share of the frame's start: it may be short or
+  empty and still give `next`. A long text of an entity, an element or a log line is cut, and
+  named in `cut`; a log line is kept cut past `slime_channel::MAX_LOG_LINE`. A cursor of another
+  process, world or interface faults with the core's new `Fault::STALE`. `Reply::Failed` carries
+  its `code` both ways (`Reply::refused` makes a refusal); `uwui::agents::answer` takes the page and
+  its time; `FromTool::Welcomed` gives the tool's `reads`; `Incoming::page`, `World::entities_after`,
+  `World::number` and `Ui::number_in_process` are new. The MCP server's `list_entities`,
+  `find_elements` give pages of some 32 KiB, `next` first, and `read_logs` says first which line to
+  read after when more follow. A tool of before cannot
+  list on a game of after, nor the reverse.
 - The interface's canvas moves from the renderer into uwui, on wgpu (ADR-0244):
   `Renderer::draw_canvas`, the canvas's types, `Canvas`, `CanvasBox`, `CanvasGradient`,
   `CanvasShadow`, `CanvasStats`, `ImageQuad`, `ImageId`, `PixelRect`, `Radii` and

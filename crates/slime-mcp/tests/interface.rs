@@ -23,7 +23,7 @@ use std::path::Path;
 
 use serde_json::json;
 
-use interface::until;
+use interface::{every_element, until};
 use session::{Session, image, server};
 
 /// The line of `lines`, as `find_elements` writes them, of the element at `path`.
@@ -97,6 +97,16 @@ fn main() {
         .nth(1)
         .expect("a button named by its label");
     assert!(second.ends_with("takes press, focus"), "{second}");
+    // Read again a button a page, each page starting with the cursor to the rest: the same list.
+    let whole: Vec<&str> = buttons[0].lines().collect();
+    assert!(!whole[0].starts_with("next: "), "one page: {whole:?}");
+    let paged = every_element(&mut session, json!({ "role": "Button", "limit": 1 }));
+    assert_eq!(paged, whole, "the list read a button at a time");
+    let (said, result) = session.try_tool(
+        "find_elements",
+        json!({ "role": "Button", "cursor": "not a cursor" }),
+    );
+    assert_eq!(result["isError"], json!(true), "{said:?}");
     // Found again by its role and its name.
     let (found, _) = session.tool(
         "find_elements",
@@ -216,7 +226,7 @@ fn main() {
     until(
         "the dialog closed",
         || session.tool("find_elements", json!({ "role": "Dialog" })).0,
-        |said| said == &["no element"],
+        |said| said == &["no element on this page"],
     );
 
     // A value given to the field of text, as a person who replaced its text and committed: the

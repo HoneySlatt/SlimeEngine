@@ -13,14 +13,12 @@ use serde::{Deserialize, Serialize};
 pub const FAMILY: &str = "interface";
 
 /// The family's version. 2: each element names its target, a pixel is read on a target that the
-/// request may name, and `interface/style` reads an element's own style.
-pub const VERSION: u32 = 2;
+/// request may name, and `interface/style` reads an element's own style. 3: the elements are read
+/// by pages ([`page`](crate::page)), their long texts cut.
+pub const VERSION: u32 = 3;
 
 /// The events that the family declares: none.
 pub const EVENTS: &[&str] = &[];
-
-/// The most elements that a [`Reply::Elements`] lists: it counts the others.
-pub const MAX_ELEMENTS: usize = 1000;
 
 /// What a tool asks of a program's interface, each answered by a [`Reply`], named on the wire by
 /// its method, `interface/elements`. A request on a program that has no interface, as one that
@@ -28,16 +26,30 @@ pub const MAX_ELEMENTS: usize = 1000;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "method", content = "params")]
 pub enum Request {
-    /// The elements of the interface that mean something, as its last frame left them, in the
-    /// order of its tree: [`Reply::Elements`], at most [`MAX_ELEMENTS`] of them. Each holds
-    /// `role`, whatever its case, and a name that holds `name`, whatever its case; either empty
-    /// for any.
+    /// A page of the elements of the interface that mean something, as its last frame left them,
+    /// in the order of its tree, its roots in the order that they were added: [`Reply::Elements`],
+    /// with `next` while more may follow ([`page`](crate::page)). Each holds `role`, whatever its
+    /// case, and a name that holds `name`, whatever its case; either empty for any. An element
+    /// present from the first page to the last is listed once, whatever is added or removed beside
+    /// it, but in three cases, where its siblings may be skipped or listed twice, with all that
+    /// they hold: siblings that change their order between pages, one moved to another parent, and
+    /// an element where a page ended removed with the sibling that followed it.
     #[serde(rename = "interface/elements")]
     Elements {
         /// The role of those wanted, `Button`, whatever its case; empty for any.
         role: String,
         /// What their names hold, whatever its case; empty for any.
         name: String,
+        /// Where the page starts: the `next` of the page before; none for the list's start.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cursor: Option<String>,
+        /// The most elements wanted; none for the program's most,
+        /// [`MAX_ITEMS`](crate::page::MAX_ITEMS).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        limit: Option<u64>,
+        /// The most bytes of JSON that the elements take; none for the program's most.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bytes: Option<u64>,
     },
     /// The element that the pointer would reach at a pixel of a target, or the nearest above it
     /// that means something: [`Reply::Elements`], one or none.
@@ -90,10 +102,11 @@ pub enum Reply {
     Done,
     /// The elements found.
     Elements {
-        /// The first of them, in the order of the interface's tree.
+        /// They, in the order of the interface's tree.
         elements: Vec<ElementSummary>,
-        /// How many more were found and left out.
-        more: u64,
+        /// The cursor to the rest, while more may follow; none at the list's end.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        next: Option<String>,
     },
     /// The part of a target's image where an element shows, whose pixels follow the message:
     /// `width` × `height` pixels, rows from top to bottom, four bytes each, red, green, blue and
@@ -168,10 +181,12 @@ pub enum Action {
     },
 }
 
-/// An element of an interface, as a list of elements names it.
+/// An element of an interface, as a list of elements names it. Each of its texts is cut where it
+/// is longer than a page holds, and `cut` names it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ElementSummary {
-    /// Its path, which names it from one frame to the next: `main/bar/open`.
+    /// Its path, which names it from one frame to the next: `main/bar/open`. A path cut names no
+    /// element.
     pub path: String,
     /// The target that it stands on, by its number: its root's.
     pub target: u32,
@@ -195,6 +210,9 @@ pub struct ElementSummary {
     /// The part of it that shows, in pixels of its target: its left column, its top row, its
     /// width and its height; none where it does not show.
     pub bounds: Option<[u32; 4]>,
+    /// The fields whose texts were cut, by their names, `value`; none for none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cut: Vec<String>,
 }
 
 /// A call that wrote part of an element's own style, and what it wrote ([`Reply::Style`]).
@@ -236,6 +254,16 @@ mod tests {
             Request::Elements {
                 role: "Button".to_owned(),
                 name: "save".to_owned(),
+                cursor: None,
+                limit: None,
+                bytes: None,
+            },
+            Request::Elements {
+                role: String::new(),
+                name: String::new(),
+                cursor: Some("elements:1:2:3:4".to_owned()),
+                limit: Some(20),
+                bytes: Some(32768),
             },
             Request::ElementAt {
                 x: 3,
@@ -311,8 +339,13 @@ mod tests {
                     states: vec!["focused".to_owned()],
                     actions: vec!["press".to_owned()],
                     bounds: Some([1, 2, 30, 20]),
+                    cut: vec!["description".to_owned()],
                 }],
-                more: 3,
+                next: Some("elements:1:2:3:4".to_owned()),
+            },
+            Reply::Elements {
+                elements: Vec::new(),
+                next: None,
             },
             Reply::Image {
                 width: 30,

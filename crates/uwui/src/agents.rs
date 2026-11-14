@@ -7,16 +7,24 @@
 //! messages, `uwui_agent::interface`, and gives each request to [`answer`] with the [`Ui`] that
 //! answers it. A capture waits for its target's image: the host keeps it, then asks [`shown`] which
 //! pixels of that image to cut. A refusal is a [`Fault`] of the code `REFUSED`, saying why.
+//!
+//! The elements are read by pages
+//! (`docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md`):
+//! the tree is walked in its order, its roots in the order of their numbers, which raising a root
+//! does not change, and a page's cursor holds where the walk stands, each element from the root
+//! down by its id and the place of the next child to visit. A page resumes there; at an element
+//! gone, at the place among its siblings where it was.
 
 use uwui_agent::Fault;
 use uwui_agent::interface::{
-    Action as AgentAction, ElementSummary, MAX_ELEMENTS, Reply, Request, StyleDeclaration,
-    StylePlace,
+    Action as AgentAction, ElementSummary, Reply, Request, StyleDeclaration, StylePlace,
 };
+use uwui_agent::page::{Listing, Page, Pager, cut};
 
 use crate::Rect;
 use crate::action::{Action, ActionKind, Intent};
 use crate::host::TargetId;
+use crate::style::Display;
 use crate::theme::StateName;
 use crate::tree::{ElementAction, ElementId, ElementState, Meaning, Ui};
 
@@ -47,7 +55,9 @@ pub struct Shown {
 }
 
 /// The answer of `ui` to `request`, which an [`Action`] done changes as a person's input would, or
-/// why it refuses it.
+/// why it refuses it. A list of elements is a page bounded by `page`, the most that the host
+/// gives, narrowed by what the request asks, and by `time_up`, which says whether the page's time
+/// has passed ([`Pager`]); an element's texts are cut to fit the page.
 ///
 /// A capture is answered by the pixels that the element covers now: a host that draws again
 /// before it captures keeps the request, and asks [`shown`] once the target's image is drawn.
@@ -57,20 +67,40 @@ pub struct Shown {
 /// A [`Fault`] of the code `REFUSED` for a path that names no element, an element that does not
 /// show, an action that the element does not take now, as a disabled button's press, an action
 /// that needs an element and names none, a navigation intent or a command that names one, an
-/// offset that is not finite, and a place in a target of drops outside 0 to 1.
-pub fn answer(ui: &mut Ui, request: &Request) -> Result<Answer, Fault> {
+/// offset that is not finite, and a place in a target of drops outside 0 to 1; of the code
+/// `STALE` for a cursor of another process or interface, and `BAD_PARAMS` for one that does not
+/// read, or of another list or filter.
+pub fn answer(
+    ui: &mut Ui,
+    request: &Request,
+    page: Page,
+    time_up: impl FnMut() -> bool,
+) -> Result<Answer, Fault> {
     let reply = match request {
-        Request::Elements { role, name } => elements(ui, role, name),
+        Request::Elements {
+            role,
+            name,
+            cursor,
+            limit,
+            bytes,
+        } => elements(
+            ui,
+            role,
+            name,
+            cursor.as_deref(),
+            page.within(*limit, *bytes),
+            time_up,
+        )?,
         Request::ElementAt { x, y, target } => {
             let target = target.map_or_else(|| ui.active_target(), TargetId);
             // The middle of the pixel, as the pointer would be there.
             let found = ui.meaning_at(target, *x as f32 + 0.5, *y as f32 + 0.5);
             Reply::Elements {
                 elements: found
-                    .map(|meaning| summary(ui, meaning))
+                    .map(|meaning| summary(ui, meaning, page.text_bytes()))
                     .into_iter()
                     .collect(),
-                more: 0,
+                next: None,
             }
         }
         Request::Act { element, action } => {
@@ -101,27 +131,255 @@ pub fn shown(ui: &Ui, path: &str) -> Result<Shown, Fault> {
         .ok_or_else(|| refused(format!("the element `{path}` does not show")))
 }
 
-/// The elements of `ui` whose role is `role`, whatever its case, and whose names hold `name`,
-/// whatever its case; either empty for any.
-fn elements(ui: &Ui, role: &str, name: &str) -> Reply {
-    let name = name.to_lowercase();
-    let mut found = ui.meaning().into_iter().filter(|meaning| {
-        (role.is_empty() || meaning.role.name().eq_ignore_ascii_case(role))
-            && meaning.name.to_lowercase().contains(&name)
-    });
-    let elements = found
-        .by_ref()
-        .take(MAX_ELEMENTS)
-        .map(|meaning| summary(ui, meaning))
-        .collect();
-    Reply::Elements {
+/// A page of the elements of `ui` whose role is `role`, whatever its case, and whose names hold
+/// `name`, whatever its case, either empty for any, from `cursor`, none for the list's start.
+fn elements(
+    ui: &Ui,
+    role: &str,
+    name: &str,
+    cursor: Option<&str>,
+    page: Page,
+    time_up: impl FnMut() -> bool,
+) -> Result<Reply, Fault> {
+    let (role, name) = (role.to_ascii_lowercase(), name.to_lowercase());
+    let filter = format!("{role}\n{name}");
+    let listing = Listing {
+        list: "elements",
+        filter: &filter,
+    };
+    let maker = ui.number_in_process();
+    let mut walk = match cursor {
+        None => Walk::start(ui),
+        Some(cursor) => {
+            Walk::resume(ui, &listing.place(cursor, page.program, maker)?).ok_or_else(|| {
+                Fault::new(
+                    Fault::BAD_PARAMS,
+                    format!("`{cursor}` is not a cursor of this list"),
+                )
+            })?
+        }
+    };
+    let mut pager = Pager::new(page, time_up);
+    let mut elements = Vec::new();
+    while pager.visit() {
+        let Some(id) = walk.next(ui) else {
+            return Ok(Reply::Elements {
+                elements,
+                next: None,
+            });
+        };
+        let Some(meaning) = ui.meaning_with(id, String::new()) else {
+            continue;
+        };
+        if !((role.is_empty() || meaning.role.name().eq_ignore_ascii_case(&role))
+            && meaning.name.to_lowercase().contains(&name))
+        {
+            continue;
+        }
+        let path = ui.path_text(id).unwrap_or_default();
+        let element = summary(ui, Meaning { path, ..meaning }, page.text_bytes());
+        if !pager.take(&element) {
+            // Left for the next page.
+            walk.hold();
+            break;
+        }
+        elements.push(element);
+    }
+    Ok(Reply::Elements {
         elements,
-        more: found.count() as u64,
+        next: walk
+            .place(ui)
+            .map(|place| listing.cursor(page.program, maker, &place)),
+    })
+}
+
+/// Where a walk of the tree stands: the root and the elements from it down whose children it
+/// visits, each with the place of the next child to visit, and the roots after them.
+struct Walk {
+    /// The roots by their numbers, in that order.
+    roots: Vec<(u64, ElementId)>,
+    /// The place in `roots` of the next root to visit.
+    next_root: usize,
+    /// From the root down, the elements whose children the walk visits, each with the place of
+    /// the next of them.
+    stack: Vec<(ElementId, usize)>,
+    /// Whether the element on top of `stack` was held back ([`Walk::hold`]): [`Walk::next`] gives
+    /// it again.
+    held: bool,
+}
+
+/// What a cursor writes as the place of the next child of an element held back, which the next page
+/// gives first; and as both parts of the id of no element.
+const HELD: u64 = u64::MAX;
+
+/// What a cursor writes of each element from the root down: its place and its generation, the
+/// place of its next child, and the place and generation of its next sibling.
+const FRAME: usize = 5;
+
+impl Walk {
+    /// A walk from the first root.
+    fn start(ui: &Ui) -> Self {
+        let mut roots: Vec<(u64, ElementId)> = ui
+            .roots()
+            .iter()
+            .filter_map(|&root| Some((ui.node(root)?.number, root)))
+            .collect();
+        roots.sort_unstable_by_key(|&(number, _)| number);
+        Self {
+            roots,
+            next_root: 0,
+            stack: Vec::new(),
+            held: false,
+        }
+    }
+
+    /// The walk where `place` left it ([`Walk::place`]), in `ui` as it is now; none for a place
+    /// that does not read. Each element of the place still there resumes after its place among its
+    /// siblings now, so that siblings added or removed before it shift nothing; one gone, or moved
+    /// to another parent, resumes at its next sibling of then, where that sibling stands now, or
+    /// at its own place of then; one hidden since is passed.
+    fn resume(ui: &Ui, place: &[u64]) -> Option<Self> {
+        let mut walk = Self::start(ui);
+        let (&root, frames) = place.split_first()?;
+        if !frames.len().is_multiple_of(FRAME) {
+            return None;
+        }
+        // The first root not before the root of the place.
+        walk.next_root = walk.roots.partition_point(|&(number, _)| number < root);
+        let id = |index: u64, generation: u64| {
+            Some(ElementId::from_parts((
+                u32::try_from(index).ok()?,
+                u32::try_from(generation).ok()?,
+            )))
+        };
+        let place = |next: u64| usize::try_from(next).unwrap_or(usize::MAX);
+        let mut frames = frames.as_chunks::<FRAME>().0.iter().peekable();
+        let Some(&[index, generation, next, _, _]) = frames.next() else {
+            return Some(walk);
+        };
+        match walk.roots.get(walk.next_root) {
+            // The root of the place, still there: its walk resumes.
+            Some(&(number, root_id))
+                if number == root && Some(root_id) == id(index, generation) =>
+            {
+                walk.next_root += 1;
+                if !displayed(ui, root_id) {
+                    return Some(walk);
+                }
+                walk.stack.push((root_id, place(next)));
+            }
+            // It is gone: the walk goes on with the next root.
+            _ => return Some(walk),
+        }
+        while let Some(&[index, generation, next, sibling, sibling_generation]) = frames.next() {
+            let element = id(index, generation)?;
+            let &mut (parent, ref mut parent_next) = walk.stack.last_mut()?;
+            let at = |child: ElementId| {
+                ui.node(parent)
+                    .and_then(|node| node.children.iter().position(|&each| each == child))
+            };
+            let Some(now_at) = at(element) else {
+                // Gone, or moved to another parent: its next sibling of then comes next, where it
+                // stands now, or what took its place.
+                *parent_next = id(sibling, sibling_generation)
+                    .and_then(at)
+                    .unwrap_or_else(|| parent_next.saturating_sub(1));
+                break;
+            };
+            if next == HELD && frames.peek().is_none() {
+                // Held back: the next page gives it first.
+                *parent_next = now_at;
+                break;
+            }
+            *parent_next = now_at + 1;
+            if !displayed(ui, element) {
+                // Hidden since: what it holds is not walked.
+                break;
+            }
+            walk.stack.push((element, place(next)));
+        }
+        Some(walk)
+    }
+
+    /// The next element of the walk that is laid out, in the order of the tree; none at its end.
+    /// What an element of no display holds is not walked.
+    fn next(&mut self, ui: &Ui) -> Option<ElementId> {
+        loop {
+            let element = match self.stack.last_mut() {
+                None => {
+                    let &(_, root) = self.roots.get(self.next_root)?;
+                    self.next_root += 1;
+                    root
+                }
+                Some((parent, next)) => {
+                    let child = ui
+                        .node(*parent)
+                        .and_then(|node| node.children.get(*next).copied());
+                    let Some(child) = child else {
+                        self.stack.pop();
+                        continue;
+                    };
+                    *next += 1;
+                    child
+                }
+            };
+            if displayed(ui, element) {
+                self.stack.push((element, 0));
+                return Some(element);
+            }
+        }
+    }
+
+    /// Holds back the last element that [`Walk::next`] gave, which the page leaves: the cursor
+    /// names it, by its id, for the next page to give first.
+    fn hold(&mut self) {
+        self.held = true;
+    }
+
+    /// Where the walk stands, for a cursor: the number of its root, then each element from the
+    /// root down, its place, its generation, the place of its next child, [`HELD`] for one held
+    /// back, and the id of its next sibling, [`HELD`] twice for none; none at its end.
+    fn place(&self, ui: &Ui) -> Option<Vec<u64>> {
+        if self.stack.is_empty() {
+            let &(number, _) = self.roots.get(self.next_root)?;
+            return Some(vec![number]);
+        }
+        let (root, _) = self.stack[0];
+        let mut place = vec![ui.node(root)?.number];
+        let top = self.stack.len() - 1;
+        for (at, &(id, next)) in self.stack.iter().enumerate() {
+            let (index, generation) = id.parts();
+            let next = if self.held && at == top {
+                HELD
+            } else {
+                next as u64
+            };
+            // The parent's next child is this element's next sibling: the walk passed this one.
+            let sibling = at
+                .checked_sub(1)
+                .and_then(|parent| {
+                    let (parent, parent_next) = self.stack[parent];
+                    ui.node(parent)?.children.get(parent_next).copied()
+                })
+                .map_or([HELD; 2], |sibling| {
+                    let (index, generation) = sibling.parts();
+                    [u64::from(index), u64::from(generation)]
+                });
+            place.extend([u64::from(index), u64::from(generation), next]);
+            place.extend(sibling);
+        }
+        Some(place)
     }
 }
 
-/// What `meaning` says, as the family gives it.
-fn summary(ui: &Ui, meaning: Meaning) -> ElementSummary {
+/// Whether the element is laid out and drawn: not of no display.
+fn displayed(ui: &Ui, id: ElementId) -> bool {
+    ui.node(id)
+        .is_some_and(|node| node.style.layout.display != Display::None)
+}
+
+/// What `meaning` says, as the family gives it, each of its texts cut to `text_bytes` of JSON.
+fn summary(ui: &Ui, meaning: Meaning, text_bytes: usize) -> ElementSummary {
     // Each state named, so that one more does not compile until it is.
     let ElementState {
         hovered,
@@ -145,14 +403,37 @@ fn summary(ui: &Ui, meaning: Meaning) -> ElementSummary {
         (meaning.popup, "has_popup"),
     ];
     let target = ui.input_target(meaning.id);
+    let Meaning {
+        mut path,
+        mut name,
+        mut value,
+        mut description,
+        mut placeholder,
+        ..
+    } = meaning;
+    let mut cut_fields = Vec::new();
+    let texts = [
+        ("path", Some(&mut path)),
+        ("name", Some(&mut name)),
+        ("value", value.as_mut()),
+        ("description", description.as_mut()),
+        ("placeholder", placeholder.as_mut()),
+    ];
+    for (field, text) in texts {
+        if let Some(text) = text
+            && cut(text, text_bytes)
+        {
+            cut_fields.push(field.to_owned());
+        }
+    }
     ElementSummary {
-        path: meaning.path,
+        path,
         target: target.0,
         role: meaning.role.name().to_owned(),
-        name: meaning.name,
-        value: meaning.value,
-        description: meaning.description,
-        placeholder: meaning.placeholder,
+        name,
+        value,
+        description,
+        placeholder,
         states: states
             .into_iter()
             .filter(|&(holds, _)| holds)
@@ -167,6 +448,7 @@ fn summary(ui: &Ui, meaning: Meaning) -> ElementSummary {
             let part = covering(target, bounds);
             [part.x, part.y, part.width, part.height]
         }),
+        cut: cut_fields,
     }
 }
 
@@ -404,8 +686,16 @@ mod tests {
         ui
     }
 
+    /// The number of the process, as a carrier would draw it.
+    const PROGRAM: u64 = 0x5eed;
+
+    /// A page of the most that a tool of a long line reads.
+    fn page() -> Page {
+        Page::new(PROGRAM, usize::MAX)
+    }
+
     fn reply(ui: &mut Ui, request: Request) -> Result<Reply, Fault> {
-        match answer(ui, &request)? {
+        match answer(ui, &request, page(), || false)? {
             Answer::Reply(reply) => Ok(reply),
             Answer::Capture(shown) => panic!("a capture: {shown:?}"),
         }
@@ -415,11 +705,14 @@ mod tests {
         let request = Request::Elements {
             role: role.to_owned(),
             name: name.to_owned(),
+            cursor: None,
+            limit: None,
+            bytes: None,
         };
-        let Ok(Reply::Elements { elements, more }) = reply(ui, request) else {
+        let Ok(Reply::Elements { elements, next }) = reply(ui, request) else {
             panic!("no elements");
         };
-        assert_eq!(more, 0);
+        assert_eq!(next, None, "one page");
         elements
     }
 
@@ -465,7 +758,7 @@ mod tests {
             element: "side/help".to_owned(),
         };
         assert_eq!(
-            answer(&mut ui, &capture),
+            answer(&mut ui, &capture, page(), || false),
             Ok(Answer::Capture(Shown {
                 target: TargetId(2),
                 x: 0,
@@ -626,5 +919,527 @@ mod tests {
             },
         );
         assert!(refusal(missing).contains("no element"));
+    }
+
+    /// A page of the elements of `ui` of `role` whose names hold `name`, from `cursor`, bounded by
+    /// `page` and `time_up`: its elements and its `next`.
+    fn page_of(
+        ui: &mut Ui,
+        (role, name): (&str, &str),
+        cursor: Option<String>,
+        page: Page,
+        time_up: impl FnMut() -> bool,
+    ) -> Result<(Vec<ElementSummary>, Option<String>), Fault> {
+        let request = Request::Elements {
+            role: role.to_owned(),
+            name: name.to_owned(),
+            cursor,
+            limit: None,
+            bytes: None,
+        };
+        match answer(ui, &request, page, time_up)? {
+            Answer::Reply(Reply::Elements { elements, next }) => Ok((elements, next)),
+            other => panic!("not elements: {other:?}"),
+        }
+    }
+
+    /// Every page of the list, its elements' paths and how many pages gave none: read with `page`
+    /// and `time_up`, `between` called with the interface after each page.
+    fn by_pages(
+        ui: &mut Ui,
+        filter: (&str, &str),
+        page: Page,
+        mut time_up: impl FnMut() -> bool,
+        mut between: impl FnMut(&mut Ui, usize),
+    ) -> (Vec<String>, usize) {
+        let (mut paths, mut empty, mut cursor) = (Vec::new(), 0, None);
+        for count in 0..10_000 {
+            let (elements, next) = page_of(ui, filter, cursor, page, &mut time_up).expect("a page");
+            empty += usize::from(elements.is_empty());
+            paths.extend(elements.into_iter().map(|element| element.path));
+            let Some(next) = next else {
+                return (paths, empty);
+            };
+            between(ui, count);
+            cursor = Some(next);
+        }
+        panic!("a list that does not end");
+    }
+
+    /// A page of at most `limit` elements.
+    fn limited(limit: u64) -> Page {
+        Page::new(PROGRAM, usize::MAX).within(Some(limit), None)
+    }
+
+    /// An interface whose root `main` holds ten boxes, `g0` to `g9`, of ten buttons each, `g0 b0`
+    /// to `g9 b9`, then a root `side` of one button, `help`, laid out; and the boxes' ids.
+    fn tall() -> (Ui, Vec<ElementId>) {
+        let mut ui = Ui::new(Fonts::new());
+        let root = ui.add_root("main", settings(TargetId::MAIN), |s| s);
+        let mut groups = Vec::new();
+        ui.build(root, 0, |children| {
+            for group in 0..10 {
+                groups.push(children.add(
+                    format!("g{group}").as_str(),
+                    Element::container(),
+                    |children| {
+                        for button in 0..10 {
+                            let name = format!("g{group} b{button}");
+                            children.add(
+                                format!("b{button}").as_str(),
+                                Element::button(name),
+                                |_| {},
+                            );
+                        }
+                    },
+                ));
+            }
+        });
+        let side = ui.add_root("side", settings(TargetId(2)), |s| s);
+        ui.build(side, 0, |children| {
+            children.add("help", Element::button("help"), |_| {});
+        });
+        ui.frame(TargetId::MAIN);
+        ui.frame(TargetId(2));
+        (ui, groups)
+    }
+
+    /// A list read by pages, small or cut short by their time, is the list read in one: each
+    /// element once, in its order; a rare match comes after pages that give none and go on.
+    #[test]
+    fn a_list_read_by_pages_is_the_list_read_whole() {
+        let (mut ui, _) = tall();
+        let whole: Vec<String> = found(&mut ui, "", "").into_iter().map(|e| e.path).collect();
+        assert_eq!(whole.len(), 101, "{whole:?}");
+        assert_eq!(whole[0], "main/g0/b0");
+        assert_eq!(whole[100], "side/help");
+        let (paged, _) = by_pages(&mut ui, ("", ""), limited(7), || false, |_, _| {});
+        assert_eq!(paged, whole);
+        let (paged, _) = by_pages(&mut ui, ("", ""), page(), || true, |_, _| {});
+        assert_eq!(paged, whole, "pages cut short by their time");
+        let small = Page::new(PROGRAM, usize::MAX).within(None, Some(400));
+        let (paged, _) = by_pages(&mut ui, ("", ""), small, || false, |_, _| {});
+        assert_eq!(paged, whole, "pages filled by their bytes");
+        let (rare, empty) = by_pages(&mut ui, ("button", "G9 B9"), page(), || true, |_, _| {});
+        assert_eq!(rare, ["main/g0/b0".replace("g0/b0", "g9/b9")]);
+        assert!(empty >= 1, "a page that found none still gives the rest");
+    }
+
+    /// An element where a page ended, removed before the next, leaves the list going on: what was
+    /// there throughout is listed once.
+    #[test]
+    fn an_element_gone_between_pages_leaves_the_list_going_on() {
+        let (mut ui, groups) = tall();
+        let removed = std::cell::Cell::new(false);
+        let (paths, _) = by_pages(
+            &mut ui,
+            ("button", ""),
+            limited(5),
+            || false,
+            |ui, _| {
+                if !removed.replace(true) {
+                    // The fifth button of `g0` ended the first page.
+                    ui.build(groups[0], 1, |children| {
+                        for button in (0..10).filter(|&button| button != 4) {
+                            let name = format!("g0 b{button}");
+                            children.add(
+                                format!("b{button}").as_str(),
+                                Element::button(name),
+                                |_| {},
+                            );
+                        }
+                    });
+                }
+            },
+        );
+        let mut expected: Vec<String> = (0..10)
+            .flat_map(|group| (0..10).map(move |button| format!("main/g{group}/b{button}")))
+            .collect();
+        expected.push("side/help".to_owned());
+        assert_eq!(paths.len(), 101);
+        assert_eq!(paths[4], "main/g0/b4", "listed before it went");
+        let mut rest = paths.clone();
+        rest.remove(4);
+        expected.remove(4);
+        assert_eq!(rest, expected, "the rest once each");
+    }
+
+    /// Builds `main` of [`tall`] again, at `revision`: first a box of one button for each of
+    /// `before`, then the ten boxes of ten buttons.
+    fn tall_again(ui: &mut Ui, revision: u64, before: &[String]) {
+        let root = ui.roots()[0];
+        ui.build(root, revision, |children| {
+            for key in before {
+                children.add(key.as_str(), Element::container(), |children| {
+                    children.add("new", Element::button(format!("{key} new")), |_| {});
+                });
+            }
+            for group in 0..10 {
+                children.add(
+                    format!("g{group}").as_str(),
+                    Element::container(),
+                    |children| {
+                        for button in 0..10 {
+                            let name = format!("g{group} b{button}");
+                            children.add(
+                                format!("b{button}").as_str(),
+                                Element::button(name),
+                                |_| {},
+                            );
+                        }
+                    },
+                );
+            }
+        });
+        ui.frame(TargetId::MAIN);
+    }
+
+    /// The buttons of [`tall`] that were there from the first page to the last, each listed once,
+    /// in their order, among `paths`.
+    fn each_once(paths: &[String]) {
+        let mut kept: Vec<&String> = paths
+            .iter()
+            .filter(|path| !path.ends_with("/new"))
+            .collect();
+        let mut expected: Vec<String> = (0..10)
+            .flat_map(|group| (0..10).map(move |button| format!("main/g{group}/b{button}")))
+            .collect();
+        expected.push("side/help".to_owned());
+        assert_eq!(kept.len(), expected.len(), "{paths:?}");
+        kept.dedup();
+        assert_eq!(
+            kept,
+            expected.iter().collect::<Vec<_>>(),
+            "each once, in order"
+        );
+    }
+
+    /// Siblings added before where a page ended, of its element or of one above it, shift nothing:
+    /// what was there throughout is listed once, and a list that grows at its top at each page
+    /// ends.
+    #[test]
+    fn elements_added_before_where_a_page_ended_shift_nothing() {
+        // A box added first in `main` after the first page, inside `g0`.
+        let (mut ui, _) = tall();
+        let (paths, _) = by_pages(
+            &mut ui,
+            ("button", ""),
+            limited(5),
+            || false,
+            |ui, page| {
+                if page == 0 {
+                    tall_again(ui, 1, &["first".to_owned()]);
+                }
+            },
+        );
+        each_once(&paths);
+        // A button added first in `g0`, the box of the page's last element.
+        let (mut ui, groups) = tall();
+        let (paths, _) = by_pages(
+            &mut ui,
+            ("button", ""),
+            limited(5),
+            || false,
+            |ui, page| {
+                if page == 0 {
+                    ui.build(groups[0], 1, |children| {
+                        children.add("new", Element::button("g0 new"), |_| {});
+                        for button in 0..10 {
+                            let name = format!("g0 b{button}");
+                            children.add(
+                                format!("b{button}").as_str(),
+                                Element::button(name),
+                                |_| {},
+                            );
+                        }
+                    });
+                    ui.frame(TargetId::MAIN);
+                }
+            },
+        );
+        each_once(&paths);
+        // A box added first in `main` at every page, as a list shows its newest row on top, the
+        // pages filled by their bytes so that an element is held back for the next page.
+        let (mut ui, _) = tall();
+        let small = Page::new(PROGRAM, usize::MAX).within(None, Some(400));
+        let mut added = Vec::new();
+        let (paths, _) = by_pages(
+            &mut ui,
+            ("button", ""),
+            small,
+            || false,
+            |ui, page| {
+                added.insert(0, format!("new{page}"));
+                tall_again(ui, page as u64 + 1, &added);
+            },
+        );
+        each_once(&paths);
+    }
+
+    /// Boxes removed above where a page ended, the page's own among them: the list goes on at the
+    /// next box of then, and lists all that follows.
+    #[test]
+    fn elements_removed_above_where_a_page_ended_leave_the_rest_listed() {
+        let (mut ui, _) = tall();
+        let (paths, _) = by_pages(
+            &mut ui,
+            ("button", ""),
+            limited(55),
+            || false,
+            |ui, page| {
+                if page == 0 {
+                    let root = ui.roots()[0];
+                    ui.build(root, 1, |children| {
+                        for group in 6..10 {
+                            children.add(
+                                format!("g{group}").as_str(),
+                                Element::container(),
+                                |children| {
+                                    for button in 0..10 {
+                                        let name = format!("g{group} b{button}");
+                                        children.add(
+                                            format!("b{button}").as_str(),
+                                            Element::button(name),
+                                            |_| {},
+                                        );
+                                    }
+                                },
+                            );
+                        }
+                    });
+                    ui.frame(TargetId::MAIN);
+                }
+            },
+        );
+        let mut expected: Vec<String> =
+            (0..6)
+                .flat_map(|group| (0..10).map(move |button| format!("main/g{group}/b{button}")))
+                .take(55)
+                .chain((6..10).flat_map(|group| {
+                    (0..10).map(move |button| format!("main/g{group}/b{button}"))
+                }))
+                .collect();
+        expected.push("side/help".to_owned());
+        assert_eq!(paths, expected);
+    }
+
+    /// A section folded between pages: nothing of what it holds is listed after.
+    #[test]
+    fn a_section_folded_between_pages_lists_nothing_of_it() {
+        let mut ui = Ui::new(Fonts::new());
+        let root = ui.add_root("main", settings(TargetId::MAIN), |s| s);
+        let mut section = None;
+        ui.build(root, 0, |children| {
+            section =
+                Some(
+                    children.add("section", Element::section("Section", true), |children| {
+                        children.add("inner", Element::container(), |children| {
+                            for item in 0..6 {
+                                let name = format!("x{item}");
+                                children.add(name.as_str(), Element::button(name.clone()), |_| {});
+                            }
+                        });
+                    }),
+                );
+            children.add("after", Element::button("after"), |_| {});
+        });
+        ui.frame(TargetId::MAIN);
+        let section = section.expect("built");
+        let (paths, _) = by_pages(
+            &mut ui,
+            ("button", "x"),
+            limited(2),
+            || false,
+            |ui, page| {
+                if page == 0 {
+                    ui.set_open(section, false);
+                    ui.frame(TargetId::MAIN);
+                }
+            },
+        );
+        assert_eq!(paths, ["main/section/inner/x0", "main/section/inner/x1"]);
+        let (after, _) = by_pages(&mut ui, ("button", ""), page(), || false, |_, _| {});
+        assert!(after.iter().all(|path| !path.contains("/x")), "{after:?}");
+    }
+
+    /// A root moved below a modal root between pages, so that the roots are drawn in another
+    /// order: each root's elements are listed once, as the roots go by their numbers.
+    #[test]
+    fn roots_reordered_between_pages_are_each_listed_once() {
+        let mut ui = Ui::new(Fonts::new());
+        let modal = ui.add_root(
+            "dialog",
+            RootSettings {
+                modal: true,
+                ..settings(TargetId(2))
+            },
+            |s| s,
+        );
+        ui.build(modal, 0, |children| {
+            for item in 0..5 {
+                let name = format!("m{item}");
+                children.add(name.as_str(), Element::button(name.clone()), |_| {});
+            }
+        });
+        let main = ui.add_root("main", settings(TargetId::MAIN), |s| s);
+        ui.build(main, 0, |children| {
+            for item in 0..5 {
+                let name = format!("a{item}");
+                children.add(name.as_str(), Element::button(name.clone()), |_| {});
+            }
+        });
+        ui.frame(TargetId::MAIN);
+        ui.frame(TargetId(2));
+        let (paths, _) = by_pages(
+            &mut ui,
+            ("button", ""),
+            limited(3),
+            || false,
+            |ui, page| {
+                if page == 0 {
+                    ui.set_root(main, settings(TargetId(2)));
+                    assert_eq!(ui.roots(), [main, modal], "below the modal root");
+                }
+            },
+        );
+        let expected: Vec<String> = (0..5)
+            .map(|item| format!("dialog/m{item}"))
+            .chain((0..5).map(|item| format!("main/a{item}")))
+            .collect();
+        assert_eq!(paths, expected);
+    }
+
+    /// Keys that a path cannot read back end pages, and the list goes on past them.
+    #[test]
+    fn keys_that_a_path_cannot_read_back_end_pages_and_the_list_goes_on() {
+        let mut ui = Ui::new(Fonts::new());
+        let root = ui.add_root("main", settings(TargetId::MAIN), |s| s);
+        ui.build(root, 0, |children| {
+            children.add("a/b", Element::button("slash"), |_| {});
+            children.add("#12", Element::button("number"), |_| {});
+            children.add(crate::tree::Key::Index(12), Element::button("row"), |_| {});
+            children.add("last", Element::button("last"), |_| {});
+        });
+        ui.frame(TargetId::MAIN);
+        let (paths, _) = by_pages(&mut ui, ("button", ""), limited(1), || false, |_, _| {});
+        assert_eq!(paths, ["main/a/b", "main/#12", "main/#12", "main/last"]);
+    }
+
+    /// An element whose texts pass a page is cut to fit, marked, and the list goes past it, its
+    /// pages within the tool's line.
+    #[test]
+    fn a_huge_text_is_cut_marked_and_passed() {
+        let mut ui = Ui::new(Fonts::new());
+        let root = ui.add_root("main", settings(TargetId::MAIN), |s| s);
+        let huge = "\"".repeat(1 << 20);
+        ui.build(root, 0, |children| {
+            children.add(
+                huge.as_str(),
+                Element::button("huge").named(huge.clone()),
+                |_| {},
+            );
+            children.add("after", Element::button("after"), |_| {});
+        });
+        ui.frame(TargetId::MAIN);
+        let line = 64 << 10;
+        let page = Page::new(PROGRAM, line);
+        let (elements, next) =
+            page_of(&mut ui, ("button", ""), None, page, || false).expect("a page");
+        let reply = Reply::Elements {
+            elements: elements.clone(),
+            next,
+        };
+        assert!(uwui_agent::json_size(&reply) <= line, "within the line");
+        let mut all = elements;
+        if let Reply::Elements {
+            next: Some(next), ..
+        } = reply
+        {
+            all.extend(
+                page_of(&mut ui, ("button", ""), Some(next), page, || false)
+                    .expect("a page")
+                    .0,
+            );
+        }
+        assert_eq!(all.len(), 2);
+        assert_eq!(all[0].cut, ["path", "name"]);
+        assert!(huge.starts_with(&all[0].name) && !all[0].name.is_empty());
+        assert_eq!((all[1].path.as_str(), all[1].cut.len()), ("main/after", 0));
+    }
+
+    /// A cursor of another interface or process is stale; one that does not read, or given with
+    /// another filter, is a bad parameter.
+    #[test]
+    fn a_cursor_of_another_interface_is_stale_and_one_garbled_is_refused() {
+        let (mut ui, _) = tall();
+        let (mut other, _) = tall();
+        let (_, next) = page_of(&mut ui, ("", ""), None, limited(3), || false).expect("a page");
+        let next = next.expect("more");
+        let code = |ui: &mut Ui, filter, cursor: &str, page| {
+            page_of(ui, filter, Some(cursor.to_owned()), page, || false)
+                .expect_err("refused")
+                .code
+        };
+        assert_eq!(code(&mut other, ("", ""), &next, limited(3)), Fault::STALE);
+        let elsewhere = Page::new(PROGRAM + 1, usize::MAX).within(Some(3), None);
+        assert_eq!(code(&mut ui, ("", ""), &next, elsewhere), Fault::STALE);
+        assert_eq!(
+            code(&mut ui, ("", "g"), &next, limited(3)),
+            Fault::BAD_PARAMS
+        );
+        let garbled = format!("{next}.1");
+        assert_eq!(
+            code(&mut ui, ("", ""), &garbled, limited(3)),
+            Fault::BAD_PARAMS
+        );
+        assert!(page_of(&mut ui, ("", ""), Some(next), limited(3), || false).is_ok());
+    }
+
+    /// A tree of ten thousand elements, of a thousand that a page gives.
+    fn ten_thousand() -> Ui {
+        let mut ui = Ui::new(Fonts::new());
+        let root = ui.add_root("main", settings(TargetId::MAIN), |s| s);
+        ui.build(root, 0, |children| {
+            for group in 0..100 {
+                let key = format!("g{group}");
+                children.add(key.as_str(), Element::container(), |children| {
+                    for button in 0..99 {
+                        let name = format!("g{group} b{button}");
+                        children.add(format!("b{button}").as_str(), Element::button(name), |_| {});
+                    }
+                });
+            }
+        });
+        ui.frame(TargetId::MAIN);
+        ui
+    }
+
+    /// A page of a thousand buttons of a tree of ten thousand elements, its median of 21
+    /// (`docs/measurements.md`, M6d.9a1b3b1).
+    #[test]
+    #[ignore = "a measure, run by hand at rest"]
+    fn a_page_of_a_thousand_elements() {
+        let mut ui = ten_thousand();
+        let request = Request::Elements {
+            role: "button".to_owned(),
+            name: String::new(),
+            cursor: None,
+            limit: None,
+            bytes: None,
+        };
+        let mut times: Vec<std::time::Duration> = (0..21)
+            .map(|_| {
+                let started = std::time::Instant::now();
+                let answered = answer(&mut ui, &request, page(), || false).expect("a page");
+                let took = started.elapsed();
+                let Answer::Reply(Reply::Elements { elements, .. }) = answered else {
+                    panic!("elements");
+                };
+                assert_eq!(elements.len(), 1000);
+                took
+            })
+            .collect();
+        times.sort_unstable();
+        println!("a page of a thousand elements: median {:?}", times[10]);
     }
 }

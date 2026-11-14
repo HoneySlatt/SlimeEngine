@@ -292,6 +292,11 @@ when its vertices wind counter-clockwise on screen. The renderer chooses it per 
 material's double-sidedness and from whether the instance is *mirrored* (ADR-0035). Not to be
 confused with *frustum culling*.
 
+**Cursor (of a list).** The opaque text that a *page* of a long list gives as `next` while more
+may follow, and that a tool gives back as `cursor` for the rest. It is bound to the process and to
+the page's maker, and stale once another took the place of either (`uwui_agent::page`,
+[ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)). Not the pointer's cursor.
+
 **Cursor held.** The cursor that a window keeps, hidden, where it was while the *raw motion* of the
 mouse turns what a program turns with it, a camera (`Window::set_cursor_held`,
 [ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md)).
@@ -1153,6 +1158,12 @@ libraries' and its drivers' too, from the context switches that `/proc/<pid>/tas
 reports ([ADR-0175](adr/0175-the-quality-bar.md), [ADR-0185](adr/0185-rest-checked-in-ci.md)).
 
 **Owner.** The person who validates the project's direction and its architecture decisions.
+
+**Page (of a list).** The part of a long list that one answer gives, bounded by a count, by
+bytes of JSON within the tool's line, and by a share of the frame's time past a floor of visits: it
+may be short, or empty, and still give the *cursor* to the rest. Its *maker* is what the list is
+read from, a world, an interface or a journal, each with a number that tells it from one that took
+its place (`uwui_agent::page`, [ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
 
 **Page (meshes).** A vertex buffer and an index buffer that hold the vertices and indices of many
 *meshes*, each in a range of its own, so that draws of different meshes bind no other buffer: a

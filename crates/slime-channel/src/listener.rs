@@ -4,10 +4,11 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::io::{self, Read};
 use std::net::{Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use uwui_agent::page::Page;
 use uwui_agent::{Fault, FromTool, InFlight, Limits, ProgramSession, Reader, Value};
 
 use crate::error::ChannelError;
@@ -98,6 +99,8 @@ struct Connection {
     changed: Condvar,
     /// The bytes unwritten on this connection.
     unwritten: AtomicU64,
+    /// How large an answer's line, and the bytes after it, its tool reads, as its hello said.
+    reads: Limits,
 }
 
 #[derive(Default)]
@@ -477,9 +480,7 @@ fn cancelled() -> Fault {
 }
 
 fn stopped() -> Reply {
-    Reply::Failed {
-        message: STOPPED.to_owned(),
-    }
+    Reply::refused(STOPPED)
 }
 
 /// Leaves `outgoing` for `connection`'s writer, `state` being its own, locked; dropped when the
@@ -500,6 +501,13 @@ impl Incoming {
     /// The request.
     pub fn request(&self) -> &Request {
         &self.request
+    }
+
+    /// The most that a page of a list holds for the request: what its tool reads, in this
+    /// process, whose number the channel draws once from the system's randomness
+    /// (`uwui_agent::page`). A request that asks less narrows it ([`Page::within`]).
+    pub fn page(&self) -> Page {
+        Page::new(program_number(), self.connection.reads.line)
     }
 
     /// Whether its tool cancelled it, or closed its connection: a request that has changed nothing
@@ -545,6 +553,19 @@ impl Drop for Incoming {
             self.finish(Ok(stopped()), Arc::default());
         }
     }
+}
+
+/// The number of this process, which binds the cursors of its lists to it: drawn once from the
+/// system's randomness, or, where it gives none, from the standard library's hashing keys.
+fn program_number() -> u64 {
+    static NUMBER: OnceLock<u64> = OnceLock::new();
+    *NUMBER.get_or_init(|| {
+        let mut bits = [0; 8];
+        match getrandom::fill(&mut bits) {
+            Ok(()) => u64::from_le_bytes(bits),
+            Err(_) => std::hash::BuildHasher::hash_one(&std::hash::RandomState::new(), 0_u8),
+        }
+    })
 }
 
 /// Counts a connection among others while it lives: those that wait for their hello, those
@@ -614,7 +635,8 @@ fn serve(stream: TcpStream, waits: Counted, token: &Token, program: &str, shared
             return;
         }
     };
-    let Some((place, welcomed)) = welcome(&mut stream, &mut session, frame, token, shared) else {
+    let Some((place, welcomed, reads)) = welcome(&mut stream, &mut session, frame, token, shared)
+    else {
         return;
     };
     reader.set_limits(Limits {
@@ -629,6 +651,7 @@ fn serve(stream: TcpStream, waits: Counted, token: &Token, program: &str, shared
         state: Mutex::new(State::default()),
         changed: Condvar::new(),
         unwritten: AtomicU64::new(0),
+        reads,
     });
     // Among the game's connections before the tool reads its welcome, which the writer writes
     // first: a request that follows it finds its connection there.
@@ -679,15 +702,16 @@ fn serve(stream: TcpStream, waits: Counted, token: &Token, program: &str, shared
     drop(place);
 }
 
-/// Reads the hello `frame`: the connection's place among those welcomed and the welcome to send,
-/// or `None` once it is refused and told why. Who has not the token learns nothing of the others.
+/// Reads the hello `frame`: the connection's place among those welcomed, the welcome to send and
+/// what its tool reads, or `None` once it is refused and told why. Who has not the token learns
+/// nothing of the others.
 fn welcome(
     stream: &mut TcpStream,
     session: &mut ProgramSession,
     frame: uwui_agent::Frame,
     token: &Token,
     shared: &Shared,
-) -> Option<(Counted, Vec<u8>)> {
+) -> Option<(Counted, Vec<u8>, Limits)> {
     let id = match &frame.message {
         uwui_agent::Message::Request { id, .. } => Some(*id),
         _ => None,
@@ -696,6 +720,7 @@ fn welcome(
         Ok(FromTool::Welcomed {
             agent,
             client,
+            reads,
             reply,
         }) => {
             if shared.welcomed.fetch_add(1, Ordering::Relaxed) >= MAX_WELCOMED {
@@ -717,7 +742,7 @@ fn welcome(
                 client = ?client.to_string(),
                 "an agent connected to the development channel"
             );
-            Some((place, reply))
+            Some((place, reply, reads))
         }
         Ok(FromTool::Refused { reason, reply }) => {
             tracing::warn!("a connection to the development channel is refused: {reason:?}");
@@ -1364,6 +1389,65 @@ mod tests {
         answering.join().expect("answered");
     }
 
+    /// A fault that the game gives crosses the channel with its code, which its tool reads.
+    #[test]
+    fn a_fault_crosses_with_its_code() {
+        let (listener, token) = opened();
+        let client =
+            Client::connect(listener.address(), &token, &agent(), &client()).expect("accepted");
+        for code in [
+            Fault::REFUSED,
+            Fault::BAD_PARAMS,
+            Fault::STALE,
+            Fault::NOT_SERVED,
+        ] {
+            let pending = client.send(&Request::State).expect("sent");
+            let failed = Reply::Failed {
+                code,
+                message: "why".to_owned(),
+            };
+            taken(&listener).answer(failed.clone());
+            let (reply, _) = pending.wait_for(Duration::from_secs(10)).expect("answered");
+            assert_eq!(reply, failed);
+        }
+    }
+
+    /// A page of a list is within the line that its tool reads, and bound to the process, the
+    /// same on every connection.
+    #[test]
+    fn a_page_is_within_the_line_that_its_tool_reads() {
+        let (listener, token) = opened();
+        let mut stream = TcpStream::connect(listener.address()).expect("listening");
+        stream
+            .set_read_timeout(Some(Duration::from_secs(10)))
+            .expect("a timeout");
+        let mut session = ToolSession::new();
+        let line = 64 << 10;
+        let narrow = Hello {
+            limits: Limits { line, bytes: 0 },
+            ..hello(&token)
+        };
+        stream
+            .write_all(&session.hello(&narrow).expect("written"))
+            .expect("sent");
+        assert!(matches!(
+            read(&mut stream, &mut session),
+            FromProgram::Welcomed(_)
+        ));
+        stream.write_all(&state_line(1)).expect("sent");
+        let narrow = taken(&listener).page();
+        assert_eq!(narrow.bytes, line - uwui_agent::page::MARGIN);
+        let client =
+            Client::connect(listener.address(), &token, &agent(), &client()).expect("accepted");
+        let _pending = client.send(&Request::State).expect("sent");
+        let wide = taken(&listener).page();
+        assert_eq!(
+            (wide.items, wide.bytes),
+            (uwui_agent::page::MAX_ITEMS, uwui_agent::page::MAX_BYTES)
+        );
+        assert_eq!(wide.program, narrow.program, "one number for the process");
+    }
+
     #[test]
     fn a_request_to_a_game_that_stopped_is_answered_so() {
         let token = Token::generate().expect("random bits");
@@ -1372,12 +1456,7 @@ mod tests {
             Client::connect(listener.address(), &token, &agent(), &client()).expect("accepted");
         drop(listener);
         let (reply, _) = client.request(&Request::State).expect("answered");
-        assert_eq!(
-            reply,
-            Reply::Failed {
-                message: "the game has stopped".to_owned()
-            }
-        );
+        assert_eq!(reply, Reply::refused("the game has stopped"));
     }
 
     #[test]
@@ -1546,9 +1625,7 @@ mod tests {
             .wait_for(Duration::from_secs(10))
             .expect("the second's answer, first");
         assert_eq!(reply, Reply::Done);
-        held.answer(Reply::Failed {
-            message: "held".to_owned(),
-        });
+        held.answer(Reply::refused("held"));
         let (reply, _) = first.wait_for(Duration::from_secs(10)).expect("answered");
         assert!(matches!(reply, Reply::Failed { .. }));
     }
@@ -2119,11 +2196,12 @@ mod tests {
                 states: Vec::new(),
                 actions: Vec::new(),
                 bounds: None,
+                cut: Vec::new(),
             };
             incoming.answer(Reply::Interface {
                 reply: interface::Reply::Elements {
                     elements: vec![element],
-                    more: 0,
+                    next: None,
                 },
             });
         }

@@ -192,6 +192,27 @@ impl Entities {
             })
     }
 
+    /// Each slot after the slot `after`, or from the first for none, by its number, with the entity
+    /// that it holds if it holds one.
+    pub(crate) fn slots_after(
+        &self,
+        after: Option<u32>,
+    ) -> impl Iterator<Item = (u32, Option<Entity>)> + '_ {
+        let start = after
+            .map_or(0, |after| (after as usize).saturating_add(1))
+            .min(self.slots.len());
+        // Fewer slots than `u32::MAX`: each was given an index of that type.
+        (start as u32..)
+            .zip(&self.slots[start..])
+            .map(|(index, slot)| {
+                let entity = slot.alive.then_some(Entity {
+                    index,
+                    generation: slot.generation,
+                });
+                (index, entity)
+            })
+    }
+
     /// Sets a slot's generation, for the tests of a generation that would wrap.
     #[cfg(test)]
     pub(crate) fn set_generation(&mut self, index: u32, generation: NonZeroU32) {

@@ -6,8 +6,8 @@ use uwui_agent::{Frame, Reader};
 
 use crate::error::ChannelError;
 
-/// The most bytes of a game's answer's line: a list of a thousand entities or elements, with room
-/// to spare.
+/// The most bytes of a game's answer's line: a page of a list (`uwui_agent::page::MAX_BYTES`), with
+/// room to spare.
 pub(crate) const MAX_LINE: usize = 16 << 20;
 
 /// The most bytes of a request's line after the hello, which the game refuses past it. A tool's

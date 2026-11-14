@@ -163,6 +163,10 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   component of, or `World::register` registered ahead. `World::entities`, `component_names`,
   `component_value`, `set_component_value` and `set_property` list the entities and reach their
   components by name and property path, without their types, within the ranges of their fields.
+  `World::entities_after` reads the slots after one, so that a list read by pages resumes where
+  the last page ended, at the cost of what it reads; `World::number` tells a world from one that
+  took its place, whose slots start again
+  (`docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md`).
 - `Command` is a change of the world asked for outside the phases of a frame that may make it,
   which names its entities by their persistent identities: a value set at a property path of a
   component, an entity created, a prefab placed, an entity deleted with its descendants, a parent

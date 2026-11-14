@@ -48,3 +48,29 @@ pub fn path_of(session: &mut Session, role: &str, name: &str) -> String {
         .expect("a path before the role")
         .to_owned()
 }
+
+/// The lines of every element that `find_elements` lists with `arguments`, page after page, each
+/// page's cursor given back for the next: the whole list, without the lines that say where it goes
+/// on or that a page holds none.
+pub fn every_element(session: &mut Session, arguments: serde_json::Value) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut cursor: Option<String> = None;
+    for _ in 0..1000 {
+        let mut asked = arguments.clone();
+        if let Some(cursor) = cursor.take() {
+            asked["cursor"] = json!(cursor);
+        }
+        let (said, _) = session.tool("find_elements", asked);
+        for line in said.iter().flat_map(|text| text.lines()) {
+            match line.strip_prefix("next: ") {
+                Some(rest) => cursor = rest.split(' ').next().map(str::to_owned),
+                None if line.contains(" — ") => lines.push(line.to_owned()),
+                None => {}
+            }
+        }
+        if cursor.is_none() {
+            return lines;
+        }
+    }
+    panic!("a list of elements that does not end");
+}

@@ -39,7 +39,7 @@ use std::time::Duration;
 
 use serde_json::json;
 
-use interface::{act, path_of, until};
+use interface::{act, every_element, path_of, until};
 use session::{Session, image, server};
 
 /// How many times the viewport drew its image, as its report says.
@@ -123,7 +123,7 @@ fn main() {
         "the editor ran {} frame as the hint ended",
         after - before
     );
-    let (said, _) = session.tool("find_elements", json!({}));
+    let said = every_element(&mut session, json!({}));
     assert!(
         !said.iter().any(|text| text.contains("notifications/")),
         "the hint went: {said:?}"

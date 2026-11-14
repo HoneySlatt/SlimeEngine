@@ -41,9 +41,17 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   JSON holds no other; a family's float reads `null` as a fault, so such a float is refused where it is read, not where it is written, and a family holds no optional float, which would read it as none (`uwui_agent::write`).
   `slime-mcp` cuts the agent's name and version to 200 characters, so that a hello stays within its limit; no test checks the cut.
   Followed at [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families), whose MCP library names the agent.
-- **A family's codes of faults do not cross the development channel** ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)).
-  `slime-channel` sends every refusal of a game as `REFUSED`, and its tool reads every fault as `Reply::Failed`, with its message alone: uwui's answers to the interface's family give their codes, which the channel drops, and a tool cannot tell a refusal from a fault of its parameters.
-  Followed at [M6d.9a1b3b](stage-6d.md#m6d9a1b3b--long-lists), whose stale cursors fault with a code of their own.
+- **Some answers that may grow are not paged** ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
+  `editing/history` gives its steps and its selection whole, `world/entity` an entity's components whole, `play/report` a report whole, `play/pick` and `world/entity` an entity's identity and name whole: past the tool's line, each is `TOO_LARGE` for good.
+  A cursor of elements grows with the depth of the tree: past the depth that `uwui_agent::page::MARGIN` gives, a page for a tool whose line is short may pass that line, and the list stops there.
+  Followed at uwui's first stage, whose families page what can grow.
+- **A page of a list costs more than what it gives** ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
+  A page counts its items' JSON as it makes them, and the listener counts the answer again (`Outgoing::answer`).
+  An element visited is made into its whole meaning, its value and its description copied, before the filter reads its role and name; an entity visited has its identity and name copied and lowercased.
+  Followed at uwui's first stage, whose carrier of the core counts once, and which benchmarks its walks.
+- **The process's number that binds the cursors has no randomness on the web** ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
+  `slime-channel` draws it with `getrandom`, falling back on `std`'s hashing keys, which are not random on `wasm32-unknown-unknown`.
+  Followed at the web's carrier, which draws it from its host.
 - **The development channel scripts keys only, and captures windowed runs only** ([ADR-0122](adr/0122-the-development-channel.md)).
   A tool presses and releases keys, not the mouse nor text; an agent reaches an interface through its elements' actions ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
   A run without a window has no image to capture.
@@ -836,7 +844,8 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   No check runs a screen reader on the live regions of notifications.
   The stack of notifications turns from its corner as a layer at a point does, which holds for a stack wider and taller than its margin, as every notification is.
 - **What agents see** ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
-  A tool reads an interface only in a windowed run, from its last frame, and each ask walks the whole tree.
+  A tool reads an interface only in a windowed run, from its last frame; a list of its elements walks the tree by pages, each within its share of a frame ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
+  A list's rows named by number keep their ids while their content shifts: a list read by pages while rows come and go may skip or double one, as the editor's hierarchy's; so may siblings that change their order between pages, one moved to another parent, and the element where a page ended removed with the sibling that followed it ([ADR-0263](adr/0263-the-cursor-of-elements-anchored-on-its-next-sibling-what-a-list-may-skip-the-slots-read.md)).
   A path holds while the roots below its own stay.
   A key's name that holds `/`, or that `#` and digits make, cannot be read back from a path.
   A row of a list is found by its number; the names of its texts are not gathered into its own, unless its builder names it, as the editor's hierarchy names its items.
@@ -916,7 +925,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **An editor's journal grows across recoveries** ([ADR-0135](adr/0135-the-editors-program.md)).
   Each recovery goes on with the journal that it recovered; only a start with nothing unwritten begins it anew.
   The history of steps outlives a stop only when something is unwritten.
-  `editor_journal` fails once the journal is larger than the channel's largest answer, now with the fault that says so; followed at [M6d.9a1b3b](stage-6d.md#m6d9a1b3b--long-lists), whose lists that may be long give a cursor to the rest.
+  `editor_journal` fails once the journal is larger than the channel's largest answer, now with the fault that says so; followed at [M6d.9a1b3b2](stage-6d.md#m6d9a1b3b2--the-editors-journal), which reads the journal by pages.
 - **A selection made just before a crash is lost** ([ADR-0134](adr/0134-the-editors-core.md)).
   The journal writes a selection made apart from a step with the entry that follows it.
 - **A journal whose last entry a crash of the system tore is not recovered, nor one that a crash cut just after the level was written** ([ADR-0135](adr/0135-the-editors-program.md)).

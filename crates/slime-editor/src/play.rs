@@ -500,7 +500,7 @@ fn drive(
                 let mut refused = false;
                 for request in &requests {
                     match client.request(request) {
-                        Ok((Reply::Failed { message }, _)) => {
+                        Ok((Reply::Failed { message, .. }, _)) => {
                             refused = true;
                             tell(Event::Refused(message));
                         }
@@ -655,7 +655,7 @@ fn save(client: &Client, directory: &Path) -> Result<(), String> {
         .to_owned();
     match client.request(&Request::Save { file }) {
         Ok((Reply::Done, _)) => Ok(()),
-        Ok((Reply::Failed { message }, _)) => Err(message),
+        Ok((Reply::Failed { message, .. }, _)) => Err(message),
         Ok(_) => Err("the game answered as to another request".to_owned()),
         Err(error) => Err(format!("the game does not answer: {error}")),
     }

@@ -1838,10 +1838,16 @@ the last frame left it ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)
 ```text
 find_elements / element_at          the MCP server's tools → Request::Interface, through the
                                     development channel
-interface/elements, element_at      uwui::agents: ui.meaning(), ui.meaning_at(target, x, y),
-                                    made when asked; each element's path, target, role, name,
-                                    value, states, actions and bounds; a pixel read on the target
-                                    named, or on the active target
+interface/elements                  uwui::agents: a page of the tree's walk, from the cursor that
+                                    the last page gave, within the page that slime-channel gives
+                                    from the tool's line (Incoming::page) and the share of the
+                                    frame's start that slime-app gives; each element's path,
+                                    target, role, name, value, states, actions and bounds, its
+                                    long texts cut; `next` to the rest; a cursor of another
+                                    process or interface faults STALE, which crosses the channel
+                                    with its code (ADR-0260)
+interface/element_at                uwui::agents: ui.meaning_at(target, x, y), a pixel read on
+                                    the target named, or on the active target
 act_on_interface → interface/act    uwui::agents: the element found by its path, the action
                                     checked against what it takes now, then ui.act,
                                     ui.set_focus, ui.scroll_to, ui.set_value or ui.drop, as a

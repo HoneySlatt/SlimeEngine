@@ -3,6 +3,7 @@
 mod error;
 pub mod interface;
 mod message;
+pub mod page;
 mod session;
 mod typed;
 

@@ -50,12 +50,24 @@ pub enum Request {
     /// window.
     #[serde(rename = "play/minimize")]
     Minimize,
-    /// The entities whose name or persistent identity holds `filter`, whatever its case:
-    /// [`Reply::Entities`], at most [`MAX_ENTITIES`](crate::MAX_ENTITIES) of them.
+    /// A page of the entities whose name or persistent identity holds `filter`, whatever its
+    /// case, in the order of the world's slots: [`Reply::Entities`], with `next` while more may
+    /// follow (`uwui_agent::page`). An entity alive from the first page to the last is listed
+    /// once; one spawned or despawned between pages may be or not. A cursor of a world that
+    /// another took the place of, as a run loaded, is stale.
     #[serde(rename = "world/entities")]
     Entities {
         /// What to look for; empty for every entity.
         filter: String,
+        /// Where the page starts: the `next` of the page before; none for the list's start.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cursor: Option<String>,
+        /// The most entities wanted; none for the game's most (`uwui_agent::page::MAX_ITEMS`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        limit: Option<u64>,
+        /// The most bytes of JSON that the entities take; none for the game's most.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bytes: Option<u64>,
     },
     /// An entity and its components: [`Reply::Entity`].
     #[serde(rename = "world/entity")]
@@ -133,12 +145,19 @@ pub enum Request {
         /// The report's name, `assets`.
         name: String,
     },
-    /// The lines of the game's log after the line numbered `after`: [`Reply::Logs`], at most
-    /// [`MAX_LOG_LINES`](crate::MAX_LOG_LINES) of them.
+    /// A page of the lines of the game's log after the line numbered `after`: [`Reply::Logs`],
+    /// `partial` when lines kept after them were left for the next page, asked after the last
+    /// line given.
     #[serde(rename = "play/logs")]
     Logs {
         /// The number of the last line already read; 0 for the oldest that the game keeps.
         after: u64,
+        /// The most lines wanted; none for the game's most (`uwui_agent::page::MAX_ITEMS`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        limit: Option<u64>,
+        /// The most bytes of JSON that the lines take; none for the game's most.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bytes: Option<u64>,
     },
     /// Saves the run to a file, as the game saves its own runs. It fails for a game that does not
     /// save its runs.
@@ -250,8 +269,11 @@ pub enum Reply {
     /// The request is done.
     Done,
     /// The request failed: why. The connection stays open. On the wire, an error of the core's,
-    /// [`Fault::REFUSED`] when the game refused it; a tool reads every error of the core's so.
+    /// of its code: [`Fault::REFUSED`] when the game refused it, [`Fault::STALE`] for a cursor
+    /// that no longer holds, and the others as the core and the families give them.
     Failed {
+        /// What kind of failure, as [`Fault::code`].
+        code: i64,
         /// Why.
         message: String,
     },
@@ -262,10 +284,11 @@ pub enum Reply {
     },
     /// The entities found.
     Entities {
-        /// The first of them, in the world's order.
+        /// They, in the order of the world's slots.
         entities: Vec<EntitySummary>,
-        /// How many more were found and left out.
-        more: u64,
+        /// The cursor to the rest, while more may follow; none at the list's end.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        next: Option<String>,
     },
     /// An entity and its components.
     Entity {
@@ -303,6 +326,10 @@ pub enum Reply {
     Logs {
         /// The lines, oldest first.
         lines: Vec<LogLine>,
+        /// Whether lines kept after them were left for the next page; a game of before gives
+        /// every line kept, and none.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        partial: bool,
     },
     /// An editor's level, history and selection.
     History {
@@ -424,13 +451,19 @@ pub struct ViewSummary {
     pub settings: String,
 }
 
-/// An entity, as a list of entities names it.
+/// An entity, as a list of entities names it, or a picking, or an entity's components. In a list,
+/// each of its texts is cut where it is longer than a page holds, and `cut` names it; elsewhere it
+/// is whole.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EntitySummary {
-    /// Its persistent identity; empty for an entity that has none.
+    /// Its persistent identity; empty for an entity that has none. An identity cut names no
+    /// entity.
     pub identity: String,
     /// Its name; empty for none.
     pub name: String,
+    /// The fields whose texts were cut, by their names, `name`; none for none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cut: Vec<String>,
 }
 
 /// A component of an entity, as text.
@@ -447,8 +480,12 @@ pub struct ComponentText {
 pub struct LogLine {
     /// Its number, from 1 at the game's start, one more for each line.
     pub number: u64,
-    /// The line, as the log writes it, without its time.
+    /// The line, as the log writes it, without its time; cut where it is longer than
+    /// [`MAX_LOG_LINE`](crate::MAX_LOG_LINE) as the game keeps it, or than its page holds.
     pub text: String,
+    /// Whether the line was cut.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cut: bool,
 }
 
 /// What a game tells a connection that subscribed to it, each event a state: its current value
@@ -517,10 +554,18 @@ impl Request {
 const EDITING: &str = "editing";
 
 impl Reply {
-    /// The outcome that carries the reply: [`Reply::Failed`] as a [`Fault::REFUSED`].
+    /// A refusal of the game's, saying why: [`Reply::Failed`] of the code [`Fault::REFUSED`].
+    pub fn refused(message: impl Into<String>) -> Self {
+        Self::Failed {
+            code: Fault::REFUSED,
+            message: message.into(),
+        }
+    }
+
+    /// The outcome that carries the reply: [`Reply::Failed`] as a fault of its code.
     pub(crate) fn outcome(&self) -> Result<Result<Value, Fault>, ChannelError> {
         Ok(match self {
-            Self::Failed { message } => Err(Fault::new(Fault::REFUSED, message.clone())),
+            Self::Failed { code, message } => Err(Fault::new(*code, message.clone())),
             Self::Interface { reply } => Ok(uwui_agent::write(reply)?),
             reply => Ok(uwui_agent::write(reply)?),
         })
@@ -536,7 +581,7 @@ impl Reply {
     }
 
     /// The reply that an outcome carries, to a request of the interface's family or not: every
-    /// error as [`Reply::Failed`], with its message.
+    /// error as [`Reply::Failed`], with its code and its message.
     pub(crate) fn read(
         outcome: Result<Value, Fault>,
         of_interface: bool,
@@ -550,6 +595,7 @@ impl Reply {
                 .map_err(unreadable),
             Ok(value) => uwui_agent::read(value).map_err(unreadable),
             Err(fault) => Ok(Self::Failed {
+                code: fault.code,
                 message: fault.message,
             }),
         }
@@ -573,6 +619,15 @@ mod tests {
             Request::Minimize,
             Request::Entities {
                 filter: text("lant"),
+                cursor: None,
+                limit: None,
+                bytes: None,
+            },
+            Request::Entities {
+                filter: String::new(),
+                cursor: Some(text("entities:1:2:3:4")),
+                limit: Some(20),
+                bytes: Some(32768),
             },
             Request::Entity {
                 entity: text("hero"),
@@ -599,7 +654,16 @@ mod tests {
                 path: text("debug"),
                 value: text("\"Normals\""),
             },
-            Request::Logs { after: 7 },
+            Request::Logs {
+                after: 7,
+                limit: None,
+                bytes: None,
+            },
+            Request::Logs {
+                after: 0,
+                limit: Some(5),
+                bytes: Some(1024),
+            },
             Request::Save {
                 file: text("/tmp/run.toml"),
             },
@@ -663,6 +727,9 @@ mod tests {
                 request: interface::Request::Elements {
                     role: text("Button"),
                     name: text("open"),
+                    cursor: Some(text("elements:1:2:3:4")),
+                    limit: None,
+                    bytes: None,
                 },
             },
             Request::Interface {
@@ -687,11 +754,18 @@ mod tests {
         let summary = EntitySummary {
             identity: text("hero"),
             name: String::new(),
+            cut: Vec::new(),
         };
         let replies = [
             Reply::Done,
+            Reply::refused(text("game time runs: pause it first")),
             Reply::Failed {
-                message: text("game time runs: pause it first"),
+                code: Fault::STALE,
+                message: text("list it again"),
+            },
+            Reply::Failed {
+                code: Fault::BAD_PARAMS,
+                message: text("not a cursor"),
             },
             Reply::State {
                 state: GameState {
@@ -713,8 +787,19 @@ mod tests {
                 },
             },
             Reply::Entities {
-                entities: vec![summary.clone()],
-                more: 2,
+                entities: vec![
+                    summary.clone(),
+                    EntitySummary {
+                        identity: text("zone/long"),
+                        name: text("cut"),
+                        cut: vec![text("name")],
+                    },
+                ],
+                next: Some(text("entities:1:2:3:4")),
+            },
+            Reply::Entities {
+                entities: Vec::new(),
+                next: None,
             },
             Reply::Entity {
                 entity: summary,
@@ -735,6 +820,7 @@ mod tests {
                 entity: EntitySummary {
                     identity: text("yard/sample/crate"),
                     name: text("crate"),
+                    cut: Vec::new(),
                 },
                 found: true,
             },
@@ -742,7 +828,17 @@ mod tests {
                 lines: vec![LogLine {
                     number: 3,
                     text: text("INFO the zone is drawn"),
+                    cut: false,
                 }],
+                partial: false,
+            },
+            Reply::Logs {
+                lines: vec![LogLine {
+                    number: 4,
+                    text: text("INFO a long"),
+                    cut: true,
+                }],
+                partial: true,
             },
             Reply::History {
                 history: EditorHistory {
@@ -777,9 +873,12 @@ mod tests {
         for reply in replies {
             let outcome = reply.outcome().expect("written");
             assert_eq!(
-                outcome.is_err(),
-                matches!(reply, Reply::Failed { .. }),
-                "a failure crosses as an error of the core's"
+                outcome.as_ref().err().map(|fault| fault.code),
+                match reply {
+                    Reply::Failed { code, .. } => Some(code),
+                    _ => None,
+                },
+                "a failure crosses as an error of the core's, of its code"
             );
             assert_eq!(Reply::read(outcome, false).expect("read"), reply);
         }
@@ -832,9 +931,10 @@ mod tests {
         assert_eq!(
             Reply::read(Err(Fault::new(Fault::NOT_SERVED, "not served")), false).expect("read"),
             Reply::Failed {
+                code: Fault::NOT_SERVED,
                 message: "not served".to_owned()
             },
-            "every error of the core's reads as a failure"
+            "every error of the core's reads as a failure of its code"
         );
     }
 

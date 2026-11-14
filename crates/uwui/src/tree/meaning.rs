@@ -486,7 +486,7 @@ impl Ui {
     }
 
     /// What `id`, drawn, at `path`, means; none for an element of no meaning.
-    fn meaning_with(&self, id: ElementId, path: String) -> Option<Meaning> {
+    pub(crate) fn meaning_with(&self, id: ElementId, path: String) -> Option<Meaning> {
         let node = self.node(id)?;
         let element = &node.element;
         let role = self.role_of(node);

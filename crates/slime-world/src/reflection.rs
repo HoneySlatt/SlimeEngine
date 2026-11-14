@@ -35,6 +35,25 @@ impl World {
         self.entities.iter()
     }
 
+    /// The world's slots after the slot numbered `slot`, or from the first for none, in their
+    /// order, each by its number with the entity alive in it, if any: where a list of the world's
+    /// entities resumes, at the cost of the slots that it reads, not of those before, so that a
+    /// reader bounds its work by the slots, the empty ones included. A slot's number means
+    /// something only in the world that gave it ([`World::number`]).
+    pub fn entities_after(
+        &self,
+        slot: Option<u32>,
+    ) -> impl Iterator<Item = (u32, Option<Entity>)> + '_ {
+        self.entities.slots_after(slot)
+    }
+
+    /// The number of this world among the worlds that the process made, never given to another:
+    /// a world that took another's place, as a run loaded or a level opened, has its own. What the
+    /// handles of a world mean, they mean only in it.
+    pub fn number(&self) -> u64 {
+        self.number
+    }
+
     /// The names of the types of the components that `entity` holds, in the order the world first
     /// stored a component of each; none if it is not alive.
     pub fn component_names(&self, entity: Entity) -> Vec<&str> {
@@ -273,6 +292,46 @@ mod tests {
 
     use super::*;
     use crate::{Component, Extras, Hidden, Light, Meshes, Name};
+
+    #[test]
+    fn entities_resume_after_a_slot_whether_its_entity_lives_or_not() {
+        let mut world = World::new();
+        let spawned: Vec<Entity> = (0..5).map(|_| world.spawn()).collect();
+        assert!(world.despawn(spawned[2]));
+        let after = |world: &World, slot| world.entities_after(slot).collect::<Vec<_>>();
+        assert_eq!(
+            after(&world, None),
+            vec![
+                (0, Some(spawned[0])),
+                (1, Some(spawned[1])),
+                (2, None),
+                (3, Some(spawned[3])),
+                (4, Some(spawned[4]))
+            ]
+        );
+        assert_eq!(
+            after(&world, Some(1)),
+            vec![(2, None), (3, Some(spawned[3])), (4, Some(spawned[4]))]
+        );
+        let again = world.spawn();
+        assert_eq!(
+            after(&world, Some(1))[0],
+            (2, Some(again)),
+            "a slot used again"
+        );
+        assert_eq!(after(&world, Some(4)), Vec::new());
+        assert_eq!(after(&world, Some(u32::MAX)), Vec::new());
+    }
+
+    #[test]
+    fn each_world_has_a_number_of_its_own_that_it_keeps() {
+        let mut first = World::new();
+        let second = World::new();
+        assert_ne!(first.number(), second.number());
+        let number = first.number();
+        first.spawn();
+        assert_eq!(first.number(), number);
+    }
 
     /// A component that only derives, to show that the derive is all a component needs.
     #[derive(Clone, Debug, PartialEq, Reflect)]

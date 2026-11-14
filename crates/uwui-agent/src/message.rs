@@ -72,6 +72,10 @@ impl Fault {
     /// An answer larger than the tool said it reads ([`Hello::limits`](crate::Hello::limits)), in
     /// place of it: the request was done, and its answer dropped.
     pub const TOO_LARGE: i64 = -32004;
+    /// A cursor of a list that no longer holds: of another process, or of a world, an interface or
+    /// a journal that another took the place of. The tool lists it again from its start
+    /// ([`page`](crate::page)).
+    pub const STALE: i64 = -32005;
     /// A request cancelled before it changed anything ([`CANCEL`](crate::CANCEL)), and never done:
     /// LSP's `RequestCancelled`.
     pub const CANCELLED: i64 = -32800;

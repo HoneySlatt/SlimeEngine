@@ -74,6 +74,19 @@ impl ElementId {
     pub(crate) fn index(self) -> usize {
         self.index as usize
     }
+
+    /// Its place and its generation, as a cursor of a list writes them.
+    #[cfg(feature = "agents")]
+    pub(crate) fn parts(self) -> (u32, u32) {
+        (self.index, self.generation)
+    }
+
+    /// The id of `parts` ([`ElementId::parts`]), which names an element only if its interface
+    /// holds one there of that generation ([`Ui::node`]).
+    #[cfg(feature = "agents")]
+    pub(crate) fn from_parts((index, generation): (u32, u32)) -> Self {
+        Self { index, generation }
+    }
 }
 
 /// What names an element among its siblings, which whoever builds it gives: a name, or a number,
@@ -2079,6 +2092,19 @@ impl Ui {
                 self.node(id)
                     .is_some_and(|node| node.rebuild && node.drawn_on == target)
             })
+    }
+
+    /// The number of this interface among those that the process made, never given to another:
+    /// what a cursor of its elements is bound to, as an interface that took another's place starts
+    /// its elements' ids again.
+    pub fn number_in_process(&self) -> u64 {
+        self.identity
+    }
+
+    /// The roots, in the order that they are drawn, the last on top.
+    #[cfg(feature = "agents")]
+    pub(crate) fn roots(&self) -> &[ElementId] {
+        &self.roots
     }
 
     pub(crate) fn node(&self, id: ElementId) -> Option<&Node> {

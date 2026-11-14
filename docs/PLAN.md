@@ -191,4 +191,4 @@ owner's save alone. After Stage 6e's first milestone, a check that names *Hunna 
 
 ## Known debt
 
-The known debt still open, 187 items, is in [`debt.md`](debt.md).
+The known debt still open, 192 items, is in [`debt.md`](debt.md).

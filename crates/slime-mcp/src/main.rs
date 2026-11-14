@@ -26,7 +26,7 @@ use rmcp::{
 };
 use serde::Deserialize;
 use slime_channel::interface::{self, Action as InterfaceAction};
-use slime_channel::{Client, Edit, Named, Reply, Request, Token, launch};
+use slime_channel::{Client, Edit, Fault, Named, Reply, Request, Token, json_size, launch};
 
 /// How long a game is given to say where it listens, by default: `cargo run` may build it first.
 const START_TIMEOUT: Duration = Duration::from_secs(600);
@@ -38,11 +38,19 @@ const STOP_TIMEOUT: Duration = Duration::from_secs(120);
 const TAIL: u64 = 4096;
 /// The server's version, the workspace's.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// The most bytes of JSON that a page of a list holds, so that what a tool prints stays well
+/// within what an agent's client takes whole: Claude Code moves an output past 25,000 tokens, or
+/// 50,000 characters, into a file
+/// (`docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md`).
+const PAGE_BYTES: u64 = 32 << 10;
+/// How long a list tool gathers the game's pages before it gives what it has, and their `next`.
+const LIST_TIME: Duration = Duration::from_secs(5);
 /// What the server tells an agent of its tools.
 const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its development channel. \
      Start it with `start_game`; `pause` it, `step` it, `resume` it, `set_speed` changes the speed \
      of its game time, `game_state` says where it stands, with its views and its reports; \
-     `list_entities` and `inspect_entity` read its world, `set_property` changes it; `press_key` and \
+     `list_entities` and `inspect_entity` read its world, the lists a page at a time, each page \
+     that more follow starting with its `next`, which `cursor` takes, `set_property` changes it; `press_key` and \
      `release_key` play it; `capture` shows its image or one of its views, and \
      `set_view_settings` changes how a view draws, its scale, anti-aliasing, passes or a mode of \
      debugging that shows normals, shadows, the base color or the light alone; `pick` names the entity drawn at a pixel of its \
@@ -181,6 +189,11 @@ struct ListEntities {
     /// Text that the entities' names or persistent identities hold, whatever its case; empty for
     /// every entity.
     filter: String,
+    /// Where the page starts: the `next` that the page before gave, with the same `filter`; left
+    /// out for the list's start.
+    cursor: Option<String>,
+    /// The most entities wanted on the page; left out for as many as fit.
+    limit: Option<u64>,
 }
 
 /// What `inspect_entity` takes.
@@ -268,6 +281,11 @@ struct FindElements {
     role: Option<String>,
     /// What their names hold, whatever its case: a button's label, a text; any if left out.
     name: Option<String>,
+    /// Where the page starts: the `next` that the page before gave, with the same `role` and
+    /// `name`; left out for the list's start.
+    cursor: Option<String>,
+    /// The most elements wanted on the page; left out for as many as fit.
+    limit: Option<u64>,
 }
 
 /// What `element_at` takes.
@@ -372,6 +390,25 @@ fn failure(message: impl Into<String>) -> CallToolResult {
     CallToolResult::error(vec![ContentBlock::text(message.into())])
 }
 
+/// The result of a game's fault, `code` and `message`: a cursor that no longer holds says to list
+/// again from the start.
+fn fault(code: i64, message: String) -> CallToolResult {
+    if code == Fault::STALE {
+        failure(format!(
+            "the list changed whole since this cursor was given: list it again from its start, \
+             without `cursor` ({message})"
+        ))
+    } else {
+        failure(message)
+    }
+}
+
+/// The line that starts a page of a list that goes on: its cursor, first, as an agent's client
+/// may cut a long output.
+fn next_line(next: &str) -> String {
+    format!("next: {next} (give it as `cursor`, with the same filter, for the rest)")
+}
+
 /// A result of text.
 fn text(message: impl Into<String>) -> CallToolResult {
     CallToolResult::success(vec![ContentBlock::text(message.into())])
@@ -470,8 +507,44 @@ impl Server {
     /// new one replaces it; once the one to the game that an editor plays is, the game's tools
     /// drive the editor again.
     async fn ask(&self, request: Request) -> Result<CallToolResult, McpError> {
+        Ok(match self.reply(request).await? {
+            Ok((reply, payload)) => describe(reply, &payload),
+            Err(why) => failure(why),
+        })
+    }
+
+    /// A page of a list for an agent, from `request`, a request of a list: the pages that the game
+    /// gives, each after the last, gathered until they hold about [`PAGE_BYTES`] of JSON, the list
+    /// ends or [`LIST_TIME`] passed, so that a page that the game cut short, or that found none,
+    /// does not reach the agent alone. It gives the last page's `next`.
+    async fn list(&self, first: Request) -> Result<CallToolResult, McpError> {
+        let started = Instant::now();
+        let mut request = first.clone();
+        let mut gathered: Option<Reply> = None;
+        loop {
+            let reply = match self.reply(request.clone()).await? {
+                Ok((reply, _)) => reply,
+                Err(why) => return Ok(failure(why)),
+            };
+            let Some(next) = paged(&mut gathered, reply) else {
+                break;
+            };
+            let (count, held) = gathered.as_ref().map_or((0, 0), page_size);
+            if held >= PAGE_BYTES / 2 || started.elapsed() >= LIST_TIME {
+                break;
+            }
+            let Some(asked) = resumed(&first, next, count, PAGE_BYTES - held) else {
+                break;
+            };
+            request = asked;
+        }
+        Ok(gathered.map_or_else(|| text("no page"), |reply| describe(reply, &[])))
+    }
+
+    /// The game's reply to `request`, as [`Server::ask`] asks it, or why there is none.
+    async fn reply(&self, request: Request) -> Result<Result<(Reply, Vec<u8>), String>, McpError> {
         let game = Arc::clone(&self.game);
-        let answer = tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || {
             // The connection that the request goes to, chosen under the lock, which the request
             // does not hold while it waits for its answer.
             let (client, to_played) = {
@@ -546,19 +619,104 @@ impl Server {
             })
         })
         .await
-        .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-        Ok(match answer {
-            Ok((reply, payload)) => describe(reply, &payload),
-            Err(why) => failure(why),
-        })
+        .map_err(|error| McpError::internal_error(error.to_string(), None))
     }
+}
+
+/// Adds the page `reply` to the pages `gathered`: its `next`, while the list goes on; none at its
+/// end, or for a reply that is no page, as a fault, which then replaces them.
+fn paged(gathered: &mut Option<Reply>, reply: Reply) -> Option<String> {
+    match (gathered.as_mut(), reply) {
+        (
+            Some(Reply::Entities { entities, next }),
+            Reply::Entities {
+                entities: more,
+                next: then,
+            },
+        ) => {
+            entities.extend(more);
+            *next = then;
+            next.clone()
+        }
+        (
+            Some(Reply::Interface {
+                reply: interface::Reply::Elements { elements, next },
+            }),
+            Reply::Interface {
+                reply:
+                    interface::Reply::Elements {
+                        elements: more,
+                        next: then,
+                    },
+            },
+        ) => {
+            elements.extend(more);
+            *next = then;
+            next.clone()
+        }
+        (_, reply) => {
+            let next = match &reply {
+                Reply::Entities { next, .. }
+                | Reply::Interface {
+                    reply: interface::Reply::Elements { next, .. },
+                } => next.clone(),
+                _ => None,
+            };
+            *gathered = Some(reply);
+            next
+        }
+    }
+}
+
+/// How many items the pages gathered hold, and the bytes of JSON that they take.
+fn page_size(gathered: &Reply) -> (u64, u64) {
+    let (count, size) = match gathered {
+        Reply::Entities { entities, .. } => (entities.len(), json_size(entities)),
+        Reply::Interface {
+            reply: interface::Reply::Elements { elements, .. },
+        } => (elements.len(), json_size(elements)),
+        _ => (0, 0),
+    };
+    (count as u64, size as u64)
+}
+
+/// The rest of the list that `request` asked, its first page, once `count` items of it were
+/// gathered: from `cursor`, of at most `bytes` of JSON and of what its `limit` leaves; none for a
+/// request of no list, or whose `limit` is reached.
+fn resumed(request: &Request, cursor: String, count: u64, bytes: u64) -> Option<Request> {
+    let mut request = request.clone();
+    match &mut request {
+        Request::Entities {
+            cursor: at,
+            limit,
+            bytes: most,
+            ..
+        }
+        | Request::Interface {
+            request:
+                interface::Request::Elements {
+                    cursor: at,
+                    limit,
+                    bytes: most,
+                    ..
+                },
+        } => {
+            if let Some(limit) = limit {
+                *limit = limit.checked_sub(count).filter(|&left| left > 0)?;
+            }
+            *at = Some(cursor);
+            *most = Some(bytes);
+        }
+        _ => return None,
+    }
+    Some(request)
 }
 
 /// The result that tells `reply`, with `payload`, an image's pixels, after it.
 fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
     match reply {
         Reply::Done => text("done"),
-        Reply::Failed { message } => failure(message),
+        Reply::Failed { code, message } => fault(code, message),
         Reply::State { state } => text(format!(
             "frame {}, game time {}: {} fixed steps run, {:.3} s of game time, at a speed of {}; \
              {:.3} s of real time; frames of {:.2} ms on average, {:.2} ms at the longest, over the \
@@ -602,20 +760,22 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
                 })
                 .collect::<String>(),
         )),
-        Reply::Entities { entities, more } => {
-            let mut lines: Vec<String> = entities
-                .into_iter()
-                .map(|entity| {
-                    if entity.name.is_empty() {
-                        entity.identity
-                    } else {
-                        format!("{} ({})", entity.identity, entity.name)
-                    }
-                })
-                .collect();
-            if more > 0 {
-                lines.push(format!("and {more} more"));
+        Reply::Entities { entities, next } => {
+            let mut lines: Vec<String> = next.as_deref().map(next_line).into_iter().collect();
+            if entities.is_empty() {
+                lines.push("no entity on this page".to_owned());
             }
+            lines.extend(entities.into_iter().map(|entity| {
+                let mut line = if entity.name.is_empty() {
+                    entity.identity
+                } else {
+                    format!("{} ({})", entity.identity, entity.name)
+                };
+                if !entity.cut.is_empty() {
+                    line.push_str(&format!(" [cut: {}]", entity.cut.join(", ")));
+                }
+                line
+            }));
             text(lines.join("\n"))
         }
         Reply::Entity {
@@ -649,13 +809,20 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
         } else {
             format!("{} ({})", entity.identity, entity.name)
         }),
-        Reply::Logs { lines } => text(
-            lines
-                .into_iter()
-                .map(|line| format!("{}: {}", line.number, line.text))
-                .collect::<Vec<_>>()
-                .join("\n"),
-        ),
+        Reply::Logs { lines, partial } => {
+            let mut said: Vec<String> = Vec::new();
+            if partial && let Some(last) = lines.last() {
+                said.push(format!(
+                    "more lines follow: read them with `after: {}`",
+                    last.number
+                ));
+            }
+            said.extend(lines.into_iter().map(|line| {
+                let cut = if line.cut { " [cut]" } else { "" };
+                format!("{}: {}{cut}", line.number, line.text)
+            }));
+            text(said.join("\n"))
+        }
         Reply::Image { width, height } => match png(width, height, payload) {
             Ok(bytes) => CallToolResult::success(vec![
                 ContentBlock::text(format!("{width} × {height} pixels")),
@@ -723,49 +890,47 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
 fn describe_interface(reply: interface::Reply, payload: &[u8]) -> CallToolResult {
     match reply {
         interface::Reply::Done => text("done"),
-        interface::Reply::Elements { elements, more } => {
-            let mut lines: Vec<String> = elements
-                .into_iter()
-                .map(|element| {
-                    let mut line = format!("{} — {}", element.path, element.role);
-                    // The window draws the main target, 0; another one's element shows nowhere
-                    // in its image.
-                    if element.target != 0 {
-                        line.push_str(&format!(" on target {}", element.target));
-                    }
-                    if !element.name.is_empty() {
-                        line.push_str(&format!(" `{}`", element.name));
-                    }
-                    if let Some(value) = &element.value {
-                        line.push_str(&format!(", holding {value:?}"));
-                    }
-                    if let Some(description) = &element.description {
-                        line.push_str(&format!(", described {description:?}"));
-                    }
-                    if let Some(placeholder) = &element.placeholder {
-                        line.push_str(&format!(", showing {placeholder:?} while empty"));
-                    }
-                    if !element.states.is_empty() {
-                        line.push_str(&format!(", {}", element.states.join(", ")));
-                    }
-                    line.push_str(&match element.bounds {
-                        Some([x, y, width, height]) => {
-                            format!("; at ({x}, {y}), {width} × {height} pixels")
-                        }
-                        None => "; does not show".to_owned(),
-                    });
-                    if !element.actions.is_empty() {
-                        line.push_str(&format!("; takes {}", element.actions.join(", ")));
-                    }
-                    line
-                })
-                .collect();
-            if lines.is_empty() {
-                lines.push("no element".to_owned());
+        interface::Reply::Elements { elements, next } => {
+            let mut lines: Vec<String> = next.as_deref().map(next_line).into_iter().collect();
+            if elements.is_empty() {
+                lines.push("no element on this page".to_owned());
             }
-            if more > 0 {
-                lines.push(format!("and {more} more"));
-            }
+            lines.extend(elements.into_iter().map(|element| {
+                let mut line = format!("{} — {}", element.path, element.role);
+                // The window draws the main target, 0; another one's element shows nowhere
+                // in its image.
+                if element.target != 0 {
+                    line.push_str(&format!(" on target {}", element.target));
+                }
+                if !element.name.is_empty() {
+                    line.push_str(&format!(" `{}`", element.name));
+                }
+                if let Some(value) = &element.value {
+                    line.push_str(&format!(", holding {value:?}"));
+                }
+                if let Some(description) = &element.description {
+                    line.push_str(&format!(", described {description:?}"));
+                }
+                if let Some(placeholder) = &element.placeholder {
+                    line.push_str(&format!(", showing {placeholder:?} while empty"));
+                }
+                if !element.states.is_empty() {
+                    line.push_str(&format!(", {}", element.states.join(", ")));
+                }
+                line.push_str(&match element.bounds {
+                    Some([x, y, width, height]) => {
+                        format!("; at ({x}, {y}), {width} × {height} pixels")
+                    }
+                    None => "; does not show".to_owned(),
+                });
+                if !element.actions.is_empty() {
+                    line.push_str(&format!("; takes {}", element.actions.join(", ")));
+                }
+                if !element.cut.is_empty() {
+                    line.push_str(&format!(" [cut: {}]", element.cut.join(", ")));
+                }
+                line
+            }));
             text(lines.join("\n"))
         }
         interface::Reply::Image { width, height } => {
@@ -961,12 +1126,26 @@ impl Server {
         self.ask(Request::Speed { speed }).await
     }
 
-    #[tool(description = "Lists the world's entities by persistent identity and name.")]
+    #[tool(
+        description = "Lists the world's entities by persistent identity and name, a page at a \
+                       time: a page that more follow starts with `next`, which `cursor` takes for \
+                       the rest. Texts too long for a page are cut, and marked."
+    )]
     async fn list_entities(
         &self,
-        Parameters(ListEntities { filter }): Parameters<ListEntities>,
+        Parameters(ListEntities {
+            filter,
+            cursor,
+            limit,
+        }): Parameters<ListEntities>,
     ) -> Result<CallToolResult, McpError> {
-        self.ask(Request::Entities { filter }).await
+        self.list(Request::Entities {
+            filter,
+            cursor,
+            limit,
+            bytes: Some(PAGE_BYTES),
+        })
+        .await
     }
 
     #[tool(
@@ -1065,16 +1244,27 @@ impl Server {
                        selected, has_popup for what opens a menu or a list beside it), where it \
                        shows in the image \
                        that `capture` gives, and what it takes now (press, focus, scroll, \
-                       set_value). Boxes that only lay others out are left out."
+                       set_value). Boxes that only lay others out are left out. A page at a \
+                       time: a page that more follow starts with `next`, which `cursor` takes for \
+                       the rest. Texts too long for a page are cut, and marked; a cut path names \
+                       no element."
     )]
     async fn find_elements(
         &self,
-        Parameters(FindElements { role, name }): Parameters<FindElements>,
+        Parameters(FindElements {
+            role,
+            name,
+            cursor,
+            limit,
+        }): Parameters<FindElements>,
     ) -> Result<CallToolResult, McpError> {
-        self.ask(Request::Interface {
+        self.list(Request::Interface {
             request: interface::Request::Elements {
                 role: role.unwrap_or_default(),
                 name: name.unwrap_or_default(),
+                cursor,
+                limit,
+                bytes: Some(PAGE_BYTES),
             },
         })
         .await
@@ -1218,12 +1408,21 @@ impl Server {
         self.ask(Request::Report { name }).await
     }
 
-    #[tool(description = "The lines of the game's log after a given line, oldest first.")]
+    #[tool(
+        description = "The lines of the game's log after a given line, oldest first, a page at a \
+                       time: a page that more follow says so first. A line too long is cut, and \
+                       marked."
+    )]
     async fn read_logs(
         &self,
         Parameters(ReadLogs { after }): Parameters<ReadLogs>,
     ) -> Result<CallToolResult, McpError> {
-        self.ask(Request::Logs { after }).await
+        self.ask(Request::Logs {
+            after,
+            limit: None,
+            bytes: Some(PAGE_BYTES),
+        })
+        .await
     }
 
     #[tool(
@@ -1340,7 +1539,7 @@ impl Server {
             let edit = Request::Edit { edit: Edit::Played };
             let (address, token) = match running.client.request(&edit) {
                 Ok((Reply::Played { address, token }, _)) => (address, token),
-                Ok((Reply::Failed { message }, _)) => return Err(message),
+                Ok((Reply::Failed { message, .. }, _)) => return Err(message),
                 Ok(_) => return Err("the program gave no game that it plays".to_owned()),
                 Err(error) => return Err(causes(&error)),
             };
@@ -1461,4 +1660,106 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     served?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use slime_channel::EntitySummary;
+
+    fn entity(name: &str) -> EntitySummary {
+        EntitySummary {
+            identity: String::new(),
+            name: name.to_owned(),
+            cut: Vec::new(),
+        }
+    }
+
+    fn entities(names: &[&str], next: Option<&str>) -> Reply {
+        Reply::Entities {
+            entities: names.iter().map(|name| entity(name)).collect(),
+            next: next.map(str::to_owned),
+        }
+    }
+
+    /// The pages of a list gathered into one, with the last page's `next`; a fault in place of
+    /// what was gathered.
+    #[test]
+    fn pages_are_gathered_with_the_last_next() {
+        let mut gathered = None;
+        assert_eq!(
+            paged(&mut gathered, entities(&["a"], Some("1"))),
+            Some("1".to_owned())
+        );
+        assert_eq!(
+            paged(&mut gathered, entities(&[], Some("2"))),
+            Some("2".to_owned())
+        );
+        assert_eq!(paged(&mut gathered, entities(&["b", "c"], None)), None);
+        assert_eq!(gathered, Some(entities(&["a", "b", "c"], None)));
+        assert_eq!(page_size(gathered.as_ref().expect("gathered")).0, 3);
+        let stale = Reply::Failed {
+            code: Fault::STALE,
+            message: "again".to_owned(),
+        };
+        assert_eq!(paged(&mut gathered, stale.clone()), None);
+        assert_eq!(gathered, Some(stale));
+    }
+
+    /// A cursor that no longer holds says to list again from the start; another fault says its
+    /// own message.
+    #[test]
+    fn a_stale_cursor_says_to_list_again() {
+        let said = |result: CallToolResult| {
+            assert_eq!(result.is_error, Some(true));
+            format!("{:?}", result.content)
+        };
+        let stale = said(fault(Fault::STALE, "another world".to_owned()));
+        assert!(stale.contains("list it again from its start"), "{stale}");
+        let refused = said(fault(Fault::REFUSED, "no such entity".to_owned()));
+        assert!(refused.contains("no such entity") && !refused.contains("list it again"));
+    }
+
+    /// The rest of a list is asked from the last cursor, within what is left of its `limit`, and
+    /// not at all once the limit is reached.
+    #[test]
+    fn the_rest_is_asked_within_the_limit_left() {
+        let first = Request::Entities {
+            filter: "lamp".to_owned(),
+            cursor: None,
+            limit: Some(5),
+            bytes: Some(PAGE_BYTES),
+        };
+        assert_eq!(
+            resumed(&first, "c".to_owned(), 2, 100),
+            Some(Request::Entities {
+                filter: "lamp".to_owned(),
+                cursor: Some("c".to_owned()),
+                limit: Some(3),
+                bytes: Some(100),
+            })
+        );
+        assert_eq!(
+            resumed(&first, "c".to_owned(), 5, 100),
+            None,
+            "the limit reached"
+        );
+        let unlimited = Request::Interface {
+            request: interface::Request::Elements {
+                role: String::new(),
+                name: String::new(),
+                cursor: None,
+                limit: None,
+                bytes: None,
+            },
+        };
+        let Some(Request::Interface {
+            request: interface::Request::Elements { cursor, limit, .. },
+        }) = resumed(&unlimited, "e".to_owned(), 40, 100)
+        else {
+            panic!("the rest of the elements");
+        };
+        assert_eq!((cursor.as_deref(), limit), (Some("e"), None));
+        assert_eq!(resumed(&Request::State, "c".to_owned(), 0, 100), None);
+    }
 }

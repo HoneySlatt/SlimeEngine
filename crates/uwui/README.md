@@ -273,8 +273,16 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   agents, whose messages `uwui_agent::interface` holds
   (`docs/adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md`).
   It serves nothing by itself: a host gives it each request with the `Ui` that answers
-  (`agents::answer`), and asks which pixels of a target's image an element covers once that image
-  is drawn (`agents::shown`). It lists elements, each with its target; reads a pixel on the target
+  (`agents::answer`), with the most that a page holds and the time that it may take, and asks
+  which pixels of a target's image an element covers once that image is drawn (`agents::shown`).
+  It lists elements by pages, each with its target, their long texts cut
+  (`docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md`):
+  its cursor holds where the walk of the tree stands, each element from the root down by its id
+  with its next sibling's, the roots in the order of their numbers, and a page resumes after each
+  element where it stands now, at an element gone at its next sibling of then
+  (`docs/adr/0263-the-cursor-of-elements-anchored-on-its-next-sibling-what-a-list-may-skip-the-slots-read.md`);
+  a cursor of another interface (`Ui::number_in_process`) is stale. It
+  reads a pixel on the target
   that the request names, or on the active target; acts as a person's input would; and gives the
   places of the calls that wrote an element's own style, each with the fields, states and tokens
   that it wrote (`OwnStyle::places`). A build for shipping leaves the feature out.

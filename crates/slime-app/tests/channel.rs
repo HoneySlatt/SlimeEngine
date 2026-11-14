@@ -22,7 +22,7 @@ use slime_channel::{
 };
 use slime_color::LinearColor;
 use slime_platform::KeyCode;
-use slime_world::{Light, Transform, World};
+use slime_world::{Light, Name, Transform, World};
 
 /// The tests, as they name themselves to the game.
 fn tester() -> Named {
@@ -263,7 +263,7 @@ fn a_tool_with_the_token_drives_a_headless_run() {
     ];
     let reply = ask(&client, Request::Apply { commands });
     assert!(
-        matches!(&reply, Reply::Failed { message }
+        matches!(&reply, Reply::Failed { message, .. }
             if message.starts_with("command 1:") && message.contains("after it, 1, not applied")),
         "{reply:?}"
     );
@@ -281,16 +281,26 @@ fn a_tool_with_the_token_drives_a_headless_run() {
             .any(|component| component.value.contains("intensity = 20.0")),
         "{components:?}"
     );
-    let Reply::Entities { entities, more } = ask(
+    let Reply::Entities { entities, next } = ask(
         &client,
         Request::Entities {
             filter: "LANT".to_owned(),
+            cursor: None,
+            limit: None,
+            bytes: None,
         },
     ) else {
         panic!("entities");
     };
-    assert_eq!((entities.len(), more), (1, 0));
-    let Reply::Logs { lines } = ask(&client, Request::Logs { after: 0 }) else {
+    assert_eq!((entities.len(), next), (1, None));
+    let Reply::Logs { lines, .. } = ask(
+        &client,
+        Request::Logs {
+            after: 0,
+            limit: None,
+            bytes: None,
+        },
+    ) else {
         panic!("logs");
     };
     assert!(
@@ -333,7 +343,7 @@ fn a_tool_with_the_token_drives_a_headless_run() {
     assert_eq!(ask(&other, Request::Resume), Reply::Done);
     let (client, dropped) = stepping.join().expect("answered");
     assert!(
-        matches!(&dropped, Reply::Failed { message } if message.contains("dropped")),
+        matches!(&dropped, Reply::Failed { message, .. } if message.contains("dropped")),
         "{dropped:?}"
     );
 
@@ -588,7 +598,8 @@ impl Simulation for Crowd {
 }
 
 /// The frames of a run that agents keep at the channel's bounds: as many connections as it
-/// welcomes, each with as many requests in flight as it takes, each a list of a thousand entities.
+/// welcomes, each with as many requests in flight as it takes, each a page of at most a thousand
+/// entities.
 /// It prints the frames' median and longest by the wall's clock over six seconds, after two of
 /// warming; by hand, in a release build, at rest (`docs/measurements.md`, M6d.9a1b1):
 /// `cargo test --release -p slime-app --features development --test channel -- --ignored frames_with_agents --nocapture`.
@@ -620,6 +631,9 @@ fn frames_with_agents_at_the_bounds() {
             thread::spawn(move || {
                 let list = Request::Entities {
                     filter: String::new(),
+                    cursor: None,
+                    limit: None,
+                    bytes: None,
                 };
                 let mut flying = VecDeque::new();
                 while !stop.load(Ordering::Relaxed) {
@@ -796,6 +810,86 @@ fn a_run_on_demand_tells_its_subscribers_how_game_time_stands() {
     assert_eq!(ask(&client, Request::Stop), Reply::Done);
     let status = launched.child.wait().expect("the run ends");
     assert!(status.success(), "{status}");
+}
+
+/// 2,500 entities, `e0` to `e2499`, after one whose name is larger than the line that
+/// a tool reads.
+struct Huge;
+
+/// The size of the huge name: past the 16 MiB of a tool's line.
+const HUGE: usize = 20 << 20;
+
+impl Simulation for Huge {
+    fn start(
+        &mut self,
+        _ctx: &mut SimulationContext<'_>,
+        world: &mut World,
+    ) -> Result<(), AppError> {
+        let huge = world.spawn_keyed("huge")?;
+        world.insert(huge, Name("é".repeat(HUGE / 2)));
+        for index in 0..2500 {
+            let entity = world.spawn();
+            world.insert(entity, Name(format!("e{index}")));
+        }
+        Ok(())
+    }
+
+    fn update(&mut self, _ctx: &mut SimulationContext<'_>, _world: &mut World) {
+        // Headless frames run back to back: a little rest each keeps the test light.
+        thread::sleep(Duration::from_millis(1));
+    }
+}
+
+/// A list read by pages goes past an entity whose name is larger than the tool's line, cut and
+/// marked, and gives every entity once (`docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md`).
+#[test]
+fn a_list_goes_past_an_entity_larger_than_the_tool_s_line() {
+    if std::env::var_os(CHILD_ENV).is_some() {
+        run(&mut Huge, &mut (), &AppConfig::default()).expect("the run starts");
+        return;
+    }
+    let mut launched = launch(
+        &mut command("a_list_goes_past_an_entity_larger_than_the_tool_s_line"),
+        Duration::from_secs(60),
+    )
+    .expect("the run listens");
+    let client =
+        Client::connect(launched.address, &launched.token, &tester(), &tester()).expect("accepted");
+    let (mut listed, mut cursor, mut pages) = (Vec::new(), None, 0);
+    loop {
+        let reply = ask(
+            &client,
+            Request::Entities {
+                filter: String::new(),
+                cursor: cursor.take(),
+                limit: None,
+                bytes: None,
+            },
+        );
+        let Reply::Entities { entities, next } = reply else {
+            panic!("a page, not {reply:?}");
+        };
+        pages += 1;
+        listed.extend(entities);
+        match next {
+            Some(next) => cursor = Some(next),
+            None => break,
+        }
+        assert!(pages < 1000, "a list that ends");
+    }
+    assert_eq!(listed.len(), 2501);
+    assert_eq!(listed[0].identity, "huge");
+    assert_eq!(listed[0].cut, ["name"]);
+    assert!(!listed[0].name.is_empty() && listed[0].name.len() < HUGE);
+    let names: Vec<String> = listed[1..]
+        .iter()
+        .map(|entity| entity.name.clone())
+        .collect();
+    let expected: Vec<String> = (0..2500).map(|index| format!("e{index}")).collect();
+    assert_eq!(names, expected, "each once, in the order of the slots");
+    assert!(pages >= 3, "{pages} pages of at most a thousand");
+    assert_eq!(ask(&client, Request::Stop), Reply::Done);
+    assert!(launched.child.wait().expect("the run ends").success());
 }
 
 #[test]

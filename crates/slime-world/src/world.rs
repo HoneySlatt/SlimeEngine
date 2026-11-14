@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::hash::{BuildHasherDefault, Hasher};
 use std::mem;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use slime_assets::AssetId;
 use slime_reflect::{Reflect, Registry};
@@ -93,6 +94,8 @@ pub trait Component: Reflect + Clone {}
 /// `docs/adr/0083-transforms-and-the-hierarchy.md` what the hierarchy changed of it and what their
 /// transforms cost.
 pub struct World {
+    /// Its number among the worlds that the process made ([`World::number`]).
+    pub(crate) number: u64,
     pub(crate) entities: Entities,
     /// One storage per component type that an entity has held, at the index of its component ID.
     pub(crate) storages: Vec<Box<dyn AnyStorage>>,
@@ -425,11 +428,15 @@ impl Default for World {
     }
 }
 
+/// The number of the next world that the process makes.
+static NUMBERS: AtomicU64 = AtomicU64::new(1);
+
 impl World {
     /// An empty world, whose registry holds the engine's components: [`Transform`], [`Name`],
     /// [`Meshes`], [`Hidden`], [`Light`], [`Extras`], [`Unsaved`] and [`Driven`].
     pub fn new() -> Self {
         let mut world = Self {
+            number: NUMBERS.fetch_add(1, Ordering::Relaxed),
             entities: Entities::default(),
             storages: Vec::new(),
             component_ids: ComponentIds::default(),

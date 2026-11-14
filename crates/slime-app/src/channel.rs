@@ -7,10 +7,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, PoisonError};
 use std::time::{Duration, Instant};
 
+use slime_channel::page::{Listing, Page, Pager, cut};
 use slime_channel::{
-    ANNOUNCEMENT, ComponentText, Edit, EntitySummary, Event, GameState, GameTime, Incoming,
-    Listener, LogLine, MAX_ENTITIES, MAX_LOG_LINES, Reply, Request, TOKEN_ENV_VAR, Token,
-    ViewSummary, interface,
+    ANNOUNCEMENT, ComponentText, Edit, EntitySummary, Event, Fault, GameState, GameTime, Incoming,
+    Listener, Reply, Request, TOKEN_ENV_VAR, Token, ViewSummary, interface,
 };
 use slime_gfx::{Gpu, Image, RenderTarget};
 use slime_platform::KeyCode;
@@ -220,8 +220,9 @@ impl DevChannel {
                 presentation,
                 &views,
                 frames,
-                incoming.request(),
+                &incoming,
                 windowed,
+                REQUESTS_BUDGET,
             );
             incoming.answer(reply);
         }
@@ -230,7 +231,7 @@ impl DevChannel {
             REQUESTS_BUDGET,
             Instant::now,
             |channel| channel.listener.round(),
-            |channel, incoming| {
+            |channel, incoming, share| {
                 channel.take(
                     incoming,
                     host,
@@ -239,13 +240,15 @@ impl DevChannel {
                     &views,
                     frames,
                     windowed,
+                    share,
                 );
             },
         );
     }
 
     /// Takes `incoming`, a request that a tool made: answers it, or keeps it until what it waits
-    /// for comes, as [`DevChannel::answer`] says.
+    /// for comes, as [`DevChannel::answer`] says. A page of a list takes at most `share` of time,
+    /// past its floor of visits.
     #[expect(
         clippy::too_many_arguments,
         reason = "what a request reaches: the host, the game's two halves, and the frame's views"
@@ -259,6 +262,7 @@ impl DevChannel {
         views: &[ShownView],
         frames: u64,
         windowed: bool,
+        share: Duration,
     ) {
         // An edit waits while the simulation says so, and behind those that wait already.
         if changes_an_editor(incoming.request())
@@ -284,8 +288,9 @@ impl DevChannel {
             presentation,
             views,
             frames,
-            incoming.request(),
+            &incoming,
             windowed,
+            share,
         );
         if matches!(incoming.request(), Request::Step { .. }) && reply == Reply::Done {
             let ctx = host.context();
@@ -401,7 +406,8 @@ impl DevChannel {
         }
     }
 
-    /// The reply to `request`.
+    /// The reply to `incoming`'s request, a page of a list taking at most `share` of time past its
+    /// floor of visits.
     #[expect(
         clippy::too_many_arguments,
         reason = "what the requests reach: the host, the game's two halves, and the frame's views"
@@ -413,9 +419,11 @@ impl DevChannel {
         presentation: &mut dyn Presentation,
         views: &[ShownView],
         frames: u64,
-        request: &Request,
+        incoming: &Incoming,
         windowed: bool,
+        share: Duration,
     ) -> Reply {
+        let request = incoming.request();
         let ctx = host.context_mut();
         match request {
             Request::State => Reply::State {
@@ -456,7 +464,19 @@ impl DevChannel {
                 }
                 None => failed("the game runs without a window"),
             },
-            Request::Entities { filter } => entities(host.world(), filter),
+            Request::Entities {
+                filter,
+                cursor,
+                limit,
+                bytes,
+            } => entities(
+                host.world(),
+                filter,
+                cursor.as_deref(),
+                incoming.page().within(*limit, *bytes),
+                within(share),
+            )
+            .unwrap_or_else(fault),
             Request::Entity { entity } => entity_text(host.world(), entity).unwrap_or_else(failed),
             Request::SetProperty {
                 entity,
@@ -493,15 +513,19 @@ impl DevChannel {
                 debug_assert!(!windowed, "a windowed run's capture waits for its image");
                 failed("a run without a window shows no image")
             }
-            Request::Interface { request } => answer_interface(presentation, request),
+            Request::Interface { request } => {
+                answer_interface(presentation, request, incoming.page(), within(share))
+            }
             Request::Pick { .. } => unreachable!("`answer` asks the presentation to pick"),
-            Request::Logs { after } => Reply::Logs {
-                lines: log_lines::after(*after)
-                    .into_iter()
-                    .take(MAX_LOG_LINES)
-                    .map(|(number, text)| LogLine { number, text })
-                    .collect(),
-            },
+            Request::Logs {
+                after,
+                limit,
+                bytes,
+            } => {
+                let (lines, partial) =
+                    log_lines::page(*after, incoming.page().within(*limit, *bytes));
+                Reply::Logs { lines, partial }
+            }
             Request::Save { file } => simulation
                 .save(host.world(), std::path::Path::new(file))
                 .map_or_else(
@@ -569,36 +593,53 @@ impl DevChannel {
     }
 }
 
-/// Takes the requests that `round` gives, a round at a time, and hands each to `handle`, until a
-/// round comes empty or `budget` has passed since the first began, by the clock `now`: at least
-/// one round, whatever its cost.
+/// Takes the requests that `round` gives, a round at a time, and hands each to `handle` with its
+/// share of what is left of `budget`, parted among the round's requests, until a round comes empty
+/// or `budget` has passed since the first began, by the clock `now`: at least one round, whatever
+/// its cost.
 fn in_rounds<C, T>(
     context: &mut C,
     budget: Duration,
     mut now: impl FnMut() -> Instant,
     mut round: impl FnMut(&mut C) -> Vec<T>,
-    mut handle: impl FnMut(&mut C, T),
+    mut handle: impl FnMut(&mut C, T, Duration),
 ) {
     let started = now();
+    let mut left = budget;
     loop {
         let taken = round(context);
         if taken.is_empty() {
             return;
         }
+        let share = left / u32::try_from(taken.len()).unwrap_or(u32::MAX);
         for one in taken {
-            handle(context, one);
+            handle(context, one, share);
         }
-        if now().saturating_duration_since(started) >= budget {
+        let spent = now().saturating_duration_since(started);
+        if spent >= budget {
             return;
         }
+        left = budget - spent;
     }
 }
 
-/// The reply that says why a request failed.
+/// The reply that says why the game refused a request.
 fn failed(why: impl ToString) -> Reply {
+    Reply::refused(why.to_string())
+}
+
+/// The reply of `fault`, its code kept.
+fn fault(fault: Fault) -> Reply {
     Reply::Failed {
-        message: why.to_string(),
+        code: fault.code,
+        message: fault.message,
     }
+}
+
+/// Whether `share` of time has passed since now, as a page of a list asks.
+fn within(share: Duration) -> impl FnMut() -> bool {
+    let until = Instant::now() + share;
+    move || Instant::now() >= until
 }
 
 /// Why a request that names `view` fails when the frame drew `views`, none of which is named so.
@@ -697,14 +738,19 @@ fn is_capture(request: &Request) -> bool {
 /// What `presentation`'s interface answers to `request`, as uwui answers its family
 /// (`docs/adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md`),
 /// a refusal as a failure; a capture, which waits for the frame's image, is not one of them.
-fn answer_interface(presentation: &mut dyn Presentation, request: &interface::Request) -> Reply {
+fn answer_interface(
+    presentation: &mut dyn Presentation,
+    request: &interface::Request,
+    page: Page,
+    time_up: impl FnMut() -> bool,
+) -> Reply {
     let Some(ui) = presentation.ui() else {
         return failed(NO_INTERFACE);
     };
-    match uwui::agents::answer(ui, request) {
+    match uwui::agents::answer(ui, request, page, time_up) {
         Ok(Answer::Reply(reply)) => Reply::Interface { reply },
         Ok(Answer::Capture(_)) => unreachable!("a capture waits for the frame's image"),
-        Err(fault) => failed(fault.message),
+        Err(error) => fault(error),
     }
 }
 
@@ -803,6 +849,7 @@ fn picked(world: &World, entity: Option<Entity>) -> Reply {
             entity: EntitySummary {
                 identity: String::new(),
                 name: String::new(),
+                cut: Vec::new(),
             },
             found: false,
         },
@@ -820,24 +867,84 @@ fn summary(world: &World, entity: Entity) -> EntitySummary {
             .get::<Name>(entity)
             .map(|name| name.0.clone())
             .unwrap_or_default(),
+        cut: Vec::new(),
     }
 }
 
-/// The entities of `world` whose name or identity holds `filter`, whatever its case.
-fn entities(world: &World, filter: &str) -> Reply {
+/// A page of the entities of `world` whose name or identity holds `filter`, whatever its case,
+/// from `cursor`, none for the list's start, in the order of the world's slots: bounded by `page`
+/// and `time_up`, each slot read counted as a visit, its texts cut to fit
+/// (`docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md`).
+fn entities(
+    world: &World,
+    filter: &str,
+    cursor: Option<&str>,
+    page: Page,
+    time_up: impl FnMut() -> bool,
+) -> Result<Reply, Fault> {
     let filter = filter.to_lowercase();
-    let mut found = world
-        .entities()
-        .map(|entity| summary(world, entity))
-        .filter(|entity| {
-            entity.identity.to_lowercase().contains(&filter)
-                || entity.name.to_lowercase().contains(&filter)
-        });
-    let entities: Vec<EntitySummary> = found.by_ref().take(MAX_ENTITIES).collect();
-    Reply::Entities {
-        entities,
-        more: found.count() as u64,
+    let listing = Listing {
+        list: "entities",
+        filter: &filter,
+    };
+    let after = match cursor {
+        None => None,
+        Some(cursor) => match listing.place(cursor, page.program, world.number())?[..] {
+            [] => None,
+            [slot] => Some(u32::try_from(slot).map_err(|_| {
+                Fault::new(
+                    Fault::BAD_PARAMS,
+                    format!("`{cursor}` is not a cursor of this list"),
+                )
+            })?),
+            _ => {
+                return Err(Fault::new(
+                    Fault::BAD_PARAMS,
+                    format!("`{cursor}` is not a cursor of this list"),
+                ));
+            }
+        },
+    };
+    let mut pager = Pager::new(page, time_up);
+    let mut slots = world.entities_after(after);
+    let (mut entities, mut last) = (Vec::new(), after);
+    while pager.visit() {
+        let Some((slot, entity)) = slots.next() else {
+            return Ok(Reply::Entities {
+                entities,
+                next: None,
+            });
+        };
+        let Some(entity) = entity else {
+            last = Some(slot);
+            continue;
+        };
+        let mut found = summary(world, entity);
+        if !(found.identity.to_lowercase().contains(&filter)
+            || found.name.to_lowercase().contains(&filter))
+        {
+            last = Some(slot);
+            continue;
+        }
+        for (field, text) in [("identity", &mut found.identity), ("name", &mut found.name)] {
+            if cut(text, page.text_bytes()) {
+                found.cut.push(field.to_owned());
+            }
+        }
+        if !pager.take(&found) {
+            // Left for the next page.
+            break;
+        }
+        entities.push(found);
+        last = Some(slot);
     }
+    // The page ended before the slots did: the next starts after the last read, or from the
+    // first.
+    let place: Vec<u64> = last.map(u64::from).into_iter().collect();
+    Ok(Reply::Entities {
+        entities,
+        next: Some(listing.cursor(page.program, world.number(), &place)),
+    })
 }
 
 /// The entity of `world` whose persistent identity is `identity`, and that identity.
@@ -1183,7 +1290,8 @@ mod tests {
             Reply::Picked {
                 entity: EntitySummary {
                     identity: String::new(),
-                    name: String::new()
+                    name: String::new(),
+                    cut: Vec::new(),
                 },
                 found: false
             }
@@ -1262,12 +1370,20 @@ mod tests {
         let elements = interface::Request::Elements {
             role: "button".to_owned(),
             name: String::new(),
+            cursor: None,
+            limit: None,
+            bytes: None,
+        };
+        // A page as a tool of a long line asks it, whose time never passes.
+        let interfaced = |presentation: &mut dyn Presentation, request: &interface::Request| {
+            let page = Page::new(1, usize::MAX);
+            answer_interface(presentation, request, page, || false)
         };
         let Reply::Interface {
             reply: interface::Reply::Elements {
                 elements: found, ..
             },
-        } = answer_interface(&mut panel, &elements)
+        } = interfaced(&mut panel, &elements)
         else {
             panic!("no elements");
         };
@@ -1278,15 +1394,45 @@ mod tests {
             action: interface::Action::Press,
         };
         assert_eq!(
-            answer_interface(&mut panel, &press("main/open")),
+            interfaced(&mut panel, &press("main/open")),
             Reply::Interface {
                 reply: interface::Reply::Done
             }
         );
-        let Reply::Failed { message } = answer_interface(&mut panel, &press("main/nothing")) else {
+        let Reply::Failed { code, message } = interfaced(&mut panel, &press("main/nothing")) else {
             panic!("a press on nothing done");
         };
         assert!(message.contains("no element"), "{message}");
+        assert_eq!(code, Fault::REFUSED);
+        // A cursor of this process, given to another.
+        let first = interface::Request::Elements {
+            role: String::new(),
+            name: String::new(),
+            cursor: None,
+            limit: Some(1),
+            bytes: None,
+        };
+        let Reply::Interface {
+            reply: interface::Reply::Elements {
+                next: Some(next), ..
+            },
+        } = interfaced(&mut panel, &first)
+        else {
+            panic!("a first page of one");
+        };
+        let rest = interface::Request::Elements {
+            role: String::new(),
+            name: String::new(),
+            cursor: Some(next),
+            limit: Some(1),
+            bytes: None,
+        };
+        let elsewhere = Page::new(2, usize::MAX);
+        let Reply::Failed { code, .. } = answer_interface(&mut panel, &rest, elsewhere, || false)
+        else {
+            panic!("a cursor of another process read");
+        };
+        assert_eq!(code, Fault::STALE, "uwui's code kept");
         let shown = shown_element(Some(&panel.ui), "main/open").expect("shown");
         assert_eq!(
             (
@@ -1314,7 +1460,163 @@ mod tests {
         assert!(!is_capture(&Request::Interface {
             request: elements.clone()
         }));
-        assert_eq!(answer_interface(&mut (), &elements), failed(NO_INTERFACE));
+        assert_eq!(interfaced(&mut (), &elements), failed(NO_INTERFACE));
+    }
+
+    /// A page of `world`'s entities whose names or identities hold `filter`, from `cursor`,
+    /// within `page`, whose time passed when `late`: their names and the next cursor.
+    fn listed(
+        world: &World,
+        filter: &str,
+        cursor: Option<String>,
+        page: Page,
+        late: bool,
+    ) -> Result<(Vec<String>, Option<String>), Fault> {
+        let Reply::Entities { entities, next } =
+            entities(world, filter, cursor.as_deref(), page, || late)?
+        else {
+            panic!("not entities");
+        };
+        Ok((
+            entities.into_iter().map(|entity| entity.name).collect(),
+            next,
+        ))
+    }
+
+    /// Every page of `world`'s list, `between` changing the world after each: the names listed,
+    /// and how many pages gave none.
+    fn every_page(
+        world: &mut World,
+        filter: &str,
+        page: Page,
+        late: bool,
+        mut between: impl FnMut(&mut World, usize),
+    ) -> (Vec<String>, usize) {
+        let (mut names, mut empty, mut cursor) = (Vec::new(), 0, None);
+        for count in 0..100_000 {
+            let (found, next) = listed(world, filter, cursor, page, late).expect("a page");
+            empty += usize::from(found.is_empty());
+            names.extend(found);
+            let Some(next) = next else {
+                return (names, empty);
+            };
+            between(world, count);
+            cursor = Some(next);
+        }
+        panic!("a list that does not end");
+    }
+
+    /// A world of `count` entities named `e0` and on, and their handles.
+    fn named(count: usize) -> (World, Vec<Entity>) {
+        let mut world = World::new();
+        let entities = (0..count)
+            .map(|index| {
+                let entity = world.spawn();
+                world.insert(entity, Name(format!("e{index}")));
+                entity
+            })
+            .collect();
+        (world, entities)
+    }
+
+    /// Entities read by pages, while others are spawned and despawned between them: each entity
+    /// alive throughout is listed once, in the order of the slots.
+    #[test]
+    fn entities_alive_throughout_are_listed_once_by_pages() {
+        let (mut world, spawned) = named(300);
+        let page = Page::new(1, usize::MAX).within(Some(7), None);
+        let mut gone = Vec::new();
+        let (names, _) = every_page(&mut world, "", page, false, |world, count| {
+            // An entity before the cursor and one after it go; two come, in their slots.
+            for at in [count * 7 % 300, (count * 7 + 150) % 300] {
+                if world.despawn(spawned[at]) {
+                    gone.push(format!("e{at}"));
+                }
+            }
+            for _ in 0..2 {
+                let entity = world.spawn();
+                world.insert(entity, Name(format!("new{count}")));
+            }
+        });
+        let throughout: Vec<String> = (0..300)
+            .map(|index| format!("e{index}"))
+            .filter(|name| !gone.contains(name))
+            .collect();
+        let listed: Vec<&String> = names.iter().filter(|name| name.starts_with('e')).collect();
+        let once: std::collections::HashSet<&String> = listed.iter().copied().collect();
+        assert_eq!(once.len(), listed.len(), "none listed twice");
+        for name in &throughout {
+            assert!(listed.contains(&name), "{name} listed");
+        }
+    }
+
+    /// A rare match among many empty slots: pages cut short by their time find none and go on,
+    /// each past the slots that it read, until the match.
+    #[test]
+    fn a_rare_match_among_empty_slots_is_found_past_pages_of_none() {
+        let (mut world, spawned) = named(1000);
+        for &entity in &spawned[..999] {
+            world.despawn(entity);
+        }
+        let page = Page::new(1, usize::MAX);
+        let (names, empty) = every_page(&mut world, "e999", page, true, |_, _| {});
+        assert_eq!(names, ["e999"]);
+        assert!(empty > 10, "{empty} pages of none, each a few slots");
+        // The same among entities alive that the filter leaves out.
+        let (mut world, _) = named(1000);
+        let (names, empty) = every_page(&mut world, "e999", page, true, |_, _| {});
+        assert_eq!(names, ["e999"]);
+        assert!(empty > 10, "{empty} pages of none, each a few entities");
+    }
+
+    /// A page's time passes once its share has.
+    #[test]
+    fn a_page_s_time_passes_with_its_share() {
+        assert!(within(Duration::ZERO)());
+        let mut time_up = within(Duration::from_secs(3600));
+        assert!(!time_up());
+    }
+
+    /// A cursor of a world that another took the place of, or of another process, is stale; one
+    /// garbled or of another filter is a bad parameter; a name past a page is cut and marked.
+    #[test]
+    fn a_cursor_of_a_world_replaced_is_stale() {
+        let (world, _) = named(10);
+        let page = Page::new(1, usize::MAX).within(Some(3), None);
+        let (_, next) = listed(&world, "", None, page, false).expect("a page");
+        let next = next.expect("more");
+        let (replaced, _) = named(10);
+        let code = |world: &World, filter: &str, cursor: &str, page| {
+            listed(world, filter, Some(cursor.to_owned()), page, false)
+                .expect_err("refused")
+                .code
+        };
+        assert_eq!(code(&replaced, "", &next, page), Fault::STALE);
+        let elsewhere = Page::new(2, usize::MAX).within(Some(3), None);
+        assert_eq!(code(&world, "", &next, elsewhere), Fault::STALE);
+        assert_eq!(code(&world, "e", &next, page), Fault::BAD_PARAMS);
+        assert_eq!(
+            code(&world, "", &format!("{next}.1"), page),
+            Fault::BAD_PARAMS
+        );
+        assert!(listed(&world, "", Some(next), page, false).is_ok());
+
+        let mut world = World::new();
+        let huge = world.spawn();
+        world.insert(huge, Name("\u{1}".repeat(1 << 20)));
+        let after = world.spawn();
+        world.insert(after, Name("after".to_owned()));
+        let page = Page::new(1, 64 << 10);
+        let Ok(Reply::Entities {
+            entities: found, ..
+        }) = entities(&world, "", None, page, || false)
+        else {
+            panic!("entities");
+        };
+        assert_eq!(found.len(), 2, "past the huge name");
+        assert_eq!(found[0].cut, ["name"]);
+        assert!(found[0].name.len() <= page.text_bytes());
+        assert_eq!((found[1].name.as_str(), found[1].cut.len()), ("after", 0));
     }
 
     /// The requests of a frame's start: one round at least, whatever it costs, then rounds until
@@ -1329,6 +1631,7 @@ mod tests {
         let run = |step: Duration| {
             let mut queues = vec![vec![1, 2, 3]; 3];
             let mut handled = Vec::new();
+            let mut shares = Vec::new();
             let mut ticks = 0_u32;
             // Each reading of the clock, a step later.
             let clock = || {
@@ -1340,7 +1643,18 @@ mod tests {
                 Duration::from_millis(1),
                 clock,
                 take,
-                |_, request| handled.push(request),
+                |_, request, share| {
+                    handled.push(request);
+                    shares.push(share);
+                },
+            );
+            let third = Duration::from_millis(1) / 3;
+            // The first round's requests share the budget; a later round's, what is left of it.
+            assert_eq!(shares[..3], [third; 3]);
+            let left = Duration::from_millis(1).saturating_sub(step);
+            assert!(
+                shares[3..].iter().all(|&share| share == left / 3),
+                "{shares:?}"
             );
             (handled.len(), queues.iter().map(Vec::len).sum::<usize>())
         };

@@ -16,8 +16,9 @@ order, bounded and cancellable
 and events by subscription
 ([ADR-0254](../../docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md));
 M6d.9a1b3a: the interface's family
-([ADR-0259](../../docs/adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)).
-Long lists read by pages, attaching to a program already running,
+([ADR-0259](../../docs/adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md));
+M6d.9a1b3b1: long lists read by pages ([ADR-0260](../../docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
+Attaching to a program already running,
 consent, rights and previews come with M6d.9a's later parts
 ([`stage-6d.md`](../../docs/stage-6d.md#m6d9a--one-core-for-agents-and-its-mcp-server)).
 
@@ -62,8 +63,20 @@ consent, rights and previews come with M6d.9a's later parts
   the names, and its carrier keeps the subscriptions and starts them as it takes their answers
   ([`slime-channel`](../slime-channel/README.md)). An event larger than the tool reads is not
   written.
-- `interface` holds the messages of the interface's family, uwui's own, version 2: an interface's
-  elements listed, each with its target, the element at a pixel of a target, an action done as a
+- `page` reads a long list by pages. A request of a list gives `cursor`, none for its start,
+  and may ask `limit` items and `bytes` of JSON; its answer gives `next` while more may follow,
+  an opaque text that the tool gives back for the rest. `Page::new` is the most that a page holds
+  on a connection, within the tool's line, which the welcome gives the carrier
+  (`FromTool::Welcomed::reads`); `Page::within` narrows it to what a request asks. `Pager` counts
+  a page's visits, items and bytes, and stops it once full or, past a floor of visits, once the
+  time that its host gives it has passed: a page may be short, or empty, and still give `next`.
+  `Listing` writes and reads a cursor, bound to the process by a number that the carrier draws,
+  to the *maker* that made it, a world, an interface, by a number of its own, and to its list and
+  its filter: one of another process or maker faults `STALE`, one that does not read or of
+  another list or filter `BAD_PARAMS`. `cut` cuts a text to a number of bytes of JSON, so that no
+  item is larger than a page.
+- `interface` holds the messages of the interface's family, uwui's own, version 3: an interface's
+  elements listed by pages, each with its target, the element at a pixel of a target, an action done as a
   person's input would, an element's part of its target's image, and where the code that wrote an
   element's own style is. They are plain types, so that a tool speaks the family without building
   uwui. `uwui` answers them with its feature `agents`; a host carries them, as `slime-channel`

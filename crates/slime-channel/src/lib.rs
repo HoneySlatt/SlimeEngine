@@ -15,10 +15,17 @@ pub use message::{
     OperationSummary, Reply, Request, ViewSummary,
 };
 pub use token::Token;
+/// Why a request failed, with its code: what [`Reply::Failed`] carries.
+pub use uwui_agent::Fault;
 pub use uwui_agent::Named;
 /// The interface's family, whose requests and replies [`Request::Interface`] and
 /// [`Reply::Interface`] carry: uwui's own, which `uwui` answers with its feature `agents`.
 pub use uwui_agent::interface;
+/// How many bytes of JSON a value writes: what a page of a list counts of its items.
+pub use uwui_agent::json_size;
+/// A long list read by pages: what bounds a page, its cursor, texts cut to fit
+/// ([`Incoming::page`]).
+pub use uwui_agent::page;
 
 /// Locks `mutex`, through a panic of another thread that held it: what it guards stays whole, each
 /// change being made under the lock in one step.
@@ -45,7 +52,7 @@ pub(crate) fn waited<'a, T>(
 /// version of the core's session is `uwui_agent::CORE_VERSION`.
 pub const FAMILIES: [(&str, u32, &[&str]); 4] = [
     ("play", 1, &["time"]),
-    ("world", 1, &[]),
+    ("world", 2, &[]),
     ("editing", 1, &[]),
     (
         uwui_agent::interface::FAMILY,
@@ -81,12 +88,12 @@ pub const TOKEN_ENV_VAR: &str = "SLIME_DEV_TOKEN";
 /// listens: `slime-dev-channel 127.0.0.1:41234`.
 pub const ANNOUNCEMENT: &str = "slime-dev-channel ";
 
-/// The most entities that a [`Reply::Entities`] lists: it counts the others.
-pub const MAX_ENTITIES: usize = 1000;
-
-/// The most lines of its log that a game keeps, the oldest dropped first, and that a
-/// [`Reply::Logs`] holds.
+/// The most lines of its log that a game keeps, the oldest dropped first.
 pub const MAX_LOG_LINES: usize = 1000;
+
+/// The most bytes of a line of its log that a game keeps: a longer line is cut on a character's
+/// boundary, and marked ([`LogLine::cut`]).
+pub const MAX_LOG_LINE: usize = 16 << 10;
 
 /// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are
 /// compiled.

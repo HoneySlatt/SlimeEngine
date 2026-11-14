@@ -46,7 +46,8 @@ tells how game time stands to a connection that subscribed to it. Only programs 
   the token, and lists the families that the tool speaks: one of another version is refused alone,
   and the rest served. `Request` and `Reply` are the families' messages, written through `serde`;
   a reply carries bytes of its own after its line, an image's pixels; `Reply::Failed` crosses as an
-  error of the core's. Entities are named by persistent identities, values given and answered as
+  error of the core's, with its code both ways: `REFUSED` when the game refused, `STALE` for a
+  cursor that no longer holds, and the core's and the families' others. Entities are named by persistent identities, values given and answered as
   text in the engine's notation, which the game reads with its types: a tool needs none of them.
 - A connection may have several requests in flight
   ([ADR-0250](../../docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)).
@@ -59,6 +60,13 @@ tells how game time stands to a connection that subscribed to it. Only programs 
   reading stops being served. The bounds are kept by the listener until a second carrier
   ([ADR-0252](../../docs/adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md));
   `Listener::open`'s rustdoc gives their figures.
+- The world's entities, the interface's elements and the log are read by pages
+  ([ADR-0260](../../docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md), `page`, re-exported from `uwui-agent`). `Incoming::page` gives the most that
+  a page holds for a request, within the line that its tool reads, and bound to the process by a
+  number that the listener draws once from the system's randomness; a request narrows it with
+  `limit` and `bytes`. The entities resume after the last slot read, in a world of the same
+  number (`World::number`); the log after its last line given, its lines cut once kept past
+  `MAX_LOG_LINE`. The game, not this crate, makes the pages.
 - A connection subscribes to the events that the families declare (`FAMILIES`, `Event`), which
   the welcome lists
   ([ADR-0254](../../docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).

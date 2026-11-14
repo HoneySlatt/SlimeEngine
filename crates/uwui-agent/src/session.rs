@@ -208,6 +208,9 @@ pub enum FromTool {
         agent: Named,
         /// The program that carries it.
         client: Named,
+        /// How large an answer's line, and the bytes after it, the tool reads: what bounds a page
+        /// of a list ([`Page::new`](crate::page::Page::new)).
+        reads: Limits,
         /// The welcome, to send.
         reply: Vec<u8>,
     },
@@ -669,6 +672,7 @@ impl ProgramSession {
         Ok(FromTool::Welcomed {
             agent: hello.agent,
             client: hello.client,
+            reads: hello.limits,
             reply,
         })
     }
@@ -1004,6 +1008,7 @@ mod tests {
         let FromTool::Welcomed {
             agent,
             client,
+            reads,
             reply,
         } = program.receive(frame(&sent), the_secret).expect("read")
         else {
@@ -1012,6 +1017,11 @@ mod tests {
         assert_eq!(
             (agent.to_string(), client.to_string()),
             ("an agent 1.0".to_owned(), "a server".to_owned())
+        );
+        assert_eq!(
+            reads,
+            hello(families).limits,
+            "the tool's limits given to the carrier"
         );
         match tool.receive(frame(&reply)).expect("read") {
             FromProgram::Welcomed(welcome) => welcome,

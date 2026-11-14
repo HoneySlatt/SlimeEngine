@@ -4021,3 +4021,44 @@ Every job stays within its limit of 20 minutes. `windows (tests)` and `check (he
 crate's test binary and its doc test, the tests that left `slime-app`'s, which gained two; both
 took less than at M6d.5d1, within the runners' own spread. A frame standing still does nothing
 new, and the counters of `benches/counters.txt` are unchanged.
+
+## M6d.9a1b3b1, lists
+
+On 2026-11-14, on an AMD Ryzen 7 5800X at rest before each pass (load under 1, no `cargo` nor
+`rustc` running), in release builds. Before is `85303f8`, built in a worktree of its own with its
+own target directory; after is this milestone's. Passes alternated.
+
+- A page of a thousand buttons of a tree of ten thousand elements, `uwui::agents::answer` to
+  `interface/elements` with the role `button`, the median of 21, as `uwui`'s test
+  `a_page_of_a_thousand_elements` measures it
+  (`cargo test --release -p uwui --features agents --lib a_page_of -- --ignored --nocapture`); before,
+  the same test written against the list of then, which walked the whole tree, formatted every
+  element's path and counted the rest. Five passes each.
+
+| Measure | Before | After |
+|---|---|---|
+| a page of a thousand elements, median of 21 | 1.64 to 1.72 ms | 380 to 394 µs |
+
+  A page now walks the elements that it gives and those before them, and formats the paths of
+  those that it gives alone.
+
+- A headless run's frames over six seconds after two of warming, while seven connections each keep
+  sixteen lists of the world's entities in flight, a page of at most a thousand each, of a world of
+  five thousand, and an eighth asks how the frames went, as M6d.9a1b1 measured them
+  (`cargo test --release -p slime-app --features development --test channel -- --ignored
+  frames_with_agents --nocapture`). Each frame rests 1 ms. Three passes each.
+
+| A frame, with seven agents listing | Before | After |
+|---|---|---|
+| frames in six seconds | 1,445 to 1,473 | 3,599 to 3,604 |
+| median | 4.03 to 4.09 ms | 1.66 to 1.67 ms |
+| longest | 5.34 to 5.94 ms | 1.75 to 1.78 ms |
+
+  Each page now takes its share of the frame's start, 0.5 ms parted among the round's pages, past
+  a floor of 64 visits, where a list of before walked the whole world: the frame holds its budget,
+  the 1 ms of rest and some 0.16 ms more.
+
+Both series ran before the closing review's fixes: a later round's pages then each took a share of
+the whole budget again, where they now share what is left of it, and a page resumed by indices
+where it now resumes by its elements' places. Neither fix adds work to a page from the list's
+start, which the series measure; the frames were not measured again.

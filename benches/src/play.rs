@@ -230,7 +230,7 @@ fn operation(client: &mut Client, name: &str) -> Result<(), String> {
     };
     match client.request(&request) {
         Ok((Reply::Done, _)) => Ok(()),
-        Ok((Reply::Failed { message }, _)) => Err(format!("{name}: {message}")),
+        Ok((Reply::Failed { message, .. }, _)) => Err(format!("{name}: {message}")),
         Ok((reply, _)) => Err(format!("{name}: {reply:?}")),
         Err(error) => Err(format!("{name}: {error}")),
     }
@@ -258,7 +258,12 @@ fn until<T>(
 ) -> Result<T, String> {
     let started = Instant::now();
     loop {
-        let Ok((Reply::Logs { lines }, _)) = client.request(&Request::Logs { after: *read }) else {
+        let logs = Request::Logs {
+            after: *read,
+            limit: None,
+            bytes: None,
+        };
+        let Ok((Reply::Logs { lines, .. }, _)) = client.request(&logs) else {
             return Err("the editor did not give its log".to_owned());
         };
         for line in lines {

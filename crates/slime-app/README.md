@@ -34,7 +34,10 @@ missing is listed in `docs/debt.md`, the known debt.
   draw into, which it then shows.
 - With its `development` feature, which a game turns on by default and a build for shipping leaves
   out, answers the tools that drive a run started with a token, through the development channel
-  (`slime-channel`, `docs/adr/0122-the-development-channel.md`).
+  (`slime-channel`, `docs/adr/0122-the-development-channel.md`). It makes the pages of the world's
+  entities and of its log, and has uwui make those of the interface's elements, each page within
+  its share of the frame's start
+  (`docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md`).
 - With its `accessibility` feature, which the examples turn on, and the editor once it has a window,
   and games leave out until Stage 7, gives screen readers what the presentation's interface means,
   through AccessKit's adapter of the window (`docs/adr/0146-screen-readers.md`).

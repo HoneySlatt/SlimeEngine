@@ -83,6 +83,12 @@ The tools, each described to the agent by the server itself, with its parameters
 - `minimize_game`: minimizes the game's window, as the user would; only the user shows it again. A
   game hidden runs no frame of its own, and the frame that answers a request comes after a short
   wait (`docs/adr/0187-a-hidden-window-at-rest.md`).
+- `list_entities`, `find_elements` and `read_logs` give a page at a time ([ADR-0260](../../docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)),
+  small enough for an agent's client to take whole (`PAGE_BYTES`). The first two gather the game's
+  pages, which its frames cut short, until they hold that much or the list ends; a page that more
+  follow starts with `next`, which `cursor` takes, with the same filter, for the rest, and `limit`
+  asks fewer items. A text too long for a page is cut, and marked. A cursor of a world or an
+  interface that another took the place of fails, saying to list again from the start.
 - `list_entities`, `inspect_entity` and `set_property`: the world, its entities, which
   `list_entities` lists by a `filter` on their names and identities, empty for all, named by their
   persistent identities, `hero`, `zone/door`, its values written in the engine's notation, as a
@@ -122,7 +128,8 @@ The tools, each described to the agent by the server itself, with its parameters
   keys do; `capture_element` gives the part of the image where one shows; `element_style` says
   where the code that wrote an element's own style is, each call's file, line and column, with the
   fields that it set, each with its state and the theme's token that gives its value, if any.
-- `read_logs`: the lines of the game's log after a given line.
+- `read_logs`: the lines of the game's log after a given line; a page that more follow says
+  which line to read after.
 - `save_game` and `load_game`: the game's run saved to a file, and loaded from one in place of the
   run, as the game saves and resumes its own runs; a file of the agent's, never the player's save
   (`docs/adr/0125-saves-per-scene.md`).
