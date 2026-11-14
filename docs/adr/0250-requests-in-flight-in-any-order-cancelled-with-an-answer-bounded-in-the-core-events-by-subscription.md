@@ -12,8 +12,9 @@
   (`play/time` holds `held`; events declared in the welcome),
   [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) (M6d.9a1b3 follows M6d.5c3a),
   [0259](0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)
-  (M6d.9a1b3 cut in two; why the families' versions rise) and
-  [0260](0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md) (the cursor: what it is bound to, its fault, each list's place, a page's bounds)
+  (M6d.9a1b3 cut in two; why the families' versions rise),
+  [0260](0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md) (the cursor: what it is bound to, its fault, each list's place, a page's bounds) and
+  [0265](0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md) (the journal's place: a byte, not an entry)
 - Date: 2026-11-13
 
 ## Context

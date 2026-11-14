@@ -142,7 +142,7 @@ in git.
   done, [M6d.9a1b3a](#m6d9a1b3a--the-interfaces-family-in-uwui), on the same day; then
   [M6d.9a1b3b](#m6d9a1b3b--long-lists), cut in two on 2026-11-14
   ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)): done,
-  [M6d.9a1b3b1](#m6d9a1b3b1--lists), on the same day; then
+  [M6d.9a1b3b1](#m6d9a1b3b1--lists), on the same day; in progress,
   [M6d.9a1b3b2](#m6d9a1b3b2--the-editors-journal); then
   [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
@@ -2545,21 +2545,7 @@ under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
 
 ### M6d.9a1b3b2 — The editor's journal
 
-The second half of M6d.9a1b3b
-([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)),
-under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** The editor's journal read by pages, whatever its size.
-- **Crates.** `slime-channel`, `slime-app`, `slime-editor`, `slime-mcp`.
-- **Delivers.** `editing/journal` paged by M6d.9a1b3b1's cursor: the journal's generation kept
-  by the editor's session, which outlives a level opened; pages read by seek, never the whole
-  file, bounded in bytes of JSON, cut at a line's end where one is, else at a character's
-  boundary; bytes that are not UTF-8 read lossily and marked; `editing` 2; `editor_journal`
-  paged.
-- **Done when.** A journal past the tool's largest line, whose level's entry is larger than a page,
-  is read whole by pages, byte for byte; a level opened between pages makes the cursor stale; CI is
-  green.
-- **Measured.** A page of the journal read on the editor's thread.
+In progress, its card in [`PLAN.md`](PLAN.md#m6d9a1b3b2--the-editors-journal).
 
 ### M6d.9a2 — uwui's MCP library and families
 

@@ -5,7 +5,8 @@
   (the cursor: what it is bound to, its fault, each list's place, a page's bounds) and
   [0143](0143-what-agents-see-of-the-interface.md) (a list of elements by pages, its texts cut);
   amended by [0263](0263-the-cursor-of-elements-anchored-on-its-next-sibling-what-a-list-may-skip-the-slots-read.md) (what the cursor of elements holds and what a list of elements may skip;
-  what `World::entities_after` gives)
+  what `World::entities_after` gives) and [0265](0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md) (the journal's number, its bounds and its
+  floor)
 - Date: 2026-11-14
 
 ## Context

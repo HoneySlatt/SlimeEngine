@@ -10,10 +10,8 @@ step of a stage.
 - Direction beyond this stage: [`ROADMAP.md`](ROADMAP.md).
 - Decisions: [`adr/`](adr/README.md).
 
-Every milestone ends with the definition of done in [`AGENTS.md`](../AGENTS.md#definition-of-done):
-build, tests, clippy, rustfmt and rustdoc pass, the program was actually run, and the affected
-documentation was updated and reread. Every milestone is also checked on Windows
-([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-windows.md)).
+Every milestone ends with the definition of done in [`AGENTS.md`](../AGENTS.md#definition-of-done),
+and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-windows.md)).
 
 ## Current
 
@@ -24,8 +22,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - Two tracks at most, the owner's choice of 2026-11-11, each milestone in its own session:
   - Track A, uwui's core, in the main checkout: M6d.9a, cut in five
     ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
-    done, M6d.9a1a to [M6d.9a1b3b1](stage-6d.md#m6d9a1b3b1--lists); next,
-    [M6d.9a1b3b2](stage-6d.md#m6d9a1b3b2--the-editors-journal), the editor's journal by pages.
+    done, M6d.9a1a to [M6d.9a1b3b1](stage-6d.md#m6d9a1b3b1--lists); in progress,
+    [M6d.9a1b3b2](#m6d9a1b3b2--the-editors-journal).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5a to M6d.5d2, done, M6d.5c and M6d.5d whole;
     in progress, [M6d.5e1](#m6d5e1--the-lifecycle); next, M6d.5e2, once track A is between
     milestones.
@@ -52,7 +50,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b2 — The new wire, requests in flight, events](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a1b3a to M6d.9a1b3b1 — The interface's family in uwui, lists](stage-6d.md#m6d9a1b3a--the-interfaces-family-in-uwui) | Done |
-| [M6d.9a1b3b2 to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a1b3b2--the-editors-journal) | Planned |
+| [M6d.9a1b3b2 — The editor's journal](#m6d9a1b3b2--the-editors-journal) | In progress |
+| [M6d.9a2 to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
@@ -73,6 +72,17 @@ Started on 2026-11-14 ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-siz
   made again and the run goes on; the editor's and the game's sessions, rest and input to present
   are unchanged; CI is green.
 - **Measured.** Rest; input to present.
+
+## M6d.9a1b3b2 — The editor's journal
+
+Started on 2026-11-14 ([ADR-0265](adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md)).
+
+- **Goal.** The editor's journal read by pages, whatever its size.
+- **Crates.** `uwui-agent`, `slime-channel`, `slime-app`, `slime-editor`, `slime-mcp`.
+- **Delivers.** ADR-0265's pages of the journal; `editing` 2; `editor_journal` paged.
+- **Done when.** A journal past the tool's line, its level's entry past a page, read whole by
+  pages, byte for byte; a level opened between pages makes its cursor stale; CI is green.
+- **Measured.** A page of the journal read on the editor's thread.
 
 ## Ideas waiting for their milestone
 
