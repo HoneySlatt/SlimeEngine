@@ -170,8 +170,8 @@ in git.
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui), cut in two on 2026-11-14 ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)): done,
   [M6d.5d1](#m6d5d1--each-reader-its-changes-each-target-its-tree) and
   [M6d.5d2](#m6d5d2--the-translation-in-uwui-accesskit), on 2026-11-14, M6d.5d whole; then
-  [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone), cut in two on 2026-11-14 ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)): in
-  progress, [M6d.5e1](#m6d5e1--the-lifecycle); then
+  [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone), cut in two on 2026-11-14 ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)): done,
+  [M6d.5e1](#m6d5e1--the-lifecycle), on 2026-11-14; next,
   [M6d.5e2](#m6d5e2--each-targets-size-and-scale-from-its-host).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
@@ -2153,7 +2153,37 @@ The last part of M6d.5 ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-wher
 
 ### M6d.5e1 — The lifecycle
 
-In progress, its card in [`PLAN.md`](PLAN.md#m6d5e1--the-lifecycle).
+The first half of M6d.5e ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The window's lifecycle reaches uwui, or rests the engine, where winit gives it.
+- **Crates.** `uwui`, `slime-platform`, `slime-gfx`, `slime-app`; *Hunna Wood*.
+- **Delivers.** `Input::Focus`, the focus's loss reported before the platform's releases; a lost
+  surface made again rather than ending the run, within a budget of time; a covered window at
+  rest; `Ui::set_preferences` documented as the host's door; ADR-0249's column of the engine
+  corrected.
+- **Done when.** Alt let go after the focus left opens no bar of menus; a surface lost on purpose is
+  made again and the run goes on; the editor's and the game's sessions, rest and input to present
+  are unchanged; CI is green.
+- **Measured.** Rest; input to present.
+- **Result.** Done on 2026-11-14, CI green ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)):
+  - `uwui::host::Input::Focus` makes its target active when given; taken, it ends Alt pressed
+    alone and a drag in progress. `slime-platform` reports the loss before the keys and buttons
+    that it releases; winit reports the modifiers released before it on every platform. Leaving
+    the editor with Alt and Tab no longer gives its bar of menus the focus.
+  - A surface that `slime-gfx` gives up no longer ends the run: the window holds its frames, and
+    the run makes it again after a second, or at once at an event that may change it, until an
+    attempt fails; the fourth given up within five minutes stops it, by the device's budget.
+    `Surface::lose`, `Context::lose_surface` and a button of *Hunna Wood*'s overlay give it up on
+    purpose; three scenarios of the lifecycle test check the path.
+  - A window covered whole holds its frames on X11 without a compositing manager and on macOS;
+    uwui is told nothing. Suspend, resume and low memory, which winit gives nowhere the engine
+    runs, wait for their readers.
+  - Input to present unchanged on the RX 6900 XT
+    ([`measurements.md`](measurements.md#m6d5e1-the-lifecycle)); rest checked by CI's tests.
+  - The closing review found the frame that ends a hold taking the whole hold, eight fixed steps
+    at once, fixed under a test that failed first; events that could spend the surface's budget
+    in a burst; and documents that described the old holds.
 
 ### M6d.5e2 — Each target's size and scale from its host
 

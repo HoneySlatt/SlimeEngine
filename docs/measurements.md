@@ -4088,3 +4088,52 @@ of margin: it took 12 min 3 s at M6d.9a1b3a, then 12 min 40 s, 15 min 9 s and 14
 track B's three parts since, and this part adds no test of its own to it. `windows-release` keeps
 3 min 51 s. The part adds some 20 tests to `uwui-agent`, `uwui`, `slime-world`,
 `slime-channel`, `slime-app` and `slime-mcp`, one of them a run of `slime-app`'s channel.
+
+## M6d.5e1, the lifecycle
+
+Input to present on the GPU, the owner's go, on 2026-11-14, by `scripts/input-to-present.sh --gpu`
+on the RX 6900 XT through RADV, its clock on `high`, in a headless sway at 240 Hz: the code before,
+`2f83a43`, built apart, and after, the code of `cf476e0`, run in turn, twice each, the machine's load between
+1.3 and 1.7, near rest, no other build running. The intervals from an input to the end of the
+present of the image after it, each pair the two series:
+
+| Program | Inputs | Median before | Median after | 99th percentile before | 99th percentile after |
+|---|---|---|---|---|---|
+| The editor, on the yard | apart | 0.68 ms, 0.70 ms | 0.72 ms, 0.66 ms | 13.37 ms, 12.79 ms | 12.45 ms, 13.29 ms |
+| The editor, on the yard | in a row | 13.04 ms, 12.84 ms | 12.53 ms, 12.75 ms | 16.56 ms, 16.51 ms | 16.61 ms, 16.52 ms |
+| *Hunna Wood* | apart | 10.66 ms, 8.80 ms | 6.67 ms, 8.84 ms | 16.49 ms, 16.33 ms | 16.61 ms, 16.41 ms |
+| *Hunna Wood* | in a row | 12.76 ms, 12.96 ms | 12.87 ms, 12.77 ms | 17.76 ms, 16.64 ms | 20.34 ms, 16.57 ms |
+
+What it says: the engine's input reaches its image as before, within the series' noise; the
+focus's event and the new holds change nothing on a window that shows. Rest is checked by CI's and
+`scripts/check.sh`'s tests of a program at rest
+([ADR-0185](adr/0185-rest-checked-in-ci.md)), which pass; the benchmarks' counters are unchanged, a
+frame standing still allocating as before. The windowed lifecycle test gains three scenarios of a
+surface given up, some 4.5 s of its 13 s on lavapipe.
+
+How long CI's jobs took on `cf476e0`, the commits of the lifecycle, on 2026-11-14:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 42 s |
+| `check (headless)` | 17 min 42 s |
+| `check (windowed)` | 9 min 2 s |
+| `check (game)` | 12 min 48 s |
+| `check (gles)` | 3 min 32 s |
+| `windows (tests)` | 12 min 25 s |
+| `windows (render)` | 7 min 5 s |
+| `windows (game)` | 7 min 18 s |
+| `windows-release` | 16 min 14 s |
+| `compositors (weston)` | 14 min 4 s |
+| `compositors (sway)` | 15 min 11 s |
+| `compositors (kwin)` | 13 min 59 s |
+| `compositors (mutter)` | 10 min 17 s |
+| `compositors (x11)` | 12 min 12 s |
+| Docs' `links` | 20 s |
+
+Every job stays within its limit of 20 minutes. `check (headless)` is the longest, with 2 min 18 s
+of margin: it took 12 min 51 s at M6d.9a1b3b1 and 17 min 15 s at M6d.5c3b, and this part adds it
+eight tests of uwui and slime-app, which take well under a second, and `check (windowed)` three
+scenarios of the lifecycle test; the runners'
+times vary by minutes from one run to the next. `compositors (x11)`, 17 min 30 s at M6d.9a1b3b1,
+took 12 min 12 s.

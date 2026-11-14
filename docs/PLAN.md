@@ -24,8 +24,9 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
     done, M6d.9a1a to [M6d.9a1b3b1](stage-6d.md#m6d9a1b3b1--lists); in progress,
     [M6d.9a1b3b2](#m6d9a1b3b2--the-editors-journal).
-  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5a to M6d.5d2, done, M6d.5c and M6d.5d whole;
-    in progress, [M6d.5e1](#m6d5e1--the-lifecycle); next, M6d.5e2.
+  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5a to M6d.5e1, done, M6d.5c and M6d.5d whole;
+    next, [M6d.5e2](stage-6d.md#m6d5e2--each-targets-size-and-scale-from-its-host), once track
+    A is between milestones.
   - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249.
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
@@ -41,8 +42,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 |---|---|
 | [M6d.0a to M6d.3c3, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.4a to M6d.4b2 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
-| [M6d.5a to M6d.5d2 — The host's API, its first parts](stage-6d.md#m6d5--the-hosts-api) | Done |
-| [M6d.5e1 — The lifecycle](#m6d5e1--the-lifecycle) | In progress |
+| [M6d.5a to M6d.5e1 — The host's API, its first parts](stage-6d.md#m6d5--the-hosts-api) | Done |
 | [M6d.5e2 — Each target's size and scale from its host](stage-6d.md#m6d5e2--each-targets-size-and-scale-from-its-host) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
@@ -55,18 +55,6 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.5e1 — The lifecycle
-
-Started on 2026-11-14 ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
-
-- **Goal.** The window's lifecycle reaches uwui, or rests the engine, where winit gives it.
-- **Crates.** `uwui`, `slime-platform`, `slime-gfx`, `slime-app`.
-- **Delivers.** `Input::Focus`, before the platform's releases; a lost surface made again within
-  a budget; a covered window at rest; the preferences' door; ADR-0249's engine column corrected.
-- **Done when.** Alt let go after the focus left opens no bar; a surface lost on purpose is made
-  again; sessions, rest and input to present unchanged; CI green.
-- **Measured.** Rest; input to present.
 
 ## M6d.9a1b3b2 — The editor's journal
 
