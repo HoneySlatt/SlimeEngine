@@ -25,8 +25,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     done, M6d.9a1a to [M6d.9a1b3b1](stage-6d.md#m6d9a1b3b1--lists); in progress,
     [M6d.9a1b3b2](#m6d9a1b3b2--the-editors-journal).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5a to M6d.5e1, done, M6d.5c and M6d.5d whole;
-    next, [M6d.5e2](stage-6d.md#m6d5e2--each-targets-size-and-scale-from-its-host), once track
-    A is between milestones.
+    in progress, [M6d.5e2](#m6d5e2--each-targets-size-and-scale-from-its-host), its code once
+    track A is between milestones.
   - M6d.5's parts run beside track A in ADR-0248's order, the seams fixed by ADR-0249.
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
@@ -43,7 +43,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.0a to M6d.3c3, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.4a to M6d.4b2 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
 | [M6d.5a to M6d.5e1 — The host's API, its first parts](stage-6d.md#m6d5--the-hosts-api) | Done |
-| [M6d.5e2 — Each target's size and scale from its host](stage-6d.md#m6d5e2--each-targets-size-and-scale-from-its-host) | Planned |
+| [M6d.5e2 — Each target's size and scale from its host](#m6d5e2--each-targets-size-and-scale-from-its-host) | In progress |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
@@ -66,6 +66,18 @@ Started on 2026-11-14 ([ADR-0265](adr/0265-the-editors-journal-read-by-pages-its
 - **Done when.** A journal past the tool's line, its level's entry past a page, read whole by
   pages, byte for byte; a level opened between pages makes its cursor stale; CI is green.
 - **Measured.** A page of the journal read on the editor's thread.
+
+## M6d.5e2 — Each target's size and scale from its host
+
+Started on 2026-11-14 ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
+
+- **Goal.** Each root takes its size and scale from its target, which its host gives.
+- **Crates.** `uwui`, `slime-app` and their callers.
+- **Delivers.** `RootSettings` without size or scale; a layer's place apart; stacked roots' rule;
+  zero and oversize defined; two engine cells fixed.
+- **Done when.** No presentation reads the window for its interface; sessions unchanged; a
+  still frame allocates as before; CI is green; M6d.5 is whole.
+- **Measured.** The editor's start; a still frame's counters.
 
 ## Ideas waiting for their milestone
 
