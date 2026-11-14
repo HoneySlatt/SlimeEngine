@@ -168,8 +168,8 @@ in git.
   [M6d.5c3a](#m6d5c3a--input-and-outputs-per-target) and
   [M6d.5c3b](#m6d5c3b--frames-and-times-per-target), on 2026-11-14, M6d.5c whole; then
   [M6d.5d](#m6d5d--accesskits-translation-in-uwui), cut in two on 2026-11-14 ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)): done,
-  [M6d.5d1](#m6d5d1--each-reader-its-changes-each-target-its-tree), on 2026-11-14; in progress,
-  [M6d.5d2](#m6d5d2--the-translation-in-uwui-accesskit); then
+  [M6d.5d1](#m6d5d1--each-reader-its-changes-each-target-its-tree) and
+  [M6d.5d2](#m6d5d2--the-translation-in-uwui-accesskit), on 2026-11-14, M6d.5d whole; then
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
@@ -2108,7 +2108,34 @@ The first half of M6d.5d ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes
 
 ### M6d.5d2 — The translation in uwui-accesskit
 
-In progress, its card in [`PLAN.md`](PLAN.md#m6d5d2--the-translation-in-uwui-accesskit).
+The second half of M6d.5d ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Any host of uwui gives screen readers its tree through `uwui-accesskit`.
+- **Crates.** `uwui-accesskit`, new; `slime-app`.
+- **Delivers.** `slime-app`'s translation and its tests moved into the crate, over uwui's public
+  meaning, its readers and its targets; `accesskit` re-exported there and dropped from
+  `slime-app`, `accesskit_consumer` its tests'; the window's node and the adapter left to the host.
+- **Done when.** The translation's tests pass in the crate; `scripts/screen-reader-check.sh`
+  passes; `slime-app` holds no translation; the shipping game holds no `uwui-accesskit`; the
+  crate depends on no engine crate; CI is green.
+- **Measured.** The crate's compiling time; CI's jobs that gain its tests.
+- **Result.** Done on 2026-11-14, CI green ([ADR-0262](adr/0262-uwui-accesskits-api-one-tree-per-window-the-hosts-node-made-when-needed.md)):
+  - `ScreenReaderTree::new(target)` gives one window's tree; its methods follow an AccessKit
+    adapter's three events, and `update` calls the host's closure for the window's node only when
+    the update holds it. The crate re-exports `accesskit`; screen readers read the toolkit as
+    `uwui`.
+  - `slime-app` keeps the window's side alone, its node, title and size, and depends on the crate
+    in place of `accesskit`; `scripts/screen-reader-check.sh` passes.
+  - The crate names no engine crate, its tests none but `slime-color`, the owner's choice, which
+    amends ADR-0261; neither the game by default nor for shipping holds it. `scripts/check.sh`
+    checks both, and that every crate under MIT OR Apache-2.0 holds its licences' texts.
+  - The crate compiles in about 0.3 s, its tests in about 1 s; `windows (tests)` and `check
+    (headless)` run them, within their limits
+    ([`measurements.md`](measurements.md#m6d5d2-the-translation-in-uwui-accesskit)).
+  - The closing review found the crate's licence files missing, a log filter and the ADR's context
+    wrong, and the window's size lost when no update gave it, the last fixed under a test that
+    failed first, with the window's node made at every update without an interface.
 
 ### M6d.5e — slime-app a host through the API alone
 

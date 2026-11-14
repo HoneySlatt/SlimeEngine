@@ -3979,3 +3979,45 @@ How long CI's jobs took on `18b64cd`, the commit that gave each reader its chang
 Every job stays within its limit of 20 minutes. `windows (tests)` is the longest, with 4 min 23 s of
 margin; `check (headless)` keeps 5 min 15 s. The part adds five tests of uwui and three of
 `slime-app`'s, in files that existed.
+
+## M6d.5d2, the translation in uwui-accesskit
+
+The crate's compiling time, on 2026-11-14, on an AMD Ryzen 7 5800X, a load of 1.4 falling after a
+run of `scripts/check.sh`, nothing else compiling: `cargo clean -p uwui-accesskit`, then `cargo
+build -p uwui-accesskit` and `cargo test -p uwui-accesskit --no-run`, with the default debug
+settings, its dependencies built, three times.
+
+| Build | Time |
+|---|---|
+| The library | 0.27 to 0.35 s |
+| Its test binary | 0.90 to 1.09 s |
+
+What it says: the crate costs about a second of compiling to a change of its own; it adds no crate
+to the build, its dependencies already built for `uwui` and `slime-platform`. `slime-app`'s own
+compiling time was not measured before and after: its translation left it, about 580 lines and
+1,080 of tests.
+
+How long CI's jobs took on `7a42132`, the commit of the closing review's fixes, on 2026-11-14:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 23 s |
+| `check (headless)` | 12 min 55 s |
+| `check (windowed)` | 8 min 28 s |
+| `check (game)` | 8 min 32 s |
+| `check (gles)` | 3 min 32 s |
+| `windows (tests)` | 12 min 40 s |
+| `windows (render)` | 6 min 57 s |
+| `windows (game)` | 5 min 46 s |
+| `windows-release` | 11 min 50 s |
+| `compositors (weston)` | 11 min 18 s |
+| `compositors (sway)` | 12 min 37 s |
+| `compositors (kwin)` | 14 min 18 s |
+| `compositors (mutter)` | 14 min 11 s |
+| `compositors (x11)` | 14 min 55 s |
+| Docs' `links` | 17 s |
+
+Every job stays within its limit of 20 minutes. `windows (tests)` and `check (headless)` run the
+crate's test binary and its doc test, the tests that left `slime-app`'s, which gained two; both
+took less than at M6d.5d1, within the runners' own spread. A frame standing still does nothing
+new, and the counters of `benches/counters.txt` are unchanged.
