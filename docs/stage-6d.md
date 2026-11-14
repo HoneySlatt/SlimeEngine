@@ -166,8 +166,10 @@ in git.
   [M6d.5c2](#m6d5c2--the-clipboard-and-the-hosts-questions), on 2026-11-13; then
   [M6d.5c3](#m6d5c3--the-targets), cut in two on 2026-11-14 ([ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)): done,
   [M6d.5c3a](#m6d5c3a--input-and-outputs-per-target) and
-  [M6d.5c3b](#m6d5c3b--frames-and-times-per-target), on 2026-11-14, M6d.5c whole; in progress,
-  [M6d.5d](#m6d5d--accesskits-translation-in-uwui), cut in two on 2026-11-14 ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)); then
+  [M6d.5c3b](#m6d5c3b--frames-and-times-per-target), on 2026-11-14, M6d.5c whole; then
+  [M6d.5d](#m6d5d--accesskits-translation-in-uwui), cut in two on 2026-11-14 ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)): done,
+  [M6d.5d1](#m6d5d1--each-reader-its-changes-each-target-its-tree), on 2026-11-14; then
+  [M6d.5d2](#m6d5d2--the-translation-in-uwui-accesskit) and
   [M6d.5e](#m6d5e--slime-app-a-host-through-the-api-alone).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
@@ -2078,8 +2080,31 @@ The fourth part of M6d.5 ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-wh
 
 ### M6d.5d1 — Each reader its changes, each target its tree
 
-The first half of M6d.5d; in progress, its card in
-[`PLAN.md`](PLAN.md#m6d5d1--each-reader-its-changes-each-target-its-tree).
+The first half of M6d.5d ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Each reader of meaning its own changes, each target its tree.
+- **Crates.** `uwui`, `slime-app`.
+- **Delivers.** Readers of meaning in `Ui`, each with its marks and target; each target's tree;
+  the engine's reader while a screen reader reads; a request checked against its tree and target.
+- **Done when.** Two readers, and two targets, follow their changes apart; random changes keep
+  AccessKit's tree whole; `scripts/screen-reader-check.sh` passes; a still frame allocates as
+  before; CI is green.
+- **Measured.** Changes taken after a change of look, against today's.
+- **Result.** Done on 2026-11-14, CI green ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)):
+  - `Ui::add_meaning_reader(target)` gives a reader with its own marks, a bit on each element, and
+    its own bound; `Ui::take_meaning_changes(reader, whole)` gives its target's elements, top and
+    focus. A reader let go, or another interface's, reads nothing.
+  - A modal root makes its own target's changes whole; a root moved to another target leaves one
+    tree and joins the other. Random changes on two targets, read at two rates, keep each tree
+    whole under the rules on which AccessKit panics.
+  - The engine takes a reader while a screen reader reads its window, lets it go when none does,
+    and acts on a request only on the window's tree and target; `scripts/screen-reader-check.sh`
+    passes.
+  - A change of look and its changes cost as before, under the noise of a machine not at rest
+    ([`measurements.md`](measurements.md#m6d5d1-each-reader-its-changes-each-target-its-tree)).
+  - The closing review found two documents wrong and a reader's handle lost when the interface was
+    away, each fixed, the last under a test that failed first.
 
 ### M6d.5d2 — The translation in uwui-accesskit
 

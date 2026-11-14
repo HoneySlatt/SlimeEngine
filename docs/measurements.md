@@ -3935,3 +3935,47 @@ Every job stays within its limit of 20 minutes. `check (headless)` is the longes
 of margin, 3 min 21 s longer than at M6d.5c3a: the commit carries M6d.9a1b3a's tests too, and the
 runners' times vary. `windows (tests)` keeps 4 min. The part adds 13 tests of uwui and one of
 `slime-app`'s, in files that existed.
+
+## M6d.5d1, each reader its changes, each target its tree
+
+A change of look and the changes taken after it, on 2026-11-14, by a scratch test that the
+repository does not keep: one root of 6,000 buttons and 6,000 texts, 12,001 elements, in the
+editor's look, its colours changed from dark to light, then its main target's frame timed, then
+one reader's changes taken; a release build on an AMD Ryzen 7 5800X, the machine not at rest
+(track A's tests running, a load between 4 and 8). The code before, `05852fa`, built apart, and
+after, run in turn three times each, then three times again after the closing review's fixes;
+each figure the median of 12.
+
+| Series | The frame of the change, no reader | The frame, one reader | The changes taken |
+|---|---|---|---|
+| Before, six rounds | 111.2 to 117.8 ms | 113.4 to 119.6 ms | 4.0 to 6.7 ms |
+| After, six rounds | 112.4 to 121.7 ms | 114.5 to 121.4 ms | 4.2 to 7.8 ms |
+
+What it says: a reader's own marks cost the change of look and its changes about what one list for
+everyone cost, under the noise of a machine that was not at rest. With two readers, the frame and a
+take stay in the same ranges. A frame standing still marks nothing, and the counters of
+`benches/counters.txt` are unchanged.
+
+How long CI's jobs took on `18b64cd`, the commit that gave each reader its changes, on 2026-11-14:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 9 min 43 s |
+| `check (headless)` | 14 min 45 s |
+| `check (windowed)` | 8 min 32 s |
+| `check (game)` | 9 min 18 s |
+| `check (gles)` | 4 min 7 s |
+| `windows (tests)` | 15 min 37 s |
+| `windows (render)` | 6 min 3 s |
+| `windows (game)` | 7 min 38 s |
+| `windows-release` | 12 min 2 s |
+| `compositors (weston)` | 12 min 29 s |
+| `compositors (sway)` | 11 min 38 s |
+| `compositors (kwin)` | 10 min 7 s |
+| `compositors (mutter)` | 10 min 37 s |
+| `compositors (x11)` | 15 min 9 s |
+| Docs' `links` | 21 s |
+
+Every job stays within its limit of 20 minutes. `windows (tests)` is the longest, with 4 min 23 s of
+margin; `check (headless)` keeps 5 min 15 s. The part adds five tests of uwui and three of
+`slime-app`'s, in files that existed.
