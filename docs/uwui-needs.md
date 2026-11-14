@@ -129,7 +129,7 @@ The editor and games change their interfaces in two ways that applications rarel
 Not the engine's: since [ADR-0266](adr/0266-uwui-targets-the-owners-shell-its-lock-and-login-screens-and-what-yuna-draws.md),
 uwui draws the owner's shell, Hollow, its lock and login screens, and the interfaces that the
 compositor Yuna draws itself. Kept here, beside the engine's, as uwui's general needs of hosts;
-Yuna's side is its ADR-0063, Hollow's its own list, `docs/needs.md`. Hollow is one process, its
+Yuna's side is its ADR-0063, Hollow's [its own list](https://github.com/HoneySlatt/Hollow/blob/main/docs/needs.md). Hollow is one process, its
 bar, popups, notifications, launcher, on-screen displays, tray, dock, widgets, on-screen keyboard,
 lock screen and polkit agent; the greeter is a program of its own. Hollow writes no code before
 uwui's first stage, the owner's choice: none of its needs comes before uwui's plan (Yuna's
