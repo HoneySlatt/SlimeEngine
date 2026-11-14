@@ -14,7 +14,9 @@ M6d.9a1b2: the session and its messages, both ends, several requests in flight, 
 order, bounded and cancellable
 ([ADR-0250](../../docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)),
 and events by subscription
-([ADR-0254](../../docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).
+([ADR-0254](../../docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md));
+M6d.9a1b3a: the interface's family
+([ADR-0259](../../docs/adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)).
 Long lists read by pages, attaching to a program already running,
 consent, rights and previews come with M6d.9a's later parts
 ([`stage-6d.md`](../../docs/stage-6d.md#m6d9a--one-core-for-agents-and-its-mcp-server)).
@@ -60,6 +62,13 @@ consent, rights and previews come with M6d.9a's later parts
   the names, and its carrier keeps the subscriptions and starts them as it takes their answers
   ([`slime-channel`](../slime-channel/README.md)). An event larger than the tool reads is not
   written.
+- `interface` holds the messages of the interface's family, uwui's own, version 2: an interface's
+  elements listed, each with its target, the element at a pixel of a target, an action done as a
+  person's input would, an element's part of its target's image, and where the code that wrote an
+  element's own style is. They are plain types, so that a tool speaks the family without building
+  uwui. `uwui` answers them with its feature `agents`; a host carries them, as `slime-channel`
+  does. The module stands apart from the core, so that it can become a crate of its own without a
+  change of the wire.
 
 ## Entry points
 

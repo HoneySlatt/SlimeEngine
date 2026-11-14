@@ -103,8 +103,10 @@ The tools, each described to the agent by the server itself, with its parameters
   editor's viewports are its views, `viewport` and `viewport 2`
   (`docs/adr/0159-picking-and-the-selection.md`, `docs/adr/0160-two-viewports-and-blenders-way.md`);
   it picks nothing that its user hid or locked (`docs/adr/0169-the-eye-and-the-lock.md`).
-- `find_elements`, `element_at`, `act_on_interface` and `capture_element`: the game's interface, as
-  its last frame left it (`docs/adr/0143-what-agents-see-of-the-interface.md`). `find_elements`
+- `find_elements`, `element_at`, `act_on_interface`, `capture_element` and `element_style`: the
+  game's interface, as its last frame left it (`docs/adr/0143-what-agents-see-of-the-interface.md`),
+  through the interface's family, which uwui answers
+  (`docs/adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md`). `find_elements`
   lists its elements of a role, `Button`, and whose names hold a text, each by its path, which names
   it to the other tools, its role, name, what a field, a slider, two panels, a list to choose from
   or a color well hold, its description, which its tooltip gives, the text that a field shows while
@@ -117,7 +119,9 @@ The tools, each described to the agent by the server itself, with its parameters
   another, at a place from its top to its bottom, as a row of the editor's hierarchy onto another
   (`docs/adr/0168-rearranging-the-hierarchy.md`); menus, their bar and floating
   panels are pressed as buttons are; or it moves the focus, accepts, cancels or gives a command, as
-  keys do; `capture_element` gives the part of the image where one shows.
+  keys do; `capture_element` gives the part of the image where one shows; `element_style` says
+  where the code that wrote an element's own style is, each call's file, line and column, with the
+  fields that it set, each with its state and the theme's token that gives its value, if any.
 - `read_logs`: the lines of the game's log after a given line.
 - `save_game` and `load_game`: the game's run saved to a file, and loaded from one in place of the
   run, as the game saves and resumes its own runs; a file of the agent's, never the player's save
@@ -163,7 +167,8 @@ the whole image and each view, shows the map's normals, reads the example's repo
 entity at a pixel of the map; it needs the examples' assets cooked, in the directory that its first
 argument names, and `scripts/check.sh` runs it there too. `tests/interface.rs` starts the
 `interface` example, finds a button of its bar by its role and its name, presses it, reads in the
-world the count that the press changed, captures the button and finds it at a pixel, moves the
+world the count that the press changed, captures the button and finds it at a pixel, reads where
+the example's code wrote the button's and the bar's own styles, moves the
 focus, opens and closes the dialog, gives the bar's field of text a value, which the example reads
 as committed, and sees a field of numbers refuse a text that reads as no number; it needs what
 `tests/views.rs` needs, and runs beside it. `tests/widgets.rs` starts the `widgets` example and

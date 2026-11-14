@@ -41,6 +41,9 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   JSON holds no other; a family's float reads `null` as a fault, so such a float is refused where it is read, not where it is written, and a family holds no optional float, which would read it as none (`uwui_agent::write`).
   `slime-mcp` cuts the agent's name and version to 200 characters, so that a hello stays within its limit; no test checks the cut.
   Followed at [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families), whose MCP library names the agent.
+- **A family's codes of faults do not cross the development channel** ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)).
+  `slime-channel` sends every refusal of a game as `REFUSED`, and its tool reads every fault as `Reply::Failed`, with its message alone: uwui's answers to the interface's family give their codes, which the channel drops, and a tool cannot tell a refusal from a fault of its parameters.
+  Followed at [M6d.9a1b3b](stage-6d.md#m6d9a1b3b--long-lists), whose stale cursors fault with a code of their own.
 - **The development channel scripts keys only, and captures windowed runs only** ([ADR-0122](adr/0122-the-development-channel.md)).
   A tool presses and releases keys, not the mouse nor text; an agent reaches an interface through its elements' actions ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
   A run without a window has no image to capture.
@@ -889,7 +892,6 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The frame after a change of theme has its targets ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)), but `ui.tree.look` holds a dozen styles, far below the cap: no benchmark measures a tree past it.
   Followed at uwui's first stage, which benchmarks its own cascade.
   Selectors hold no combinators but an ancestor's kind or class.
-  The place of each call that wrote an element's own style is kept (`OwnStyle::places`), but nothing reads it yet; followed at [M6d.9a1b3a](PLAN.md#m6d9a1b3a--the-interfaces-family-in-uwui), which gives it to agents with the interface's family.
   A rule of a style sheet that names `Hovered` or `Pressed` may set what lays out the element, which a hover or a press written in code cannot ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)); no rule of the repository does; followed at uwui's first stage, which types rules for each state.
 - **uwui's own layers take no defaults, and selected text no color of its own** ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)).
   The tooltip, the palette of commands, the notifications and the colour picker are containers that the look styles by their classes: without a look they draw no box, and their colors are their elements' kinds' alone.

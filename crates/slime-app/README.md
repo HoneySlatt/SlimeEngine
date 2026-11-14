@@ -326,8 +326,10 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   world read and changed through reflection, keys put down and let go, its window's image or the
   part of it that one of its views draws, copied after the frame is drawn and before it is shown,
   its views' settings read and changed, its reports read, the entity at a pixel of a view picked,
-  and the elements of its interface listed by role and name, found at a pixel, acted on as a
-  person's input acts and captured, through the presentation's `views`, `view_settings`,
+  and the interface's family, which `uwui` answers with its feature `agents`, its captures cut
+  from the window's image, which draws `TargetId::MAIN`
+  (`docs/adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md`),
+  through the presentation's `views`, `view_settings`,
   `set_view_settings`, `reports`, `pick` and `ui`,
   the last lines of its log (`slime_channel::MAX_LOG_LINES`), which only such a run keeps, and its
   run saved to a file and loaded from one, by the simulation's `save` and `load`, and an editor's

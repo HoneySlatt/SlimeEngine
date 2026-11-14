@@ -265,6 +265,15 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   `uwui-render` draws it through its canvas.
 - `Rect` is the rectangle the framework speaks in, by its top left corner and its size, as
   `uwui-render`'s canvas gives its own.
+- `agents`, built only with the feature `agents`, answers the interface's family of uwui's core for
+  agents, whose messages `uwui_agent::interface` holds
+  (`docs/adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md`).
+  It serves nothing by itself: a host gives it each request with the `Ui` that answers
+  (`agents::answer`), and asks which pixels of a target's image an element covers once that image
+  is drawn (`agents::shown`). It lists elements, each with its target; reads a pixel on the target
+  that the request names, or on the active target; acts as a person's input would; and gives the
+  places of the calls that wrote an element's own style, each with the fields, states and tokens
+  that it wrote (`OwnStyle::places`). A build for shipping leaves the feature out.
 
 ## Depends on
 
@@ -275,7 +284,8 @@ the display list; `uwui-kdl`, the reader of its documents in KDL, its themes, st
 tables of shortcuts and docks' layouts, and the writer of their values; `uwui-macros`, the
 derives of the styles' declarations and of their readers
 (`docs/adr/0229-styles-typed-as-declarations.md`); `slime-input`, the input it takes; thiserror and
-tracing. No other engine crate: text is laid out and rasterized on the CPU, `uwui-render` draws the display list, a
+tracing; with the feature `agents`, `uwui-agent`, the messages of the interface's family. No other
+engine crate: text is laid out and rasterized on the CPU, `uwui-render` draws the display list, a
 program reads the cooked documents, and the window's input reaches the interface through the
 program.
 

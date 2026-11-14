@@ -506,8 +506,10 @@ be at rest while paused, then minimized, its game time running
 ([ADR-0187](docs/adr/0187-a-hidden-window-at-rest.md)), their saves kept apart from the user's) and the windowed lifecycle test
 inside a headless Weston compositor of its own, at 240 Hz (and that test's resize and oversize
 scenarios in a second one, at scale 2), the game built for
-shipping, which must hold neither the development channel nor the dev overlay
-([ADR-0152](docs/adr/0152-the-dev-overlay-on-the-engines-interface.md)), the game, which must hold
+shipping, which must hold neither the development channel, the dev overlay nor uwui's answers to
+agents, each detector first finding what it looks for in the game's default build
+([ADR-0152](docs/adr/0152-the-dev-overlay-on-the-engines-interface.md),
+[ADR-0259](docs/adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)), the game, which must hold
 no adapter for screen readers ([ADR-0146](docs/adr/0146-screen-readers.md)), no code but
 `slime-app`'s bridge and the engine's tests that opens `slime-gfx`'s door to wgpu, and no engine
 crate but `slime-color` among `uwui-render`'s dependencies

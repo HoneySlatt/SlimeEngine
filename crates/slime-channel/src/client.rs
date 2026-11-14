@@ -106,6 +106,8 @@ pub struct Pending {
     id: u64,
     answer: mpsc::Receiver<Raw>,
     shared: Arc<Shared>,
+    /// Whether it asked the interface, whose family's own reply its answer reads as.
+    of_interface: bool,
 }
 
 impl Client {
@@ -296,7 +298,9 @@ impl Client {
     /// [`ChannelError::Io`] when it breaks now.
     pub fn send(&self, request: &Request) -> Result<Pending, ChannelError> {
         let (method, params) = request.call()?;
-        self.send_with(|session| session.request(&method, params.clone()))
+        let mut pending = self.send_with(|session| session.request(&method, params.clone()))?;
+        pending.of_interface = matches!(request, Request::Interface { .. });
+        Ok(pending)
     }
 
     /// Sends the request that `numbered` makes of the session, once a place in flight is free, as
@@ -342,6 +346,7 @@ impl Client {
             id,
             answer: answered,
             shared: Arc::clone(&self.shared),
+            of_interface: false,
         })
     }
 }
@@ -383,8 +388,10 @@ impl Pending {
     ///
     /// As [`Pending::wait`].
     pub fn wait_for(self, timeout: Duration) -> Answer {
-        self.wait_raw(timeout)
-            .and_then(|(outcome, bytes)| read_reply(outcome).map(|reply| (reply, bytes)))
+        let of_interface = self.of_interface;
+        self.wait_raw(timeout).and_then(|(outcome, bytes)| {
+            read_reply(outcome, of_interface).map(|reply| (reply, bytes))
+        })
     }
 
     /// Waits for the answer as the core's session read it, as [`Pending::wait_for`] does.
@@ -485,12 +492,12 @@ fn subscribed(answer: Raw) -> Result<(), ChannelError> {
     }
 }
 
-/// The reply of an answer's outcome: a request cancelled before the game did it is
-/// [`ChannelError::Cancelled`].
-fn read_reply(outcome: Result<Value, Fault>) -> Result<Reply, ChannelError> {
+/// The reply of an answer's outcome, to a request of the interface's family or not: a request
+/// cancelled before the game did it is [`ChannelError::Cancelled`].
+fn read_reply(outcome: Result<Value, Fault>, of_interface: bool) -> Result<Reply, ChannelError> {
     match outcome {
         Err(fault) if fault.code == Fault::CANCELLED => Err(ChannelError::Cancelled),
-        outcome => Reply::read(outcome),
+        outcome => Reply::read(outcome, of_interface),
     }
 }
 

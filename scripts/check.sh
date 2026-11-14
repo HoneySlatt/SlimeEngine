@@ -416,24 +416,63 @@ if runs game; then
 fi
 
 if runs headless; then
-    step "The game built for shipping holds neither the development channel, the MCP server nor the dev overlay (ADR-0122, ADR-0152)"
-    if cargo tree --locked -p hunnawood --no-default-features -e normal | grep -E 'slime-(channel|mcp|devui) '; then
-        echo "the game built for shipping depends on the crates above"
-        exit 1
-    fi
-    # The interface itself is slime-app's, in every build, and so is uwui-render, which its bridge
-    # draws the interface with (ADR-0244); the editor's look and its fonts are the overlay's.
-    if cargo tree --locked -p hunnawood --no-default-features -e features | grep 'uwui feature "editor-look"'; then
-        echo "the game built for shipping holds the editor's look"
-        exit 1
-    fi
-    # The next `cargo build` or `cargo run` that names the game builds it again with its default
-    # features.
-    cargo build --locked -p hunnawood --no-default-features
-    if grep -a -q -e SLIME_DEV_TOKEN -e slime-dev-channel target/debug/hunnawood; then
-        echo "the game built for shipping holds the development channel"
-        exit 1
-    fi
+    step "The game built for shipping holds neither the development channel, the MCP server, the dev overlay nor uwui's answers to agents (ADR-0122, ADR-0152, ADR-0259)"
+    # Each detector runs first on the game built with its default features, where it must find what
+    # it looks for: a crate or a feature renamed, an output of cargo changed or a string moved would
+    # otherwise leave a check that always passes. Each tree is read into a variable first, so that a
+    # failure of cargo stops the check rather than passing it. The MCP server is a program that no
+    # game links, so it has no such control.
+    shipped_crates=(slime-channel slime-devui uwui-agent)
+    # uwui's features are read in its inverted tree, the one that shows a feature that another
+    # feature turns on, as `slime-app`'s `development` turns on `agents`. The editor's look and its
+    # fonts are the overlay's; the interface itself is slime-app's, in every build, and so is
+    # uwui-render, which its bridge draws the interface with (ADR-0244).
+    shipped_features=(editor-look agents)
+    # The channel's variable and announcement, a method of the interface's family, and a refusal
+    # that uwui's answers write. A text of code that no call reaches, which the linker drops, is not
+    # found: the trees find its crate and its feature then.
+    shipped_strings=(SLIME_DEV_TOKEN slime-dev-channel interface/elements "is no offset: finite numbers are")
+    game_binary="${CARGO_TARGET_DIR:-target}/debug/hunnawood"
+    # This part's build of the workspace above built the game with its default features, and more
+    # that other crates turn on; the trees read the game's own.
+    [ -f "$game_binary" ] || { echo "$game_binary is missing: the game was not built"; exit 1; }
+    for build in development shipping; do
+        flags=()
+        if [ "$build" = shipping ]; then
+            flags=(--no-default-features)
+            # The next `cargo build` or `cargo run` that names the game builds it again with its
+            # default features.
+            cargo build --locked -p hunnawood "${flags[@]}"
+        fi
+        crates=$(cargo tree --locked -p hunnawood "${flags[@]}" -e normal --target all --prefix none)
+        features=$(cargo tree --locked -p hunnawood "${flags[@]}" -e features --target all -i uwui \
+            --prefix none)
+        found=()
+        for crate in "${shipped_crates[@]}"; do
+            if grep -q "^$crate " <<< "$crates"; then found+=("crate $crate"); fi
+        done
+        if [ "$build" = shipping ] && grep -q '^slime-mcp ' <<< "$crates"; then
+            found+=("crate slime-mcp")
+        fi
+        for feature in "${shipped_features[@]}"; do
+            if grep -q "^uwui feature \"$feature\"" <<< "$features"; then found+=("uwui's feature $feature"); fi
+        done
+        for text in "${shipped_strings[@]}"; do
+            if grep -a -q -F -e "$text" "$game_binary"; then found+=("the text \"$text\""); fi
+        done
+        if [ "$build" = development ]; then
+            wanted=$((${#shipped_crates[@]} + ${#shipped_features[@]} + ${#shipped_strings[@]}))
+            if [ "${#found[@]}" -ne "$wanted" ]; then
+                printf '%s\n' "${found[@]}"
+                echo "the check finds only the above in the game built with its default features: it would pass on any build"
+                exit 1
+            fi
+        elif [ "${#found[@]}" -ne 0 ]; then
+            printf '%s\n' "${found[@]}"
+            echo "the game built for shipping holds the above"
+            exit 1
+        fi
+    done
 
     step "The game holds no adapter for screen readers, which games leave out until Stage 7 (ADR-0146)"
     if cargo tree --locked -p hunnawood -e normal | grep -E 'accesskit_winit '; then

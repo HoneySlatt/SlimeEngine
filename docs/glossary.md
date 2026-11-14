@@ -483,8 +483,10 @@ weight among them: what draws a run of *glyphs* ([ADR-0136](adr/0136-the-interfa
 
 **Family (agents).** A named group of requests and events of the *core for agents*, `play` for
 `play/pause`, versioned on its own: a tool and a program that speak another version of one refuse
-that family alone. The engine's are `play`, `world`, `editing` and `interface` (`slime-channel`,
-[ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)).
+that family alone. The engine's are `play`, `world` and `editing` (`slime-channel`,
+[ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)); uwui's
+is `interface`, which `uwui` answers with its feature `agents` and the engine's channel carries
+([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)).
 
 **Field (interface).** An element that the user types in: of text, one line or several, or of a
 number, which a drag changes too. It keeps what the user types, its selection and its undo, and the

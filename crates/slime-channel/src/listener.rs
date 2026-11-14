@@ -157,7 +157,7 @@ impl Outgoing {
     /// that it writes and those that follow it.
     fn answer(id: u64, outcome: Result<Reply, Fault>, payload: Arc<Vec<u8>>) -> Self {
         let line = match &outcome {
-            Ok(reply) => uwui_agent::json_size(reply),
+            Ok(reply) => reply.json_size(),
             Err(fault) => fault.message.len(),
         };
         let size = (line + payload.len()) as u64;
@@ -1046,7 +1046,7 @@ mod tests {
     use super::*;
     use crate::client::Notice;
     use crate::wire::{MAX_BYTES, MAX_LINE};
-    use crate::{Client, Event};
+    use crate::{Client, Event, interface};
 
     fn agent() -> Named {
         Named::new("a test", "1")
@@ -1302,6 +1302,66 @@ mod tests {
         // A message written in pieces, on a socket that waits for the acknowledgement of the last
         // piece before it sends the next, takes 40 ms or more.
         assert!(median < Duration::from_millis(20), "{median:?}");
+    }
+
+    /// A request of the interface's family crosses as the family's own, and its answer is read as
+    /// the family's reply, even where its JSON reads as one of the game's own: an image.
+    #[test]
+    fn the_interface_s_requests_and_replies_cross_as_its_family_s() {
+        let token = Token::generate().expect("random bits");
+        let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
+        let client =
+            Client::connect(listener.address(), &token, &agent(), &client()).expect("accepted");
+        let capture = Request::Interface {
+            request: interface::Request::CaptureElement {
+                element: "main/open".to_owned(),
+            },
+        };
+        let image = interface::Reply::Image {
+            width: 2,
+            height: 1,
+        };
+        let answering = {
+            let (capture, image) = (capture.clone(), image.clone());
+            thread::spawn(move || {
+                for _ in 0..2 {
+                    let incoming = loop {
+                        match listener.next() {
+                            Some(incoming) => break incoming,
+                            None => thread::yield_now(),
+                        }
+                    };
+                    if *incoming.request() == capture {
+                        let reply = Reply::Interface {
+                            reply: image.clone(),
+                        };
+                        incoming.answer_with(reply, Arc::new(vec![9; 8]));
+                    } else {
+                        incoming.answer(Reply::Image {
+                            width: 2,
+                            height: 1,
+                        });
+                    }
+                }
+            })
+        };
+        let (reply, pixels) = client.request(&capture).expect("answered");
+        assert_eq!(reply, Reply::Interface { reply: image });
+        assert_eq!(pixels.len(), 8);
+        let (reply, _) = client
+            .request(&Request::Capture {
+                view: String::new(),
+            })
+            .expect("answered");
+        assert_eq!(
+            reply,
+            Reply::Image {
+                width: 2,
+                height: 1
+            },
+            "the game's own image"
+        );
+        answering.join().expect("answered");
     }
 
     #[test]
@@ -2027,6 +2087,44 @@ mod tests {
         for incoming in held {
             incoming.answer(Reply::Report {
                 text: "r".repeat(12 << 20),
+            });
+        }
+        assert!(!listener.waiting(), "the eighth is held back");
+        let _ = stream.shutdown(Shutdown::Both);
+    }
+
+    /// The interface's answers count against the bound as they are written, its family's own
+    /// reply: seven lists of 12 MiB of names hold back the eighth request.
+    #[test]
+    fn the_interface_s_answers_count_against_the_bound_too() {
+        let (listener, token) = opened();
+        let mut stream = deaf(&listener, &token);
+        for id in 1..=8 {
+            stream.write_all(&state_line(id)).expect("sent");
+        }
+        let connection = Arc::clone(&locked(&listener.shared.connections)[0]);
+        eventually("the eight reached their connection's queue", || {
+            locked(&connection.state).inbox.len() == 8
+        });
+        let held: Vec<_> = (0..7).map(|_| taken(&listener)).collect();
+        for incoming in held {
+            let element = interface::ElementSummary {
+                path: "main/list/#0".to_owned(),
+                target: 0,
+                role: "ListItem".to_owned(),
+                name: "n".repeat(12 << 20),
+                value: None,
+                description: None,
+                placeholder: None,
+                states: Vec::new(),
+                actions: Vec::new(),
+                bounds: None,
+            };
+            incoming.answer(Reply::Interface {
+                reply: interface::Reply::Elements {
+                    elements: vec![element],
+                    more: 0,
+                },
             });
         }
         assert!(!listener.waiting(), "the eighth is held back");

@@ -145,6 +145,30 @@ fn main() {
         json!({ "x": x + width / 2, "y": y + height / 2 }),
     );
     assert!(at[0].starts_with("main/window/bar/#1 — Button"), "{at:?}");
+    // Where the example's code wrote the button's own style: the line of its call of `style`, and
+    // the fields that it set; the bar's names a token of the theme.
+    let source = std::fs::read_to_string(workspace.join("examples/interface.rs"))
+        .expect("the example's source");
+    let call = source
+        .lines()
+        .position(|line| line.contains("Element::button(label).style("))
+        .expect("the bar's buttons styled")
+        + 1;
+    let (style, _) = session.tool("element_style", json!({ "element": "main/window/bar/#1" }));
+    assert_eq!(style.len(), 1, "{style:?}");
+    assert!(
+        style[0].starts_with(&format!("examples/interface.rs:{call}:")),
+        "{style:?}"
+    );
+    assert!(
+        style[0].ends_with("— layout.size[0], layout.size[1], layout.shrink"),
+        "{style:?}"
+    );
+    let (style, _) = session.tool("element_style", json!({ "element": "main/window/bar" }));
+    assert!(
+        style[0].contains("layout.gap[1] from the theme's token `interface_gap`"),
+        "{style:?}"
+    );
 
     // Tab, as an agent sends it: a button takes the focus.
     let (said, _) = session.tool("act_on_interface", json!({ "action": "next" }));

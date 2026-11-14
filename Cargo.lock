@@ -3778,6 +3778,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tracing",
  "uwui",
+ "uwui-agent",
  "uwui-kdl",
  "uwui-macros",
 ]

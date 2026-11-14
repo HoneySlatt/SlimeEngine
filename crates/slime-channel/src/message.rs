@@ -1,15 +1,16 @@
 //! The messages of the protocol, and their encoding.
 
 use serde::{Deserialize, Serialize};
-use uwui_agent::{Fault, Value};
+use uwui_agent::{Fault, Value, interface};
 
 use crate::error::ChannelError;
 
 /// What a tool asks a game once its hello is welcomed, each answered by a [`Reply`]: requests of
 /// the families of play, the world, editing and the interface ([`FAMILIES`](crate::FAMILIES)), each
 /// named on the wire by its method, `play/pause`. Its `serde` form writes and reads every request
-/// but [`Request::Edit`], which crosses as the [`Edit`] that it holds, `editing/undo`: serializing
-/// it alone fails, and reading never gives it.
+/// but [`Request::Edit`] and [`Request::Interface`], which cross as the requests of their families
+/// that they hold, `editing/undo`, `interface/elements`: serializing them alone fails, and reading
+/// never gives them.
 ///
 /// Entities are named by their persistent identities, `zone/door`; components by their types'
 /// names, `Transform`; parts of components by property paths, `translation.x`; values, given and
@@ -171,106 +172,14 @@ pub enum Request {
         /// What it asks.
         edit: Edit,
     },
-    /// The elements of the game's interface that mean something, as its last frame left them
-    /// (`docs/adr/0143-what-agents-see-of-the-interface.md`), in the order of its tree:
-    /// [`Reply::Elements`], at most [`MAX_ELEMENTS`](crate::MAX_ELEMENTS) of them. It fails in a
-    /// game that has no interface, as one that runs without a window.
-    #[serde(rename = "interface/elements")]
-    Elements {
-        /// The role of those wanted, `Button`, whatever its case; empty for any.
-        role: String,
-        /// What their names hold, whatever its case; empty for any.
-        name: String,
-    },
-    /// The element of the game's interface that the pointer would reach at a pixel of the game's
-    /// image, or the nearest above it that means something: [`Reply::Elements`], one or none. It
-    /// fails in a game that has no interface, as one that runs without a window.
-    #[serde(rename = "interface/element_at")]
-    ElementAt {
-        /// The pixel's column, from the left of the image.
-        x: u32,
-        /// Its row, from the top.
-        y: u32,
-    },
-    /// Does `action` in the game's interface, as a person's input would: the interface takes it at
-    /// once, and the game reads what it asks as the frame that answers goes on. It fails in a game
-    /// that has no interface, as one that runs without a window, for a path that names no element,
-    /// for an action that the element does not take now, as a disabled button's press, and for an
-    /// offset that is not finite.
-    #[serde(rename = "interface/act")]
-    Act {
-        /// The element, by its path, `main/bar/open`; empty for an action of no element, a
-        /// navigation intent or a command.
-        element: String,
-        /// What to do.
-        action: InterfaceAction,
-    },
-    /// The part of the game's image where an element of its interface shows: [`Reply::Image`],
-    /// once the next frame is drawn. It fails in a run without a window, in a game that has no
-    /// interface, and for an element that does not show.
-    #[serde(rename = "interface/capture_element")]
-    CaptureElement {
-        /// The element, by its path.
-        element: String,
-    },
-}
-
-/// What a tool does in a game's interface ([`Request::Act`]), as a person's input would.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum InterfaceAction {
-    /// Presses a button, as a click does.
-    Press,
-    /// Gives an element the focus.
-    Focus,
-    /// Scrolls the content of a box that scrolls or of a list to an offset, in logical pixels from
-    /// its start and top.
-    Scroll {
-        /// The offset from the start.
-        x: f32,
-        /// The offset from the top.
-        y: f32,
-    },
-    /// Gives a field, a slider, two panels, a list to choose from or a color well a value, as a
-    /// person who replaced what it holds and committed would (`docs/adr/0146-screen-readers.md`,
-    /// `docs/adr/0148-widgets.md`, `docs/adr/0151-rich-widgets.md`,
-    /// `docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`): the game reads the change and
-    /// the commit of a field's, a slider's, a list's or a color well's.
-    SetValue {
-        /// The text; for a field of numbers, an expression of a finite number, in a unit of its
-        /// family where it has one, `sqrt(2)/2`, `10cm`; for a slider, a finite number, as Rust
-        /// reads one; for a list to choose from, one of its options or the place of one; for a
-        /// color well, a hexadecimal code, `#ff8000` or `#ff800080`.
-        value: String,
-    },
-    /// Drops a draggable element on a target of drops, as a person who dragged it there would
-    /// (`docs/adr/0168-rearranging-the-hierarchy.md`).
-    Drop {
-        /// The target, by its path.
-        onto: String,
-        /// Where in the target, from its top, 0, to its bottom, 1.
-        at: f32,
-    },
-    /// Moves the focus to the next element, as Tab does.
-    Next,
-    /// Moves the focus to the previous element, as Shift+Tab does.
-    Previous,
-    /// Moves the focus up, as the up arrow does.
-    Up,
-    /// Moves the focus down.
-    Down,
-    /// Moves the focus left.
-    Left,
-    /// Moves the focus right.
-    Right,
-    /// Accepts, as Enter does: presses the button that holds the focus.
-    Accept,
-    /// Cancels, as Escape does.
-    Cancel,
-    /// Gives the game a command, as a shortcut does.
-    Command {
-        /// The command's name, `undo`.
-        name: String,
+    /// Asks the interface of the game, as its family says
+    /// (`docs/adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md`),
+    /// answered by [`Reply::Interface`]. It fails in a game that has no interface, as one that runs
+    /// without a window.
+    #[serde(skip)]
+    Interface {
+        /// What it asks.
+        request: interface::Request,
     },
 }
 
@@ -332,7 +241,9 @@ pub enum Edit {
     },
 }
 
-/// What a game answers to a [`Request`].
+/// What a game answers to a [`Request`]. Its `serde` form writes and reads every reply but
+/// [`Reply::Interface`], which crosses as the reply of the interface's family that it holds:
+/// serializing it alone fails, and reading never gives it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "reply", rename_all = "snake_case")]
 pub enum Reply {
@@ -383,13 +294,6 @@ pub enum Reply {
         /// picks nothing of what it draws, as the editor does what its user locked.
         found: bool,
     },
-    /// The elements of a game's interface found.
-    Elements {
-        /// The first of them, in the order of the interface's tree.
-        elements: Vec<ElementSummary>,
-        /// How many more were found and left out.
-        more: u64,
-    },
     /// A report of the game's.
     Report {
         /// The report, as a document in the engine's notation (`slime_serialize::write`).
@@ -427,6 +331,13 @@ pub enum Reply {
     Operations {
         /// The operations.
         operations: Vec<OperationSummary>,
+    },
+    /// What the game's interface answers to a [`Request::Interface`]: on the wire, the family's
+    /// own reply, which a tool reads as this one when it asked the interface.
+    #[serde(skip)]
+    Interface {
+        /// The reply.
+        reply: interface::Reply,
     },
 }
 
@@ -522,33 +433,6 @@ pub struct EntitySummary {
     pub name: String,
 }
 
-/// An element of a game's interface, as a list of elements names it.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ElementSummary {
-    /// Its path, which names it from one frame to the next: `main/bar/open`.
-    pub path: String,
-    /// Its role, as AccessKit names it: `Button`.
-    pub role: String,
-    /// Its name; empty for none.
-    pub name: String,
-    /// What a field holds, as the user left it, a slider's number, two panels' first share or a
-    /// list to choose from's chosen option; none for another element.
-    pub value: Option<String>,
-    /// Its description, its tooltip; none for none.
-    pub description: Option<String>,
-    /// The text that a field shows while it holds nothing; none for none.
-    pub placeholder: Option<String>,
-    /// Its states: `hovered`, `pressed`, `focused`, `disabled`, `checked`, `expanded`,
-    /// `selected`, and `has_popup` for what a press opens a layer beside, an item of a menu that
-    /// opens a submenu or a list to choose from.
-    pub states: Vec<String>,
-    /// What can be done to it now: `press`, `focus`, `scroll`, `set_value`.
-    pub actions: Vec<String>,
-    /// The part of it that shows, in pixels of the game's image: its left column, its top row, its
-    /// width and its height; none where it does not show.
-    pub bounds: Option<[u32; 4]>,
-}
-
 /// A component of an entity, as text.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ComponentText {
@@ -612,16 +496,19 @@ impl Request {
     pub(crate) fn call(&self) -> Result<(String, Value), ChannelError> {
         Ok(match self {
             Self::Edit { edit } => uwui_agent::call(edit)?,
+            Self::Interface { request } => uwui_agent::call(request)?,
             request => uwui_agent::call(request)?,
         })
     }
 
     /// The request that `method` of `family`, `play`, and `params` make, or why none.
     pub(crate) fn read(family: &str, method: &str, params: Value) -> Result<Self, Fault> {
-        if family == EDITING {
-            uwui_agent::read_call(method, params).map(|edit| Self::Edit { edit })
-        } else {
-            uwui_agent::read_call(method, params)
+        match family {
+            EDITING => uwui_agent::read_call(method, params).map(|edit| Self::Edit { edit }),
+            interface::FAMILY => {
+                uwui_agent::read_call(method, params).map(|request| Self::Interface { request })
+            }
+            _ => uwui_agent::read_call(method, params),
         }
     }
 }
@@ -634,16 +521,34 @@ impl Reply {
     pub(crate) fn outcome(&self) -> Result<Result<Value, Fault>, ChannelError> {
         Ok(match self {
             Self::Failed { message } => Err(Fault::new(Fault::REFUSED, message.clone())),
+            Self::Interface { reply } => Ok(uwui_agent::write(reply)?),
             reply => Ok(uwui_agent::write(reply)?),
         })
     }
 
-    /// The reply that an outcome carries: every error as [`Reply::Failed`], with its message.
-    pub(crate) fn read(outcome: Result<Value, Fault>) -> Result<Self, ChannelError> {
+    /// How many bytes of JSON it writes as [`Reply::outcome`] writes it, the interface's own reply
+    /// counted as its family writes it: what the listener counts of an answer that waits.
+    pub(crate) fn json_size(&self) -> usize {
+        match self {
+            Self::Interface { reply } => uwui_agent::json_size(reply),
+            reply => uwui_agent::json_size(reply),
+        }
+    }
+
+    /// The reply that an outcome carries, to a request of the interface's family or not: every
+    /// error as [`Reply::Failed`], with its message.
+    pub(crate) fn read(
+        outcome: Result<Value, Fault>,
+        of_interface: bool,
+    ) -> Result<Self, ChannelError> {
+        let unreadable = |fault: Fault| {
+            ChannelError::Malformed(format!("a reply that does not read: {}", fault.message))
+        };
         match outcome {
-            Ok(value) => uwui_agent::read(value).map_err(|fault| {
-                ChannelError::Malformed(format!("a reply that does not read: {}", fault.message))
-            }),
+            Ok(value) if of_interface => uwui_agent::read(value)
+                .map(|reply| Self::Interface { reply })
+                .map_err(unreadable),
+            Ok(value) => uwui_agent::read(value).map_err(unreadable),
             Err(fault) => Ok(Self::Failed {
                 message: fault.message,
             }),
@@ -754,36 +659,20 @@ mod tests {
                     arguments: vec![text("/levels/yard.scene")],
                 },
             },
-            Request::Elements {
-                role: text("Button"),
-                name: text("open"),
-            },
-            Request::ElementAt { x: 40, y: 12 },
-            Request::Act {
-                element: text("main/bar/open"),
-                action: InterfaceAction::Press,
-            },
-            Request::Act {
-                element: text("main/content/list"),
-                action: InterfaceAction::Scroll { x: 0.0, y: 120.0 },
-            },
-            Request::Act {
-                element: String::new(),
-                action: InterfaceAction::Command { name: text("undo") },
-            },
-            Request::Act {
-                element: text("main/bar/name"),
-                action: InterfaceAction::SetValue { value: text("Ada") },
-            },
-            Request::Act {
-                element: text("main/tree/rows/#2/name"),
-                action: InterfaceAction::Drop {
-                    onto: text("main/tree/rows/#0/name"),
-                    at: 0.75,
+            Request::Interface {
+                request: interface::Request::Elements {
+                    role: text("Button"),
+                    name: text("open"),
                 },
             },
-            Request::CaptureElement {
-                element: text("dialog/dialog"),
+            Request::Interface {
+                request: interface::Request::Act {
+                    element: text("main/tree/rows/#2/name"),
+                    action: interface::Action::Drop {
+                        onto: text("main/tree/rows/#0/name"),
+                        at: 0.75,
+                    },
+                },
             },
         ];
         for request in requests {
@@ -842,44 +731,6 @@ mod tests {
             Reply::Report {
                 text: text("handles = [6, 0, 0]\n"),
             },
-            Reply::Elements {
-                elements: vec![
-                    ElementSummary {
-                        path: text("main/bar/open"),
-                        role: text("Button"),
-                        name: text("open"),
-                        value: None,
-                        description: Some(text("Opens a scene")),
-                        placeholder: None,
-                        states: vec![text("hovered"), text("focused")],
-                        actions: vec![text("press"), text("focus")],
-                        bounds: Some([0, 0, 120, 28]),
-                    },
-                    ElementSummary {
-                        path: text("main/content/list/#57"),
-                        role: text("ListItem"),
-                        name: String::new(),
-                        value: None,
-                        description: None,
-                        placeholder: None,
-                        states: Vec::new(),
-                        actions: Vec::new(),
-                        bounds: None,
-                    },
-                    ElementSummary {
-                        path: text("main/bar/scale"),
-                        role: text("SpinButton"),
-                        name: text("scale"),
-                        value: Some(text("12.5")),
-                        description: None,
-                        placeholder: Some(text("a scale")),
-                        states: Vec::new(),
-                        actions: Vec::new(),
-                        bounds: None,
-                    },
-                ],
-                more: 0,
-            },
             Reply::Picked {
                 entity: EntitySummary {
                     identity: text("yard/sample/crate"),
@@ -930,8 +781,25 @@ mod tests {
                 matches!(reply, Reply::Failed { .. }),
                 "a failure crosses as an error of the core's"
             );
-            assert_eq!(Reply::read(outcome).expect("read"), reply);
+            assert_eq!(Reply::read(outcome, false).expect("read"), reply);
         }
+        // A reply of the interface's family, read as one when the interface was asked.
+        let reply = Reply::Interface {
+            reply: interface::Reply::Image {
+                width: 4,
+                height: 2,
+            },
+        };
+        let outcome = reply.outcome().expect("written");
+        assert_eq!(Reply::read(outcome.clone(), true).expect("read"), reply);
+        assert_eq!(
+            Reply::read(outcome, false).expect("read"),
+            Reply::Image {
+                width: 4,
+                height: 2
+            },
+            "the same JSON, read as the game's own image when the interface was not asked"
+        );
     }
 
     #[test]
@@ -956,13 +824,13 @@ mod tests {
         );
         assert!(
             matches!(
-                Reply::read(Ok(Value::Null)),
+                Reply::read(Ok(Value::Null), false),
                 Err(ChannelError::Malformed(_))
             ),
             "a result that is no reply"
         );
         assert_eq!(
-            Reply::read(Err(Fault::new(Fault::NOT_SERVED, "not served"))).expect("read"),
+            Reply::read(Err(Fault::new(Fault::NOT_SERVED, "not served")), false).expect("read"),
             Reply::Failed {
                 message: "not served".to_owned()
             },

@@ -11,11 +11,14 @@ pub use client::{Client, Launched, Notice, Pending, launch, launch_unless};
 pub use error::ChannelError;
 pub use listener::{Incoming, Listener};
 pub use message::{
-    ComponentText, Edit, EditorHistory, ElementSummary, EntitySummary, Event, GameState, GameTime,
-    InterfaceAction, LogLine, OperationSummary, Reply, Request, ViewSummary,
+    ComponentText, Edit, EditorHistory, EntitySummary, Event, GameState, GameTime, LogLine,
+    OperationSummary, Reply, Request, ViewSummary,
 };
 pub use token::Token;
 pub use uwui_agent::Named;
+/// The interface's family, whose requests and replies [`Request::Interface`] and
+/// [`Reply::Interface`] carry: uwui's own, which `uwui` answers with its feature `agents`.
+pub use uwui_agent::interface;
 
 /// Locks `mutex`, through a panic of another thread that held it: what it guards stays whole, each
 /// change being made under the lock in one step.
@@ -44,7 +47,11 @@ pub const FAMILIES: [(&str, u32, &[&str]); 4] = [
     ("play", 1, &["time"]),
     ("world", 1, &[]),
     ("editing", 1, &[]),
-    ("interface", 1, &[]),
+    (
+        uwui_agent::interface::FAMILY,
+        uwui_agent::interface::VERSION,
+        uwui_agent::interface::EVENTS,
+    ),
 ];
 
 /// [`FAMILIES`], as the core's session names them.
@@ -76,9 +83,6 @@ pub const ANNOUNCEMENT: &str = "slime-dev-channel ";
 
 /// The most entities that a [`Reply::Entities`] lists: it counts the others.
 pub const MAX_ENTITIES: usize = 1000;
-
-/// The most elements of an interface that a [`Reply::Elements`] lists: it counts the others.
-pub const MAX_ELEMENTS: usize = 1000;
 
 /// The most lines of its log that a game keeps, the oldest dropped first, and that a
 /// [`Reply::Logs`] holds.

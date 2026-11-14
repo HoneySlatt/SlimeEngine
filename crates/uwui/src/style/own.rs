@@ -46,6 +46,20 @@ pub(crate) struct Own {
     place: &'static Location<'static>,
 }
 
+/// A declaration of an own style, as an agent reads it ([`OwnStyle::written`]): what it sets, not
+/// to what.
+#[cfg(feature = "agents")]
+pub(crate) struct Written {
+    /// The field that it sets, as a style sheet writes it: `layout.padding.top`.
+    pub(crate) field: String,
+    /// The state that it holds in; `None` for the base.
+    pub(crate) state: Option<StateName>,
+    /// The name of the token that gives its value; `None` for a value written in code.
+    pub(crate) token: Option<&'static str>,
+    /// The place of the call that wrote it.
+    pub(crate) place: &'static Location<'static>,
+}
+
 /// The room that a declaration of an own style takes on a target of 64 bits, as before it could
 /// name a token: an element's own style holds one for each field that its code sets, and a frame
 /// that builds again makes them all.
@@ -116,6 +130,18 @@ impl OwnStyle {
             }
         }
         places
+    }
+
+    /// Each declaration that it holds, in the order written, as an agent reads it
+    /// (`docs/adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md`).
+    #[cfg(feature = "agents")]
+    pub(crate) fn written(&self) -> impl Iterator<Item = Written> + '_ {
+        self.declarations.iter().map(|own| Written {
+            field: own.declaration.path(),
+            state: own.state,
+            token: own.token.map(|at| self.tokens[usize::from(at)].token.name),
+            place: own.place,
+        })
     }
 
     /// An own style of `declarations`, each in its state, `None` for the base, written here: what

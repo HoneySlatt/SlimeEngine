@@ -1,6 +1,8 @@
 #![doc = include_str!("../README.md")]
 
 pub mod action;
+#[cfg(feature = "agents")]
+pub mod agents;
 pub mod display;
 pub mod dock;
 mod document;

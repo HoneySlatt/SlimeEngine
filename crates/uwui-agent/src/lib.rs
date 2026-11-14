@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 mod error;
+pub mod interface;
 mod message;
 mod session;
 mod typed;

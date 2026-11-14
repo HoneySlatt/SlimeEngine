@@ -103,6 +103,17 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `Client::subscribe` and `unsubscribe` subscribe, `Client::events` lists what the game declares;
   `ChannelError::Refused` also says why a subscription was refused. The editor's Play follows game
   time by the game's events, whoever changes it, and no longer asks the game every 200 ms.
+- The interface's family moves into uwui (ADR-0259), at version 2: its messages are
+  `uwui_agent::interface`'s, which `slime_channel::interface` re-exports, and `uwui` answers them
+  with its new feature `agents` (`uwui::agents::answer`, `shown`), which `slime-app`'s
+  `development` turns on. `slime_channel::Request::Elements`, `ElementAt`, `Act` and
+  `CaptureElement`, `Reply::Elements`, `ElementSummary`, `InterfaceAction` and `MAX_ELEMENTS` are
+  gone, for `Request::Interface`, `Reply::Interface`, `interface::Action` and
+  `interface::MAX_ELEMENTS`. Each element names its target; `interface/element_at` reads the target
+  that it names, or the active target; the new `interface/style` gives the places of the calls that
+  wrote an element's own style, with the fields, states and tokens that each wrote, which the MCP
+  server's new tool `element_style` shows. A tool or a game of before cannot speak the family to
+  one of after.
 - The interface's canvas moves from the renderer into uwui, on wgpu (ADR-0244):
   `Renderer::draw_canvas`, the canvas's types, `Canvas`, `CanvasBox`, `CanvasGradient`,
   `CanvasShadow`, `CanvasStats`, `ImageQuad`, `ImageId`, `PixelRect`, `Radii` and

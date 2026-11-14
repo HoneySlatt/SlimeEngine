@@ -25,7 +25,8 @@ use rmcp::{
     tool_router,
 };
 use serde::Deserialize;
-use slime_channel::{Client, Edit, InterfaceAction, Named, Reply, Request, Token, launch};
+use slime_channel::interface::{self, Action as InterfaceAction};
+use slime_channel::{Client, Edit, Named, Reply, Request, Token, launch};
 
 /// How long a game is given to say where it listens, by default: `cargo run` may build it first.
 const START_TIMEOUT: Duration = Duration::from_secs(600);
@@ -51,7 +52,8 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its dev
      `find_elements` lists its elements by role and name, each with its path, `element_at` names \
      the one at a pixel, `act_on_interface` presses, focuses or scrolls one, gives a field, a \
      slider, two panels, a list to choose from or a color well a value, or moves the focus, \
-     and `capture_element` shows one. An editor, started as a game is (`cargo run --example \
+     `capture_element` shows one, and `element_style` says where the code that wrote its own \
+     style is. An editor, started as a game is (`cargo run --example \
      editor -- --level <a copy of a level> --journal <a file of its own>`), edits its level: \
      `edit` makes a step of commands, `undo` and `redo` undo and make it again, `select` selects \
      entities, `editor_history` says its steps and selection, `editor_journal` gives its journal, \
@@ -314,6 +316,13 @@ struct ActOnInterface {
 /// What `capture_element` takes.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct CaptureElement {
+    /// The element, by the path that `find_elements` gives.
+    element: String,
+}
+
+/// What `element_style` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ElementStyle {
     /// The element, by the path that `find_elements` gives.
     element: String,
 }
@@ -626,46 +635,7 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
             }
             text(said)
         }
-        Reply::Elements { elements, more } => {
-            let mut lines: Vec<String> = elements
-                .into_iter()
-                .map(|element| {
-                    let mut line = format!("{} — {}", element.path, element.role);
-                    if !element.name.is_empty() {
-                        line.push_str(&format!(" `{}`", element.name));
-                    }
-                    if let Some(value) = &element.value {
-                        line.push_str(&format!(", holding {value:?}"));
-                    }
-                    if let Some(description) = &element.description {
-                        line.push_str(&format!(", described {description:?}"));
-                    }
-                    if let Some(placeholder) = &element.placeholder {
-                        line.push_str(&format!(", showing {placeholder:?} while empty"));
-                    }
-                    if !element.states.is_empty() {
-                        line.push_str(&format!(", {}", element.states.join(", ")));
-                    }
-                    line.push_str(&match element.bounds {
-                        Some([x, y, width, height]) => {
-                            format!("; at ({x}, {y}), {width} × {height} pixels")
-                        }
-                        None => "; does not show".to_owned(),
-                    });
-                    if !element.actions.is_empty() {
-                        line.push_str(&format!("; takes {}", element.actions.join(", ")));
-                    }
-                    line
-                })
-                .collect();
-            if lines.is_empty() {
-                lines.push("no element".to_owned());
-            }
-            if more > 0 {
-                lines.push(format!("and {more} more"));
-            }
-            text(lines.join("\n"))
-        }
+        Reply::Interface { reply } => describe_interface(reply, payload),
         Reply::Report { text: report } => text(report),
         Reply::Picked { entity, found } => text(if !found {
             "nothing is picked there".to_owned()
@@ -746,6 +716,97 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
         Reply::Played { address, .. } => text(format!(
             "the editor plays a game, which listens at {address}"
         )),
+    }
+}
+
+/// What the interface's `reply` says, with `payload`, the bytes that followed it.
+fn describe_interface(reply: interface::Reply, payload: &[u8]) -> CallToolResult {
+    match reply {
+        interface::Reply::Done => text("done"),
+        interface::Reply::Elements { elements, more } => {
+            let mut lines: Vec<String> = elements
+                .into_iter()
+                .map(|element| {
+                    let mut line = format!("{} — {}", element.path, element.role);
+                    // The window draws the main target, 0; another one's element shows nowhere
+                    // in its image.
+                    if element.target != 0 {
+                        line.push_str(&format!(" on target {}", element.target));
+                    }
+                    if !element.name.is_empty() {
+                        line.push_str(&format!(" `{}`", element.name));
+                    }
+                    if let Some(value) = &element.value {
+                        line.push_str(&format!(", holding {value:?}"));
+                    }
+                    if let Some(description) = &element.description {
+                        line.push_str(&format!(", described {description:?}"));
+                    }
+                    if let Some(placeholder) = &element.placeholder {
+                        line.push_str(&format!(", showing {placeholder:?} while empty"));
+                    }
+                    if !element.states.is_empty() {
+                        line.push_str(&format!(", {}", element.states.join(", ")));
+                    }
+                    line.push_str(&match element.bounds {
+                        Some([x, y, width, height]) => {
+                            format!("; at ({x}, {y}), {width} × {height} pixels")
+                        }
+                        None => "; does not show".to_owned(),
+                    });
+                    if !element.actions.is_empty() {
+                        line.push_str(&format!("; takes {}", element.actions.join(", ")));
+                    }
+                    line
+                })
+                .collect();
+            if lines.is_empty() {
+                lines.push("no element".to_owned());
+            }
+            if more > 0 {
+                lines.push(format!("and {more} more"));
+            }
+            text(lines.join("\n"))
+        }
+        interface::Reply::Image { width, height } => {
+            describe(Reply::Image { width, height }, payload)
+        }
+        interface::Reply::Style { places } => {
+            if places.is_empty() {
+                return text(
+                    "its code wrote no style of its own: the style sheets' rules alone style it",
+                );
+            }
+            text(
+                places
+                    .into_iter()
+                    .map(|place| {
+                        let declarations: Vec<String> = place
+                            .declarations
+                            .into_iter()
+                            .map(|declaration| {
+                                let mut said = declaration.field;
+                                if let Some(state) = declaration.state {
+                                    said.push_str(&format!(" when {state}"));
+                                }
+                                if let Some(token) = declaration.token {
+                                    said.push_str(&format!(" from the theme's token `{token}`"));
+                                }
+                                said
+                            })
+                            .collect();
+                        format!(
+                            "{}:{}:{} — {}",
+                            place.file,
+                            place.line,
+                            place.column,
+                            declarations.join(", ")
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            )
+        }
     }
 }
 
@@ -1010,9 +1071,11 @@ impl Server {
         &self,
         Parameters(FindElements { role, name }): Parameters<FindElements>,
     ) -> Result<CallToolResult, McpError> {
-        self.ask(Request::Elements {
-            role: role.unwrap_or_default(),
-            name: name.unwrap_or_default(),
+        self.ask(Request::Interface {
+            request: interface::Request::Elements {
+                role: role.unwrap_or_default(),
+                name: name.unwrap_or_default(),
+            },
         })
         .await
     }
@@ -1026,7 +1089,15 @@ impl Server {
         &self,
         Parameters(ElementAt { x, y }): Parameters<ElementAt>,
     ) -> Result<CallToolResult, McpError> {
-        self.ask(Request::ElementAt { x, y }).await
+        self.ask(Request::Interface {
+            // The pixel of the window's image that `capture` gives, which draws the main target.
+            request: interface::Request::ElementAt {
+                x,
+                y,
+                target: Some(0),
+            },
+        })
+        .await
     }
 
     #[tool(
@@ -1079,9 +1150,11 @@ impl Server {
                 )));
             }
         };
-        self.ask(Request::Act {
-            element: act.element.unwrap_or_default(),
-            action,
+        self.ask(Request::Interface {
+            request: interface::Request::Act {
+                element: act.element.unwrap_or_default(),
+                action,
+            },
         })
         .await
     }
@@ -1094,7 +1167,28 @@ impl Server {
         &self,
         Parameters(CaptureElement { element }): Parameters<CaptureElement>,
     ) -> Result<CallToolResult, McpError> {
-        self.ask(Request::CaptureElement { element }).await
+        self.ask(Request::Interface {
+            request: interface::Request::CaptureElement { element },
+        })
+        .await
+    }
+
+    #[tool(
+        description = "Where the code that wrote an element's own style is, by the path that \
+                       `find_elements` gives: each call's file, line and column, and the fields \
+                       that it set, `layout.padding.start`, each with the state that it holds \
+                       in, `Hovered`, and the theme's token that gives its value, where one \
+                       does, which a change of the theme rather than of the code changes. The \
+                       style sheets' rules are not listed."
+    )]
+    async fn element_style(
+        &self,
+        Parameters(ElementStyle { element }): Parameters<ElementStyle>,
+    ) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Interface {
+            request: interface::Request::Style { element },
+        })
+        .await
     }
 
     #[tool(
