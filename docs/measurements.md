@@ -4184,3 +4184,30 @@ milestone's final code, two passes.
   line's end before the level's line, and gives its first 95 to 97 bytes alone. A first version
   of the page, which counted each character through `Pager::visit`, took some 3.5 ns a byte, a
   second one some 1.1 ns; neither was kept.
+
+How long CI's jobs took on `2dd530f`, the commits that read the editor's journal by pages, on
+2026-11-14:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 27 s |
+| `check (headless)` | 16 min 55 s |
+| `check (windowed)` | 11 min 27 s |
+| `check (game)` | 9 min 29 s |
+| `check (gles)` | 3 min 12 s |
+| `windows (tests)` | 12 min 49 s |
+| `windows (render)` | 7 min 42 s |
+| `windows (game)` | 6 min 8 s |
+| `windows-release` | 16 min 6 s |
+| `compositors (weston)` | 14 min 7 s |
+| `compositors (sway)` | 11 min 38 s |
+| `compositors (kwin)` | 9 min 38 s |
+| `compositors (mutter)` | 10 min 15 s |
+| `compositors (x11)` | 15 min 9 s |
+| Docs' `links` | 20 s |
+
+Every job stays within its limit of 20 minutes. `check (headless)` is the longest, with 3 min 5 s
+of margin: it took 17 min 42 s at M6d.5e1 and 12 min 51 s at M6d.9a1b3b1, and this part adds it
+some 15 tests of `slime-editor`, `uwui-agent`, `slime-channel` and `slime-mcp`, one of them
+reading a journal of some 18 MiB by pages in about two seconds, and the MCP server's session
+test pages of the journal. `windows-release` keeps 3 min 54 s; `compositors (x11)` 4 min 51 s.

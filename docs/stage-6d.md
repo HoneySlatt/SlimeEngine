@@ -142,8 +142,8 @@ in git.
   done, [M6d.9a1b3a](#m6d9a1b3a--the-interfaces-family-in-uwui), on the same day; then
   [M6d.9a1b3b](#m6d9a1b3b--long-lists), cut in two on 2026-11-14
   ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)): done,
-  [M6d.9a1b3b1](#m6d9a1b3b1--lists), on the same day; in progress,
-  [M6d.9a1b3b2](#m6d9a1b3b2--the-editors-journal); then
+  [M6d.9a1b3b1](#m6d9a1b3b1--lists), on the same day, and
+  [M6d.9a1b3b2](#m6d9a1b3b2--the-editors-journal), the editor's journal, on the same day; then
   [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
@@ -2560,7 +2560,45 @@ under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
 
 ### M6d.9a1b3b2 — The editor's journal
 
-In progress, its card in [`PLAN.md`](PLAN.md#m6d9a1b3b2--the-editors-journal).
+The second half of M6d.9a1b3b ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)), started on 2026-11-14, designed in
+[ADR-0265](adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md),
+under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The editor's journal read by pages, whatever its size.
+- **Crates.** `uwui-agent`, `slime-channel`, `slime-app`, `slime-editor`, `slime-mcp`.
+- **Delivers.** ADR-0265's pages of the journal; `editing` 2; `editor_journal` paged.
+- **Done when.** A journal past the tool's line, its level's entry past a page, read whole by
+  pages, byte for byte; a level opened between pages makes its cursor stale; CI is green.
+- **Measured.** A page of the journal read on the editor's thread.
+- **Result.** Done on 2026-11-14, CI green on `2dd530f`
+  ([ADR-0265](adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md),
+  [ADR-0267](adr/0267-a-page-of-the-journal-apart-from-the-one-handler-a-cut-journals-start-refused-a-floor-of-4-kib.md),
+  their questions decided by the owner):
+  - The journal draws its own number from a counter of the process, and counts the bytes that it
+    wrote in whole entries. A page reads its file by seek within them, in pieces from 4 KiB, its
+    JSON counted by blocks of 64 bytes; it ends after its last line's end, else at a character's
+    boundary, and replaces each run of bytes that is not UTF-8, marked `lossy`. A level opened
+    makes its cursors stale; a cut file refuses the journal's start; a journal whose write failed
+    adds nothing more and refuses its pages.
+  - `editing` 2. `Simulation::edit` takes the request's page and its clock; a page is answered
+    apart from the editor's one handler, and publishes nothing. `uwui-agent` gives
+    `json_char_size` and `Pager::time_passed`; `Reply` is made from a `Fault`. The MCP server's
+    `editor_journal` pages for the agent, within the bytes that it asks, `next` first.
+  - Measured ([`measurements.md`](measurements.md#m6d9a1b3b2-the-editors-journal)): a page of
+    32 KiB takes some 21 µs of the editor's thread, a page of 1 MiB its share of 0.5 ms, where
+    reading a journal of 8 MiB whole took 0.35 ms, and 5.2 ms from the disk. A first version of
+    the page cost ten times as much a byte, and was rewritten before the closing review.
+  - Two closing reviews. The first found a cut journal's start answered `STALE`, on which a tool
+    lists again and so looped, a torn write that a page could show, a floor that read 64 KiB
+    whatever its time, and drift from ADR-0156; the second, the refusal's advice that could not
+    be followed, a floor of two reads, a journal created without appending, and drift from
+    ADR-0265, which ADR-0267 records. Of 82 mutations of the new code, across its versions, each
+    fails a test but one, equivalent; three that first survived showed tests too weak, made
+    stronger.
+  - Left for later ([`debt.md`](debt.md)): a page read on the editor's thread, which a slow disk
+    may let take a frame (M6c.Q2f); the journal read whole as a level opens, and its growth across
+    recoveries (M6c.Q4); an agent following the editor's steps by reading the journal again
+    (M6d.9a2); an answer counted twice (uwui's first stage).
 
 ### M6d.9a2 — uwui's MCP library and families
 
