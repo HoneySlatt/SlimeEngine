@@ -4,7 +4,6 @@
 
 use slime_app::InterfaceRenderer;
 use slime_gfx::{GfxError, Gpu, RenderTarget};
-use slime_platform::PhysicalSize;
 use slime_render::RenderStats;
 use uwui::action::{Action, ActionKind, Intent};
 use uwui::host::TargetId;
@@ -12,7 +11,7 @@ use uwui::look::{self, Colors, Density};
 use uwui::shortcuts::Shortcuts;
 use uwui::style::{Dimension, FlexDirection};
 use uwui::text::Fonts;
-use uwui::tree::{Element, ElementId, Layer, LayoutDirection, Place, RootSettings, Ui};
+use uwui::tree::{Element, ElementId, Layer, Place, RootSettings, Ui};
 
 /// The space between a panel and the window's edges, in logical pixels.
 const MARGIN: f32 = 12.0;
@@ -45,8 +44,6 @@ pub struct Overlay {
     /// What draws it, made by the first draw for its target's format.
     renderer: Option<InterfaceRenderer>,
     panels: Vec<Panel>,
-    /// Whether [`Overlay::set_window`] gave the window's size.
-    sized: bool,
 }
 
 /// One of an overlay's panels, as [`Overlay::add_panel`] gives it. The overlay's methods panic on
@@ -106,13 +103,12 @@ impl Overlay {
         )
         .expect("the look's documents are valid, as uwui's tests check");
         ui.set_tab_enters(false);
-        let window = ui.add_root("overlay", settings([1.0, 1.0], 1.0), |s| s);
+        let window = ui.add_root("overlay", RootSettings::on(TargetId::MAIN), |s| s);
         Self {
             ui,
             window,
             renderer: None,
             panels: Vec::new(),
-            sized: false,
         }
     }
 
@@ -170,8 +166,11 @@ impl Overlay {
     /// [`Ui::take_actions`] gives them, but the commands of the panels' chords, which open and
     /// close them. Escape, the intent to cancel, while one of the panels' elements holds the focus,
     /// takes the focus away, a field committing what it holds, and gives the keys back to the
-    /// game; its action stays among those given.
+    /// game; its action stays among those given. A program takes them at each frame before it
+    /// builds its panels: the panels opened before the overlay's host gave its target a size
+    /// ([`Ui::set_target_size`]) open here once it has.
     pub fn take_actions(&mut self) -> Vec<Action> {
+        self.open_waiting();
         let mut actions = self.ui.take_actions();
         let focus = self.ui.focus();
         if focus.is_some()
@@ -213,9 +212,10 @@ impl Overlay {
         }
     }
 
-    /// Opens `panel` where it stood as it last closed, or at its corner, over the window as
-    /// [`Overlay::set_window`] last gave it, or once it gives it; nothing happens if it is open.
-    /// Its slot is empty until the program builds in it.
+    /// Opens `panel` where it stood as it last closed, or at its corner, over the window as its
+    /// host last gave its size ([`Ui::set_target_size`]), or once it gives one, at the next
+    /// [`Overlay::take_actions`]; nothing happens if it is open. Its slot is empty until the
+    /// program builds in it.
     ///
     /// # Panics
     ///
@@ -224,14 +224,11 @@ impl Overlay {
         if self.is_open(panel) {
             return;
         }
-        if !self.sized {
+        let Some(window) = self.ui.target_size(TargetId::MAIN) else {
             self.panels[panel.0].waiting = true;
             return;
-        }
-        let [width, height] = self
-            .ui
-            .root_settings(self.window)
-            .map_or([1.0; 2], |root| root.size);
+        };
+        let [width, height] = window.logical();
         let held = &self.panels[panel.0];
         let spec = held.spec;
         let place = held.place.unwrap_or_else(|| {
@@ -290,24 +287,14 @@ impl Overlay {
         self.panels[panel.0].open.map(|(_, slot)| slot)
     }
 
-    /// Gives the overlay the window's size, in physical pixels, and its scale factor, which its
-    /// panels are laid out over: each frame, before the panels are opened and built.
-    pub fn set_window(&mut self, size: PhysicalSize, scale_factor: f64) {
-        let scale = scale_factor as f32;
-        let logical = [
-            size.width.max(1) as f32 / scale,
-            size.height.max(1) as f32 / scale,
-        ];
-        let wanted = settings(logical, scale);
-        if self.ui.root_settings(self.window) != Some(wanted) {
-            self.ui.set_root(self.window, wanted);
+    /// Opens the panels that waited for the window's size, once its host gave it.
+    fn open_waiting(&mut self) {
+        if self.ui.target_size(TargetId::MAIN).is_none() {
+            return;
         }
-        if !self.sized {
-            self.sized = true;
-            for at in 0..self.panels.len() {
-                if std::mem::take(&mut self.panels[at].waiting) {
-                    self.open(PanelId(at));
-                }
+        for at in 0..self.panels.len() {
+            if std::mem::take(&mut self.panels[at].waiting) {
+                self.open(PanelId(at));
             }
         }
     }
@@ -386,23 +373,11 @@ pub fn render_figures(stats: &RenderStats) -> Vec<String> {
     lines
 }
 
-/// The settings of the window's root: `size` logical pixels at `scale`, from left to right.
-fn settings(size: [f32; 2], scale: f32) -> RootSettings {
-    RootSettings {
-        size,
-        scale,
-        direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
-        modal: false,
-        target: uwui::host::TargetId::MAIN,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use slime_gfx::{RenderPassDescriptor, TextureFormat};
     use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
-    use uwui::host::Person;
+    use uwui::host::{Person, TargetSize};
     use uwui::tree::Role;
 
     use super::*;
@@ -418,10 +393,14 @@ mod tests {
         }
     }
 
-    const WINDOW: PhysicalSize = PhysicalSize {
-        width: 1280,
-        height: 720,
-    };
+    /// The window's width and height, in pixels.
+    const WINDOW: [u32; 2] = [1280, 720];
+
+    /// Gives the overlay's target `pixels` at `scale`, as its host gives a window's.
+    fn give_window(overlay: &mut Overlay, pixels: [u32; 2], scale: f32) {
+        let size = TargetSize::new(pixels, scale).expect("a size");
+        overlay.ui_mut().set_target_size(TargetId::MAIN, size);
+    }
 
     /// An overlay over a window of 1280 × 720 pixels at scale 1, with a panel of statistics on F1,
     /// at the top start, which holds a button, and a world panel on F2, at the top end.
@@ -441,7 +420,7 @@ mod tests {
             corner: Corner::TopEnd,
             size: [380.0, 640.0],
         });
-        overlay.set_window(WINDOW, 1.0);
+        give_window(&mut overlay, WINDOW, 1.0);
         (overlay, statistics, world)
     }
 
@@ -526,18 +505,12 @@ mod tests {
             None,
             "not laid out over a window yet"
         );
-        overlay.set_window(WINDOW, 1.0);
+        give_window(&mut overlay, WINDOW, 1.0);
         frame(&mut overlay, statistics);
         let open = panel_box(&overlay, "Statistics");
         assert_eq!((open.x, open.width), (1280.0 - 12.0 - 300.0, 300.0));
         // The window moves to a screen of twice the pixels: the panel keeps its logical place.
-        overlay.set_window(
-            PhysicalSize {
-                width: 2560,
-                height: 1440,
-            },
-            2.0,
-        );
+        give_window(&mut overlay, [2560, 1440], 2.0);
         frame(&mut overlay, statistics);
         let doubled = panel_box(&overlay, "Statistics");
         assert_eq!((doubled.x, doubled.width), (open.x * 2.0, 600.0));
@@ -593,8 +566,8 @@ mod tests {
         let target = gpu
             .create_render_target(
                 "the window",
-                WINDOW.width,
-                WINDOW.height,
+                WINDOW[0],
+                WINDOW[1],
                 TextureFormat::Rgba8UnormSrgb,
             )
             .expect("the GPU has memory for it");

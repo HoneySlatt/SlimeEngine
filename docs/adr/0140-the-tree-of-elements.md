@@ -7,7 +7,8 @@
   themes); amended by [0141](0141-style-sheets-and-themes.md),
   [0143](0143-what-agents-see-of-the-interface.md), [0146](0146-screen-readers.md) (the mark of
   an element's meaning)
-  and [0175](0175-the-quality-bar.md) (a list's budget kept in the roadmap)
+  [0175](0175-the-quality-bar.md) (a list's budget kept in the roadmap) and
+  [0268](0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md) (a root's size and scale are its target's)
 - Date: 2026-10-24
 
 ## Context

@@ -8,13 +8,13 @@ use std::time::Duration;
 use slime_color::LinearColor;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::display::{DisplayList, Primitive};
-use uwui::host::{Person, TargetId};
+use uwui::host::{Person, TargetId, TargetSize};
 use uwui::preferences::Preferences;
 use uwui::style::{Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::theme::{StyleSheet, Theme};
 use uwui::time::{FrameShown, Instant};
-use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
+use uwui::tree::{Element, ElementId, RootSettings, Ui};
 
 /// An interface whose font is the tests' Noto Sans, styled by `sheet`, and its root of 400 by 300
 /// logical pixels at `scale`.
@@ -30,14 +30,12 @@ fn ui(sheet: &str, scale: f32) -> (Ui, ElementId) {
         &[Theme::from_text("empty.theme", "")],
     )
     .expect("the style sheet");
-    let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale,
-        direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
-        modal: false,
-        target: uwui::host::TargetId::MAIN,
-    };
+    let pixels = [400.0 * scale, 300.0 * scale].map(|side| side as u32);
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new(pixels, scale).expect("a size"),
+    );
+    let settings = RootSettings::on(TargetId::MAIN);
     let root = ui.add_root("main", settings, |s| s.direction(FlexDirection::Column));
     (ui, root)
 }

@@ -64,6 +64,67 @@ impl TargetId {
     pub const MAIN: Self = Self(0);
 }
 
+/// The size of a target's image, in physical pixels, and its scale, the physical pixels per logical
+/// pixel: what its host gives ([`Ui::set_target_size`](crate::tree::Ui::set_target_size)), which
+/// each root on the target fills. Each side is at least one pixel and the scale a finite number
+/// above zero, which [`TargetSize::new`] checks.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TargetSize {
+    pixels: [u32; 2],
+    scale: f32,
+}
+
+/// Why a target's size was refused ([`TargetSize::new`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum TargetSizeError {
+    /// A width or a height of zero: a window minimized has no area, and its host gives nothing
+    /// while it has none, its target keeping the size it had.
+    #[error("a target's width and height are one pixel at least")]
+    Empty,
+    /// A scale that is not a finite number above zero.
+    #[error("a target's scale is a finite number above zero")]
+    Scale,
+}
+
+impl TargetSize {
+    /// The size of `pixels`, width then height in physical pixels, at `scale`.
+    ///
+    /// # Errors
+    ///
+    /// [`TargetSizeError::Empty`] for a side of zero; [`TargetSizeError::Scale`] for a scale that
+    /// is not a finite number above zero.
+    pub fn new(pixels: [u32; 2], scale: f32) -> Result<Self, TargetSizeError> {
+        if pixels.contains(&0) {
+            return Err(TargetSizeError::Empty);
+        }
+        if !(scale.is_finite() && scale > 0.0) {
+            return Err(TargetSizeError::Scale);
+        }
+        Ok(Self { pixels, scale })
+    }
+
+    /// The size of a target whose host gave none: one pixel, at scale 1.
+    pub(crate) const UNGIVEN: Self = Self {
+        pixels: [1, 1],
+        scale: 1.0,
+    };
+
+    /// Its width and height in physical pixels.
+    pub fn pixels(self) -> [u32; 2] {
+        self.pixels
+    }
+
+    /// Its physical pixels per logical pixel.
+    pub fn scale(self) -> f32 {
+        self.scale
+    }
+
+    /// Its width and height in logical pixels: its pixels divided by its scale.
+    pub fn logical(self) -> [f32; 2] {
+        self.pixels.map(|side| side as f32 / self.scale)
+    }
+}
+
 /// An input event that the host gives ([`Ui::event`](crate::tree::Ui::event)): where it came, when,
 /// and what it is.
 #[derive(Clone, Copy, Debug)]

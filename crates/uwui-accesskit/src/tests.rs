@@ -6,6 +6,7 @@ use uwui::text::Fonts;
 use uwui::tree::{Element, ItemMark, RootSettings};
 
 use super::*;
+use uwui::host::TargetSize;
 
 impl ScreenReaderTree {
     /// The update of what changed in `ui` for the window's reader, as a frame gives it, the
@@ -66,11 +67,12 @@ fn empty() -> (Ui, ElementId) {
         .register(std::fs::read(path).expect("the test font"))
         .expect("a font");
     let mut ui = Ui::new(fonts);
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };
@@ -410,10 +412,7 @@ fn a_modal_root_gives_a_whole_update_that_the_tree_takes() {
     let mut readers = ScreenReaderTree::new(TargetId::MAIN);
     let mut tree = Tree::new(readers.read(&mut ui, true, false, SIZE), true);
     let settings = RootSettings {
-        size: [200.0, 100.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [100.0, 100.0],
         modal: true,
         target: uwui::host::TargetId::MAIN,
     };
@@ -483,11 +482,12 @@ fn a_selection_spans_lines_and_scrolls_follow_the_direction_of_their_root() {
         .register(std::fs::read(path).expect("the test font"))
         .expect("a font");
     let mut ui = Ui::new(fonts);
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::RightToLeft,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };

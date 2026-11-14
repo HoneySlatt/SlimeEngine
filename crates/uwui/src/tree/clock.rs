@@ -8,21 +8,26 @@ use std::task::Waker;
 use std::time::Duration;
 
 use super::{ElementId, Ui};
-use crate::host::TargetId;
+use crate::host::{TargetId, TargetSize};
 use crate::time::{FrameShown, Instant, RootClock, RootTime};
 
-/// What the interface keeps of a target's frames: the time given for the next, and whether the
-/// target holds a change that a frame would draw. Kept apart from the target's input, so that a time
-/// given before the target's first root is kept.
+/// What the interface keeps of a target's frames: the time given for the next, whether the target
+/// holds a change that a frame would draw, and its size (`tree/size.rs`). Kept apart from the
+/// target's input, so that a time or a size given before the target's first root is kept.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct TargetFrame {
-    target: TargetId,
+    pub(super) target: TargetId,
     /// The time last given for its frame, as given; none until the host gives one.
     shown: Option<FrameShown>,
     /// The latest time given for its frames, which never goes back: what its motions read.
     at: Instant,
     /// Whether it holds a change that its next frame would draw.
-    changed: bool,
+    pub(super) changed: bool,
+    /// The size that its host last gave; none until it gives one.
+    pub(super) given: Option<TargetSize>,
+    /// The size that its roots were last laid out at, which the given one becomes at its next
+    /// frame.
+    pub(super) laid_out: TargetSize,
 }
 
 /// The clock that a motion follows: the host's, or its root's ([`RootClock`]).
@@ -71,7 +76,7 @@ impl Ui {
     }
 
     /// `target`'s record of its frames, made if it had none.
-    fn frame_record(&mut self, target: TargetId) -> &mut TargetFrame {
+    pub(super) fn frame_record(&mut self, target: TargetId) -> &mut TargetFrame {
         let at = match self.frames.iter().position(|each| each.target == target) {
             Some(at) => at,
             None => {
@@ -80,6 +85,8 @@ impl Ui {
                     shown: None,
                     at: Instant::ZERO,
                     changed: false,
+                    given: None,
+                    laid_out: TargetSize::UNGIVEN,
                 });
                 self.frames.len() - 1
             }

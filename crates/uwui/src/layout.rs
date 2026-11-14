@@ -20,12 +20,12 @@ use crate::style::{
     Align, Dimension, Display, FlexDirection, GridPlace, Justify, LayoutStyle, Sides, Track,
 };
 use crate::text::TextBounds;
-use crate::tree::{ElementId, Key, Kind, LayoutDirection, RootSettings, Ui};
+use crate::tree::{ElementId, Key, Kind, LayoutDirection, RootBox, Ui};
 
 /// Lays out `root` and what lies below it: their styles converted where they changed, taffy run
 /// from the root, the rows of its lists laid out, then every element placed.
 pub(crate) fn lay_out(ui: &mut Ui, root: ElementId) {
-    let Some(settings) = ui.node(root).and_then(|node| node.root) else {
+    let Some(settings) = ui.root_box(root) else {
         return;
     };
     let scale = settings.scale;
@@ -58,7 +58,7 @@ pub(crate) fn lay_out(ui: &mut Ui, root: ElementId) {
 /// Lays out the rows of the list `list` again, with the rows of the lists that they hold, and
 /// places them: they changed, and nothing else did. Gives those lists, `list` first.
 pub(crate) fn lay_out_list(ui: &mut Ui, list: ElementId) -> Vec<ElementId> {
-    let Some(settings) = ui.root_settings(list) else {
+    let Some(settings) = ui.root_box(list) else {
         return Vec::new();
     };
     let row_pixels = ui.row_pixels(list);
@@ -81,7 +81,7 @@ fn convert(
     ui: &mut Ui,
     start: ElementId,
     row_pixels: Option<f32>,
-    settings: RootSettings,
+    settings: RootBox,
     forced: bool,
 ) {
     let scale = settings.scale;
@@ -251,7 +251,7 @@ fn split_panel(ui: &Ui, id: ElementId) -> Option<Panel> {
 
 /// How tall the box of a header `id` is, in pixels of the screen: its section's or floating panel's
 /// header's height. None for another element, or a box of no such parent.
-fn header_box_height(ui: &mut Ui, id: ElementId, settings: RootSettings) -> Option<f32> {
+fn header_box_height(ui: &mut Ui, id: ElementId, settings: RootBox) -> Option<f32> {
     let node = ui.node(id)?;
     if !matches!(node.element.kind, Kind::SectionHeader) {
         return None;
@@ -329,7 +329,7 @@ fn field_room(ui: &mut Ui, id: ElementId, scale: f32) -> Option<[f32; 2]> {
 }
 
 /// Lays out each row of the list `list` alone, at the list's width and the height of a row.
-fn lay_out_rows(ui: &mut Ui, list: ElementId, settings: RootSettings) {
+fn lay_out_rows(ui: &mut Ui, list: ElementId, settings: RootBox) {
     let Some(row_pixels) = ui.row_pixels(list) else {
         return;
     };
@@ -357,7 +357,7 @@ fn lay_out_rows(ui: &mut Ui, list: ElementId, settings: RootSettings) {
 /// Places `id` and the elements below it again, without laying them out: its content scrolled,
 /// or its rows laid out again.
 pub(crate) fn place_below(ui: &mut Ui, id: ElementId) {
-    let Some(settings) = ui.root_settings(id) else {
+    let Some(settings) = ui.root_box(id) else {
         return;
     };
     let across = mirror(ui, id, settings);
@@ -382,7 +382,7 @@ pub(crate) fn place_below(ui: &mut Ui, id: ElementId) {
 /// left, in pixels of its surface: twice its place plus its width, as wide as its surface, or as its
 /// content for a layer that takes the size of its content. Laying out and placing again after a
 /// scroll mirror across the same line.
-fn mirror(ui: &Ui, id: ElementId, settings: RootSettings) -> f32 {
+fn mirror(ui: &Ui, id: ElementId, settings: RootBox) -> f32 {
     let scale = settings.scale;
     let width = ui
         .root_of(id)
@@ -397,7 +397,7 @@ fn mirror(ui: &Ui, id: ElementId, settings: RootSettings) -> f32 {
 /// kept within the content; the whole mirrored for a root that lays its lines out from right to
 /// left; and the rectangle each is cut to, by the boxes that scroll above it. An element whose
 /// box or cut moves is drawn again.
-fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: RootSettings) {
+fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: RootBox) {
     let (scale, direction) = (settings.scale, settings.direction);
     let across = mirror(ui, start.0, settings);
     let mut stack = vec![start];

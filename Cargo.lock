@@ -3155,7 +3155,6 @@ dependencies = [
  "slime-color",
  "slime-gfx",
  "slime-input",
- "slime-platform",
  "slime-reflect",
  "slime-render",
  "slime-world",

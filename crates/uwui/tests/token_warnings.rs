@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use tracing::span::{Attributes, Id, Record};
 use tracing::{Event, Level, Metadata, Subscriber};
 use uwui::host::TargetId;
+use uwui::host::TargetSize;
 use uwui::text::Fonts;
 use uwui::theme::{Fallback, Length, Theme, Token, Tokens};
 use uwui::tree::{Element, LayoutDirection, RootSettings, Ui};
@@ -66,11 +67,12 @@ fn count(warnings: &Warnings) -> usize {
 /// Gives `ui` a root of `elements` children whose own styles name `test_gap` and `test_loose`, and
 /// makes a frame.
 fn with_elements(ui: &mut Ui, elements: usize) {
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([100, 100], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [100.0, 100.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };
@@ -88,11 +90,12 @@ fn with_elements(ui: &mut Ui, elements: usize) {
 
 /// Gives `ui` a root whose own style names `test_gap` alone, and makes a frame.
 fn with_the_gap(ui: &mut Ui) {
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([100, 100], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [100.0, 100.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };

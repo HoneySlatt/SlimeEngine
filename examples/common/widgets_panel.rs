@@ -212,7 +212,6 @@ enum Item {
 pub struct WidgetsPanel {
     pub ui: Ui,
     root: ElementId,
-    direction: LayoutDirection,
     /// The list of entities, while the inspector shows.
     list: Option<ElementId>,
     sections: Vec<Section>,
@@ -259,7 +258,11 @@ impl WidgetsPanel {
         let mut ui = Ui::new(fonts);
         ui.set_shortcuts(&[Shortcuts::from_text("widgets.keys", KEYS)])
             .expect("the example's shortcuts are valid");
-        let root = ui.add_root("main", settings([1.0, 1.0], 1.0, direction), column);
+        let settings = RootSettings {
+            direction,
+            ..RootSettings::on(uwui::host::TargetId::MAIN)
+        };
+        let root = ui.add_root("main", settings, column);
         let slider = |label, value, min, max, step| Slider {
             label,
             value,
@@ -323,7 +326,6 @@ impl WidgetsPanel {
         let mut panel = Self {
             ui,
             root,
-            direction,
             list: None,
             sections,
             levels: [true; 3],
@@ -784,11 +786,9 @@ impl WidgetsPanel {
         self.revision += 1;
     }
 
-    /// Builds what changed, lays the interface out over a surface of `size` logical pixels at
-    /// `scale`, and gives its display list.
-    pub fn frame(&mut self, size: [f32; 2], scale: f32) -> DisplayList {
-        self.ui
-            .set_root(self.root, settings(size, scale, self.direction));
+    /// Builds what changed, lays the interface out at the size and scale that its host gave
+    /// ([`Ui::set_target_size`]), and gives its display list.
+    pub fn frame(&mut self) -> DisplayList {
         // The builder runs when what the program shows changes, and when a tab is chosen: what it
         // gives then replaces what it gave before.
         let mut built = None;
@@ -1206,18 +1206,6 @@ fn about(children: &mut Children<'_>) {
             children.add(index, label, |_| {});
         }
     });
-}
-
-/// The settings of the root: `size` logical pixels at `scale`, laid out in `direction`.
-fn settings(size: [f32; 2], scale: f32, direction: LayoutDirection) -> RootSettings {
-    RootSettings {
-        size,
-        scale,
-        direction,
-        origin: [0.0; 2],
-        modal: false,
-        target: uwui::host::TargetId::MAIN,
-    }
 }
 
 /// Writes that an element lays its children out in a column.

@@ -49,6 +49,8 @@ mod reads_tests;
 #[cfg(all(test, feature = "editor-look"))]
 mod roles_tests;
 mod scroll_bar;
+mod size;
+pub(crate) use size::RootBox;
 mod tooltip;
 
 pub use interact::Dragging;
@@ -1084,23 +1086,20 @@ pub enum LayoutDirection {
     RightToLeft,
 }
 
-/// A root of the tree: the surface it lays out on, a window or any target that the program draws
-/// its display list into.
+/// A root of the tree: the target it draws on, a window or any image that the host draws its display
+/// list into, which it fills, at its target's size and scale ([`Ui::set_target_size`]); how it lays
+/// out its lines; whether it is modal.
 ///
-/// Roots are stacked in the order they are added, the last on top: drawn last, and taking the
-/// pointer first. A popup, a menu or a dialog is a root of its own, over the window's, at the place
-/// that the program gives it.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// Roots are stacked in the order they are added, the last on top, drawn last. The pointer reaches
+/// the top root that would take a press at its point: where it draws, its scroll bars included, or
+/// where an element under the point takes the pointer or is a surface; elsewhere it goes on to the
+/// roots below, and where none would take it, the top root's deepest box holds it. A layer, a
+/// popup, a menu or a panel placed over a root, takes it wherever its box lies; a modal root takes
+/// it everywhere on its target ([`Ui::element_at`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RootSettings {
-    /// Its width and height, in logical pixels.
-    pub size: [f32; 2],
-    /// The pixels of the screen per logical pixel, a finite number above 0.
-    pub scale: f32,
     /// The direction of its lines.
     pub direction: LayoutDirection,
-    /// Where its top left corner lies on its surface, in logical pixels: `[0.0, 0.0]` for a root
-    /// that fills a window, a popup's place otherwise.
-    pub origin: [f32; 2],
     /// Whether it is modal, as the root is added: while it is there, the roots below it on its
     /// target take no input, and the focus of its target stays among its elements, given back to
     /// the element that held it when it is removed. The roots of other targets go on as before.
@@ -1110,6 +1109,17 @@ pub struct RootSettings {
     /// root that it opens over, whatever this says
     /// (`docs/adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md`).
     pub target: TargetId,
+}
+
+impl RootSettings {
+    /// A root on `target`, laid out from left to right, not modal.
+    pub fn on(target: TargetId) -> Self {
+        Self {
+            direction: LayoutDirection::LeftToRight,
+            modal: false,
+            target,
+        }
+    }
 }
 
 /// What changed in an element since it was last laid out and drawn.
@@ -1238,8 +1248,9 @@ struct Slot {
 /// changed or moved, and gives the display list. A frame where nothing changed lays out and draws
 /// nothing; it gathers the display list from what each element drew before.
 ///
-/// Lengths are logical pixels in styles and pixels of the screen, logical pixels times the root's
-/// scale, in what a frame gives: boxes, clips and the display list.
+/// Lengths are logical pixels in styles and pixels of the screen, logical pixels times the scale of
+/// the root's target ([`Ui::set_target_size`]), in what a frame gives: boxes, clips and the display
+/// list.
 ///
 /// A person's input reaches it as events that the host gives, the pointer's moves and buttons, the
 /// wheel, the modifiers, the keys and input methods ([`Ui::event`]), which become *actions*; an
@@ -1250,16 +1261,16 @@ struct Slot {
 /// use uwui::Rect;
 /// use uwui::style::Dimension;
 /// use uwui::text::Fonts;
+/// use uwui::host::{TargetId, TargetSize};
 /// use uwui::tree::{Element, LayoutDirection, RootSettings, Ui};
 ///
 /// let mut ui = Ui::new(Fonts::new());
+/// // The host gives its target the size of its image, 400 × 300 logical pixels at scale 2.
+/// let size = TargetSize::new([800, 600], 2.0).expect("a size above zero, a valid scale");
+/// ui.set_target_size(TargetId::MAIN, size);
 /// let settings = RootSettings {
-///     size: [400.0, 300.0],
-///     scale: 2.0,
 ///     direction: LayoutDirection::RightToLeft,
-///     origin: [0.0; 2],
-///     modal: false,
-///     target: uwui::host::TargetId::MAIN,
+///     ..RootSettings::on(TargetId::MAIN)
 /// };
 /// let root = ui.add_root("main", settings, |s| s);
 /// let panel_box = Element::container().style(|s| {
@@ -1424,15 +1435,11 @@ impl Ui {
         &mut self.fonts
     }
 
-    /// Adds a root, named `key` in the paths of its elements ([`Ui::path_text`]): a surface of
-    /// `settings`, its element a container whose own style `write` writes, as
-    /// [`Element::style`] does, and whose size is the root's. A key that an open
-    /// root holds already is followed by `-2`, `-3` and on, a number by the next number free, so
-    /// that each root's is its own.
-    ///
-    /// # Panics
-    ///
-    /// If the settings' scale is not a finite number above 0.
+    /// Adds a root, named `key` in the paths of its elements ([`Ui::path_text`]): of `settings`,
+    /// its element a container whose own style `write` writes, as [`Element::style`] does, and
+    /// whose size is its target's ([`Ui::set_target_size`]). A key that an open root holds already
+    /// is followed by `-2`, `-3` and on, a number by the next number free, so that each root's is
+    /// its own.
     #[track_caller]
     pub fn add_root(
         &mut self,
@@ -1451,7 +1458,6 @@ impl Ui {
         settings: RootSettings,
         element: Element,
     ) -> ElementId {
-        assert_scale(settings.scale);
         let key = self.free_root_key(key);
         let mut node = Node::new(key, element, settings.target);
         node.root = Some(settings);
@@ -1488,8 +1494,9 @@ impl Ui {
             .expect("a variant is free past every root")
     }
 
-    /// Changes a root's size, scale, direction or target: it is laid out again, and, for another
-    /// scale or direction, drawn again whole.
+    /// Changes a root's direction or target: it is laid out again, and, for another direction, or a
+    /// target of another scale, drawn again whole. Whether it is modal is set as it is added: this
+    /// changes nothing of it.
     ///
     /// Another target moves it there with the layers that stand over it, at once. What the old
     /// target's input held in them lets go, as if that input had left: a held control commits, a
@@ -1501,10 +1508,8 @@ impl Ui {
     ///
     /// # Panics
     ///
-    /// If `root` is not a root of this interface, or the settings' scale is not a finite number
-    /// above 0.
+    /// If `root` is not a root of this interface.
     pub fn set_root(&mut self, root: ElementId, settings: RootSettings) {
-        assert_scale(settings.scale);
         let from = self
             .node(root)
             .and_then(|node| node.root)
@@ -1524,12 +1529,13 @@ impl Ui {
             self.move_to_target(&group, from, settings.target);
         }
         let node = self.node_mut(root).expect("a root of this interface");
-        let mut before = node
+        let before = node
             .root
             .replace(settings)
             .expect("a root of this interface");
-        before.target = settings.target;
-        if before.scale != settings.scale || before.direction != settings.direction {
+        let rescaled =
+            self.laid_out_size(from).scale() != self.laid_out_size(settings.target).scale();
+        if rescaled || before.direction != settings.direction {
             // Every length that taffy holds, and every primitive, is in pixels of the screen, and
             // every corner and shadow mirrored by the direction.
             self.mark_all(root);
@@ -1946,7 +1952,8 @@ impl Ui {
 
     /// Draws `target`'s frame: lays out its roots where something changed, draws again what
     /// changed, and gives what its roots draw, in the order they were added, and what it did. The
-    /// host gives its time first ([`Ui::set_frame_shown`]).
+    /// host gives its time first ([`Ui::set_frame_shown`]), and its size whenever it changed
+    /// ([`Ui::set_target_size`]), which the frame lays its roots out at.
     ///
     /// Only `target`'s roots are styled, stepped, laid out, drawn and gathered; what another
     /// target holds, its changes, its transitions and its waiting bars, waits for that target's
@@ -1966,6 +1973,8 @@ impl Ui {
         let mut asked = std::mem::take(&mut self.asked);
         asked.retain(|&id| self.node(id).is_some_and(|node| node.rebuild));
         self.asked = asked;
+        // The size that the host gave is the one this frame lays out at.
+        self.settle_size(t);
         // Transitions move on to the clock; then styles: a style that changed lays its element
         // out again. The input's states follow what they made, a focus hidden or disabled dropped,
         // and are styled in turn.
@@ -2653,13 +2662,13 @@ impl Ui {
         }
     }
 
-    /// The scale of the root that `id` lies under.
+    /// The scale of the target that `id` draws on, as its roots were last laid out.
     pub(crate) fn scale_of(&self, id: ElementId) -> f32 {
-        self.root_settings(id)
-            .map_or(1.0, |settings| settings.scale)
+        self.node(id)
+            .map_or(1.0, |node| self.laid_out_size(node.drawn_on).scale())
     }
 
-    /// The settings of the root that `id` lies under: its scale and its direction among them.
+    /// The settings of the root that `id` lies under: its direction and its target among them.
     pub fn root_settings(&self, id: ElementId) -> Option<RootSettings> {
         self.node(self.root_of(id)?)?.root
     }
@@ -2992,14 +3001,6 @@ impl<'a> Children<'a> {
             ui.node_mut(parent).expect("the parent is there").rows_built = visible;
         }
     }
-}
-
-/// Refuses a root's scale that is not a finite number above 0, which no length can be divided by.
-fn assert_scale(scale: f32) {
-    assert!(
-        scale.is_finite() && scale > 0.0,
-        "a root's scale must be a finite number above 0, not {scale}"
-    );
 }
 
 /// Whether changing what `before` holds into what `after` holds lays the element out again, rather

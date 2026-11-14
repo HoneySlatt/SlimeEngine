@@ -8,6 +8,7 @@ use std::time::Duration;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind, FieldValue};
 use uwui::display::Primitive;
+use uwui::host::TargetSize;
 use uwui::host::{Person, TargetId};
 use uwui::preferences::Preferences;
 use uwui::style::{Dimension, StyleBuilder};
@@ -41,11 +42,12 @@ fn style(s: StyleBuilder, width: Option<f32>) -> StyleBuilder {
 /// the interface and its root.
 fn interface() -> (Ui, ElementId) {
     let mut ui = ui();
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };
@@ -382,11 +384,12 @@ fn a_bar_without_a_share_stops_moving_once_hidden_or_given_one() {
 #[test]
 fn from_right_to_left_a_fields_prefix_and_marks_stand_at_its_right_and_left() {
     let mut ui = ui();
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::RightToLeft,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };
@@ -570,11 +573,12 @@ fn a_drag_goes_finer_with_shift_and_coarser_with_control() {
 fn a_sections_header_holds_its_box_at_its_end_whose_presses_do_not_fold_it() {
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
         let mut ui = ui();
+        ui.set_target_size(
+            uwui::host::TargetId::MAIN,
+            TargetSize::new([400, 300], 1.0).expect("a size"),
+        );
         let settings = RootSettings {
-            size: [400.0, 300.0],
-            scale: 1.0,
             direction,
-            origin: [0.0; 2],
             modal: false,
             target: uwui::host::TargetId::MAIN,
         };
@@ -680,11 +684,12 @@ fn drawn_text(ui: &mut Ui, text: &str) -> Option<(f32, f32)> {
 fn a_sections_title_keeps_beside_its_mark_and_leaves_the_room_of_its_headers_box() {
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
         let mut ui = ui();
+        ui.set_target_size(
+            uwui::host::TargetId::MAIN,
+            TargetSize::new([400, 300], 1.0).expect("a size"),
+        );
         let settings = RootSettings {
-            size: [400.0, 300.0],
-            scale: 1.0,
             direction,
-            origin: [0.0; 2],
             modal: false,
             target: uwui::host::TargetId::MAIN,
         };

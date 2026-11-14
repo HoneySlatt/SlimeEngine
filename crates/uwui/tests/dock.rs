@@ -16,6 +16,7 @@ mod damage;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind};
 use uwui::dock::{self, Dock, Edge, LEAST, Layout, Node, Read, ReadError, Reading, Target};
+use uwui::host::TargetSize;
 use uwui::host::{Person, TargetId};
 use uwui::text::Fonts;
 use uwui::tree::{ElementId, LayoutDirection, Role, RootSettings, Ui};
@@ -227,11 +228,12 @@ fn docked_in(direction: LayoutDirection, layout: Layout) -> (Ui, Dock, ElementId
         .register(std::fs::read(path).expect("the test font"))
         .expect("a font");
     let mut ui = Ui::new(fonts);
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([800, 600], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [800.0, 600.0],
-        scale: 1.0,
         direction,
-        origin: [0.0; 2],
         modal: false,
         target: TargetId::MAIN,
     };

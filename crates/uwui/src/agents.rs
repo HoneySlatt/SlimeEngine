@@ -625,24 +625,28 @@ fn act(ui: &mut Ui, path: &str, action: &AgentAction) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::host::TargetSize;
     use crate::host::{Event, Input};
     use crate::style::{Dimension, FlexDirection, StyleBuilder};
     use crate::text::Fonts;
     use crate::theme::ACCENT;
     use crate::time::{EventTime, Instant};
-    use crate::tree::{Element, LayoutDirection, RootSettings};
+    use crate::tree::{Element, RootSettings};
     use slime_input::{ButtonState, MouseButton};
 
-    /// The settings of a root of 400 × 300 logical pixels at scale 1, on `target`.
+    /// The settings of a root on `target`.
     fn settings(target: TargetId) -> RootSettings {
-        RootSettings {
-            size: [400.0, 300.0],
-            scale: 1.0,
-            direction: LayoutDirection::LeftToRight,
-            origin: [0.0; 2],
-            modal: false,
-            target,
+        RootSettings::on(target)
+    }
+
+    /// An interface without roots whose targets, the main one and target 2, are each 400 × 300
+    /// logical pixels at scale 1.
+    fn interface() -> Ui {
+        let mut ui = Ui::new(Fonts::new());
+        for target in [TargetId::MAIN, TargetId(2)] {
+            ui.set_target_size(target, TargetSize::new([400, 300], 1.0).expect("a size"));
         }
+        ui
     }
 
     fn sized(s: StyleBuilder) -> StyleBuilder {
@@ -655,7 +659,7 @@ mod tests {
     /// that scrolls, `notes`, of two buttons, the second hidden below the first; each 100 logical
     /// pixels wide and 40 high, laid out; and a second root, `side`, on target 2, of one button.
     fn panel() -> Ui {
-        let mut ui = Ui::new(Fonts::new());
+        let mut ui = interface();
         let root = ui.add_root("main", settings(TargetId::MAIN), |s| s);
         let mut save = None;
         ui.build(root, 0, |children| {
@@ -864,7 +868,7 @@ mod tests {
     /// fields, the states and the tokens that it wrote.
     #[test]
     fn an_element_s_style_is_read_by_the_places_that_wrote_it() {
-        let mut ui = Ui::new(Fonts::new());
+        let mut ui = interface();
         let root = ui.add_root("main", settings(TargetId::MAIN), |s| s);
         let (first, second) = (line!() + 3, line!() + 5);
         ui.build(root, 0, |children| {
@@ -974,7 +978,7 @@ mod tests {
     /// An interface whose root `main` holds ten boxes, `g0` to `g9`, of ten buttons each, `g0 b0`
     /// to `g9 b9`, then a root `side` of one button, `help`, laid out; and the boxes' ids.
     fn tall() -> (Ui, Vec<ElementId>) {
-        let mut ui = Ui::new(Fonts::new());
+        let mut ui = interface();
         let root = ui.add_root("main", settings(TargetId::MAIN), |s| s);
         let mut groups = Vec::new();
         ui.build(root, 0, |children| {
@@ -1226,7 +1230,7 @@ mod tests {
     /// A section folded between pages: nothing of what it holds is listed after.
     #[test]
     fn a_section_folded_between_pages_lists_nothing_of_it() {
-        let mut ui = Ui::new(Fonts::new());
+        let mut ui = interface();
         let root = ui.add_root("main", settings(TargetId::MAIN), |s| s);
         let mut section = None;
         ui.build(root, 0, |children| {
@@ -1266,7 +1270,7 @@ mod tests {
     /// order: each root's elements are listed once, as the roots go by their numbers.
     #[test]
     fn roots_reordered_between_pages_are_each_listed_once() {
-        let mut ui = Ui::new(Fonts::new());
+        let mut ui = interface();
         let modal = ui.add_root(
             "dialog",
             RootSettings {
@@ -1312,7 +1316,7 @@ mod tests {
     /// Keys that a path cannot read back end pages, and the list goes on past them.
     #[test]
     fn keys_that_a_path_cannot_read_back_end_pages_and_the_list_goes_on() {
-        let mut ui = Ui::new(Fonts::new());
+        let mut ui = interface();
         let root = ui.add_root("main", settings(TargetId::MAIN), |s| s);
         ui.build(root, 0, |children| {
             children.add("a/b", Element::button("slash"), |_| {});
@@ -1329,7 +1333,7 @@ mod tests {
     /// pages within the tool's line.
     #[test]
     fn a_huge_text_is_cut_marked_and_passed() {
-        let mut ui = Ui::new(Fonts::new());
+        let mut ui = interface();
         let root = ui.add_root("main", settings(TargetId::MAIN), |s| s);
         let huge = "\"".repeat(1 << 20);
         ui.build(root, 0, |children| {
@@ -1397,7 +1401,7 @@ mod tests {
 
     /// A tree of ten thousand elements, of a thousand that a page gives.
     fn ten_thousand() -> Ui {
-        let mut ui = Ui::new(Fonts::new());
+        let mut ui = interface();
         let root = ui.add_root("main", settings(TargetId::MAIN), |s| s);
         ui.build(root, 0, |children| {
             for group in 0..100 {

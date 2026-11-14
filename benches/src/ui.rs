@@ -8,7 +8,7 @@ use std::time::Duration;
 use slime_color::LinearColor;
 use uwui::display::DisplayList;
 use uwui::display::ImageKey;
-use uwui::host::TargetId;
+use uwui::host::{TargetId, TargetSize};
 use uwui::look::{self, Colors, Density};
 use uwui::preferences::{Preferences, TextSize};
 use uwui::shortcuts::Shortcuts;
@@ -606,15 +606,18 @@ const TREE_SPACE: Token<Length> = Token::new("tree_space", Fallback::Value(4.0))
 /// The look's tree's own tokens.
 const TREE_TOKENS: Tokens = Tokens::new(&[&TREE_SPACE]);
 
-/// A root of 1920 × 1080 logical pixels at scale 1.
+/// A root on the main target, from left to right.
 const SCREEN: RootSettings = RootSettings {
-    size: [1920.0, 1080.0],
-    scale: 1.0,
     direction: LayoutDirection::LeftToRight,
-    origin: [0.0; 2],
     modal: false,
-    target: uwui::host::TargetId::MAIN,
+    target: TargetId::MAIN,
 };
+
+/// Gives `ui`'s main target 1920 × 1080 pixels at scale 1, as its host would.
+fn give_screen(ui: &mut Ui) {
+    let size = TargetSize::new([1920, 1080], 1.0).expect("a size");
+    ui.set_target_size(TargetId::MAIN, size);
+}
 
 /// The editor's style sheet: its labels, buttons and panels, the inspector's names apart.
 const EDITOR_STYLE: &str = r#"
@@ -703,6 +706,7 @@ impl Editor {
         for list in tokens {
             ui.declare_tokens(list).expect("names of the tree's own");
         }
+        give_screen(&mut ui);
         let root = ui.add_root("main", SCREEN, column);
         ui.set_style(sheets, themes).expect("the tree's style");
         let mut panels = Vec::new();
@@ -1194,6 +1198,7 @@ pub fn list(context: &mut Context) -> Result<Vec<Row>, String> {
     const ROWS: usize = 100_000;
     let labels = labels(1_000);
     let mut ui = Ui::new(latin()?);
+    give_screen(&mut ui);
     let root = ui.add_root("main", SCREEN, column);
     let mut list = None;
     let mut build = |ui: &mut Ui| {

@@ -12,6 +12,7 @@ use slime_input::{
 };
 use uwui::action::{ActionKind, FieldValue};
 use uwui::display::Primitive;
+use uwui::host::TargetSize;
 use uwui::host::{InputMethod, Person, TargetId};
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::style::{Dimension, StyleBuilder};
@@ -56,11 +57,12 @@ fn style(s: StyleBuilder) -> StyleBuilder {
 /// button: the interface, its root, the element and the button.
 fn interface(element: Element) -> (Ui, ElementId, ElementId, ElementId) {
     let mut ui = ui();
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: TargetId::MAIN,
     };

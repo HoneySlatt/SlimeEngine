@@ -288,7 +288,9 @@ pub trait Presentation {
     /// presentation takes ([`Ui::take_actions`]). Its roots lie on the window's surface, their
     /// pixels the window's image's, as a tool counts them to find and capture an element.
     ///
-    /// The run connects it to the window (`docs/adr/0145-text-edited.md`): it gives it each event
+    /// The run connects it to the window (`docs/adr/0145-text-edited.md`): before each frame, it
+    /// gives its target the size of the window's images and the window's scale, which its roots
+    /// fill ([`Ui::set_target_size`]); it gives it each event
     /// of the window first, which neither [`on_event`](Self::on_event) nor the game's input sees
     /// when the interface takes it, each with when it came on the host's clock, which counts a
     /// suspend ([`Ui::event`]), but the pointer's moves, which the game sees first and the

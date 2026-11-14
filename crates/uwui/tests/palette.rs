@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
+use uwui::host::TargetSize;
 use uwui::host::{Person, TargetId};
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::text::Fonts;
@@ -47,11 +48,12 @@ fn interface() -> (Ui, ElementId) {
         "everything {\n    select\n    text { style { fonts \"Noto Sans\"; }; }\n}\n",
     );
     ui.set_style(&[sheet], &[]).expect("a valid sheet");
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([800, 600], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [800.0, 600.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };

@@ -22,6 +22,7 @@ use uwui::display::{
     BoxPrimitive, DisplayList, ImageKey, ImageKind, ImagePrimitive, TextPrimitive,
 };
 use uwui::host::TargetId;
+use uwui::host::TargetSize;
 use uwui::style::{Align, Dimension};
 use uwui::text::{Fonts, GlyphPixels, GlyphRasterizer, TextBounds, TextLayout, TextStyle};
 use uwui::tree::{Element, LayoutDirection, RootSettings, Ui};
@@ -505,11 +506,19 @@ fn a_tree_of_elements_is_drawn_where_its_layout_places_it_and_mirrored_from_righ
     ];
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
         let mut ui = Ui::new(fonts());
+        ui.set_target_size(
+            uwui::host::TargetId::MAIN,
+            TargetSize::new(
+                [
+                    (WIDTH as f32 / 2.0 * 2.0) as u32,
+                    (HEIGHT as f32 / 2.0 * 2.0) as u32,
+                ],
+                2.0,
+            )
+            .expect("a size"),
+        );
         let settings = RootSettings {
-            size: [WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0],
-            scale: 2.0,
             direction,
-            origin: [0.0; 2],
             modal: false,
             target: uwui::host::TargetId::MAIN,
         };

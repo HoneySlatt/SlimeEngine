@@ -7,11 +7,11 @@ use std::hint::black_box;
 use slime_devui::WorldPanel;
 use slime_world::glam::DVec3;
 use slime_world::{Light, Name, Transform, World};
-use uwui::host::TargetId;
+use uwui::host::{TargetId, TargetSize};
 use uwui::look::{self, Colors, Density};
 use uwui::style::FlexDirection;
 use uwui::text::Fonts;
-use uwui::tree::{LayoutDirection, RootSettings, Ui};
+use uwui::tree::{RootSettings, Ui};
 
 use crate::measure::{Context, Row};
 use crate::ui::{RUNS, still_counters, times};
@@ -52,15 +52,11 @@ pub fn world_panel(context: &mut Context) -> Result<Vec<Row>, String> {
         &look::themes(Colors::Dark, Density::Comfortable),
     )
     .map_err(|error| error.to_string())?;
-    let settings = RootSettings {
-        size: [380.0, 1000.0],
-        scale: 1.0,
-        direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
-        modal: false,
-        target: uwui::host::TargetId::MAIN,
-    };
-    let root = ui.add_root("main", settings, |s| s.direction(FlexDirection::Column));
+    let size = TargetSize::new([380, 1000], 1.0).expect("a size");
+    ui.set_target_size(TargetId::MAIN, size);
+    let root = ui.add_root("main", RootSettings::on(TargetId::MAIN), |s| {
+        s.direction(FlexDirection::Column)
+    });
     let mut panel = WorldPanel::default();
     panel.select(selected);
     let frame = |ui: &mut Ui, world: &World, panel: &mut WorldPanel| {

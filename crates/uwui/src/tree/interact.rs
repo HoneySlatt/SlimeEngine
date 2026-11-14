@@ -1235,12 +1235,20 @@ impl Ui {
     }
 
     /// The element that the pointer would reach at `x` and `y` of `target`, in pixels of the
-    /// target: the deepest drawn there, of the top root of that target that holds the point, its
-    /// clip holding it too, a tooltip letting it through; none below a modal root of that target.
+    /// target: the deepest drawn there, its clip holding it too, of the top root of that target
+    /// that takes the point, a tooltip letting it through; none below a modal root of that target.
+    /// A layer takes the point wherever its box holds it, and a modal root everywhere. A root that
+    /// is neither fills its target, and takes the point where it would take a press: where it draws,
+    /// its scroll bars included, or where an element under the point takes the pointer or is a
+    /// surface. Elsewhere the point goes on to the roots below, and where none takes it, the
+    /// deepest box of the top root that it went through holds it
+    /// (`docs/adr/0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md`).
     /// Roots on other targets are not reached.
     pub fn element_at(&self, target: TargetId, x: f32, y: f32) -> Option<ElementId> {
         let tooltip = self.interaction.of(target).tooltip;
-        for &root in self.roots.iter().rev() {
+        // The deepest box of the top root that let the point through.
+        let mut through = None;
+        for (at, &root) in self.roots.iter().enumerate().rev() {
             if self.root_target(root) != target {
                 continue;
             }
@@ -1248,18 +1256,34 @@ impl Ui {
             if tooltip == Some(root) {
                 continue;
             }
-            if let Some(hit) = self.hit(root, x, y) {
-                return Some(hit);
+            let Some(node) = self.node(root) else {
+                continue;
+            };
+            let modal = node.root.is_some_and(|root| root.modal);
+            let hit = self.hit(root, x, y);
+            if node.layer.is_some() || modal {
+                if hit.is_some() {
+                    return hit;
+                }
+                if modal {
+                    return through;
+                }
+                continue;
             }
-            if self
-                .node(root)
-                .and_then(|node| node.root)
-                .is_some_and(|root| root.modal)
-            {
-                return None;
+            // The lowest root of the target, the point having gone through none: its own, as a
+            // lone root's, which spares the question of what it would take.
+            let lowest = !self.roots[..at]
+                .iter()
+                .any(|&below| self.root_target(below) == target);
+            if lowest && through.is_none() {
+                return hit;
             }
+            if self.would_take(hit, x, y) {
+                return hit;
+            }
+            through = through.or(hit);
         }
-        None
+        through
     }
 
     /// The element under the pointer, or its nearest ancestor, of a kind that `takes`.
@@ -1339,24 +1363,34 @@ impl Ui {
     /// Whether a press at `x` and `y` would be the interface's, a modal root open or not: the
     /// interface draws there, or a button, a field or a surface takes the pointer there.
     pub(super) fn takes_press_at(&self, t: TargetId, x: f32, y: f32) -> bool {
-        if !self.interaction.of(t).modals.is_empty() || self.draws_at(t, x, y) {
-            return true;
-        }
-        let at = self.element_at(t, x, y);
-        self.target_from(at, [x, y], |kind| {
-            kind.takes_pointer() || matches!(kind, Kind::Surface { .. })
-        })
-        .is_some()
+        !self.interaction.of(t).modals.is_empty() || self.would_take(self.element_at(t, x, y), x, y)
+    }
+
+    /// Whether a press at `x` and `y` on `at`, the element under it, would be the interface's: `at`
+    /// or the boxes above it draw there, or a button, a field or a surface among them takes the
+    /// pointer there.
+    fn would_take(&self, at: Option<ElementId>, x: f32, y: f32) -> bool {
+        self.drawn_from(at, x, y)
+            || self
+                .target_from(at, [x, y], |kind| {
+                    kind.takes_pointer() || matches!(kind, Kind::Surface { .. })
+                })
+                .is_some()
     }
 
     /// Whether the point `x` and `y` lies on what the interface draws, as its last frame drew it:
     /// a scroll bar, a box with a fill, a border or a shadow, a text, where its lines lie, an image
     /// or a field. A box that only lays others out draws nothing, nor does an empty text.
     fn draws_at(&self, t: TargetId, x: f32, y: f32) -> bool {
-        if self.bar_at(t, x, y).is_some() {
+        self.drawn_from(self.element_at(t, x, y), x, y)
+    }
+
+    /// Whether the point `x` and `y` lies on what `at`, or a box above it, draws, as
+    /// [`Ui::draws_at`] says.
+    fn drawn_from(&self, mut at: Option<ElementId>, x: f32, y: f32) -> bool {
+        if self.bar_from(at, x, y).is_some() {
             return true;
         }
-        let mut at = self.element_at(t, x, y);
         while let Some(node) = at.and_then(|id| self.node(id)) {
             let drawn = node.primitives.iter().any(|(primitive, own)| {
                 let clip = match own {

@@ -152,7 +152,10 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   (`docs/adr/0143-what-agents-see-of-the-interface.md`), which the presentation draws in `render`
   itself (`InterfaceRenderer`, below), and to which the dev overlay adds its panels as roots
   (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`); the run connects it to the window:
-  each event goes to the interface first, as uwui's host event (`Ui::event`), the window's focus
+  before each frame, it gives the interface's target the size of the window's images, which the
+  device may limit below the window's, and the window's scale (`Ui::set_target_size`,
+  `docs/adr/0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md`),
+  none while the window has no area; each event goes to the interface first, as uwui's host event (`Ui::event`), the window's focus
   included, which reaches it before the keys and buttons that the platform releases as the focus
   leaves, but the pointer's moves, which the game sees first and the interface as one, the last
   of a frame; and to `on_event` and the game's input only when the interface did not take it,

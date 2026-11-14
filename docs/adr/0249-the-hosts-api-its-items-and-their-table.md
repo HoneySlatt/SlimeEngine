@@ -9,7 +9,9 @@
   the kinds of a point wait for their readers; macOS asks before a program's read),
   [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) (a modal root blocks its own target; a layer's rules follow the root it opens over),
   [0261](0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md) (no number on accessibility updates nor on a screen reader's action) and
-  [0264](0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md) (the lifecycle's rows, the preferences' row and the engine's column)
+  [0264](0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md) (the lifecycle's rows, the preferences' row and the engine's column) and
+  [0268](0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md) (a target's size given by a
+  method, in physical pixels; the engine's column)
 - Date: 2026-11-13
 
 ## Context

@@ -19,6 +19,7 @@ use slime_color::LinearColor;
 
 use super::Ui;
 use crate::host::TargetId;
+use crate::host::TargetSize;
 use crate::style::{
     Align, Dimension, Display, Easing, FlexDirection, GridPlace, Justify, OwnStyle, Same, Shadow,
     Sides, Style, StyleBuilder, StyleDeclaration, Track, state_bit,
@@ -129,13 +130,14 @@ fn own_styles_that_differ_by_a_signed_zero_share_no_style() {
         "gap {\n    select\n    layout { gap 4 4; }\n}\n",
     );
     ui.set_style(&[sheet], &[]).expect("a valid sheet");
+    ui.set_target_size(
+        crate::host::TargetId::MAIN,
+        TargetSize::new([100, 100], 1.0).expect("a size"),
+    );
     let root = ui.add_root(
         "main",
         super::RootSettings {
-            size: [100.0, 100.0],
-            scale: 1.0,
             direction: super::LayoutDirection::LeftToRight,
-            origin: [0.0; 2],
             modal: false,
             target: crate::host::TargetId::MAIN,
         },

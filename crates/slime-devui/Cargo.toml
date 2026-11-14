@@ -16,8 +16,6 @@ slime-assets.workspace = true
 slime-color.workspace = true
 # The GPU and the target that the overlay draws over.
 slime-gfx.workspace = true
-# The window's size that the panels are laid out over.
-slime-platform.workspace = true
 # The panels drawn through the engine's bridge to uwui (ADR-0244), without the run's features.
 slime-app.workspace = true
 # The statistics of the view's renderer, which the panels show.

@@ -15,6 +15,7 @@ use super::reads_tests::{Configuration, DIRECTIONS, base_style, configurations};
 use super::{ElementId, RootSettings, Ui};
 use crate::display::Primitive;
 use crate::host::TargetId;
+use crate::host::TargetSize;
 use crate::look;
 use crate::style::{Colors, Style};
 use crate::text::Fonts;
@@ -180,13 +181,14 @@ fn drawn(
     let mut fonts = Fonts::new();
     look::register_fonts(&mut fonts);
     let mut ui = styled_by_sentinels(fonts);
+    ui.set_target_size(
+        crate::host::TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let root = ui.add_root(
         "main",
         RootSettings {
-            size: [400.0, 300.0],
-            scale: 1.0,
             direction,
-            origin: [0.0; 2],
             modal: false,
             target: crate::host::TargetId::MAIN,
         },
@@ -392,13 +394,14 @@ fn kinds_of_other_bases_share_no_style() {
     // which draws no text, keeps it transparent, whichever is styled first.
     for label_first in [true, false] {
         let mut ui = styled_by_sentinels(Fonts::new());
+        ui.set_target_size(
+            crate::host::TargetId::MAIN,
+            TargetSize::new([400, 300], 1.0).expect("a size"),
+        );
         let root = ui.add_root(
             "main",
             RootSettings {
-                size: [400.0, 300.0],
-                scale: 1.0,
                 direction: super::LayoutDirection::LeftToRight,
-                origin: [0.0; 2],
                 modal: false,
                 target: crate::host::TargetId::MAIN,
             },

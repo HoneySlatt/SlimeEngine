@@ -11,6 +11,7 @@ use slime_color::LinearColor;
 use tracing::span::{Attributes, Id, Record};
 use tracing::{Event, Level, Metadata, Subscriber};
 use uwui::host::TargetId;
+use uwui::host::TargetSize;
 use uwui::text::Fonts;
 use uwui::tree::{Element, LayoutDirection, RootSettings, Ui};
 
@@ -51,11 +52,12 @@ fn a_hover_written_for_a_kind_that_the_pointer_never_reaches_is_warned_of_once()
     let blue = LinearColor::rgba(0.0, 0.0, 1.0, 1.0);
     tracing::subscriber::with_default(Arc::clone(&warnings), || {
         let mut ui = Ui::new(Fonts::new());
+        ui.set_target_size(
+            uwui::host::TargetId::MAIN,
+            TargetSize::new([400, 300], 1.0).expect("a size"),
+        );
         let settings = RootSettings {
-            size: [400.0, 300.0],
-            scale: 1.0,
             direction: LayoutDirection::LeftToRight,
-            origin: [0.0; 2],
             modal: false,
             target: uwui::host::TargetId::MAIN,
         };

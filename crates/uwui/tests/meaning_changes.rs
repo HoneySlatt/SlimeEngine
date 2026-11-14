@@ -7,12 +7,12 @@ use std::collections::{HashMap, HashSet};
 
 use slime_input::{ButtonState, MouseButton};
 use uwui::action::{Action, ActionKind};
-use uwui::host::{Person, TargetId};
+use uwui::host::{Person, TargetId, TargetSize};
 use uwui::style::{Dimension, Display, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
-    Element, ElementId, FieldText, LayoutDirection, MeaningChanges, MeaningNode, MeaningReader,
-    Role, RootSettings, Ui,
+    Element, ElementId, FieldText, MeaningChanges, MeaningNode, MeaningReader, Role, RootSettings,
+    Ui,
 };
 
 /// An interface and the reader of its main target's meaning, as a screen reader of its window.
@@ -44,7 +44,8 @@ impl std::ops::DerefMut for Reading {
     }
 }
 
-/// An interface whose fonts are the tests' Noto Sans and Noto Sans Hebrew, read from its start.
+/// An interface whose fonts are the tests' Noto Sans and Noto Sans Hebrew, read from its start, its
+/// main target and [`OTHER`] each 400 by 300 logical pixels at scale 1.
 fn ui() -> Reading {
     let mut fonts = Fonts::new();
     for file in ["NotoSans.ttf", "NotoSansHebrew.ttf"] {
@@ -54,19 +55,23 @@ fn ui() -> Reading {
             .expect("a font");
     }
     let mut ui = Ui::new(fonts);
+    for target in [TargetId::MAIN, OTHER] {
+        give_size(&mut ui, target, [400, 300]);
+    }
     let reader = ui.add_meaning_reader(TargetId::MAIN).expect("a reader");
     Reading { ui, reader }
 }
 
-/// Settings of a root of 400 by 300 logical pixels at scale 1.
+/// Gives `ui`'s `target` `pixels` at scale 1.
+fn give_size(ui: &mut Ui, target: TargetId, pixels: [u32; 2]) {
+    ui.set_target_size(target, TargetSize::new(pixels, 1.0).expect("a size"));
+}
+
+/// Settings of a root on the main target.
 fn settings(modal: bool) -> RootSettings {
     RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
-        direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal,
-        target: uwui::host::TargetId::MAIN,
+        ..RootSettings::on(TargetId::MAIN)
     }
 }
 
@@ -764,7 +769,7 @@ fn rows_built_by_a_scroll_another_kind_under_a_key_and_a_disabled_button_keep_th
 }
 
 #[test]
-fn a_root_resized_or_removed_below_others_changes_what_it_shows_but_not_their_paths() {
+fn a_target_narrowed_or_a_root_removed_below_others_changes_what_it_shows_but_not_their_paths() {
     let mut ui = ui();
     let first = ui.add_root("first", settings(false), |s| s);
     let second = ui.add_root("second", settings(false), |s| s);
@@ -780,14 +785,8 @@ fn a_root_resized_or_removed_below_others_changes_what_it_shows_but_not_their_pa
     ui.frame(TargetId::MAIN);
     let mut held = Held::default();
     held.apply(ui.changes(false));
-    // The first root narrowed: what shows of its button.
-    ui.set_root(
-        first,
-        RootSettings {
-            size: [200.0, 300.0],
-            ..settings(false)
-        },
-    );
+    // The target narrowed: what shows of the first root's button.
+    give_size(&mut ui, TargetId::MAIN, [200, 300]);
     ui.frame(TargetId::MAIN);
     step(&mut ui, &mut held);
     let wide = ui.element_by_path("first/wide").expect("the button");
@@ -976,7 +975,7 @@ fn follow(
     (numbers, whole)
 }
 
-/// Settings of a root of 400 by 300 logical pixels at scale 1, on `target`.
+/// Settings of a root on `target`.
 fn on(target: TargetId, modal: bool) -> RootSettings {
     RootSettings {
         target,

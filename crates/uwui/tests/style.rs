@@ -5,6 +5,7 @@
 
 use slime_color::LinearColor;
 use uwui::host::TargetId;
+use uwui::host::TargetSize;
 use uwui::style::{Dimension, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::theme::{StyleSheet, Theme};
@@ -13,11 +14,12 @@ use uwui::tree::{Element, ElementId, ElementState, LayoutDirection, RootSettings
 /// An interface of one root of 400 × 300 logical pixels, without fonts: no element here has text.
 fn ui() -> (Ui, ElementId) {
     let mut ui = Ui::new(Fonts::new());
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };

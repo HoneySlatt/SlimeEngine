@@ -11,15 +11,15 @@ use std::time::Duration;
 use slime_input::{ButtonState, CursorShape, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind};
 use uwui::display::DisplayList;
-use uwui::host::{Answer, Event, Input, InputMethod, TargetId, TextQuery, TextUnit};
+use uwui::host::{Answer, Event, Input, InputMethod, TargetId, TargetSize, TextQuery, TextUnit};
 use uwui::preferences::Preferences;
-use uwui::style::{Dimension, FlexDirection, StyleBuilder};
+use uwui::style::{Dimension, FlexDirection, Sides, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::theme::{StyleSheet, Theme};
 use uwui::time::{EventTime, FrameShown, Instant};
 use uwui::tree::{
-    Along, Element, ElementId, FrameStats, Layer, LayoutDirection, Notification, NotificationKind,
-    PaletteCommand, Place, RootSettings, Side, Ui,
+    Along, Element, ElementId, FrameStats, Layer, Notification, NotificationKind, PaletteCommand,
+    Place, RootSettings, Side, Ui,
 };
 
 /// The two targets of the tests, neither of them the main one.
@@ -33,26 +33,24 @@ fn sized(s: StyleBuilder, width: f32) -> StyleBuilder {
         .fonts(vec!["Noto Sans".to_owned()])
 }
 
-/// A root of 400 by 300 logical pixels on `target`, at scale 1.
+/// A root on `target`.
 fn settings(target: TargetId) -> RootSettings {
-    RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
-        direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
-        modal: false,
-        target,
-    }
+    RootSettings::on(target)
 }
 
-/// An interface of the tests' Noto Sans without roots.
+/// An interface of the tests' Noto Sans without roots, its targets, the main one, `a` and `b`, each
+/// 400 by 300 logical pixels at scale 1.
 fn ui() -> Ui {
     let mut fonts = Fonts::new();
     let path = format!("{}/tests/fonts/NotoSans.ttf", env!("CARGO_MANIFEST_DIR"));
     fonts
         .register(std::fs::read(path).expect("the test font"))
         .expect("a font");
-    Ui::new(fonts)
+    let mut ui = Ui::new(fonts);
+    for target in [TargetId::MAIN, A, B] {
+        ui.set_target_size(target, TargetSize::new([400, 300], 1.0).expect("a size"));
+    }
+    ui
 }
 
 /// Draws a frame of each target, the main one, `a` and `b`: each lays out and draws its own roots
@@ -243,12 +241,18 @@ fn a_modal_root_blocks_its_own_target_alone() {
     let dialog = ui.add_root(
         "dialog",
         RootSettings {
-            size: [100.0, 40.0],
-            origin: [200.0, 200.0],
             modal: true,
             ..settings(B)
         },
-        |s| s,
+        // Its button at 200 and 200, away from the one below.
+        |s| {
+            s.padding(Sides {
+                start: 200.0,
+                end: 0.0,
+                top: 200.0,
+                bottom: 0.0,
+            })
+        },
     );
     ui.build(dialog, 0, |children| {
         let ok = Element::button("ok").style(|s| sized(s, 100.0));
@@ -556,8 +560,6 @@ fn a_modal_root_moved_gives_back_its_focus_and_blocks_its_new_target() {
     } = two_targets();
     ui.set_focus(Some(buttons[1]));
     let modal = |target| RootSettings {
-        size: [100.0, 40.0],
-        origin: [200.0, 200.0],
         modal: true,
         ..settings(target)
     };
@@ -648,8 +650,6 @@ fn a_root_moved_onto_a_target_with_a_modal_root_stands_below_it() {
     let dialog = ui.add_root(
         "dialog",
         RootSettings {
-            size: [100.0, 40.0],
-            origin: [200.0, 200.0],
             modal: true,
             ..settings(A)
         },

@@ -9,6 +9,7 @@ use std::time::{Duration as Time, Instant};
 use slime_color::LinearColor;
 use uwui::DocumentErrors;
 use uwui::host::TargetId;
+use uwui::host::TargetSize;
 use uwui::text::Fonts;
 use uwui::theme::{Duration, Fallback, Length, Number, StyleSheet, Theme, Token, Tokens};
 use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
@@ -24,11 +25,12 @@ fn styled(themes: &[(&str, &str)], fill: bool) -> Result<(Ui, ElementId), Docume
     let mut ui = Ui::new(Fonts::new());
     ui.declare_tokens(&TOKENS)
         .expect("tokens of their own names");
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([100, 100], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [100.0, 100.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };
@@ -347,11 +349,12 @@ fn a_damaged_theme_is_refused_or_read_never_panicking() {
 fn a_whole_number_of_a_theme_sets_a_field_of_whole_numbers_and_a_fraction_is_refused() {
     let sheet = "box {\n    select kind=Container\n    layout { column span=$span; }\n}\n";
     let mut ui = Ui::new(Fonts::new());
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([100, 100], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [100.0, 100.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };

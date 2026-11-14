@@ -106,7 +106,17 @@ impl Ui {
     /// The scroll bar under `x` and `y`, in pixels of the surface: of the element there or of the
     /// nearest above it that scrolls, whose bar holds the point.
     pub(crate) fn bar_at(&self, t: TargetId, x: f32, y: f32) -> Option<(ElementId, Bar)> {
-        let mut at = self.element_at(t, x, y);
+        self.bar_from(self.element_at(t, x, y), x, y)
+    }
+
+    /// The scroll bar under `x` and `y`, in pixels of the surface, of `at` or of the nearest above
+    /// it that scrolls.
+    pub(crate) fn bar_from(
+        &self,
+        mut at: Option<ElementId>,
+        x: f32,
+        y: f32,
+    ) -> Option<(ElementId, Bar)> {
         while let Some(id) = at {
             if let Some(bar) = self
                 .scroll_bars(id)

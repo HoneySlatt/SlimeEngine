@@ -883,7 +883,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A label's text gives no runs: a screen reader reads it whole.
   A field of numbers takes no increment or decrement.
   The hover and the press are given to agents, not to screen readers, which AccessKit does not ask.
-  A root's box that changes, a window resized, marks all it holds; a modal root opened or closed makes its target's next changes whole.
+  A target resized marks all that its roots hold; a modal root opened or closed makes its target's next changes whole.
   A screen reader may act on an element that changed since the person heard it, a row of a list reused for another item: no platform that AccessKit adapts tells which tree a request was asked on, so no number guards it ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)); a node's number, never given again, and the actions an element takes now are the guard.
   Each target's tree is a tree of its own, not a subtree grafted into the window's: a target drawn as a region of another's image, a texture in the game, is not read there.
   Each element's meaning is made again from the tree when marked, the boxes that only lay others out below it walked, and a field's runs laid out from its text, as it draws it.

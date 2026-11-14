@@ -8,11 +8,11 @@ use std::time::{Duration, Instant};
 use slime_editor::{Hierarchy, InterfaceFrame, Offscreen};
 use slime_gfx::Gpu;
 use slime_world::{Name, World};
-use uwui::host::{Person, TargetId};
+use uwui::host::{Person, TargetId, TargetSize};
 use uwui::look::{self, Colors, Density};
 use uwui::style::{Dimension, FlexDirection};
 use uwui::text::Fonts;
-use uwui::tree::{LayoutDirection, RootSettings, Ui};
+use uwui::tree::{RootSettings, Ui};
 
 use crate::allocations::counted;
 use crate::measure::{Context, Row, timed};
@@ -50,15 +50,11 @@ pub fn hierarchy(context: &mut Context) -> Result<Vec<Row>, String> {
         &look::themes(Colors::Dark, Density::Comfortable),
     )
     .map_err(|error| error.to_string())?;
-    let settings = RootSettings {
-        size: [340.0, 1000.0],
-        scale: 1.0,
-        direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
-        modal: false,
-        target: uwui::host::TargetId::MAIN,
-    };
-    let root = ui.add_root("main", settings, |s| s.direction(FlexDirection::Column));
+    let size = TargetSize::new([340, 1000], 1.0).expect("a size");
+    ui.set_target_size(TargetId::MAIN, size);
+    let root = ui.add_root("main", RootSettings::on(TargetId::MAIN), |s| {
+        s.direction(FlexDirection::Column)
+    });
     let mut slot = None;
     ui.build(root, 0, |children| {
         let content = uwui::tree::Element::container().style(|s| {

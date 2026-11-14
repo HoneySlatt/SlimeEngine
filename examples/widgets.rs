@@ -95,19 +95,14 @@ impl Drawing {
         })
     }
 
-    /// Draws `panel` over `target`, at `scale` pixels per logical pixel.
+    /// Draws `panel` over `target`, at the size and scale that its host gave.
     fn draw(
         &mut self,
         gpu: &Gpu,
         panel: &mut WidgetsPanel,
         target: &RenderTarget,
-        scale: f32,
     ) -> Result<(), GfxError> {
-        let size = [
-            target.width() as f32 / scale,
-            target.height() as f32 / scale,
-        ];
-        let display = panel.frame(size, scale);
+        let display = panel.frame();
         self.bridge
             .draw(gpu, panel.ui.fonts(), &display, |_| None, target)?;
         Ok(())
@@ -160,11 +155,8 @@ impl Presentation for WidgetsExample {
         if panel.handle_actions() {
             ctx.request_exit();
         }
-        let scale = ctx
-            .window()
-            .map_or(1.0, |window| window.scale_factor() as f32);
         if let Some(gpu) = ctx.gpu() {
-            match drawing.draw(gpu, panel, target, scale) {
+            match drawing.draw(gpu, panel, target) {
                 Ok(()) => self.drawn += 1,
                 Err(error) => tracing::warn!("frame not drawn: {error}"),
             }
@@ -232,9 +224,12 @@ fn write_image(output: &Path, options: &Options) -> Result<(), Box<dyn Error + S
         gpu.create_render_target("widgets", width, height, TextureFormat::Rgba8UnormSrgb)?;
     let mut drawing = Drawing::new(&gpu, target.format())?;
     let mut panel = WidgetsPanel::new(options.direction);
+    // This program is the panel's host: it gives the image's size.
+    let size = uwui::host::TargetSize::new([width, height], options.scale)?;
+    panel.ui.set_target_size(uwui::host::TargetId::MAIN, size);
     // The first frame lays the list out, the second builds the rows that it shows.
-    drawing.draw(&gpu, &mut panel, &target, options.scale)?;
-    drawing.draw(&gpu, &mut panel, &target, options.scale)?;
+    drawing.draw(&gpu, &mut panel, &target)?;
+    drawing.draw(&gpu, &mut panel, &target)?;
     let image = gpu.read_render_target(&target)?;
     png_file::write(output, &image)
         .map_err(|error| format!("cannot write {}: {error}", output.display()))?;

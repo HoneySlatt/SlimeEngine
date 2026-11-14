@@ -76,12 +76,9 @@ impl Presentation for Statistics {
         Some(self.overlay.ui_mut())
     }
 
-    fn extract(&mut self, ctx: &mut Context, _world: &World) {
+    fn extract(&mut self, _ctx: &mut Context, _world: &World) {
         // The panels' chords open and close them; the rest is the program's to read.
         let _actions = self.overlay.take_actions();
-        if let Some(window) = ctx.window() {
-            self.overlay.set_window(window.inner_size(), window.scale_factor());
-        }
         self.frames += 1;
         if let Some(slot) = self.overlay.slot(self.panel) {
             let text = format!("{} frames", self.frames);
@@ -111,9 +108,10 @@ impl Presentation for Statistics {
   `Overlay::toggle` open and close it from the program; a panel keeps its place while it is closed.
 - `Overlay::take_actions()`: the actions of the overlay's interface since the last frame, but the
   commands of the panels' chords, which open and close them; the program reads the others, and
-  gives them to its `WorldPanel` and `ValueEditor`s.
-- `Overlay::set_window(size, scale_factor)`: the window's size and scale factor, each frame, before
-  the panels are built; a panel opened before the first lays out once it.
+  gives them to its `WorldPanel` and `ValueEditor`s. Taken each frame before the panels are
+  built, it opens a panel that was opened before the window's size was known. The overlay reads
+  that size, and its scale, from its interface's target, which its host gives
+  (`uwui::tree::Ui::set_target_size`): `slime-app` gives the window's at each frame.
 - `Overlay::slot(panel)`: the slot of an open panel, which the program builds what it shows in
   (`uwui::tree::Ui::build`), and which scrolls where the panel is smaller.
 - `Overlay::draw(gpu, target)`: lays the overlay out and draws its panels over the target, its
@@ -140,7 +138,7 @@ impl Presentation for Statistics {
 - `slime-app`, without its features: the engine's bridge to uwui, `InterfaceRenderer`, which
   draws the panels.
 - `slime-render`: the statistics of a frame that the panels show.
-- `slime-gfx` and `slime-platform`: the GPU and the target drawn over, and the window's size.
+- `slime-gfx`: the GPU and the target drawn over.
 - `slime-world` and `slime-reflect`: the world that the world panel lists, and the reflection it
   edits its components and other values through.
 - `slime-assets` and `slime-color`: the asset IDs and the colors that the world panel shows as

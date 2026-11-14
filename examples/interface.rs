@@ -96,7 +96,7 @@ use slime_world::{Command, Component, PersistentId, World};
 use uwui::Rect;
 use uwui::action::{ActionKind, FieldValue, Intent};
 use uwui::display::{ImageKey, ImageKind};
-use uwui::host::TargetId;
+use uwui::host::{TargetId, TargetSize};
 use uwui::shortcuts::Shortcuts;
 use uwui::style::{Align, Dimension, Display, FlexDirection, Justify, Sides, StyleBuilder, Track};
 use uwui::text::Fonts;
@@ -299,12 +299,8 @@ impl Interface {
         let mut ui = Ui::new(fonts);
         ui.declare_tokens(&INTERFACE_TOKENS)?;
         let settings = RootSettings {
-            size: [1.0, 1.0],
-            scale: 1.0,
             direction,
-            origin: [0.0; 2],
-            modal: false,
-            target: uwui::host::TargetId::MAIN,
+            ..RootSettings::on(uwui::host::TargetId::MAIN)
         };
         let root = ui.add_root("main", settings, column);
         let mut interface = Self {
@@ -464,12 +460,9 @@ impl Interface {
         if self.dialog.is_some() {
             return;
         }
-        // Its size and scale follow the window's at each frame.
+        // It fills the window, as every root on its target does.
         let settings = RootSettings {
-            size: [1.0, 1.0],
-            scale: 1.0,
             direction: self.direction,
-            origin: [0.0; 2],
             modal: true,
             target: uwui::host::TargetId::MAIN,
         };
@@ -520,36 +513,10 @@ impl Interface {
         }
     }
 
-    /// Draws the interface over `target`, `time` seconds after the start, at `scale` pixels per
-    /// logical pixel: builds its elements when they change, lays them out, draws the shapes into
-    /// the view's target at the size of its image, then the display list.
-    fn draw(
-        &mut self,
-        gpu: &Gpu,
-        target: &RenderTarget,
-        time: f32,
-        scale: f32,
-    ) -> Result<(), RenderError> {
-        let size = [
-            target.width() as f32 / scale,
-            target.height() as f32 / scale,
-        ];
-        let settings = RootSettings {
-            size,
-            scale,
-            direction: self.direction,
-            origin: [0.0; 2],
-            modal: false,
-            target: uwui::host::TargetId::MAIN,
-        };
-        self.ui.set_root(self.root, settings);
-        if let Some((dialog, _)) = self.dialog {
-            let modal = RootSettings {
-                modal: true,
-                ..settings
-            };
-            self.ui.set_root(dialog, modal);
-        }
+    /// Draws the interface over `target`, `time` seconds after the start, at the size and scale that
+    /// its host gave ([`Ui::set_target_size`]): builds its elements when they change, lays them
+    /// out, draws the shapes into the view's target at the size of its image, then the display list.
+    fn draw(&mut self, gpu: &Gpu, target: &RenderTarget, time: f32) -> Result<(), RenderError> {
         if let Some(list) = self.list {
             self.ui.scroll_to(list, [0.0, time * 24.0]);
         }
@@ -956,12 +923,9 @@ impl Presentation for InterfaceExample {
                 ),
             }
         }
-        let scale = ctx
-            .window()
-            .map_or(1.0, |window| window.scale_factor() as f32);
         let time = ctx.time().real().elapsed().as_secs_f32();
         if let (Some(gpu), Some(interface)) = (ctx.gpu(), &mut self.interface) {
-            match interface.draw(gpu, target, time, scale) {
+            match interface.draw(gpu, target, time) {
                 Ok(()) => self.drawn += 1,
                 Err(error) => tracing::warn!("frame not drawn: {error}"),
             }
@@ -1060,9 +1024,14 @@ fn write_image(
     if options.dialog {
         interface.open_dialog();
     }
+    // This program is the interface's host: it gives the image's size.
+    let size = TargetSize::new([target.width(), target.height()], options.scale)?;
+    interface
+        .ui
+        .set_target_size(uwui::host::TargetId::MAIN, size);
     // The first frame lays the list out, the second builds the rows that it shows.
-    interface.draw(&gpu, &target, IMAGE_TIME, options.scale)?;
-    interface.draw(&gpu, &target, IMAGE_TIME, options.scale)?;
+    interface.draw(&gpu, &target, IMAGE_TIME)?;
+    interface.draw(&gpu, &target, IMAGE_TIME)?;
     let image = gpu.read_render_target(&target)?;
     png_file::write(output, &image)
         .map_err(|error| format!("cannot write {}: {error}", output.display()))?;

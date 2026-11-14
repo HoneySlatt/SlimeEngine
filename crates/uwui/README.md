@@ -24,8 +24,9 @@ Its logo is not under the code's licenses: its author keeps its rights, and
 
 ## Role
 
-- `tree::Ui` is an interface: its roots, each named by a key and a surface of a size, a scale and
-  a direction (`Ui::add_root`), and their trees of elements, kept from one frame to the next in an
+- `tree::Ui` is an interface: its roots, each named by a key, on a target, in a direction
+  (`Ui::add_root`), each filling its target at the size and scale that the target's host gives
+  (`Ui::set_target_size`), and their trees of elements, kept from one frame to the next in an
   arena. `Ui::build` runs a builder
   when the revision that it reads moved, and matches the elements it adds with those before by their
   keys, so that their state and scroll survive; `Ui::frame` styles again the elements that changed,
@@ -116,6 +117,12 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   input and outputs; what names no element follows the active target, that of the last key or
   button or of the window's focus (`Ui::active_target`)
   (`docs/adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md`).
+  The host gives each target its image's size in physical pixels and its scale
+  (`host::TargetSize`, `Ui::set_target_size`), at every change; a size given again unchanged does
+  nothing, a window without area gives none and keeps its last, a target never given one lays out
+  at a pixel. Every root that is no layer fills its target; one over another takes the pointer
+  where it would take a press and lets it through elsewhere
+  (`docs/adr/0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md`).
   Each target draws its own frame (`Ui::frame(target)`), at its own time, and asks for it when it
   changes (`docs/adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md`). With the feature `test-input`, which tests
   and benchmarks turn on, `host::Person` gives a person's input at no time of its own. `Ui` turns

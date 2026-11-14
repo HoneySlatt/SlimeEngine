@@ -8,6 +8,7 @@ use slime_input::{ButtonState, MouseButton};
 use uwui::action::{Action, ActionKind};
 use uwui::host::Person;
 use uwui::host::TargetId;
+use uwui::host::TargetSize;
 use uwui::style::{Dimension, Style};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementId, Layer, LayoutDirection, Place, Role, RootSettings, Ui};
@@ -20,11 +21,12 @@ fn interface(direction: LayoutDirection) -> (Ui, ElementId) {
         .register(std::fs::read(path).expect("the test font"))
         .expect("a font");
     let mut ui = Ui::new(fonts);
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction,
-        origin: [0.0; 2],
         modal: false,
         target: TargetId::MAIN,
     };

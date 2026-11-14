@@ -1315,23 +1315,19 @@ mod tests {
 
     impl Panel {
         fn new() -> Self {
+            use uwui::host::TargetSize;
             use uwui::style::Dimension;
             use uwui::text::Fonts;
-            use uwui::tree::{Element, LayoutDirection, RootSettings};
+            use uwui::tree::{Element, RootSettings};
 
             let mut ui = Ui::new(Fonts::new());
             for (key, target, button) in [
                 ("main", TargetId::MAIN, "open"),
                 ("side", TargetId(2), "help"),
             ] {
-                let settings = RootSettings {
-                    size: [400.0, 300.0],
-                    scale: 1.0,
-                    direction: LayoutDirection::LeftToRight,
-                    origin: [0.0; 2],
-                    modal: false,
-                    target,
-                };
+                let size = TargetSize::new([400, 300], 1.0).expect("a size");
+                ui.set_target_size(target, size);
+                let settings = RootSettings::on(target);
                 let root = ui.add_root(key, settings, |s| s);
                 ui.build(root, 0, |children| {
                     let sized = Element::button(button).style(|s| {

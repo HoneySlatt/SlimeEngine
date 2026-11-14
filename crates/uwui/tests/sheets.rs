@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use slime_color::LinearColor;
 use uwui::DocumentErrors;
 use uwui::host::TargetId;
+use uwui::host::TargetSize;
 use uwui::style::{Align, Dimension, Easing, Shadow, Style, Track};
 use uwui::text::Fonts;
 use uwui::theme::{StyleSheet, Theme};
@@ -44,11 +45,12 @@ fn styled(sheet: &str) -> Result<(Ui, ElementId, ElementId), DocumentErrors> {
         &[StyleSheet::from_text("a.style.kdl", sheet)],
         &[Theme::from_text("a.theme.kdl", THEME)],
     )?;
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([200, 200], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [200.0, 200.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };

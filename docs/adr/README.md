@@ -208,9 +208,9 @@ the ADR linking to it.
 | [0137](0137-the-canvas.md) | The canvas | Accepted; amended by 0152, 0175, 0234, 0243 and 0245 |
 | [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted; amended by 0175 |
 | [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |
-| [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143, 0146 and 0175 |
+| [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143, 0146, 0175 and 0268 |
 | [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted; amended by 0149, 0181, 0222, 0223, 0225, 0229, 0230, 0231 and 0241 |
-| [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145, 0150, 0152, 0153, 0154, 0160 and 0241 |
+| [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145, 0150, 0152, 0153, 0154, 0160, 0241 and 0268 |
 | [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted; amended by 0146, 0156, 0259 and 0260 |
 | [0144](0144-the-cooked-zones-key-in-ci.md) | The cooked zone's key in CI | Accepted |
 | [0145](0145-text-edited.md) | Text edited | Accepted |
@@ -317,16 +317,16 @@ the ADR linking to it.
 | [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) | One core for agents cut in five: a session without input or output, in JSON-RPC, versioned by family | Accepted; amends 0110, 0122 and 0218; amended by 0248 |
 | [0247](0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md) | The canvas tested on OpenGL ES through a feature of `uwui-render` alone | Accepted; amends 0016 and 0243 |
 | [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) | The host's API cut in five: built where it is read, three channels and a waker, AccessKit's translation in a crate of its own | Accepted; amends 0181, 0226, 0227 and 0246; amended by 0249, 0253, 0255, 0261 and 0264 |
-| [0249](0249-the-hosts-api-its-items-and-their-table.md) | The host's API: its items in three channels, and how each maps on five platforms | Accepted; amends 0248; amended by 0251, 0253, 0255, 0256, 0261 and 0264 |
+| [0249](0249-the-hosts-api-its-items-and-their-table.md) | The host's API: its items in three channels, and how each maps on five platforms | Accepted; amends 0248; amended by 0251, 0253, 0255, 0256, 0261, 0264 and 0268 |
 | [0250](0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md) | Requests in flight answered in any order, cancelled with an answer, bounded in the core; events by subscription; M6d.9a1b cut in three | Accepted; amends 0122 and 0161; amended by 0252, 0254, 0256, 0259, 0260 and 0265 |
-| [0251](0251-the-engines-host-clock-and-its-times.md) | The engine's host clock and its times: rustix and windows-sys, the times given before each frame and event, the wake waiting for the executor | Accepted; amends 0227 and 0249; amended by 0253 and 0258 |
+| [0251](0251-the-engines-host-clock-and-its-times.md) | The engine's host clock and its times: rustix and windows-sys, the times given before each frame and event, the wake waiting for the executor | Accepted; amends 0227 and 0249; amended by 0253, 0258 and 0268 |
 | [0252](0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md) | The channel's bounds of memory kept by its carrier until a second carrier; a place freed as its answer leaves; the budget measured by a run's frames | Accepted; amends 0250 |
 | [0253](0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md) | Input as the host's events, answered at once, and each target's outputs: M6d.5c cut in three | Accepted; amends 0248, 0249 and 0251; amended by 0255, 0256 and 0257 |
 | [0254](0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md) | Events declared in the welcome, replaced in the carrier, published at the frame's end; Play waits on one queue | Accepted; amends 0164 and 0250 |
 | [0255](0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md) | The clipboard through the outputs, and the host's questions | Accepted; amends 0248, 0249 and 0253; amended by 0256 |
-| [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) | Each root on its target, each target its input and outputs, the active target; M6d.5c3 cut in two | Accepted; amends 0249, 0250, 0253 and 0255; amended by 0257, 0258 and 0264 |
+| [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) | Each root on its target, each target its input and outputs, the active target; M6d.5c3 cut in two | Accepted; amends 0249, 0250, 0253 and 0255; amended by 0257, 0258, 0264 and 0268 |
 | [0257](0257-targets-known-from-their-first-root-a-moved-root-below-its-new-targets-modal-root.md) | Targets known from their first root; a root moved stands below its new target's modal root | Accepted; amends 0253 and 0256 |
-| [0258](0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md) | Each target its frame and its time; a change asks for its target's frame | Accepted; amends 0251 and 0256 |
+| [0258](0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md) | Each target its frame and its time; a change asks for its target's frame | Accepted; amends 0251 and 0256; amended by 0268 |
 | [0259](0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md) | The interface's family in `uwui-agent`, answered by `uwui`; an element's own style by a request of its own; M6d.9a1b3 cut in two | Accepted; amends 0143 and 0250 |
 | [0260](0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md) | A long list read by pages: a cursor bound to its maker, pages bounded by time and bytes, long texts cut; M6d.9a1b3b cut in two | Accepted; amends 0143 and 0250; amended by 0263 and 0265 |
 | [0261](0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md) | Each reader of meaning its changes, each target its tree; no number on a screen reader's action; M6d.5d cut in two | Accepted; amends 0248 and 0249; amended by 0262 |
@@ -336,3 +336,4 @@ the ADR linking to it.
 | [0265](0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md) | The editor's journal read by pages: its number drawn by the journal, pages of whole entries in bytes, read on the editor's thread, bytes not UTF-8 replaced and marked | Accepted; amends 0250 and 0260; amended by 0267 |
 | [0266](0266-uwui-targets-the-owners-shell-its-lock-and-login-screens-and-what-yuna-draws.md) | uwui targets the owner's shell, its lock and login screens, and what Yuna draws | Accepted; amends 0199 |
 | [0267](0267-a-page-of-the-journal-apart-from-the-one-handler-a-cut-journals-start-refused-a-floor-of-4-kib.md) | A page of the journal apart from the editor's one handler; a cut journal's start refused; a page's floor of 4 KiB | Accepted; amends 0156 and 0265 |
+| [0268](0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md) | Each target its size from its host; a root fills it; stacked roots take where they act | Accepted; amends 0140, 0142, 0249, 0251, 0256 and 0258 |

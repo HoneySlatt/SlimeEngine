@@ -167,9 +167,16 @@ mod linux {
         /// In `resized-while-submitting`, the thread that submits work to the GPU while the run
         /// goes on, as threads that load a scene do, and what stops it.
         submitter: Option<(Arc<AtomicBool>, JoinHandle<()>)>,
+        /// In the scenarios whose sizes `render` prints, an interface without roots, whose
+        /// target's size the run gives.
+        ui: Option<uwui::tree::Ui>,
     }
 
     impl Presentation for Recorder {
+        fn ui(&mut self) -> Option<&mut uwui::tree::Ui> {
+            self.ui.as_mut()
+        }
+
         fn start(&mut self, ctx: &mut Context, _world: &World) -> Result<(), AppError> {
             println!(
                 "call presentation_start window={} gpu={} format={:?}",
@@ -312,6 +319,15 @@ mod linux {
                     window.width,
                     window.height
                 );
+                // What the run gave the interface: the images' size, at the window's scale.
+                if let Some(size) = self
+                    .ui
+                    .as_ref()
+                    .and_then(|ui| ui.target_size(uwui::host::TargetId::MAIN))
+                {
+                    let [width, height] = size.pixels();
+                    println!("target {width} {height} scale {}", size.scale());
+                }
             }
             println!("call render {index}");
             // The window's surface given up at the end of the frame, once, at every frame, or as
@@ -517,6 +533,9 @@ mod linux {
             scenario,
             restored: 0,
             submitter: None,
+            ui: SCALED_SCENARIOS
+                .contains(&scenario)
+                .then(|| uwui::tree::Ui::new(uwui::text::Fonts::new())),
         };
         let result = if scenario == "spans" {
             // The event loop, and every frame with it, runs on this thread.
@@ -902,6 +921,48 @@ mod linux {
             .collect()
     }
 
+    /// The sizes that `render` prints of the interface's target in `oversize` and `resized`, one per
+    /// frame drawn: its width and height, and its scale.
+    fn target_sizes(lines: &[&str]) -> Vec<([u32; 2], f32)> {
+        lines
+            .iter()
+            .filter_map(|line| line.strip_prefix("target "))
+            .map(|line| {
+                let words: Vec<&str> = line.split_whitespace().collect();
+                match words[..] {
+                    [width, height, "scale", scale] => (
+                        [width, height].map(|side| side.parse().expect("a width or a height")),
+                        scale.parse().expect("a scale"),
+                    ),
+                    _ => panic!("a target's size and its scale: {line}"),
+                }
+            })
+            .collect()
+    }
+
+    /// Each frame's interface was given the size of the image that it draws, at the compositor's
+    /// scale once the window took it, whatever the window's own size.
+    fn check_target_sizes(lines: &[&str]) {
+        let images = image_sizes(lines);
+        let targets = target_sizes(lines);
+        assert_eq!(
+            images.len(),
+            targets.len(),
+            "a target for each image: {lines:?}"
+        );
+        for (image, (target, _)) in images.iter().zip(&targets) {
+            assert_eq!(
+                &image[..2],
+                target,
+                "the target is the image: {images:?} {targets:?}"
+            );
+        }
+        assert!(
+            targets.iter().any(|&(_, scale)| scale == 2.0),
+            "the compositor's scale reaches the interface: {targets:?}"
+        );
+    }
+
     /// The largest width or height of an image that lavapipe, which the test runs on, accepts: the
     /// device has every limit that its adapter offers.
     const LARGEST_IMAGE: u32 = 16_384;
@@ -925,6 +986,7 @@ mod linux {
                  window"
             );
         }
+        check_target_sizes(lines);
     }
 
     /// The run stops after the frame that lost the device, as `check_stopped_after_frame` says, and
@@ -1160,5 +1222,6 @@ mod linux {
                 "every image is as large as its window: {sizes:?}"
             );
         }
+        check_target_sizes(lines);
     }
 }

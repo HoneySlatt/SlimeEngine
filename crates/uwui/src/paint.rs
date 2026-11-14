@@ -13,7 +13,7 @@ use crate::tree::{ElementId, Kind, LayoutDirection, Ui};
 /// Draws again the elements of `root` that changed since they were last drawn, and gives how
 /// many, and how many elements it walked.
 pub(crate) fn paint(ui: &mut Ui, root: ElementId) -> (usize, usize) {
-    let Some(settings) = ui.node(root).and_then(|node| node.root) else {
+    let Some(settings) = ui.root_box(root) else {
         return (0, 0);
     };
     let (mut painted, mut visited) = (0, 0);
@@ -224,9 +224,11 @@ pub(crate) fn gather(ui: &Ui, root: ElementId, list: &mut DisplayList) -> usize 
         && node.layer.is_some()
         && node.style.layout.display != Display::None
         && node.style.paint.backdrop.a > 0.0
-        && let Some(settings) = node.root
     {
-        let [width, height] = settings.size.map(|length| length * settings.scale);
+        let [width, height] = ui
+            .laid_out_size(node.drawn_on)
+            .pixels()
+            .map(|side| side as f32);
         let backdrop = Primitive::Box(BoxPrimitive {
             rect: Rect::new(0.0, 0.0, width, height),
             radii: [0.0; 4],

@@ -3,12 +3,12 @@
 //! whole in pixels of the screen, and never overlap; a change of it styles every element again.
 
 use uwui::Rect;
-use uwui::host::TargetId;
+use uwui::host::{TargetId, TargetSize};
 use uwui::preferences::{Preferences, TextSize};
 use uwui::style::Dimension;
 use uwui::text::Fonts;
 use uwui::theme::StyleSheet;
-use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
+use uwui::tree::{Element, ElementId, RootSettings, Ui};
 
 /// A sheet that sizes every text at 13 logical pixels and names Lucide the font of icons; whose
 /// labels of the class `icon` are drawn in it, and those of the class `title` at 20.
@@ -30,16 +30,18 @@ title {
 }
 "##;
 
-/// A root of `width` × `height` logical pixels at `scale`.
-fn settings(width: f32, height: f32, scale: f32) -> RootSettings {
-    RootSettings {
-        size: [width, height],
-        scale,
-        direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
-        modal: false,
-        target: uwui::host::TargetId::MAIN,
-    }
+/// A root on the main target.
+fn settings() -> RootSettings {
+    RootSettings::on(TargetId::MAIN)
+}
+
+/// Gives `ui`'s main target `width` × `height` logical pixels at `scale`.
+fn give_size(ui: &mut Ui, width: f32, height: f32, scale: f32) {
+    let pixels = [width * scale, height * scale].map(|side| side as u32);
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new(pixels, scale).expect("a size"),
+    );
 }
 
 fn styled_ui() -> Ui {
@@ -63,7 +65,8 @@ fn size_of(ui: &Ui, id: ElementId) -> f32 {
 #[test]
 fn the_size_of_text_reaches_what_rules_and_code_size_but_not_icons() {
     let mut ui = styled_ui();
-    let root = ui.add_root("main", settings(400.0, 300.0, 1.0), |s| s);
+    give_size(&mut ui, 400.0, 300.0, 1.0);
+    let root = ui.add_root("main", settings(), |s| s);
     let mut ids = Vec::new();
     ui.build(root, 0, |children| {
         ids.push(children.add("body", Element::label("Body"), |_| {}));
@@ -111,7 +114,8 @@ fn the_size_of_text_reaches_what_rules_and_code_size_but_not_icons() {
 fn rows_at(scale: f32, factor: f32) -> Vec<Rect> {
     let mut ui = styled_ui();
     ui.set_preferences(text_size(factor));
-    let root = ui.add_root("main", settings(200.0, 300.0, scale), |s| s);
+    give_size(&mut ui, 200.0, 300.0, scale);
+    let root = ui.add_root("main", settings(), |s| s);
     let mut list = None;
     ui.build(root, 0, |children| {
         let element =
@@ -164,7 +168,8 @@ fn a_lists_rows_grow_with_the_text_whole_and_never_overlap() {
 #[test]
 fn a_change_of_the_size_of_text_builds_the_rows_that_now_show() {
     let mut ui = styled_ui();
-    let root = ui.add_root("main", settings(200.0, 300.0, 1.0), |s| s);
+    give_size(&mut ui, 200.0, 300.0, 1.0);
+    let root = ui.add_root("main", settings(), |s| s);
     let mut list = None;
     ui.build(root, 0, |children| {
         let element = Element::list(100, 20.0).style(|s| s.grow(1.0));

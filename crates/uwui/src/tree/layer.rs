@@ -3,6 +3,7 @@
 //! the user leaves them, a press outside them and outside what opened them, or Escape; and that
 //! give the focus back to what held it as they close.
 
+use super::size::RootBox;
 use super::{Element, ElementId, Key, Kind, RootSettings, Ui};
 use crate::Rect;
 use crate::action::{Action, ActionKind};
@@ -96,6 +97,8 @@ pub(crate) struct Held {
     pub(crate) owner: Option<ElementId>,
     /// The box that its anchor had as it was last placed, in pixels of the surface.
     anchored: Rect,
+    /// Where its top left corner was last placed on its target, in logical pixels.
+    pub(crate) origin: [f32; 2],
     /// The element that held the focus as it opened, which takes it back as it closes.
     before: Option<ElementId>,
     /// Whether its first element that takes the focus takes it once built: it opened by the
@@ -151,14 +154,7 @@ impl Ui {
         let settings = self
             .root_of(layer.place.anchor())
             .and_then(|root| self.node(root)?.root)
-            .unwrap_or(RootSettings {
-                size: [1.0, 1.0],
-                scale: 1.0,
-                direction: super::LayoutDirection::LeftToRight,
-                origin: [0.0; 2],
-                modal: false,
-                target: self.interaction.active,
-            });
+            .unwrap_or(RootSettings::on(self.interaction.active));
         let t = settings.target;
         let before = self.interaction.of(t).focus;
         // A floating panel stands beside the work rather than over it: F6 reaches it.
@@ -167,8 +163,6 @@ impl Ui {
         let root = self.add_root_element(
             key,
             RootSettings {
-                size: self.surface_size(t),
-                origin: [0.0; 2],
                 modal: layer.modal,
                 ..settings
             },
@@ -183,6 +177,7 @@ impl Ui {
                 layer,
                 owner: None,
                 anchored: Rect::default(),
+                origin: [0.0; 2],
                 before,
                 focus_first,
                 quiet: false,
@@ -268,19 +263,10 @@ impl Ui {
         self.mark_layout(root);
     }
 
-    /// The size of `target`'s surface, in logical pixels: as far as its roots that are no layers
-    /// reach, from its top left corner, a dialog placed within the window's root included.
+    /// The size of `target`'s surface, in logical pixels, which every root on it fills and every
+    /// layer over them lies within: its size as its roots were last laid out.
     pub(crate) fn surface_size(&self, target: TargetId) -> [f32; 2] {
-        self.roots
-            .iter()
-            .filter_map(|&root| self.node(root).filter(|node| node.layer.is_none())?.root)
-            .filter(|settings| settings.target == target)
-            .fold([1.0_f32; 2], |size, root| {
-                [
-                    size[0].max(root.origin[0] + root.size[0]),
-                    size[1].max(root.origin[1] + root.size[1]),
-                ]
-            })
+        self.laid_out_size(target).logical()
     }
 
     /// Where the layer `root` stands now; none for a root that is no layer.
@@ -349,8 +335,6 @@ impl Ui {
                 continue;
             };
             let wanted = RootSettings {
-                size: self.surface_size(base.target),
-                origin: settings.origin,
                 modal: settings.modal,
                 ..base
             };
@@ -386,12 +370,12 @@ impl Ui {
     }
 
     /// Places the layer `root`, whose content was laid out: its origin, in logical pixels, as its
-    /// place asks, within the surface of the root that it stands over; the settings to place it
-    /// with. None for a root that is no layer.
-    pub(crate) fn place_layer(&mut self, root: ElementId) -> Option<RootSettings> {
+    /// place asks, within the surface of the root that it stands over; the box to place it in.
+    /// None for a root that is no layer.
+    pub(crate) fn place_layer(&mut self, root: ElementId) -> Option<RootBox> {
+        let settings = self.root_box(root)?;
         let node = self.node(root)?;
         let held = node.layer.as_ref()?;
-        let settings = node.root?;
         let scale = settings.scale;
         let size = [node.layout.size.width, node.layout.size.height];
         let place = held.layer.place;
@@ -424,15 +408,13 @@ impl Ui {
                 within([origin[0] * scale, origin[1] * scale], size, bounds)
             }
         };
-        let settings = RootSettings {
+        let settings = RootBox {
             origin: [origin[0] / scale, origin[1] / scale],
             ..settings
         };
-        let node = self.node_mut(root)?;
-        node.root = Some(settings);
-        if let Some(held) = node.layer.as_mut() {
-            held.anchored = anchor;
-        }
+        let held = self.node_mut(root)?.layer.as_mut()?;
+        held.anchored = anchor;
+        held.origin = settings.origin;
         Some(settings)
     }
 

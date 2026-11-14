@@ -337,10 +337,6 @@ impl YardView {
         for (editor, settings) in self.editors.iter_mut().zip(&mut self.settings) {
             editor.apply(&actions, settings);
         }
-        if let Some(window) = ctx.window() {
-            self.overlay
-                .set_window(window.inner_size(), window.scale_factor());
-        }
         if let Some(slot) = self.overlay.slot(self.world_panel) {
             self.panel.build(self.overlay.ui_mut(), slot, world);
         }

@@ -4,7 +4,7 @@
 //! wrote it.
 
 use slime_color::LinearColor;
-use uwui::host::TargetId;
+use uwui::host::{TargetId, TargetSize};
 use uwui::style::Dimension;
 use uwui::text::Fonts;
 use uwui::theme::StyleSheet;
@@ -44,10 +44,7 @@ flat {
 /// A root of 400 × 300 logical pixels at scale 1, from left to right.
 fn settings() -> RootSettings {
     RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     }
@@ -56,6 +53,10 @@ fn settings() -> RootSettings {
 /// An interface of one root of 400 × 300 logical pixels under [`SHEET`], holding `element`.
 fn holding(element: Element) -> (Ui, ElementId) {
     let mut ui = Ui::new(Fonts::new());
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     ui.set_style(&[StyleSheet::from_text("buttons.style", SHEET)], &[])
         .expect("a valid sheet");
     let root = ui.add_root("main", settings(), |s| s);
@@ -135,6 +136,10 @@ fn an_own_hover_shows_where_no_rule_names_the_hover_and_goes() {
     // A box of no rule's that two buttons share: the one hovered, the other not, then each the
     // other way, so that a style made in one state is never served to the other.
     let mut ui = Ui::new(Fonts::new());
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let root = ui.add_root("main", settings(), |s| s);
     let own = |s: uwui::style::StyleBuilder| s.background(grey()).hover(|s| s.background(BLUE));
     let (mut first, mut second) = (None, None);
@@ -192,6 +197,10 @@ fn a_declaration_in_a_state_makes_another_style_than_the_same_in_the_base() {
     // No rule: the two buttons share their rules and their base, and neither is hovered. A style
     // made for the one must not be served to the other.
     let mut ui = Ui::new(Fonts::new());
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let root = ui.add_root("main", settings(), |s| s);
     let (mut base, mut hovered) = (None, None);
     ui.build(root, 0, |children| {
@@ -248,6 +257,10 @@ fn each_place_is_given_once_however_many_calls_wrote_there() {
 #[test]
 fn a_roots_and_a_layers_own_style_keep_the_place_of_their_call() {
     let mut ui = Ui::new(Fonts::new());
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let root = ui.add_root("main", settings(), |s| s.background(grey()));
     let root_line = line!() - 1;
     let layer = Layer {
@@ -271,6 +284,10 @@ fn a_roots_and_a_layers_own_style_keep_the_place_of_their_call() {
 #[test]
 fn an_element_whose_style_moved_in_its_code_keeps_the_new_place() {
     let mut ui = Ui::new(Fonts::new());
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let root = ui.add_root("main", settings(), |s| s);
     let mut id = None;
     ui.build(root, 0, |children| {

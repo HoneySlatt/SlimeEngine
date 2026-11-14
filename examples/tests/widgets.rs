@@ -64,7 +64,7 @@ fn check(panel: &mut WidgetsPanel, name: &str) {
         .create_render_target(name, SIZE.0, SIZE.1, FORMAT)
         .expect("the GPU has memory for it");
     for _ in 0..2 {
-        let display = panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+        let display = panel.frame();
         gpu.render(
             &RenderPassDescriptor {
                 target: &target,
@@ -98,13 +98,15 @@ fn press(panel: &mut WidgetsPanel, path: &str) {
         kind: ActionKind::Press,
     });
     panel.handle_actions();
-    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    panel.frame();
 }
 
-/// The example's interface laid out in `direction`, its transitions dropped, so that each image
-/// shows where they end.
+/// The example's interface laid out in `direction` over [`SIZE`] at scale 1, its transitions
+/// dropped, so that each image shows where they end.
 fn panel(direction: LayoutDirection) -> WidgetsPanel {
     let mut panel = WidgetsPanel::new(direction);
+    let size = uwui::host::TargetSize::new([SIZE.0, SIZE.1], 1.0).expect("a size");
+    panel.ui.set_target_size(uwui::host::TargetId::MAIN, size);
     panel.ui.set_preferences(Preferences {
         reduced_motion: true,
         ..Preferences::default()
@@ -129,7 +131,7 @@ fn the_inspector_in_the_light_theme_matches_its_reference_image() {
 fn the_console_in_high_contrast_and_compact_matches_its_reference_image() {
     let mut panel = panel(LayoutDirection::LeftToRight);
     panel.set_look(Colors::HighContrast, Density::Compact);
-    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    panel.frame();
     press(&mut panel, "main/window/tabs/Console");
     check(&mut panel, "widgets-contrast-compact");
 }
@@ -137,7 +139,7 @@ fn the_console_in_high_contrast_and_compact_matches_its_reference_image() {
 #[test]
 fn the_console_with_a_level_hidden_matches_its_reference_image() {
     let mut panel = panel(LayoutDirection::LeftToRight);
-    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    panel.frame();
     press(&mut panel, "main/window/tabs/Console");
     press(&mut panel, "main/window/Console/split/levels/info");
     check(&mut panel, "widgets-console");
@@ -146,7 +148,7 @@ fn the_console_with_a_level_hidden_matches_its_reference_image() {
 #[test]
 fn the_inspector_from_the_right_with_its_widgets_used_matches_its_reference_image() {
     let mut panel = panel(LayoutDirection::RightToLeft);
-    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    panel.frame();
     let properties = "main/window/Inspector/split/properties";
     press(&mut panel, &format!("{properties}/Transform"));
     press(&mut panel, &format!("{properties}/Physics"));
@@ -166,7 +168,7 @@ fn the_inspector_from_the_right_with_its_widgets_used_matches_its_reference_imag
 #[test]
 fn the_bars_menu_and_its_submenu_match_their_reference_image() {
     let mut panel = panel(LayoutDirection::LeftToRight);
-    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    panel.frame();
     press(&mut panel, "main/window/menus/File");
     press(&mut panel, "menu/menu/Recent");
     check(&mut panel, "widgets-menus");
@@ -176,7 +178,7 @@ fn the_bars_menu_and_its_submenu_match_their_reference_image() {
 fn a_floating_panel_a_list_open_and_a_tooltip_match_their_reference_image() {
     let mut at = Instant::ZERO;
     let mut panel = panel(LayoutDirection::LeftToRight);
-    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    panel.frame();
     press(&mut panel, "main/window/menus/View");
     press(&mut panel, "menu/menu/Statistics");
     press(
@@ -206,13 +208,13 @@ fn command(panel: &mut WidgetsPanel, command: &str) {
         kind: ActionKind::Command(command.to_owned()),
     });
     panel.handle_actions();
-    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    panel.frame();
 }
 
 #[test]
 fn a_notification_and_the_palette_of_commands_match_their_reference_image() {
     let mut panel = panel(LayoutDirection::LeftToRight);
-    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    panel.frame();
     command(&mut panel, "save");
     command(&mut panel, "palette");
     // What is typed in the palette's field finds the commands.
@@ -228,7 +230,7 @@ fn a_notification_and_the_palette_of_commands_match_their_reference_image() {
 #[test]
 fn the_light_s_color_well_and_its_picker_match_their_reference_image() {
     let mut panel = panel(LayoutDirection::LeftToRight);
-    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    panel.frame();
     press(
         &mut panel,
         "main/window/Inspector/split/properties/Light/color/well",
@@ -257,7 +259,7 @@ fn every_element_is_styled_as_its_fixture_records() {
             for tab in ["Inspector", "Console"] {
                 let mut panel = panel(LayoutDirection::LeftToRight);
                 panel.set_look(colors, density);
-                panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+                panel.frame();
                 press(&mut panel, &format!("main/window/tabs/{tab}"));
                 let root = panel.ui.element_by_path("main").expect("the panel's root");
                 let prefix = format!("{colors:?} {density:?} {tab}");
@@ -391,7 +393,7 @@ fn at_twice_the_size_of_text_no_text_is_cut() {
                 text_size: TextSize::factor(factor).expect("within its range"),
                 reduced_motion: true,
             });
-            panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+            panel.frame();
             press(&mut panel, &format!("main/window/tabs/{tab}"));
             let mut layers = vec!["main"];
             if tab == "Inspector" {
@@ -400,7 +402,7 @@ fn at_twice_the_size_of_text_no_text_is_cut() {
                 command(&mut panel, "save");
                 layers.extend(["statistics", "shortcuts", "notifications"]);
             }
-            panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+            panel.frame();
             for layer in layers {
                 let root = panel.ui.element_by_path(layer);
                 let root = root.unwrap_or_else(|| panic!("{tab}: no layer at {layer}"));

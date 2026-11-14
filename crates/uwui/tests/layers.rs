@@ -5,8 +5,9 @@
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
+use uwui::host::TargetSize;
 use uwui::host::{Person, TargetId};
-use uwui::style::{Dimension, FlexDirection, StyleBuilder};
+use uwui::style::{Dimension, FlexDirection, Sides, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
     Along, Element, ElementId, Layer, LayoutDirection, Place, RootSettings, Side, Ui,
@@ -16,11 +17,12 @@ use uwui::tree::{
 /// holding a button of 100 by 30 at `top` from its top: the interface, its root and the button.
 fn interface(direction: LayoutDirection, top: f32) -> (Ui, ElementId, ElementId) {
     let mut ui = Ui::new(Fonts::new());
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };
@@ -431,20 +433,25 @@ fn a_press_anywhere_outside_closes_a_layer_at_a_point() {
 }
 
 #[test]
-fn a_layer_over_a_root_placed_within_the_window_stays_within_the_window() {
+fn a_layer_over_a_root_whose_content_lies_within_the_window_is_placed_within_the_window() {
     let (mut ui, _, _) = interface(LayoutDirection::LeftToRight, 0.0);
-    // A dialog of 200 by 100 at (100, 40), its button at its bottom.
+    // A root over the window's, its content a dialog of 200 by 100 at (100, 40), its button at its
+    // bottom.
     let dialog = ui.add_root(
         "main",
         RootSettings {
-            size: [200.0, 100.0],
-            scale: 1.0,
             direction: LayoutDirection::LeftToRight,
-            origin: [100.0, 40.0],
             modal: false,
             target: uwui::host::TargetId::MAIN,
         },
-        |s| s.direction(FlexDirection::Column).padding_top(70.0),
+        |s| {
+            s.direction(FlexDirection::Column).padding(Sides {
+                start: 100.0,
+                end: 0.0,
+                top: 110.0,
+                bottom: 0.0,
+            })
+        },
     );
     let mut button = None;
     ui.build(dialog, 0, |children| {
@@ -464,7 +471,7 @@ fn a_layer_over_a_root_placed_within_the_window_stays_within_the_window() {
             along: Along::Start,
         },
     );
-    // Below the button, out of the dialog's box: the window has the room.
+    // Below the button, out of the dialog's box, within the window.
     let (anchor, rect) = (
         ui.rect(button).expect("laid out"),
         ui.rect(layer).expect("placed"),

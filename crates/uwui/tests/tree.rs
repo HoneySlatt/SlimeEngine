@@ -4,7 +4,7 @@
 use slime_color::LinearColor;
 use uwui::Rect;
 use uwui::display::Primitive;
-use uwui::host::TargetId;
+use uwui::host::{TargetId, TargetSize, TargetSizeError};
 use uwui::style::{Align, Dimension, Display, FlexDirection, Shadow, StyleBuilder, Track};
 use uwui::text::{Fonts, TextStyle};
 use uwui::theme::{StyleSheet, Theme};
@@ -20,16 +20,21 @@ fn ui() -> Ui {
     Ui::new(fonts)
 }
 
-/// A root of `width` by `height` logical pixels.
-fn root(width: f32, height: f32, scale: f32, direction: LayoutDirection) -> RootSettings {
+/// A root on the main target, laid out in `direction`.
+fn root(direction: LayoutDirection) -> RootSettings {
     RootSettings {
-        size: [width, height],
-        scale,
         direction,
-        origin: [0.0; 2],
-        modal: false,
-        target: uwui::host::TargetId::MAIN,
+        ..RootSettings::on(TargetId::MAIN)
     }
+}
+
+/// Gives `ui`'s main target `width` by `height` logical pixels at `scale`.
+fn give_size(ui: &mut Ui, width: f32, height: f32, scale: f32) {
+    let pixels = [width * scale, height * scale].map(|side| side as u32);
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new(pixels, scale).expect("a size"),
+    );
 }
 
 /// Writes `width` by `height` logical pixels.
@@ -67,12 +72,20 @@ fn a_flexbox_row_is_laid_out_and_mirrored_from_right_to_left() {
             .align_items(Align::Start)
     };
     let mut rects = Vec::new();
-    for (direction, scale) in [
+    // Each on a target of its own, of its scale.
+    let targets = [TargetId(1), TargetId(2), TargetId(3)];
+    for (target, (direction, scale)) in targets.into_iter().zip([
         (LayoutDirection::LeftToRight, 1.0),
         (LayoutDirection::RightToLeft, 1.0),
         (LayoutDirection::LeftToRight, 2.0),
-    ] {
-        let root = ui.add_root("main", root(400.0, 300.0, scale, direction), style);
+    ]) {
+        let pixels = [400.0 * scale, 300.0 * scale].map(|side| side as u32);
+        ui.set_target_size(target, TargetSize::new(pixels, scale).expect("a size"));
+        let settings = RootSettings {
+            target,
+            ..root(direction)
+        };
+        let root = ui.add_root("main", settings, style);
         let mut ids = Vec::new();
         ui.build(root, 0, |children| {
             ids.push(children.add(
@@ -90,7 +103,9 @@ fn a_flexbox_row_is_laid_out_and_mirrored_from_right_to_left() {
         });
         rects.push(ids);
     }
-    ui.frame(TargetId::MAIN);
+    for target in targets {
+        ui.frame(target);
+    }
     let at = |ids: &[ElementId]| {
         ids.iter()
             .map(|&id| ui.rect(id).unwrap())
@@ -135,7 +150,8 @@ fn a_grid_is_laid_out_and_mirrored_from_right_to_left() {
     };
     let mut rects = Vec::new();
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
-        let root = ui.add_root("main", root(300.0, 200.0, 1.0, direction), style);
+        give_size(&mut ui, 300.0, 200.0, 1.0);
+        let root = ui.add_root("main", root(direction), style);
         let mut ids = Vec::new();
         ui.build(root, 0, |children| {
             ids.push(children.add("a", Element::container(), |_| {}));
@@ -176,11 +192,10 @@ fn a_grid_is_laid_out_and_mirrored_from_right_to_left() {
 #[test]
 fn a_label_is_as_large_as_its_text_and_breaks_its_lines_in_a_narrow_box() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        |s| s.direction(FlexDirection::Column).align_items(Align::Start),
-    );
+    give_size(&mut ui, 400.0, 300.0, 1.0);
+    let root = ui.add_root("main", root(LayoutDirection::LeftToRight), |s| {
+        s.direction(FlexDirection::Column).align_items(Align::Start)
+    });
     let words = "Some words that take more than one line";
     let (mut wide, mut narrow) = (None, None);
     ui.build(root, 0, |children| {
@@ -225,11 +240,8 @@ fn a_label_is_as_large_as_its_text_and_breaks_its_lines_in_a_narrow_box() {
 #[test]
 fn a_panel_built_again_keeps_its_elements_and_their_states_by_their_keys() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        |s| s,
-    );
+    give_size(&mut ui, 400.0, 300.0, 1.0);
+    let root = ui.add_root("main", root(LayoutDirection::LeftToRight), |s| s);
     let button = |label: &str| Element::button(label);
     let (mut ok, mut cancel) = (None, None);
     ui.build(root, 1, |children| {
@@ -272,11 +284,8 @@ fn a_panel_built_again_keeps_its_elements_and_their_states_by_their_keys() {
 #[should_panic(expected = "two siblings of the key `a`")]
 fn two_siblings_of_one_key_are_refused() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        |s| s,
-    );
+    give_size(&mut ui, 400.0, 300.0, 1.0);
+    let root = ui.add_root("main", root(LayoutDirection::LeftToRight), |s| s);
     ui.build(root, 0, |children| {
         children.add("a", Element::container(), |_| {});
         children.add("a", Element::container(), |_| {});
@@ -286,11 +295,8 @@ fn two_siblings_of_one_key_are_refused() {
 #[test]
 fn a_frame_counts_the_elements_that_its_walks_visit() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        |s| s,
-    );
+    give_size(&mut ui, 400.0, 300.0, 1.0);
+    let root = ui.add_root("main", root(LayoutDirection::LeftToRight), |s| s);
     ui.build(root, 0, |children| {
         children.add("shown", Element::container(), |children| {
             children.add("inner", Element::container(), |_| {});
@@ -313,11 +319,8 @@ fn a_frame_counts_the_elements_that_its_walks_visit() {
 #[test]
 fn a_frame_where_nothing_changed_lays_out_and_draws_nothing() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        |s| s,
-    );
+    give_size(&mut ui, 400.0, 300.0, 1.0);
+    let root = ui.add_root("main", root(LayoutDirection::LeftToRight), |s| s);
     let build = |ui: &mut Ui, revision: u64, color: LinearColor, label: &str| {
         let mut ids = Vec::new();
         ui.build(root, revision, |children| {
@@ -377,11 +380,8 @@ fn a_frame_where_nothing_changed_lays_out_and_draws_nothing() {
 #[test]
 fn a_list_of_100_000_rows_builds_lays_out_and_draws_only_the_rows_that_show() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        |s| s,
-    );
+    give_size(&mut ui, 400.0, 300.0, 1.0);
+    let root = ui.add_root("main", root(LayoutDirection::LeftToRight), |s| s);
     let mut list = None;
     let mut build = |ui: &mut Ui, revision: u64| {
         ui.build(root, revision, |children| {
@@ -460,11 +460,8 @@ fn a_list_of_100_000_rows_builds_lays_out_and_draws_only_the_rows_that_show() {
 fn a_box_that_scrolls_moves_its_content_cut_to_its_edges_without_laying_it_out() {
     let mut ui = ui();
     let column = |s: StyleBuilder| s.direction(FlexDirection::Column);
-    let root = ui.add_root(
-        "main",
-        root(200.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        column,
-    );
+    give_size(&mut ui, 200.0, 300.0, 1.0);
+    let root = ui.add_root("main", root(LayoutDirection::LeftToRight), column);
     let mut scroll = None;
     let mut items = Vec::new();
     ui.build(root, 0, |children| {
@@ -525,7 +522,8 @@ fn the_display_list_draws_each_element_before_its_children_as_its_state_and_dire
         .expect("a style sheet and a theme");
     let mut drawn = Vec::new();
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
-        let root = ui.add_root("main", root(200.0, 100.0, 2.0, direction), |s| {
+        give_size(&mut ui, 200.0, 100.0, 2.0);
+        let root = ui.add_root("main", root(direction), |s| {
             filled(s, LinearColor::WHITE).align_items(Align::Start)
         });
         let mut button = None;
@@ -583,7 +581,8 @@ fn the_display_list_draws_each_element_before_its_children_as_its_state_and_dire
 #[test]
 fn a_root_at_another_scale_is_laid_out_again_in_its_pixels() {
     let mut ui = ui();
-    let settings = root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight);
+    give_size(&mut ui, 400.0, 300.0, 1.0);
+    let settings = root(LayoutDirection::LeftToRight);
     let root = ui.add_root("main", settings, |s| s);
     let mut panel = None;
     ui.build(root, 0, |children| {
@@ -594,13 +593,7 @@ fn a_root_at_another_scale_is_laid_out_again_in_its_pixels() {
         ));
     });
     ui.frame(TargetId::MAIN);
-    ui.set_root(
-        root,
-        RootSettings {
-            scale: 1.5,
-            ..settings
-        },
-    );
+    give_size(&mut ui, 400.0, 300.0, 1.5);
     let (_, stats) = ui.frame(TargetId::MAIN);
     assert_eq!((stats.layouts, stats.painted), (1, 2));
     assert_eq!(
@@ -615,11 +608,8 @@ fn a_root_at_another_scale_is_laid_out_again_in_its_pixels() {
 #[test]
 fn a_panel_in_a_slot_is_built_by_its_own_revision_and_kept_when_its_parent_is_built_again() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        |s| s,
-    );
+    give_size(&mut ui, 400.0, 300.0, 1.0);
+    let root = ui.add_root("main", root(LayoutDirection::LeftToRight), |s| s);
     let mut panel = None;
     let mut build_root = |ui: &mut Ui, revision: u64| {
         ui.build(root, revision, |children| {
@@ -654,11 +644,8 @@ fn grows(s: StyleBuilder) -> StyleBuilder {
 #[test]
 fn a_list_in_a_slot_builds_its_rows_with_its_own_builder_and_lays_out_only_them() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        |s| s,
-    );
+    give_size(&mut ui, 400.0, 300.0, 1.0);
+    let root = ui.add_root("main", root(LayoutDirection::LeftToRight), |s| s);
     let (root_built, rows_built) = (std::cell::Cell::new(0), std::cell::Cell::new(0));
     let frame = |ui: &mut Ui, revision: u64, row_height: f32, label: &str| {
         let mut list = None;
@@ -699,11 +686,8 @@ fn a_list_in_a_slot_builds_its_rows_with_its_own_builder_and_lays_out_only_them(
 #[test]
 fn a_list_in_the_rows_of_another_shows_its_rows_after_the_other_scrolls() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        |s| s,
-    );
+    give_size(&mut ui, 400.0, 300.0, 1.0);
+    let root = ui.add_root("main", root(LayoutDirection::LeftToRight), |s| s);
     let mut outer = None;
     let mut frame = |ui: &mut Ui| {
         ui.build(root, 0, |children| {
@@ -752,11 +736,8 @@ fn a_list_in_the_rows_of_another_shows_its_rows_after_the_other_scrolls() {
 #[test]
 fn what_an_element_whose_display_is_none_holds_takes_no_space() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        |s| s,
-    );
+    give_size(&mut ui, 400.0, 300.0, 1.0);
+    let root = ui.add_root("main", root(LayoutDirection::LeftToRight), |s| s);
     let (mut hidden, mut child) = (None, None);
     ui.build(root, 0, |children| {
         let boxed = Element::container().style(|s| sized(s, 100.0, 100.0).display(Display::None));
@@ -776,7 +757,8 @@ fn what_an_element_whose_display_is_none_holds_takes_no_space() {
 #[test]
 fn a_root_turned_to_the_other_direction_draws_every_element_again_mirrored() {
     let mut ui = ui();
-    let settings = root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight);
+    give_size(&mut ui, 400.0, 300.0, 1.0);
+    let settings = root(LayoutDirection::LeftToRight);
     let root = ui.add_root("main", settings, |s| s);
     ui.build(root, 0, |children| {
         let bar = Element::container().style(|s| {
@@ -809,24 +791,33 @@ fn a_root_turned_to_the_other_direction_draws_every_element_again_mirrored() {
 }
 
 #[test]
-#[should_panic(expected = "a root's scale must be a finite number above 0, not 0")]
-fn a_root_of_no_scale_is_refused() {
-    let mut ui = ui();
-    ui.add_root(
-        "main",
-        root(400.0, 300.0, 0.0, LayoutDirection::LeftToRight),
-        |s| s,
+fn a_target_of_no_scale_or_no_area_is_refused() {
+    for scale in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+        assert_eq!(
+            TargetSize::new([400, 300], scale),
+            Err(TargetSizeError::Scale),
+            "{scale}"
+        );
+    }
+    for pixels in [[0, 300], [400, 0], [0, 0]] {
+        assert_eq!(
+            TargetSize::new(pixels, 1.0),
+            Err(TargetSizeError::Empty),
+            "{pixels:?}"
+        );
+    }
+    let size = TargetSize::new([300, 150], 1.5).expect("a size");
+    assert_eq!(
+        (size.pixels(), size.scale(), size.logical()),
+        ([300, 150], 1.5, [200.0, 100.0])
     );
 }
 
 #[test]
 fn a_box_that_scrolls_from_right_to_left_scrolls_from_its_start_and_cuts_inside_its_border() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        root(200.0, 100.0, 1.0, LayoutDirection::RightToLeft),
-        |s| s,
-    );
+    give_size(&mut ui, 200.0, 100.0, 1.0);
+    let root = ui.add_root("main", root(LayoutDirection::RightToLeft), |s| s);
     let mut scroll = None;
     let mut items = Vec::new();
     ui.build(root, 0, |children| {

@@ -3,7 +3,9 @@
 - Status: Accepted; amends [0251](0251-the-engines-host-clock-and-its-times.md) (one frame's time
   for every root) and
   [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)
-  (one frame settling every target, `Ui::display_list`)
+  (one frame settling every target, `Ui::display_list`); amended by
+  [0268](0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md) (the table of targets keeps
+  their sizes)
 - Date: 2026-11-14
 
 ## Context

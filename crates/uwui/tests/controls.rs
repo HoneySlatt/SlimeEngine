@@ -7,6 +7,7 @@
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind, FieldValue};
 use uwui::display::Primitive;
+use uwui::host::TargetSize;
 use uwui::host::{Person, TargetId};
 use uwui::style::{Align, Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
@@ -34,11 +35,12 @@ fn sized(s: StyleBuilder, width: f32) -> StyleBuilder {
 /// holds `element` at its top: the interface, its root and the element.
 fn interface(direction: LayoutDirection, element: Element) -> (Ui, ElementId, ElementId) {
     let mut ui = ui();
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction,
-        origin: [0.0; 2],
         modal: false,
         target: TargetId::MAIN,
     };
@@ -337,11 +339,12 @@ fn a_slider_keeps_its_value_until_the_program_changes_it() {
 /// 40 logical pixels tall: the interface, its root, the section and the button.
 fn section(open: bool) -> (Ui, ElementId, ElementId, ElementId) {
     let mut ui = ui();
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: TargetId::MAIN,
     };
@@ -451,11 +454,12 @@ fn shown(ui: &Ui) -> String {
 #[test]
 fn a_tab_chosen_by_the_pointer_or_the_keys_shows_its_panel() {
     let mut ui = ui();
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: TargetId::MAIN,
     };
@@ -501,11 +505,12 @@ fn a_tab_chosen_by_the_pointer_or_the_keys_shows_its_panel() {
 #[test]
 fn a_split_shares_its_length_and_its_handle_is_dragged_and_moved_by_the_keys() {
     let mut ui = ui();
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: TargetId::MAIN,
     };
@@ -562,11 +567,12 @@ fn a_split_shares_its_length_and_its_handle_is_dragged_and_moved_by_the_keys() {
 #[test]
 fn a_box_whose_content_does_not_fit_shows_a_scroll_bar_that_scrolls_it() {
     let mut ui = ui();
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: TargetId::MAIN,
     };
@@ -612,11 +618,12 @@ fn a_box_whose_content_does_not_fit_shows_a_scroll_bar_that_scrolls_it() {
 #[test]
 fn a_third_child_of_two_panels_is_neither_drawn_nor_reached() {
     let mut ui = ui();
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: TargetId::MAIN,
     };

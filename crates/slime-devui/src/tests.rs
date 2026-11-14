@@ -16,6 +16,7 @@ use uwui::tree::{Element, ElementId, LayoutDirection, Meaning, Role, RootSetting
 use crate::reflected::tests::world;
 use crate::reflected::{angles, rotation};
 use crate::{ValueEditor, WorldPanel};
+use uwui::host::TargetSize;
 
 /// An interface in the editor's look, of one root of 420 by 1600 logical pixels at scale 1.
 fn interface() -> (Ui, ElementId) {
@@ -27,11 +28,12 @@ fn interface() -> (Ui, ElementId) {
         &look::themes(Colors::Dark, Density::Comfortable),
     )
     .expect("the look's documents are valid");
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([420, 1600], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [420.0, 1600.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };

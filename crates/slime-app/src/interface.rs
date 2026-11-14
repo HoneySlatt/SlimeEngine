@@ -173,10 +173,11 @@ mod tests {
     use std::time::Duration;
 
     use slime_platform::{ButtonState, Key, KeyCode, KeyEvent, MouseButton};
+    use uwui::host::TargetSize;
     use uwui::style::Dimension;
     use uwui::text::Fonts;
     use uwui::time::Instant;
-    use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings};
+    use uwui::tree::{Element, ElementId, RootSettings};
 
     use super::*;
 
@@ -206,14 +207,9 @@ mod tests {
     /// then a button as wide below it, laid out: the interface, the field and the button.
     fn interface() -> (Ui, ElementId, ElementId) {
         let mut ui = Ui::new(Fonts::new());
-        let settings = RootSettings {
-            size: [400.0, 300.0],
-            scale: 1.0,
-            direction: LayoutDirection::LeftToRight,
-            origin: [0.0; 2],
-            modal: false,
-            target: TargetId::MAIN,
-        };
+        let size = TargetSize::new([400, 300], 1.0).expect("a size");
+        ui.set_target_size(TargetId::MAIN, size);
+        let settings = RootSettings::on(TargetId::MAIN);
         let root = ui.add_root("main", settings, |s| {
             s.direction(uwui::style::FlexDirection::Column)
         });
@@ -260,14 +256,9 @@ mod tests {
     fn the_windows_focus_reaches_the_interface() {
         use slime_platform::NamedKey;
         let mut ui = Ui::new(Fonts::new());
-        let settings = RootSettings {
-            size: [400.0, 300.0],
-            scale: 1.0,
-            direction: LayoutDirection::LeftToRight,
-            origin: [0.0; 2],
-            modal: false,
-            target: TargetId::MAIN,
-        };
+        let size = TargetSize::new([400, 300], 1.0).expect("a size");
+        ui.set_target_size(TargetId::MAIN, size);
+        let settings = RootSettings::on(TargetId::MAIN);
         let root = ui.add_root("main", settings, |s| s);
         ui.build(root, 0, |children| {
             children.add("bar", Element::menu_bar(), |bar| {
@@ -327,14 +318,9 @@ mod tests {
     #[test]
     fn a_held_move_reaches_the_interface_at_the_time_it_came() {
         let mut ui = Ui::new(Fonts::new());
-        let settings = RootSettings {
-            size: [400.0, 300.0],
-            scale: 1.0,
-            direction: LayoutDirection::LeftToRight,
-            origin: [0.0; 2],
-            modal: false,
-            target: TargetId::MAIN,
-        };
+        let size = TargetSize::new([400, 300], 1.0).expect("a size");
+        ui.set_target_size(TargetId::MAIN, size);
+        let settings = RootSettings::on(TargetId::MAIN);
         let root = ui.add_root("main", settings, |s| s);
         ui.build(root, 0, |children| {
             let button = Element::button("go").tooltip("Go").style(|s| {

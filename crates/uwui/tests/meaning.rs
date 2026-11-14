@@ -4,33 +4,39 @@
 //! which draws nothing again.
 
 use uwui::Rect;
-use uwui::host::TargetId;
-use uwui::style::{Dimension, Display, FlexDirection, StyleBuilder};
+use uwui::host::{TargetId, TargetSize};
+use uwui::style::{Dimension, Display, FlexDirection, Sides, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
-    Element, ElementAction, ElementId, ElementState, LayoutDirection, Meaning, Role, RootSettings,
-    Ui,
+    Element, ElementAction, ElementId, ElementState, Meaning, Role, RootSettings, Ui,
 };
 
-/// An interface whose fonts are the tests' Noto Sans.
+/// An interface whose fonts are the tests' Noto Sans, its main target 400 by 300 logical pixels at
+/// scale 1.
 fn ui() -> Ui {
     let path = format!("{}/tests/fonts/NotoSans.ttf", env!("CARGO_MANIFEST_DIR"));
     let mut fonts = Fonts::new();
     fonts
         .register(std::fs::read(path).expect("the test font"))
         .expect("a font");
-    Ui::new(fonts)
+    let mut ui = Ui::new(fonts);
+    give_size(&mut ui, [400, 300]);
+    ui
 }
 
-/// Settings of a root of `width` by `height` logical pixels at `origin`, at scale 1.
-fn settings(width: f32, height: f32, origin: [f32; 2], modal: bool) -> RootSettings {
+/// Gives `ui`'s main target `pixels`, at scale 1.
+fn give_size(ui: &mut Ui, pixels: [u32; 2]) {
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new(pixels, 1.0).expect("a size"),
+    );
+}
+
+/// Settings of a root on the main target, modal or not.
+fn settings(modal: bool) -> RootSettings {
     RootSettings {
-        size: [width, height],
-        scale: 1.0,
-        direction: LayoutDirection::LeftToRight,
-        origin,
         modal,
-        target: TargetId::MAIN,
+        ..RootSettings::on(TargetId::MAIN)
     }
 }
 
@@ -56,7 +62,7 @@ fn summary(meaning: &Meaning) -> (String, Role, String, Vec<ElementAction>) {
 /// hidden button, and a list whose rows show: what its root holds, and its root.
 fn interface() -> (Ui, ElementId) {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
+    let root = ui.add_root("main", settings(false), |s| s);
     let build = |ui: &mut Ui| {
         ui.build(root, 0, |children| {
             children.add(
@@ -277,8 +283,16 @@ fn an_element_is_found_by_its_path_and_at_a_pixel() {
     // Under a modal root, the elements below take no action, and the pointer finds the dialog.
     let modal = ui.add_root(
         "confirm",
-        settings(200.0, 100.0, [100.0, 100.0], true),
-        |s| s,
+        settings(true),
+        // Its dialog at 100 and 100, as a root placed there.
+        |s| {
+            s.padding(Sides {
+                start: 100.0,
+                end: 0.0,
+                top: 100.0,
+                bottom: 0.0,
+            })
+        },
     );
     ui.build(modal, 0, |children| {
         let dialog = Element::container()
@@ -322,7 +336,7 @@ fn an_element_is_found_by_its_path_and_at_a_pixel() {
 #[test]
 fn a_name_or_a_role_changed_draws_nothing_again() {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
+    let root = ui.add_root("main", settings(false), |s| s);
     let build = |ui: &mut Ui, revision: u64, name: &str, role: Role| {
         ui.build(root, revision, |children| {
             let panel = Element::container()
@@ -351,7 +365,8 @@ fn a_name_or_a_role_changed_draws_nothing_again() {
 #[test]
 fn an_element_shows_only_within_its_root() {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(100.0, 30.0, [0.0; 2], false), |s| s);
+    give_size(&mut ui, [100, 30]);
+    let root = ui.add_root("main", settings(false), |s| s);
     ui.build(root, 0, |children| {
         for name in ["inside", "across", "beyond"] {
             children.add(
@@ -378,7 +393,7 @@ fn an_element_shows_only_within_its_root() {
 #[test]
 fn a_tree_s_items_mean_their_levels_and_whether_they_open() {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
+    let root = ui.add_root("main", settings(false), |s| s);
     let mut tree = None;
     ui.build(root, 0, |children| {
         let list = Element::list(3, 20.0)

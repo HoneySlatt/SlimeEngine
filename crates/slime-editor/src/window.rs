@@ -28,15 +28,15 @@ use uwui::Rect;
 use uwui::action::{Action, ActionKind, FieldValue, SurfaceInput};
 use uwui::display::{BoxPrimitive, DisplayList, ImageKey};
 use uwui::dock::{Dock, Target};
-use uwui::host::TargetId;
+use uwui::host::{TargetId, TargetSize};
 use uwui::look::{self, Colors, Density};
 use uwui::preferences::Preferences;
 use uwui::shortcuts::Shortcuts;
 use uwui::style::{Dimension, FlexDirection, Justify, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
-    Along, Element, ElementId, FrameStats, ItemMark, Key, Layer, LayoutDirection, Notification,
-    NotificationKind, PaletteCommand, Place, Role, RootSettings, Side, Ui,
+    Along, Element, ElementId, FrameStats, ItemMark, Key, Layer, Notification, NotificationKind,
+    PaletteCommand, Place, Role, RootSettings, Side, Ui,
 };
 
 use crate::handles::{Drag, Gizmo, Space, Tool};
@@ -271,8 +271,6 @@ pub(crate) struct Model {
     pub(crate) tool: Tool,
     pub(crate) space: Space,
     pub(crate) snap: bool,
-    /// Pixels of the screen per logical pixel, as the window last laid out.
-    scale: f32,
     /// Whether the keys are Blender's way, laid over the editor's (`view.keys_blender`).
     blender: bool,
     /// How many copies the core made when the window last put one on the system's clipboard.
@@ -336,7 +334,7 @@ impl Model {
             shared.notices.extend(told.into_iter().chain(kept.notice));
             (default, kept.layout)
         };
-        let root = ui.add_root("editor", settings([1.0, 1.0], 1.0), column);
+        let root = ui.add_root("editor", RootSettings::on(TargetId::MAIN), column);
         let mut model = Self {
             shared,
             ui,
@@ -362,7 +360,6 @@ impl Model {
             tool: Tool::default(),
             space: Space::default(),
             snap: false,
-            scale: 1.0,
             blender,
             copies: 0,
             history_slot: None,
@@ -597,11 +594,20 @@ impl Model {
         Gizmo::of(world, &selection, self.space, &camera, rect.height / scale)
     }
 
+    /// Pixels of the screen per logical pixel, as the host last gave the window's (its interface's
+    /// target's, `Ui::set_target_size`); 1 before it gave one.
+    pub(crate) fn scale(&self) -> f32 {
+        self.ui
+            .target_size(TargetId::MAIN)
+            .map_or(1.0, |size| size.scale())
+    }
+
     /// The ray from the camera of `pane` through `at`, in logical pixels from its viewport's
     /// corner.
     fn ray(&self, pane: usize, at: [f32; 2]) -> Option<(DVec3, DVec3)> {
         let rect = self.viewport_rect(pane)?;
-        let (width, height) = (rect.width / self.scale, rect.height / self.scale);
+        let scale = self.scale();
+        let (width, height) = (rect.width / scale, rect.height / scale);
         let point = Vec2::new(at[0] / width.max(1.0), at[1] / height.max(1.0));
         Some(
             self.panes[pane]
@@ -631,7 +637,7 @@ impl Model {
                 if !selects || self.panes[pane].navigation.holds_cursor() {
                     return None;
                 }
-                let gizmo = self.gizmo(pane, world, self.scale)?;
+                let gizmo = self.gizmo(pane, world, self.scale())?;
                 let ray = self.ray(pane, at)?;
                 let part = gizmo.hit(self.tool, ray)?;
                 let selection = self.selected_entities(world);
@@ -1283,16 +1289,14 @@ impl Model {
         }
     }
 
-    /// Lays the window out at `size`, in logical pixels, and `scale` pixels of the screen per
-    /// logical pixel, from what the core shares and from `world`, and gives what to draw.
-    pub(crate) fn frame(
-        &mut self,
-        world: &World,
-        size: [f32; 2],
-        scale: f32,
-    ) -> (DisplayList, FrameStats) {
-        self.scale = scale;
-        self.ui.set_root(self.root, settings(size, scale));
+    /// Lays the window out at the size and scale that its host gave its interface's target
+    /// (`Ui::set_target_size`), from what the core shares and from `world`, and gives what to draw.
+    pub(crate) fn frame(&mut self, world: &World) -> (DisplayList, FrameStats) {
+        let size = self
+            .ui
+            .target_size(TargetId::MAIN)
+            .map_or([1.0; 2], |size| size.logical());
+        let scale = self.scale();
         // The layer that waits stays in the middle of a window whose size changes.
         if let Some(layer) = self.choosing.as_ref().map(|choosing| choosing.layer) {
             let place = self.choosing_place(size);
@@ -1889,17 +1893,6 @@ fn steps_not_written(count: usize) -> String {
     }
 }
 
-fn settings(size: [f32; 2], scale: f32) -> RootSettings {
-    RootSettings {
-        size,
-        scale,
-        direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
-        modal: false,
-        target: uwui::host::TargetId::MAIN,
-    }
-}
-
 /// Writes that an element lays its children out in a column.
 fn column(s: StyleBuilder) -> StyleBuilder {
     s.direction(FlexDirection::Column)
@@ -1961,8 +1954,7 @@ pub struct Offscreen {
     gpu: Gpu,
     drawing: Drawing,
     target: RenderTarget,
-    /// The window's size in logical pixels, and its pixels per logical pixel.
-    size: [f32; 2],
+    /// The window's pixels per logical pixel.
     scale: f32,
     /// What the last frame drew.
     display: DisplayList,
@@ -2022,6 +2014,9 @@ impl Offscreen {
         let format = TextureFormat::Rgba8UnormSrgb;
         let drawing = Drawing::new(gpu, format).map_err(|error| error.to_string())?;
         let physical = size.map(|side| (side as f32 * scale).round() as u32);
+        // The host of its interface, it gives the size of the image that it draws into.
+        let window = TargetSize::new(physical, scale).map_err(|error| error.to_string())?;
+        model.ui.set_target_size(TargetId::MAIN, window);
         let target = gpu
             .create_render_target("editor's window", physical[0], physical[1], format)
             .map_err(|error| error.to_string())?;
@@ -2032,7 +2027,6 @@ impl Offscreen {
             gpu: gpu.clone(),
             drawing,
             target,
-            size: size.map(|side| side as f32),
             scale,
             display: DisplayList::new(),
             last: Instant::now(),
@@ -2096,7 +2090,7 @@ impl Offscreen {
     pub fn frame(&mut self) -> InterfaceFrame {
         let world = self.host.world();
         self.model.act(world);
-        let (display, stats) = self.model.frame(world, self.size, self.scale);
+        let (display, stats) = self.model.frame(world);
         // What the interface did as it laid out, a submenu opened by the pointer's rest.
         self.model.act(world);
         let items = display.len();
@@ -2487,9 +2481,7 @@ impl Window {
                 }
             }
         }
-        let scale = ctx
-            .window()
-            .map_or(1.0, |window| window.scale_factor() as f32);
+        let scale = model.scale();
         let navigated = model
             .panes
             .iter()
@@ -2680,10 +2672,7 @@ impl Presentation for Window {
         // What the user asked is answered, and what it opened shown, at the next frame.
         let mut again = model.act(world);
         if let Some(window) = ctx.window() {
-            let scale = window.scale_factor() as f32;
-            let size = window.inner_size();
-            let size = [size.width as f32 / scale, size.height as f32 / scale];
-            self.display = Some(model.frame(world, size, scale).0);
+            self.display = Some(model.frame(world).0);
             // What the interface did as it laid out, a submenu opened by the pointer's rest.
             again |= model.act(world);
             if let Some(choice) = model.dialog_wanted() {
@@ -2876,7 +2865,8 @@ mod tests {
     use crate::operation::Changes;
     use crate::program::Lighting;
 
-    const SIZE: [f32; 2] = [1280.0, 800.0];
+    /// The window's width and height, in pixels at scale 1.
+    const SIZE: [u32; 2] = [1280, 800];
 
     /// Where the system has a font for Greek, which the editor's look does not ship: fontconfig's
     /// on Linux, which the dev shell loads, and DirectWrite's on Windows. Without one, the test says
@@ -3014,14 +3004,16 @@ mod tests {
             )
         }
 
-        /// A frame of the program: the core answers what the window asked, then the window acts
-        /// and lays out; then the host serves the clipboard that the frame asked, as `slime-app`
-        /// does after each frame.
+        /// A frame of the program: the core answers what the window asked, then the host gives the
+        /// window's size, and the window acts and lays out; then the host serves the clipboard that
+        /// the frame asked, as `slime-app` does after each frame.
         fn frame(&mut self) {
             self.host
                 .frame(&mut self.session, std::time::Duration::from_millis(16));
+            let size = TargetSize::new(SIZE, 1.0).expect("a size");
+            self.model.ui.set_target_size(TargetId::MAIN, size);
             self.model.act(self.host.world());
-            self.model.frame(self.host.world(), SIZE, 1.0);
+            self.model.frame(self.host.world());
             let _ = self.model.ui.serve_clipboard(&mut self.board);
         }
 
@@ -3149,7 +3141,7 @@ mod tests {
             .pointer_button(MouseButton::Left, ButtonState::Pressed);
         yard.model.ui.pointer_moved(x + 50.0, y + 30.0);
         yard.frame();
-        let (display, _) = yard.model.frame(yard.host.world(), SIZE, 1.0);
+        let (display, _) = yard.model.frame(yard.host.world());
         let marquee = Rect::new(x, y, 50.0, 30.0);
         assert!(
             display.items().iter().any(|item| matches!(

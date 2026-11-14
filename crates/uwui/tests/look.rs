@@ -10,6 +10,7 @@
 use slime_color::{LinearColor, Oklch};
 use uwui::display::Primitive;
 use uwui::host::TargetId;
+use uwui::host::TargetSize;
 use uwui::look::{self, Colors, Density, FIXED_FAMILY, TEXT_FAMILY};
 use uwui::preferences::Preferences;
 use uwui::text::{Fonts, TextBounds, TextStyle};
@@ -107,11 +108,12 @@ fn styled_with(
     }
     ui.set_style(&[look::style_sheet()], themes)
         .expect("the look's documents are valid");
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([800, 600], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [800.0, 600.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };
@@ -195,11 +197,12 @@ fn every_button_shows_the_keyboards_focus_by_its_border() {
         reduced_motion: true,
         ..Preferences::default()
     });
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([800, 600], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [800.0, 600.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };
@@ -237,11 +240,12 @@ fn a_chosen_tab_takes_the_panels_color_and_the_others_a_quieter_text() {
     let mut ui = Ui::new(fonts);
     ui.set_style(&[look::style_sheet()], &themes)
         .expect("the look's documents are valid");
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([800, 600], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [800.0, 600.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };

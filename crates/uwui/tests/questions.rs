@@ -9,6 +9,7 @@ use std::time::Instant;
 
 use slime_input::{ButtonState, Ime, Key, KeyCode, KeyEvent, NamedKey};
 use uwui::Rect;
+use uwui::host::TargetSize;
 use uwui::host::{Answer, Event, Input, RangeBox, TargetId, TextAround, TextQuery, TextUnit};
 use uwui::style::{Dimension, StyleBuilder};
 use uwui::text::Fonts;
@@ -41,11 +42,12 @@ fn sized(s: StyleBuilder, width: f32) -> StyleBuilder {
 /// `texts`, laid out once, the first holding the focus, its caret at its end.
 fn fields(texts: &[&str]) -> (Ui, Vec<ElementId>) {
     let mut ui = ui();
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([800, 600], 2.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 2.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: TargetId::MAIN,
     };
@@ -242,11 +244,12 @@ fn an_input_method_asks_about_a_composition_in_progress_with_it_or_without_it() 
 #[test]
 fn a_range_over_two_lines_gives_its_first_lines_box_and_where_it_ends() {
     let mut ui = ui();
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: TargetId::MAIN,
     };
@@ -649,11 +652,12 @@ fn a_boxes_ends_follow_its_direction() {
 #[test]
 fn a_point_is_the_interfaces_under_a_button_that_draws_nothing_and_anywhere_under_a_modal_root() {
     let mut ui = ui();
+    ui.set_target_size(
+        TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 1.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: TargetId::MAIN,
     };
@@ -670,8 +674,6 @@ fn a_point_is_the_interfaces_under_a_button_that_draws_nothing_and_anywhere_unde
     assert!(ui.covers(MAIN, 50.0, 20.0));
     assert!(!ui.covers(MAIN, 300.0, 200.0));
     let modal = RootSettings {
-        size: [100.0, 100.0],
-        origin: [150.0; 2],
         modal: true,
         ..settings
     };

@@ -279,15 +279,18 @@ impl SceneExample {
                 _ => {}
             }
         }
-        let (Some(gpu), Some(window), Some(scene)) = (ctx.gpu(), ctx.window(), &self.scene) else {
+        let (Some(gpu), Some(scene)) = (ctx.gpu(), &self.scene) else {
             return;
         };
-        self.overlay
-            .set_window(window.inner_size(), window.scale_factor());
         let Some(slot) = self.overlay.slot(self.statistics) else {
             return;
         };
-        let size = window.inner_size();
+        // The window's image, which the device may draw smaller than the window.
+        let [width, height] = self
+            .overlay
+            .ui()
+            .target_size(uwui::host::TargetId::MAIN)
+            .map_or([0; 2], |size| size.pixels());
         let mut lines = vec![
             gpu.adapter_name().to_owned(),
             format!("frame: {:.2} ms", self.frame_ms),
@@ -297,7 +300,7 @@ impl SceneExample {
             "sky computed on the CPU, once the scene was loaded: {:.1} ms",
             scene.environment_time().as_secs_f64() * 1000.0
         ));
-        lines.push(format!("{} × {} pixels", size.width, size.height));
+        lines.push(format!("{width} × {height} pixels"));
         // In exposure values, so that equal drags are equal photographic stops, from 18 at its
         // start down to 0; from no bloom to five times the sample's; for a scene with the
         // sample's ring, how many times as strongly as loaded it glows.
@@ -417,6 +420,8 @@ impl Presentation for SceneExample {
                     let (center, radius) = (scene.bounds().center(), scene.bounds().radius());
                     self.camera = OrbitCamera::new(center, radius, radius * 2.2, 0.6, 0.45);
                     self.scene = Some(scene);
+                    // Its statistics, once there is a scene to tell of.
+                    self.overlay.open(self.statistics);
                 }
                 Err(error) => {
                     ctx.exit_with_error(error);
@@ -616,7 +621,6 @@ fn main() -> ExitCode {
         corner: Corner::TopStart,
         size: [420.0, 560.0],
     });
-    overlay.open(statistics);
     let mut example = SceneExample {
         assets,
         scene_id: options.scene.unwrap_or(sample_scene::SCENE),

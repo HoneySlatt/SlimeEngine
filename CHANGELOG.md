@@ -47,8 +47,19 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `Surface::make_again` and `Surface::lose` in `slime-gfx`, `Context::lose_surface` in
   `slime-app`, and a button of *Hunna Wood*'s dev overlay that gives the window's surface up on
   purpose (ADR-0264).
+- Each uwui target is given its size by its host (ADR-0268): `uwui::host::TargetSize`, its image's
+  pixels and its scale, which `TargetSize::new` checks, given by `Ui::set_target_size` and read by
+  `Ui::target_size`; every root on the target fills it. `Surface::size` in `slime-gfx` gives the
+  window's images' size.
 
 ### Changed
+
+- `RootSettings` holds a root's direction, whether it is modal and its target alone
+  (ADR-0268): its size and scale are its target's, `RootSettings::on(target)` makes one, and
+  `add_root` and `set_root` no longer panic on a scale. A root over another takes the pointer
+  where it would take a press, and lets it through to the roots below elsewhere. `slime-app`
+  gives the window's images' size and scale at each frame; `Overlay::set_window` is gone, a panel
+  opened before the window's size is known opening at the next `Overlay::take_actions`.
 
 - A window's surface given up no longer ends the run (ADR-0264): the window holds its frames, and
   the run makes the surface again after a second, or at once when the window is resized or shown
@@ -609,6 +620,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- A layer laid out from right to left keeps its rows within it as it scrolls (ADR-0268): placing a
+  box again after a scroll mirrored it across the window's width, its layout across the layer's.
 - A very deep hierarchy costs time in its depth, no longer in its square (G32): an entity without
   children is given a parent without a search of the parent's ancestors, the world keeps whether
   `Unsaved` leaves an entity out as it keeps whether it is hidden, and the end of each fixed step

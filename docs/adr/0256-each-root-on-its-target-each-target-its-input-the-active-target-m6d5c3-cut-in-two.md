@@ -11,7 +11,9 @@
   [0257](0257-targets-known-from-their-first-root-a-moved-root-below-its-new-targets-modal-root.md) (targets known from their first root; a root and a layer moved),
   [0258](0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md) (each
   target's own frame) and
-  [0264](0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md) (a target removed waits for its reader)
+  [0264](0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md) (a target removed waits for its reader) and
+  [0268](0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md) (a root moved takes its new
+  target's size)
 - Date: 2026-11-14
 
 ## Context

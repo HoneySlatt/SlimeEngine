@@ -54,6 +54,7 @@ use super::{
 };
 use crate::display::{DisplayList, ImageKey, Primitive};
 use crate::host::TargetId;
+use crate::host::TargetSize;
 use crate::look::{self, FIXED_FAMILY, ICON_FAMILY, TEXT_FAMILY};
 use crate::style::{Dimension, FlexDirection, Sides, Style, StyleDeclaration};
 use crate::text::Fonts;
@@ -1249,13 +1250,14 @@ fn draw(
     let mut fonts = Fonts::new();
     look::register_fonts(&mut fonts);
     let mut ui = Ui::new(fonts);
+    ui.set_target_size(
+        crate::host::TargetId::MAIN,
+        TargetSize::new([400, 300], 1.0).expect("a size"),
+    );
     let root = ui.add_root(
         "main",
         RootSettings {
-            size: [400.0, 300.0],
-            scale: 1.0,
             direction,
-            origin: [0.0; 2],
             modal: false,
             target: crate::host::TargetId::MAIN,
         },

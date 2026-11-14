@@ -10,6 +10,7 @@ use slime_input::{
 };
 use uwui::action::{ActionKind, SurfaceInput};
 use uwui::display::{ImageKey, Primitive};
+use uwui::host::TargetSize;
 use uwui::host::{Person, TargetId};
 use uwui::shortcuts::{Platform, Shortcuts};
 use uwui::style::{Dimension, FlexDirection};
@@ -25,11 +26,12 @@ fn interface() -> (Ui, ElementId, ElementId) {
     let table = "scope global {\n    T theme\n    Primary+S save\n}\n";
     ui.set_shortcuts(&[Shortcuts::from_text("keys", table)])
         .expect("a table");
+    ui.set_target_size(
+        uwui::host::TargetId::MAIN,
+        TargetSize::new([800, 600], 2.0).expect("a size"),
+    );
     let settings = RootSettings {
-        size: [400.0, 300.0],
-        scale: 2.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0; 2],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };
@@ -206,14 +208,12 @@ fn alt_pressed_while_a_surface_holds_the_pointer_opens_no_menu() {
     let (mut ui, _, _) = interface();
     // A bar of menus in a root of its own, which Alt let go alone gives the focus.
     let settings = RootSettings {
-        size: [400.0, 30.0],
-        scale: 2.0,
         direction: LayoutDirection::LeftToRight,
-        origin: [0.0, 300.0],
         modal: false,
         target: uwui::host::TargetId::MAIN,
     };
-    let root = ui.add_root("bar", settings, |s| s);
+    // Its bar below the interface's field and surface, as a root placed there.
+    let root = ui.add_root("bar", settings, |s| s.padding_top(300.0));
     ui.build(root, 0, |children| {
         children.add("menus", Element::menu_bar(), |menus| {
             let item = Element::menu_item("File", "", ItemMark::Submenu);

@@ -13,6 +13,8 @@
   once), [0160](0160-two-viewports-and-blenders-way.md) (a chord may name a button of the mouse,
   which the program reads) and [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)
   (a table of shortcuts is KDL, cooked as its text, a chord naming the primary modifier `Primary`)
+  and [0268](0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md) (no root's origin; a root
+  over another takes the pointer where it would take a press)
 - Date: 2026-10-25
 
 ## Context

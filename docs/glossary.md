@@ -1478,10 +1478,12 @@ screen readers. The *forced colours*' roles will be among them. The editor's loo
 colours of its own palette that its sheet names, surfaces, borders and texts, by their uses, not
 roles.
 
-**Root (interface).** An area that an interface lays its *elements* out on, a window or any target,
-with its size in *logical pixels*, its scale and the direction of its lines
+**Root (interface).** An area that an interface lays its *elements* out on: it fills its *target*,
+at the size and scale that the target's host gives, in the direction of its lines
 (`uwui::tree::RootSettings`); a root laid out from right to left is mirrored
-([ADR-0140](adr/0140-the-tree-of-elements.md)).
+([ADR-0140](adr/0140-the-tree-of-elements.md),
+[ADR-0268](adr/0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md)).
+A root over another takes the pointer where it would take a press, and lets it through elsewhere.
 
 **Root's clock (interface).** The time and the *speed* that the host gives a *root* at each frame:
 the host's clock at speed 1 by default, a game's time paused or slowed. The application's motion
@@ -1791,6 +1793,9 @@ target* is the one of the last key or button, or of the window's focus, which se
 [ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md)).
 Each target draws its own frames, at its own time, and asks for one when it changes
 ([ADR-0258](adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md)).
+Its host gives its size, its image's pixels and its scale, which every root on it fills
+(`Ui::set_target_size`,
+[ADR-0268](adr/0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md)).
 
 **Task pool.** Threads that run small pieces of work, *tasks*, as they come, each on the first
 thread free. The engine has one, `slime-tasks`, the machine's logical cores but one, whose tasks

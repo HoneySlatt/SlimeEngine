@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use slime_gfx::{Gpu, PresentMode, Surface};
 use slime_platform::{Event, EventHandler, LoopControl, Window, WindowConfig};
-use uwui::host::TargetId;
+use uwui::host::{TargetId, TargetSize, TargetSizeError};
 use uwui::time::{EventTime, FrameShown, FrameSource};
 
 use crate::app::{AppConfig, Frames};
@@ -204,7 +204,12 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         // The interface shows the frame at its start: the engine reads no time of presentation
         // yet (M6d.7).
         let shown = self.clock.now();
+        let target_size = self.target_size();
         if let Some(ui) = self.presentation.ui() {
+            // The size that its roots fill, before what the frame lays out.
+            if let Some(size) = target_size {
+                ui.set_target_size(TargetId::MAIN, size);
+            }
             // The pointer's last move first, at its own time, before the frame moves the clock.
             self.input.give_moved(ui);
             ui.set_frame_shown(
@@ -263,6 +268,25 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
             || self.host.context.take_frame_request()
             || self.frames.waiting()
             || self.host.context.steps_asked() > 0;
+    }
+
+    /// The size of the window's target: its images', which may be smaller than the window
+    /// (`Surface::size`), at the window's scale. None while the window has no area, its target then
+    /// keeping its last size, or before the window and its surface exist
+    /// (`docs/adr/0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md`).
+    fn target_size(&self) -> Option<TargetSize> {
+        let (surface, window) = (self.surface.as_ref()?, self.host.context.window()?);
+        match TargetSize::new(surface.size(), window.scale_factor() as f32) {
+            Ok(size) => Some(size),
+            Err(TargetSizeError::Empty) => None,
+            Err(error @ TargetSizeError::Scale) => {
+                tracing::warn!(
+                    scale = window.scale_factor(),
+                    "the window's scale is refused, its interface kept at the last: {error}"
+                );
+                None
+            }
+        }
     }
 
     /// What follows the present of an image: the interval from the oldest input that it follows,
@@ -890,17 +914,11 @@ mod tests {
 
     #[test]
     fn an_interface_asks_for_a_frame_to_draw_its_changes_only_after_one_that_drew_an_image() {
-        use uwui::tree::{Element, LayoutDirection, RootSettings, Ui};
+        use uwui::tree::{Element, RootSettings, Ui};
         let mut ui = Ui::new(uwui::text::Fonts::new());
-        let settings = RootSettings {
-            size: [200.0, 100.0],
-            scale: 1.0,
-            direction: LayoutDirection::LeftToRight,
-            origin: [0.0; 2],
-            modal: false,
-            target: TargetId::MAIN,
-        };
-        let root = ui.add_root("main", settings, |s| s);
+        let size = TargetSize::new([200, 100], 1.0).expect("a size");
+        ui.set_target_size(TargetId::MAIN, size);
+        let root = ui.add_root("main", RootSettings::on(TargetId::MAIN), |s| s);
         ui.frame(TargetId::MAIN);
         // A change that no frame drew: a window that showed no image, covered, leaves it until
         // it shows again, rather than asking at every frame.

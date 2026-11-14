@@ -278,6 +278,13 @@ impl Surface {
         self.format
     }
 
+    /// The width and height of the window's images from the next [`acquire`](Self::acquire), in
+    /// physical pixels: the size that [`resize`](Self::resize) last gave, each side limited to what
+    /// the device accepts. Zero on a side while the window has no area.
+    pub fn size(&self) -> [u32; 2] {
+        [self.config.width, self.config.height]
+    }
+
     /// Sets the size of the window's images, in physical pixels; call it whenever the window is
     /// resized. The images change size from the next [`acquire`](Self::acquire). A size of zero,
     /// for example while the window is minimized, means there is nothing to draw. A width or height

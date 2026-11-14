@@ -218,7 +218,7 @@ impl Screen {
     /// frame is drawn.
     #[cfg(feature = "development")]
     fn build_overlay(&mut self, ctx: &mut Context, world: &World) {
-        let (Some(gpu), Some(window), Some(view)) = (ctx.gpu(), ctx.window(), &self.view) else {
+        let (Some(gpu), Some(view)) = (ctx.gpu(), &self.view) else {
             return;
         };
         let speed = GameSpeed {
@@ -226,8 +226,6 @@ impl Screen {
             speed: ctx.speed(),
         };
         let asked = self.overlay.build(
-            window.inner_size(),
-            window.scale_factor(),
             &self.stats,
             gpu.adapter_name(),
             speed,

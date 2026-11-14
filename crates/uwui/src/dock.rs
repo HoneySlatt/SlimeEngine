@@ -751,7 +751,8 @@ impl Dock {
         let Some(settings) = ui.root_settings(slot) else {
             return;
         };
-        let scale = settings.scale;
+        let size = ui.coming_size(settings.target);
+        let scale = size.scale();
         for floating in &mut self.layout.floating {
             if floating.size != [0.0; 2] {
                 continue;
@@ -768,7 +769,7 @@ impl Dock {
                     [rect.width / scale, rect.height / scale],
                 ),
                 None => {
-                    let [width, height] = settings.size;
+                    let [width, height] = size.logical();
                     let size = [width / 3.0, height / 2.0];
                     ([(width - size[0]) / 2.0, (height - size[1]) / 2.0], size)
                 }
@@ -803,7 +804,9 @@ impl Dock {
         // sizes it, stays within reach.
         let window = ui
             .root_settings(slot)
-            .map_or([f32::INFINITY; 2], |settings| settings.size);
+            .map_or([f32::INFINITY; 2], |settings| {
+                ui.coming_size(settings.target).logical()
+            });
         for floating in open {
             if self.layers.contains_key(&floating.panel) {
                 continue;

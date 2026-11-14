@@ -6,10 +6,10 @@
 
 use slime_devui::{Corner, Overlay, PanelId, PanelSpec, ValueEditor, WorldPanel, render_figures};
 use slime_gfx::{GfxError, Gpu, RenderTarget};
-use slime_platform::PhysicalSize;
 use slime_render::{RenderStats, ViewSettings};
 use slime_world::{Command, World};
 use uwui::action::{ActionKind, FieldValue};
+use uwui::host::TargetId;
 use uwui::style::FlexDirection;
 use uwui::tree::{Element, ElementId, Ui};
 
@@ -124,19 +124,13 @@ impl DevOverlay {
         self.panel.refused(error);
     }
 
-    /// Reads what the user did since the last frame, then builds the overlay for a window of `size`
-    /// at `scale_factor`, with `stats`, the last frame's, the name of the GPU's `adapter`, the
-    /// game's `time`, the settings of the hero's view, which its editors change, and the size it is
-    /// drawn at, and the entities of `world`, and returns what it asks of the game.
-    /// [`DevOverlay::render`] draws it.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "what the panels show, each given apart"
-    )]
+    /// Reads what the user did since the last frame, then builds the overlay over the window, at the
+    /// size that the game's host gave its interface, with `stats`, the last frame's, the name of the
+    /// GPU's `adapter`, the game's `time`, the settings of the hero's view, which its editors
+    /// change, and the size it is drawn at, and the entities of `world`, and returns what it asks
+    /// of the game. [`DevOverlay::render`] draws it.
     pub fn build(
         &mut self,
-        size: PhysicalSize,
-        scale_factor: f64,
         stats: &RenderStats,
         adapter: &str,
         time: GameSpeed,
@@ -166,7 +160,6 @@ impl DevOverlay {
                 _ => {}
             }
         }
-        self.overlay.set_window(size, scale_factor);
         if let Some(slot) = self.overlay.slot(self.world) {
             self.panel.build(self.overlay.ui_mut(), slot, world);
         }
@@ -174,10 +167,16 @@ impl DevOverlay {
             self.built = None;
             return asked;
         };
+        let [width, height] = self
+            .overlay
+            .ui()
+            .target_size(TargetId::MAIN)
+            .map_or([0; 2], |size| size.pixels());
         let speed = asked.speed.unwrap_or(time.speed);
         let mut lines = vec![
             adapter.to_owned(),
-            format!("{} × {} pixels", size.width, size.height),
+            // The window's image, which the device may draw smaller than the window.
+            format!("{width} × {height} pixels"),
             format!("frame: {:.2} ms", self.frame_ms),
         ];
         lines.extend(render_figures(stats));
@@ -267,16 +266,15 @@ mod tests {
             paused: false,
             speed: 1.0,
         };
-        let size = PhysicalSize {
-            width: 1280,
-            height: 720,
-        };
+        // The window that its host gives.
+        let window = uwui::host::TargetSize::new([1280, 720], 1.0).expect("a size");
+        overlay
+            .ui_mut()
+            .set_target_size(uwui::host::TargetId::MAIN, window);
         for entity in entities {
             overlay.panel.select(entity);
             for _ in 0..2 {
                 let asked = overlay.build(
-                    size,
-                    1.0,
                     &RenderStats::default(),
                     "adapter",
                     time,
