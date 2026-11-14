@@ -153,7 +153,7 @@ in git.
   link to its code. M6d.1c's prototypes go on from it, on `m6d1c-bench`.
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and
   its open decisions; its code moves there at M6d.11.
-- In progress on track B: [M6d.5](#m6d5--the-hosts-api), the host's API, cut in five at its
+- Done on track B: [M6d.5](#m6d5--the-hosts-api), the host's API, cut in five at its
   start, on 2026-11-12
   ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md)): done,
   [M6d.5a](#m6d5a--the-apis-adr-and-its-table), the API's ADR and its table, on 2026-11-13
@@ -174,6 +174,8 @@ in git.
   [M6d.5e1](#m6d5e1--the-lifecycle) and
   [M6d.5e2](#m6d5e2--each-targets-size-and-scale-from-its-host), on 2026-11-14, M6d.5e whole, and
   with it M6d.5, the host's API.
+- In progress on track B: [M6d.7](PLAN.md#m6d7--the-desktop-host-its-window-and-its-frames), the
+  desktop host's window and frames, from 2026-11-14.
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2267,40 +2269,7 @@ The second half of M6d.5e ([ADR-0264](adr/0264-the-lifecycle-before-each-targets
 
 ### M6d.7 — The desktop host: its window and its frames
 
-- **Goal.** An application runs on uwui alone: its window, frames at the display's rate, none at
-  rest, on every compositor of the series.
-- **Crates.** uwui's desktop host, a new crate; `uwui`; an example.
-- **Delivers.** The window's identity, its minimum size, fullscreen, brought to the front, its
-  closing intercepted; decorations of the system where the compositor draws them, drawn by uwui
-  elsewhere. The ADR of the frames' rate, which amends [ADR-0021](adr/0021-frame-pacing.md) and
-  which M6c.Q2f waits for: on the compositor's signal on Wayland, by the refresh rate of the
-  display that holds the window on Windows and X11, a display that reports none included; the
-  time that the engine's windowed loop gives its interface. The platforms' times of frames read
-  with code of the host's own, since winit gives none; input's events stamped at reception,
-  measured, and a pull request proposed to winit for their times, after a search for an existing
-  one; the notice that the system resumed, on each platform; whether the host reaches the
-  presentation's times under wgpu: on Wayland, its own presentation feedback and commit timer on a
-  surface whose commits Vulkan's driver makes, on Windows DXGI's statistics, the presentation
-  manager and DWM's timing with several displays
-  ([ADR-0227](adr/0227-the-time-that-motion-reads.md)). A waker from any thread; an example; a check that a program on uwui and its host compiles neither the
-  renderer, the world nor the editor, and its other side, that the engine's programs compile none
-  of uwui's hosts
-  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); a job of CI that builds and tests uwui and its host on macOS
-  ([ADR-0173](adr/0173-the-platforms-of-applications.md)). A *blank window*, a program on winit and
-  wgpu that only clears its window and presents it, among the programs measured
-  ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)). The host's crash reports,
-  written on the machine and never sent
-  ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)).
-- **Done when.** The example rests on every compositor of the series; its input to present is
-  within 4.17 ms in a headless sway at 240 Hz; the check fails on a program made to pull
-  `slime-render`, and its other side on an engine's program made to pull uwui's host; a program
-  on the host made to crash leaves its report on the machine; CI is green, macOS included.
-- **How to test.** `cargo test -p uwui`; the series' job; `scripts/input-to-present.sh`.
-- **Measured.** The host's own cost, what the example adds above the blank window, in the same run:
-  start, memory, the binary's size, rest, input to present. The applications' budgets get first
-  figures, not judged on the example.
-- **By hand.** The owner's desktop; the Windows virtual machine; macOS 26
-  ([ADR-0196](adr/0196-checks-by-hand-on-macos.md)).
+In progress, its card in [`PLAN.md`](PLAN.md#m6d7--the-desktop-host-its-window-and-its-frames).
 
 ### M6d.8 — The desktop host: clipboard, input methods, accessibility
 

@@ -16,16 +16,14 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 ## Current
 
 - Stage 6d, uwui leaving the engine, for 0.7: [`stage-6d.md`](stage-6d.md), its whole plan.
-- Done: M6d.0a to M6d.3c3, closing M6d.1, how an application is written; M6d.2, typed styles
-  ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)); and M6d.3, every
-  document of uwui in KDL ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+- Done: M6d.0a to M6d.3c3: M6d.1, M6d.2 and M6d.3.
 - Two tracks at most, the owner's choice of 2026-11-11, each milestone in its own session:
   - Track A, uwui's core, in the main checkout: M6d.9a, cut in five
     ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
     done, M6d.9a1a to [M6d.9a1b3b2](stage-6d.md#m6d9a1b3b2--the-editors-journal), M6d.9a1
     whole; next, [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families).
-  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 whole, done, the last
-    [M6d.5e2](stage-6d.md#m6d5e2--each-targets-size-and-scale-from-its-host).
+  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; in progress,
+    [M6d.7](#m6d7--the-desktop-host-its-window-and-its-frames).
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: deleting the branches `m6d1b-bench`, `m6d4a-prototype` and
@@ -42,15 +40,25 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.4a to M6d.4b2 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
 | [M6d.5a to M6d.5e2 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Done |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
-| [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
+| [M6d.7 — The desktop host: its window and its frames](#m6d7--the-desktop-host-its-window-and-its-frames) | In progress |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
-| [M6d.9a1a to M6d.9a1b2 — The new wire, requests in flight, events](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
-| [M6d.9a1b3a to M6d.9a1b3b2 — The interface's family in uwui, lists, the journal](stage-6d.md#m6d9a1b3a--the-interfaces-family-in-uwui) | Done |
+| [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a2 to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
+
+## M6d.7 — The desktop host: its window and its frames
+
+Started on 2026-11-14 by a design session; its full card: `git show 6917f57:docs/stage-6d.md`.
+
+- **Goal.** An application on uwui alone: its window, frames at the display's rate, none at rest.
+- **Crates.** uwui's desktop host, new; `uwui`; an example.
+- **Done when.** It rests on every compositor of the series; input to present within 4.17 ms in
+  a headless sway at 240 Hz; ADR-0226's checks fail both ways when they must; a crash leaves its
+  report; CI is green, macOS included.
+- **Measured.** The host's own cost above a blank window, in one run.
 
 ## Ideas waiting for their milestone
 
@@ -85,18 +93,15 @@ owner's save alone. After Stage 6e's first milestone, a check that names *Hunna 
 - **Checkpoint A, in the Windows virtual machine** (M6c.1a): the editor's window; flying through
   the zone, selecting, rearranging it and playing it; the raw motion, the cursor held, the game's
   child process and the system's firewall, the dialogs.
-- **The system's dialog** (M6c.1b): opened on the owner's Linux desktop and in the Windows virtual
-  machine.
-- **The cursor held and the raw motion** (M6c.1b): on the owner's Linux desktop, X11 through
-  XWayland and in the Windows virtual machine.
-- **Flying and orbiting in the zone** (M6c.2a): on the owner's Linux desktop and X11 through
+- **The system's dialog, the cursor held and the raw motion** (M6c.1b): on the owner's Linux
+  desktop and in the Windows virtual machine; the cursor and the motion also on X11 through
   XWayland.
+- **Flying and orbiting in the zone** (M6c.2a): on the owner's Linux desktop and through XWayland.
 - **Sixteen passes to a submission** (M6c.2a): on Direct3D 12, in the Windows virtual machine.
 - **Picking in the zone** (M6c.2b): on the owner's Linux desktop and X11 through XWayland; Alt and a click
   with a mouse of a fine resolution, which must not read it as an orbit; the outline on Direct3D
   12, in the Windows virtual machine.
-- **Two viewports and Blender's way** (M6c.2c): on the owner's Linux desktop and in the Windows
-  virtual machine.
+- **Two viewports and Blender's way** (M6c.2c): on Linux and in the Windows virtual machine.
 - **The handles** (M6c.3a): their feel, their hit areas and the snapping, in the yard and the zone,
   and in the Windows virtual machine; Escape during a drag, which tests reach through the model,
   not through a key of the window.
@@ -104,9 +109,8 @@ owner's save alone. After Stage 6e's first milestone, a check that names *Hunna 
   zone, grouping and nudging, on Linux and in the Windows virtual machine.
 - **Placing prefabs and the history panel** (M6c.3c): in the yard and the zone, and in the Windows
   virtual machine.
-- **Play** (M6c.4a): Play, Pause, Step and Stop with *Hunna Wood* and the yard, on Linux and in the
-  Windows virtual machine.
-- **Edits while playing** (M6c.4b): on Linux and in the Windows virtual machine.
+- **Play, and edits while playing** (M6c.4a, M6c.4b): Play, Pause, Step and Stop with *Hunna
+  Wood* and the yard, on Linux and in the Windows virtual machine.
 - **Building the game again** (M6c.4c): a change of *Hunna Wood*'s rules built and started again,
   on Linux and in the Windows virtual machine; there, a build while the game runs, which Windows
   may keep from replacing a running program, and the console windows that must not open.
