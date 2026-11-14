@@ -32,8 +32,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: deleting the branches `m6d1b-bench`, `m6d4a-prototype` and
-  `m6d5a-prototype`, the last two linked by measurements; the private mirror of the game's assets,
-  beyond `scripts/fetch-assets.sh`'s reach, CI living on its cache; the
+  `m6d5a-prototype`, the last two linked by measurements; the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
   then Stage 7 ([`ROADMAP.md`](ROADMAP.md#stage-7--runtime-systems--08)).
