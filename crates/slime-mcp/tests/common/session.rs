@@ -3,15 +3,23 @@
 
 use std::io::{BufRead as _, BufReader, Write as _};
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::mpsc;
+use std::time::Duration;
 
 use base64::Engine as _;
 use serde_json::{Value, json};
 
+/// How long a session waits for any one message of the server: past the longest call, a game that
+/// `start_game` gives 600 s to build and start, with room.
+const PATIENCE: Duration = Duration::from_secs(900);
+
 /// The server's ends of the conversation.
 pub struct Session {
     input: ChildStdin,
-    output: BufReader<ChildStdout>,
+    /// The server's lines, as a thread of the session's reads them, so that each read is bounded
+    /// by [`PATIENCE`].
+    output: mpsc::Receiver<String>,
     next: u64,
 }
 
@@ -22,10 +30,16 @@ impl Session {
     /// their state in a directory of the session's own, emptied first, never in the user's: an
     /// editor's journals and its recent levels, a game's saves.
     pub fn start(workspace: &Path, client: &str) -> (Self, Child, Value) {
+        Self::start_with(&server(), workspace, client)
+    }
+
+    /// Starts `server`, a build of the server, as [`Session::start`] starts this one's: what a
+    /// measure times against another commit's build.
+    pub fn start_with(server: &Path, workspace: &Path, client: &str) -> (Self, Child, Value) {
         let user = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("slime-mcp-user-{client}"));
         let _ = std::fs::remove_dir_all(&user);
         let (data, state) = (user.join("data"), user.join("state"));
-        let mut child = Command::new(server())
+        let mut child = Command::new(server)
             .current_dir(workspace)
             .env("XDG_DATA_HOME", &data)
             .env("XDG_STATE_HOME", &state)
@@ -35,9 +49,18 @@ impl Session {
             .stdout(Stdio::piped())
             .spawn()
             .expect("the server starts");
+        let (lines, output) = mpsc::channel();
+        let read = BufReader::new(child.stdout.take().expect("piped"));
+        std::thread::spawn(move || {
+            for line in read.lines().map_while(Result::ok) {
+                if lines.send(line).is_err() {
+                    return;
+                }
+            }
+        });
         let mut session = Self {
             input: child.stdin.take().expect("piped"),
-            output: BufReader::new(child.stdout.take().expect("piped")),
+            output,
             next: 0,
         };
         let initialized = session.call(
@@ -48,12 +71,7 @@ impl Session {
                 "clientInfo": { "name": client, "version": "1" },
             }),
         );
-        writeln!(
-            session.input,
-            "{}",
-            json!({ "jsonrpc": "2.0", "method": "notifications/initialized" })
-        )
-        .expect("the server reads");
+        session.notify("notifications/initialized", json!({}));
         (session, child, initialized)
     }
 
@@ -80,15 +98,26 @@ impl Session {
         id
     }
 
-    /// The server's next message, an answer or a notification, read while `waiting` waits.
+    /// The server's next message, an answer or a notification, read while `waiting` waits, within
+    /// [`PATIENCE`].
     pub fn next_message(&mut self, waiting: &str) -> Value {
-        let mut line = String::new();
-        let read = self
-            .output
-            .read_line(&mut line)
-            .expect("the server answers");
-        assert!(read > 0, "the server ended before answering {waiting}");
+        let line = match self.output.recv_timeout(PATIENCE) {
+            Ok(line) => line,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                panic!("the server answered nothing within {PATIENCE:?} while {waiting} waited")
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                panic!("the server ended before answering {waiting}")
+            }
+        };
         serde_json::from_str(&line).expect("JSON")
+    }
+
+    /// Sends the notification `method` with `params`, which the server answers not.
+    pub fn notify(&mut self, method: &str, params: Value) {
+        let notification = json!({ "jsonrpc": "2.0", "method": method, "params": params });
+        writeln!(self.input, "{notification}").expect("the server reads");
+        self.input.flush().expect("the server reads");
     }
 
     /// Calls the tool `name` with `arguments`, and returns the texts of its result and the result;

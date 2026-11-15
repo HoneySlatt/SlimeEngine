@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use uwui_agent::{Fault, Value, interface};
 
+use crate::EDITING;
 use crate::error::ChannelError;
 
 /// What a tool asks a game once its hello is welcomed, each answered by a [`Reply`]: requests of
@@ -391,7 +392,8 @@ pub enum Reply {
         operations: Vec<OperationSummary>,
     },
     /// What the game's interface answers to a [`Request::Interface`]: on the wire, the family's
-    /// own reply, which a tool reads as this one when it asked the interface.
+    /// own reply, which a game gives this way; a tool reads it as an `interface::Reply`, having
+    /// sent the request with [`Client::send_call`](crate::Client::send_call).
     #[serde(skip)]
     Interface {
         /// The reply.
@@ -560,11 +562,22 @@ impl Event {
 }
 
 impl Request {
-    /// The method and the parameters that carry the request.
+    /// The method and the parameters that carry the request. A request of the interface's family
+    /// is refused, in words that say how to send it: a tool sends it at the core's level
+    /// ([`Client::send_call`]), and reads its answer as its family's reply, whose JSON may read as
+    /// one of the game's own, as an image.
+    ///
+    /// [`Client::send_call`]: crate::Client::send_call
     pub(crate) fn call(&self) -> Result<(String, Value), ChannelError> {
         Ok(match self {
             Self::Edit { edit } => uwui_agent::call(edit)?,
-            Self::Interface { request } => uwui_agent::call(request)?,
+            Self::Interface { .. } => {
+                return Err(ChannelError::Session(uwui_agent::AgentError::Unwritable(
+                    "a request of the interface's family is sent with `Client::send_call`, its \
+                     answer read as the family's reply"
+                        .into(),
+                )));
+            }
             request => uwui_agent::call(request)?,
         })
     }
@@ -580,9 +593,6 @@ impl Request {
         }
     }
 }
-
-/// The family of an editor's requests, which [`Request::Edit`] carries.
-const EDITING: &str = "editing";
 
 impl From<Fault> for Reply {
     /// The reply that says `fault`, its code kept: [`Reply::Failed`].
@@ -621,20 +631,13 @@ impl Reply {
         }
     }
 
-    /// The reply that an outcome carries, to a request of the interface's family or not: every
-    /// error as [`Reply::Failed`], with its code and its message.
-    pub(crate) fn read(
-        outcome: Result<Value, Fault>,
-        of_interface: bool,
-    ) -> Result<Self, ChannelError> {
-        let unreadable = |fault: Fault| {
-            ChannelError::Malformed(format!("a reply that does not read: {}", fault.message))
-        };
+    /// The reply that an outcome carries, to a request of the game's own families: every error as
+    /// [`Reply::Failed`], with its code and its message.
+    pub(crate) fn read(outcome: Result<Value, Fault>) -> Result<Self, ChannelError> {
         match outcome {
-            Ok(value) if of_interface => uwui_agent::read(value)
-                .map(|reply| Self::Interface { reply })
-                .map_err(unreadable),
-            Ok(value) => uwui_agent::read(value).map_err(unreadable),
+            Ok(value) => uwui_agent::read(value).map_err(|fault| {
+                ChannelError::Malformed(format!("a reply that does not read: {}", fault.message))
+            }),
             Err(fault) => Ok(Self::from(fault)),
         }
     }
@@ -790,7 +793,11 @@ mod tests {
             },
         ];
         for request in requests {
-            let (method, params) = request.call().expect("written");
+            // A tool sends the interface's requests at the core's level.
+            let (method, params) = match &request {
+                Request::Interface { request } => uwui_agent::call(request).expect("written"),
+                request => request.call().expect("written"),
+            };
             let (family, _) = method.split_once('/').expect("a family's method");
             assert!(
                 crate::FAMILIES.iter().any(|&(name, _, _)| name == family),
@@ -934,24 +941,21 @@ mod tests {
                 },
                 "a failure crosses as an error of the core's, of its code"
             );
-            assert_eq!(Reply::read(outcome, false).expect("read"), reply);
+            assert_eq!(Reply::read(outcome).expect("read"), reply);
         }
-        // A reply of the interface's family, read as one when the interface was asked.
-        let reply = Reply::Interface {
-            reply: interface::Reply::Image {
-                width: 4,
-                height: 2,
-            },
+        // A reply of the interface's family crosses as the family writes it.
+        let image = interface::Reply::Image {
+            width: 4,
+            height: 2,
         };
-        let outcome = reply.outcome().expect("written");
-        assert_eq!(Reply::read(outcome.clone(), true).expect("read"), reply);
+        let outcome = Reply::Interface {
+            reply: image.clone(),
+        }
+        .outcome()
+        .expect("written");
         assert_eq!(
-            Reply::read(outcome, false).expect("read"),
-            Reply::Image {
-                width: 4,
-                height: 2
-            },
-            "the same JSON, read as the game's own image when the interface was not asked"
+            outcome.map(uwui_agent::read::<interface::Reply>),
+            Ok(Ok(image))
         );
     }
 
@@ -977,13 +981,13 @@ mod tests {
         );
         assert!(
             matches!(
-                Reply::read(Ok(Value::Null), false),
+                Reply::read(Ok(Value::Null)),
                 Err(ChannelError::Malformed(_))
             ),
             "a result that is no reply"
         );
         assert_eq!(
-            Reply::read(Err(Fault::new(Fault::NOT_SERVED, "not served")), false).expect("read"),
+            Reply::read(Err(Fault::new(Fault::NOT_SERVED, "not served"))).expect("read"),
             Reply::Failed {
                 code: Fault::NOT_SERVED,
                 message: "not served".to_owned()

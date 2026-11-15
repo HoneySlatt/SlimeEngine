@@ -4349,3 +4349,44 @@ compositor's job, the example built, some 70 s on that runner, its test built, 3
 25 s with input, 12 s without; in `check (windowed)`, its test built with the features of its
 package alone, 66 s, and its run, 12 s. A job near its limit can build the host's test with the
 others' in one invocation, which shares their dependencies.
+
+## M6d.9a2b1, the engine's families on uwui's MCP library
+
+On 2026-11-15, on an AMD Ryzen 7 5800X, in release builds, two measures of `slime-mcp`'s measure
+`answer` (`crates/slime-mcp/tests/answer.rs`, its commands in [`CONTRIBUTING.md`](../CONTRIBUTING.md#commands)).
+Before is the server alone built at `60c6634`, before M6d.9a2a, in a worktree of its own, named by
+`SLIME_MCP_SERVER`; after is M6d.9a2b1's working tree. Both drive the same programs, built after; the review's corrections, made after the series, leave
+the paths timed unchanged.
+Five passes each, before and after alternated, each started once the load was under 1 with no
+`cargo` nor `rustc` running; the median of the five passes' medians.
+
+What the server and the development channel add, the call answered at once by a program of the
+tests' own on the channel's listener (`--at-once`), with no frame to wait for: each a median and the
+slowest of 201, after 21 to warm up.
+
+| Call | Before | After |
+|---|---|---|
+| `read_report`, 36 bytes of text | 0.200 ms | 0.124 ms |
+| `list_entities`, a page of 100 entities, 2.7 kB of text | 0.307 ms | 0.225 ms |
+| the slowest of 201, across the calls and the passes | 0.253 to 0.454 ms | 0.160 to 0.379 ms |
+
+The engine's answer, the `editor` example's window on a copy of the yard in a headless compositor,
+drawn with lavapipe, as at [M6d.9a2a](#m6d9a2a-uwuis-mcp-library): each a median and the slowest
+of 21, after three.
+
+| Call | Before | After |
+|---|---|---|
+| `game_state` | 16.70 ms | 16.71 ms |
+| `find_elements`, the editor's whole interface, 12.4 kB of text | 17.37 ms | 17.47 ms |
+| `editor_journal`, its first page, 1.3 kB of text | 15.93 ms | 15.83 ms |
+| the slowest of 21, across the calls and the passes | 15.99 to 21.76 ms | 15.88 to 22.70 ms |
+
+The calls through uwui's MCP library take some 0.08 ms less than the server's own path before it;
+why was not studied. Against the editor's window, a call waits for its next frame, which the
+compositor paces at 60 Hz: the floor of some 16.7 ms is one frame. The calls are taken in turn, so
+that one call's time moves the next one's place in the frame: the gaps of 0.1 ms there, one up and
+one down, are that phase, not the library, whose cost the first table gives. The owner's other
+programs held the load near 1 throughout: the second pass's run of the window after, and the
+fifth pass's two runs of the window, saw the load rise to 1.8 to 2.1 while they ran, and are marked
+disturbed; their medians are within 0.03 ms of the others'. The lowest machine supported is not
+measured.

@@ -13,10 +13,11 @@ use rmcp::model::{CallToolResult, ContentBlock, Tool};
 use rmcp::service::RequestContext;
 use rmcp::{ErrorData as McpError, RoleServer, schemars};
 use serde::Deserialize;
+use uwui_agent::Fault;
 use uwui_agent::interface::{Action, ElementSummary, Reply, Request};
-use uwui_agent::{Fault, Value};
 
-use crate::carrier::{Carrier, ask};
+use crate::carrier::{Answer, Carrier};
+use crate::family::Family;
 use crate::pages::{List, PAGE_BYTES, Page, gather};
 use crate::result::{failure, fault, next_line, text};
 
@@ -95,10 +96,23 @@ pub struct AnElement {
 /// What a tool's handler gives: its result, once the program answered.
 type Handled<'a> = Pin<Box<dyn Future<Output = Result<CallToolResult, McpError>> + Send + 'a>>;
 
-/// The tools of the interface's family, for a server of type `S`, which carries their requests to
-/// a program: `find_elements`, `element_at`, `act_on_interface`, `capture_element` and
-/// `element_style`.
-pub fn interface_tools<S: Carrier>() -> ToolRouter<S> {
+/// The interface's family as tools, for a server of type `S`, which carries their requests to a
+/// program: `find_elements`, `element_at`, `act_on_interface`, `capture_element` and
+/// `element_style`, with their paragraph of the server's instructions.
+pub fn interface_family<S: Carrier>() -> Family<S> {
+    Family::new(uwui_agent::interface::FAMILY, INTERFACE, interface_tools())
+}
+
+/// What the interface's family tells an agent among the server's instructions.
+const INTERFACE: &str = "A program's interface is read and used as a person uses it: \
+     `find_elements` lists its elements by role and name, each with its path, `element_at` names \
+     the one at a pixel, `act_on_interface` presses, focuses or scrolls one, gives a field, a \
+     slider, two panels, a list to choose from or a color well a value, drops one onto another, \
+     or moves the focus, accepts, cancels or gives a command as keys do, `capture_element` shows \
+     one, and `element_style` says where the code that wrote its own style is.";
+
+/// The interface's tools.
+fn interface_tools<S: Carrier>() -> ToolRouter<S> {
     ToolRouter::new()
         .with_route(ToolRoute::new(
             tool::<FindElements>("find_elements", FIND_ELEMENTS),
@@ -281,17 +295,16 @@ async fn answered<C: Carrier>(
     context: &RequestContext<RoleServer>,
     request: &Request,
 ) -> CallToolResult {
-    let (method, params) = match uwui_agent::call(request) {
-        Ok(call) => call,
-        Err(error) => return failure(error.to_string()),
-    };
-    let answer = match ask(carrier, &method, params, context).await {
-        Ok(answer) => answer,
-        Err(why) => return failure(why),
-    };
-    match answer.outcome.and_then(uwui_agent::read::<Reply>) {
-        Ok(reply) => described(reply, &answer.bytes),
-        Err(refused) => fault(refused),
+    match crate::carrier::request::<C, Reply>(carrier, request, context).await {
+        Ok(Answer {
+            outcome: Ok(reply),
+            bytes,
+        }) => described(reply, &bytes),
+        Ok(Answer {
+            outcome: Err(refused),
+            ..
+        }) => fault(refused),
+        Err(why) => failure(why),
     }
 }
 
@@ -442,10 +455,12 @@ impl Page for Elements {
 }
 
 impl List for Request {
+    type Request = Self;
+    type Reply = Reply;
     type Page = Elements;
 
-    fn call(&self) -> Result<(String, Value), String> {
-        uwui_agent::call(self).map_err(|error| error.to_string())
+    fn request(&self) -> &Self {
+        self
     }
 
     fn resumed(&self, cursor: String, count: u64, bytes: u64) -> Option<Self> {
@@ -467,8 +482,8 @@ impl List for Request {
         Some(request)
     }
 
-    fn page(result: Value) -> Result<Elements, Fault> {
-        match uwui_agent::read::<Reply>(result)? {
+    fn page(reply: Reply) -> Result<Elements, Fault> {
+        match reply {
             Reply::Elements { elements, next } => Ok(Elements { elements, next }),
             other => Err(Fault::new(
                 Fault::INVALID,

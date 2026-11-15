@@ -84,8 +84,9 @@ name = "resources"
 test = false
 harness = false
 
-# The engine's answer through the server, measured on the `editor` example's window: a measure, not
-# a check, run by hand in a headless Weston (docs/measurements.md).
+# The engine's answer through the server, measured on the `editor` example's window in a headless
+# Weston, or, with `--at-once`, on a program of the tests' own that answers at once: a measure, not
+# a check, run by hand (docs/measurements.md).
 [[test]]
 name = "answer"
 test = false

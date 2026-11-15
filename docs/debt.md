@@ -31,20 +31,17 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   So that one game at a time runs, they hold it while the game builds and starts, up to 600 s, and for their own requests; the agent's other calls wait meanwhile, and a cancel does not stop a start.
   With every place in flight held by long steps, `stop_game` waits for one, and `resume`, which would free them, waits for the lock.
   Followed at [M6d.9a2b2](stage-6d.md#m6d9a2b2--the-servers-game-off-its-lock), which takes the server's game off its lock ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)).
-- **`slime-mcp` pages its own lists beside uwui's MCP library's** ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
-  `list_entities` and `editor_journal` gather the game's pages through `slime-mcp`'s own loop, `find_elements` through `uwui_mcp::gather`: two ways of one rule, and `uwui_mcp`'s `List` and `Page` each with one list.
-  The engine's lists are typed by `slime-channel`'s `Request`, whose method and parameters it does not give out.
-  Followed at [M6d.9a2b1](stage-6d.md#m6d9a2b1--the-engines-families-on-the-library), which moves the engine's families onto the library.
-- **A tool's name taken twice is caught by a test, not refused** ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
-  rmcp's routers, added up, keep the last tool of a name silently; `slime-mcp`'s test counts its tools and the library's, and a server of another program counts nothing.
-  Followed at [M6d.9a2b1](stage-6d.md#m6d9a2b1--the-engines-families-on-the-library), whose server refuses a name taken twice as it is built.
 - **The budget of a frame's start for the tools' requests is not measured from input to present** ([ADR-0252](adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md)).
   It is measured by a headless run's frames with agents at the channel's bounds; `scripts/input-to-present.sh` starts its programs without a channel, and gives no agent.
   A frame's start takes one request of each connection whatever the budget; a page of a list takes its share of it past a floor of visits, so that seven agents listing make frames of about 1.7 ms, 1 ms of it the measure's rest ([`measurements.md`](measurements.md#m6d9a1b3b1-lists)), where they made frames of about 4 ms before; a request of another kind that costs much, as a capture, still takes what it costs.
   Followed at uwui's first stage, whose measures of input to present run on uwui's own host, with its agents.
-- **Three helpers write an error and its causes on one line** ([ADR-0008](adr/0008-errors-logging-and-assertions.md)).
-  `slime_app::error_chain`, `slime-mcp`'s `causes` and `slime-channel`'s `why` write the same; neither crate links another's, `slime-channel` lying below `slime-app` and linking no logging.
-  Followed at [M6d.9a2b1](stage-6d.md#m6d9a2b1--the-engines-families-on-the-library), which builds `slime-mcp` on uwui's MCP library and can share one.
+- **`slime-mcp` writes a capture as PNG on its one thread** ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
+  `uwui_mcp::image` encodes the pixels that a capture gives, as `capture` and `capture_element` answer, on the server's runtime, which has one thread: a large capture holds the agent's other calls while it is encoded, as a cancel of theirs.
+  Followed at [M6d.9a2b2](stage-6d.md#m6d9a2b2--the-servers-game-off-its-lock), which takes the server's waits off its one thread.
+- **Two helpers write an error and its causes on one line** ([ADR-0008](adr/0008-errors-logging-and-assertions.md)).
+  `slime_app::error_chain`, for a program's log, and `slime_channel::why`, for a tool, which `slime-mcp` takes, write the same, the first leaving out a cause whose text the chain holds already.
+  The build for shipping links no `slime-channel`, and `slime-channel` lies below `slime-app` and links no logging: neither can take the other's.
+  Followed at [M6d.12](stage-6d.md#m6d12--the-audit-of-stage-6d), the stage's audit, which triages every item and weighs here a crate below both that the build for shipping links.
 - **The core for agents writes a float that is not finite as `null`** ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)).
   JSON holds no other; a family's float reads `null` as a fault, so such a float is refused where it is read, not where it is written, and a family holds no optional float, which would read it as none (`uwui_agent::write`).
   Followed at uwui's first stage, whose carrier of the core writes its messages.

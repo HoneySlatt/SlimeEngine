@@ -40,7 +40,9 @@ consent, rights and previews come with M6d.9a's later parts
   are, gives the carrier's secret, says how large an answer the tool reads (`Limits`), and lists
   the *families* that the tool speaks, each at its version: a family is a named group of requests and events, `play` for `play/pause`. The
   `ProgramSession` welcomes it with the families that the program serves at the same versions, and
-  refuses the others one by one, or refuses the hello whole for another version of the core
+  refuses the others one by one, each with the version that it serves, if any (`Refusal`), so that
+  a tool tells which side is older
+  ([ADR-0275](../../docs/adr/0275-a-familys-refusal-gives-the-version-that-the-program-serves.md)), or refuses the hello whole for another version of the core
   (`CORE_VERSION`) or another secret. A request of a family not served is answered `NOT_SERVED`.
 - `ToolSession` numbers the requests, refuses to send one of a family not served, and matches each
   answer to the request that waits for it.

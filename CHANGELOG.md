@@ -21,10 +21,14 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `uwui-mcp`, uwui's MCP library, under MIT OR Apache-2.0 (ADR-0269): an agent reads and drives a
   program on uwui through the Model Context Protocol, through the carrier that its server's type
   is (`Carrier`, `Sent`, `ask`), a call that its agent cancels cancelling its request. It gives
-  the interface's tools (`interface_tools`), one way of reading a long list's pages (`gather`,
+  the interface's tools (`interface_family`), one way of reading a long list's pages (`gather`,
   `List`, `Page`), a program's faults as tools' errors (`fault`), and the agent as its client
-  names itself, in MCP's handshake or in each request of MCP `2026-07-28` (`agent_of`). The
-  engine's MCP server serves its interface's tools through it. `slime-channel`'s `Client` sends a
+  names itself, in MCP's handshake or in each request of MCP `2026-07-28` (`agent_of`). A request
+  of a family's own type is sent and its reply read as that family's (`request`, `Answer<T>`); a
+  server's tools come by families (`Family`, `Tools`), each with its paragraph of the server's
+  instructions, a tool's name taken twice an error (`Taken`, `Owner`) (ADR-0274). An answer that
+  does not read as its family's reply is a fault `INVALID` that says so. The engine's MCP server
+  serves every tool through it. `slime-channel`'s `Client` sends a
   request at the core's level (`send_call`, `Pending::wait_outcome`), and a request is cancelled
   from another thread while one waits for it (`Pending::canceller`, `Canceller`).
 - `uwui-accesskit`, under MIT OR Apache-2.0 (ADR-0261, ADR-0262): any host of uwui gives screen
@@ -71,6 +75,19 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `slime-mcp`'s tools stand on uwui's MCP library, by families (ADR-0274): a call of `play`'s,
+  `world`'s or `editing`'s tools that its agent cancels cancels its request in the game; the
+  server's instructions are written by each family; a family that the program serves at another
+  version is refused in words that say what to build again. `read_logs` takes `cursor`, which a
+  page gives first, `next` while lines follow and `end` at the log's end, in place of `after`,
+  which it refuses; its cursor names the program whose log it read.
+- `slime-channel`: `Client::send` refuses `Request::Interface`, which a tool sends with
+  `Client::send_call`, and `Pending` no longer reads the interface's replies; `Client::refused`
+  gives the families that the game does not serve; `why` writes a failure and its causes on one
+  line; `Family` and `Refusal` are re-exported; `PLAY`, `WORLD` and `EDITING` name the engine's
+  families.
+- `uwui-agent`'s welcome: a family refused gives the version that the program serves, `served`,
+  none when it serves none; a welcome of before, without it, still reads (ADR-0275).
 - `RootSettings` holds a root's direction, whether it is modal and its target alone
   (ADR-0268): its size and scale are its target's, `RootSettings::on(target)` makes one, and
   `add_root` and `set_root` no longer panic on a scale. A root over another takes the pointer

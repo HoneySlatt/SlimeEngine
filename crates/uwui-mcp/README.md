@@ -13,10 +13,11 @@ Its name is provisional: the names of uwui's crates are settled at M6d.10
 
 ## Status
 
-M6d.9a2a: the library, and the interface's family as its tools. The engine's MCP server,
-`slime-mcp`, serves them through it. No program of its own: uwui's MCP server as a program comes
-with a carrier of uwui's own, `uwui dev`'s, at uwui's first stage. The engine's other families
-come at M6d.9a2b, tools that wait for a change at M6d.9a2c
+M6d.9a2b1: the library, the interface's family as its tools, and a server's tools gathered by
+families. The engine's MCP server, `slime-mcp`, serves every tool through it, its own families
+`play`, `world` and `editing` among them. No program of its own: uwui's MCP server as a program
+comes with a carrier of uwui's own, `uwui dev`'s, at uwui's first stage. Tools that wait for a
+change come at M6d.9a2c
 ([`stage-6d.md`](../../docs/stage-6d.md#m6d9a2--uwuis-mcp-library-and-families)).
 
 ## Role
@@ -28,10 +29,17 @@ come at M6d.9a2b, tools that wait for a change at M6d.9a2c
   to an interface that `uwui` answers.
 - `ask` sends a request on a thread that may block, so that the server answers its other calls
   meanwhile. A call that its agent cancels, MCP's `notifications/cancelled`, cancels the request,
-  and gives no answer: MCP answers no cancelled call.
-- `interface_tools` gives the interface's tools, for any server's type that is a carrier:
-  `find_elements`, `element_at`, `act_on_interface`, `capture_element` and `element_style`. A
-  server adds them to its own tools (`ToolRouter`'s `+`).
+  and gives no answer: MCP answers no cancelled call. `request` does the same for a request of a
+  family's own type, and reads its answer as that family's reply: every family's tools take it.
+- A family of the core is a `Family`: its name, its tools and its paragraph of the server's
+  instructions. `Tools` gathers a server's own tools, which send no request of a family, and its
+  families, each name given once: a family that gives a name already taken is an error, `Taken`,
+  where rmcp's routers, added up, would replace a tool without a word. It writes the server's
+  instructions, its own paragraph first, then each family's. A family that the program does not
+  serve is refused by the carrier, as it sends
+  ([ADR-0274](../../docs/adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)).
+- `interface_family` gives the interface's family, for any server's type that is a carrier:
+  `find_elements`, `element_at`, `act_on_interface`, `capture_element` and `element_style`.
 - `gather` reads a long list for an agent: the program's pages, each after the last, gathered
   within the bytes that the agent asks, at most `PAGE_BYTES`, and `LIST_TIME`, the cursor of the
   rest written first, as `next_line` writes it. A list's request (`List`) says how its rest is
@@ -46,11 +54,11 @@ come at M6d.9a2b, tools that wait for a change at M6d.9a2c
 
 ## Entry points
 
-A server's type holds what reaches its program, and adds the interface's tools to its own:
+A server's type holds what reaches its program, and gathers its tools with the interface's:
 
 ```rust,no_run
 use rmcp::handler::server::router::tool::ToolRouter;
-use uwui_mcp::{Answer, Carrier, Sent, Value, interface_tools};
+use uwui_mcp::{Answer, Carrier, Sent, Tools, Value, interface_family};
 
 #[derive(Clone)]
 struct Server;
@@ -66,8 +74,11 @@ impl Carrier for Server {
     }
 }
 
-let tools: ToolRouter<Server> = interface_tools::<Server>();
-assert!(tools.has_route("find_elements"));
+let tools = Tools::new("A server of a program.", ToolRouter::<Server>::new())
+    .with(interface_family())
+    .expect("no tool's name taken twice");
+assert!(tools.router().has_route("find_elements"));
+assert!(tools.instructions().starts_with("A server of a program.\n\n"));
 ```
 
 The rustdoc holds each item's contract.

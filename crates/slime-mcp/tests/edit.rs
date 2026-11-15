@@ -39,6 +39,17 @@ use session::{Session, server};
 /// The lamp prefab of the examples, by its asset ID, which the yard places.
 const LAMP: &str = "6647a9c8-d378-4f9a-89d7-3ec9fc2b172a";
 
+/// The cursor that a read of the log with `arguments` gives first, `next` or `end`, which names the
+/// program whose log it read.
+fn log_cursor(session: &mut Session, arguments: serde_json::Value) -> String {
+    let (said, _) = session.tool("read_logs", arguments);
+    said[0]
+        .split_once(": ")
+        .and_then(|(_, rest)| rest.split(' ').next())
+        .unwrap_or_else(|| panic!("a cursor first: {said:?}"))
+        .to_owned()
+}
+
 fn main() {
     let server = server();
     let target = server.parent().expect("the target directory");
@@ -87,7 +98,7 @@ fn main() {
     let (said, _) = session.tool("start_game", json!({ "command": command }));
     assert!(said[0].contains("editor runs"), "{said:?}");
     // The editor logs the agent that connected, as its MCP client named itself, and the server.
-    let (said, _) = session.tool("read_logs", json!({ "after": 0 }));
+    let (said, _) = session.tool("read_logs", json!({}));
     assert!(
         said.iter().any(|line| {
             line.contains("an agent connected to the development channel")
@@ -96,6 +107,21 @@ fn main() {
         }),
         "{said:?}"
     );
+    // Read to its end, the log gives a cursor there, from which the lines written later are read,
+    // and none of those read already; `after`, which gave way to it, is refused, and told.
+    let end = said[0]
+        .strip_prefix("end: ")
+        .and_then(|rest| rest.split(' ').next())
+        .unwrap_or_else(|| panic!("the log's end: {said:?}"))
+        .to_owned();
+    let (said, _) = session.tool("read_logs", json!({ "cursor": end }));
+    assert!(
+        !said[0].contains("an agent connected to the development channel"),
+        "{said:?}"
+    );
+    let (said, result) = session.try_tool("read_logs", json!({ "after": 0 }));
+    assert_eq!(result["isError"], json!(true), "{said:?}");
+    assert!(said[0].contains("takes `cursor`"), "{said:?}");
     // Written back unchanged, the yard is the file written by hand.
     let (said, _) = session.tool("write_level", json!({}));
     assert_eq!(said, ["the level is written, whole"]);
@@ -405,7 +431,7 @@ fn main() {
     let played = |session: &mut Session, what: &str| {
         let started = std::time::Instant::now();
         loop {
-            let (said, _) = session.tool("read_logs", json!({ "after": 0 }));
+            let (said, _) = session.tool("read_logs", json!({}));
             if said.iter().any(|line| line.contains(what)) {
                 return;
             }
@@ -419,6 +445,7 @@ fn main() {
     played(&mut session, "Play: the game runs");
     played(&mut session, "INFO game:");
     played(&mut session, "Play: the game gave control");
+    let editor_log = log_cursor(&mut session, json!({}));
     // The game's tools drive the game that the editor plays, the editor's the editor still: a step
     // made meanwhile reaches the game, a value set reaches the game alone; then the editor again
     // (`docs/adr/0165-editing-while-playing.md`).
@@ -433,6 +460,19 @@ fn main() {
             .any(|word| word.len() >= 32)
     };
     assert!(!token(&said[0]), "{said:?}");
+    // The log read is the played game's now: a cursor of the editor's log is refused, and the
+    // game's own, once the game's tools drive the editor again.
+    let game_log = log_cursor(&mut session, json!({}));
+    assert_ne!(game_log, editor_log, "the game's log, not the editor's");
+    let (said, result) = session.try_tool("read_logs", json!({ "cursor": editor_log }));
+    assert_eq!(result["isError"], json!(true), "{said:?}");
+    assert!(said[0].contains("another program"), "{said:?}");
+    session.tool("drive_played_game", json!({ "played": false }));
+    let (said, result) = session.try_tool("read_logs", json!({ "cursor": game_log }));
+    assert_eq!(result["isError"], json!(true), "{said:?}");
+    assert!(said[0].contains("another program"), "{said:?}");
+    log_cursor(&mut session, json!({ "cursor": editor_log }));
+    session.tool("drive_played_game", json!({ "played": true }));
     // A step that raises a lamp and places another, which the game places through its own
     // library of scenes.
     session.tool(

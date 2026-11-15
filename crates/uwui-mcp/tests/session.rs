@@ -12,7 +12,6 @@ use std::sync::{Arc, mpsc};
 use std::time::Duration;
 
 use base64::Engine as _;
-use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::model::{CallToolResult, Implementation, ServerCapabilities, ServerConfig};
 use rmcp::service::RequestContext;
 use rmcp::{
@@ -23,7 +22,7 @@ use tokio::io::{
     AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream, Lines, ReadHalf, WriteHalf,
 };
 use uwui_agent::Fault;
-use uwui_mcp::{Answer, Carrier, Sent, agent_of, interface_tools, text};
+use uwui_mcp::{Answer, Carrier, Sent, Tools, agent_of, interface_family, text};
 
 use memory::{Memory, buttons, panel};
 
@@ -38,14 +37,21 @@ type Sends = Arc<dyn Fn(&str, Value) -> Result<Sent, String> + Send + Sync>;
 #[derive(Clone)]
 struct Server {
     send: Sends,
-    tools: ToolRouter<Self>,
+    tools: Arc<Tools<Self>>,
 }
+
+/// The first paragraph of the tests' server's instructions.
+const OWN: &str = "A server of the tests.";
 
 impl Server {
     fn new(send: Sends) -> Self {
         Self {
             send,
-            tools: interface_tools::<Self>() + Self::own_tools(),
+            tools: Arc::new(
+                Tools::new(OWN, Self::own_tools())
+                    .with(interface_family())
+                    .expect("no name taken twice"),
+            ),
         }
     }
 }
@@ -65,11 +71,12 @@ impl Server {
     }
 }
 
-#[tool_handler(router = self.tools)]
+#[tool_handler(router = self.tools.router())]
 impl ServerHandler for Server {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("uwui-mcp's tests", "1"))
+            .with_instructions(self.tools.instructions())
     }
 }
 
@@ -204,6 +211,29 @@ fn element_lines(said: &[String]) -> Vec<String> {
         .filter(|line| !line.starts_with("next: ") && *line != "no element on this page")
         .map(str::to_owned)
         .collect()
+}
+
+#[tokio::test]
+async fn the_server_s_instructions_are_its_own_then_each_family_s() {
+    let mut agent = Agent::start(in_memory());
+    let initialized = agent
+        .call(
+            "initialize",
+            json!({
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": { "name": "a test", "version": "1" },
+            }),
+        )
+        .await;
+    let instructions = initialized["instructions"].as_str().expect("instructions");
+    let (own, interface) = instructions.split_once("\n\n").expect("two paragraphs");
+    assert_eq!(own, OWN);
+    assert!(
+        interface.starts_with("A program's interface is read and used as a person uses it")
+            && interface.contains("`find_elements`"),
+        "{instructions}"
+    );
 }
 
 #[tokio::test]
@@ -347,6 +377,30 @@ async fn a_program_s_refusal_and_a_cursor_that_does_not_read_are_tools_errors() 
         .await;
     assert_eq!(result["isError"], json!(true));
     assert_eq!(said, ["`scroll` needs `x` and `y`"]);
+}
+
+#[tokio::test]
+async fn an_answer_that_does_not_read_is_the_program_s_fault() {
+    let wrong: Sends = Arc::new(|_, _| {
+        Ok(Sent::new(
+            || {
+                Ok(Answer {
+                    outcome: Ok(json!({ "reply": "nothing of the family's" })),
+                    bytes: Vec::new(),
+                })
+            },
+            || {},
+        ))
+    });
+    let mut agent = Agent::handshake(wrong, "a test").await;
+    let (said, result) = agent
+        .tool("element_style", json!({ "element": "main/open" }))
+        .await;
+    assert_eq!(result["isError"], json!(true), "{said:?}");
+    assert!(
+        said[0].starts_with("the program's answer does not read as its family's reply: "),
+        "{said:?}"
+    );
 }
 
 #[tokio::test]

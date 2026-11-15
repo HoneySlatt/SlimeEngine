@@ -500,6 +500,9 @@ that family alone. The engine's are `play`, `world` and `editing` (`slime-channe
 [ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)); uwui's
 is `interface`, which `uwui` answers with its feature `agents` and the engine's channel carries
 ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)).
+In uwui's *MCP* library, a family's tools come together as a `uwui_mcp::Family`, with its paragraph
+of the server's instructions; a server's own tools, which send no request of the core, are none
+([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)).
 
 **Field (interface).** An element that the user types in: of text, one line or several, or of a
 number, which a drag changes too. It keeps what the user types, its selection and its undo, and the
@@ -1000,7 +1003,8 @@ Code and Codex, call the tools of other programs. The engine's own server, `slim
 drive a running game through its *development channel*, and edit a level through the editor's
 program ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md),
 [ADR-0122](adr/0122-the-development-channel.md), [ADR-0135](adr/0135-the-editors-program.md)). It
-stands on uwui's MCP library, `uwui-mcp`, which gives the interface's tools to any program on uwui
+stands on uwui's MCP library, `uwui-mcp`, which gathers a server's tools by *families*, and gives
+the interface's to any program on uwui
 ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
 
 **Meaning (interface).** What an interface's tree says to whoever reads it without seeing it, an

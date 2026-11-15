@@ -376,8 +376,8 @@ struct Run {
     session: Session,
     /// The editor's process, or the game's.
     pid: u32,
-    /// The number of the last line of the log already read.
-    read: u64,
+    /// Where the lines of the log not yet read start, as `read_logs` gave it; none before the first.
+    cursor: Option<String>,
     /// Whether the editor runs under `heaptrack`.
     heaptrack: bool,
 }
@@ -395,12 +395,16 @@ impl Run {
         let started = Instant::now();
         let mut last = Vec::new();
         loop {
-            let read = self.tool("read_logs", json!({ "after": self.read }));
+            let read = self.tool("read_logs", json!({ "cursor": self.cursor }));
             for line in read.lines() {
                 let Some((number, text)) = line.split_once(": ") else {
                     continue;
                 };
-                self.read = number.parse().unwrap_or(self.read);
+                if number == "next" || number == "end" {
+                    // Where the next read starts, the first line, before its advice.
+                    self.cursor = text.split_whitespace().next().map(str::to_owned);
+                    continue;
+                }
                 if text.trim_start().starts_with("WARN") || text.trim_start().starts_with("ERROR") {
                     println!("  logged: {text}");
                 }
@@ -550,7 +554,7 @@ fn main() {
     let mut run = Run {
         session,
         pid: 0,
-        read: 0,
+        cursor: None,
         heaptrack: options.heaptrack.is_some(),
     };
     let started = run.tool("start_game", json!({ "command": command }));
@@ -614,7 +618,7 @@ fn main() {
         ];
         let started = run.tool("start_game", json!({ "command": command }));
         run.pid = rest::pid(&started, &game);
-        run.read = 0;
+        run.cursor = None;
         run.wait_for("the zone is drawn", SETTLE);
         std::thread::sleep(GAME_LOADS);
         memory(run.pid).print("the game on its zone, running");

@@ -221,7 +221,7 @@ fn main() {
         }
         Err(woke) => panic!("the game hidden is not at rest: {woke}"),
     }
-    let (lines, _) = session.tool("read_logs", json!({ "after": 0 }));
+    let (lines, _) = session.tool("read_logs", json!({}));
     assert!(lines[0].contains("development channel"), "{lines:?}");
     let (stopped, _) = session.tool("stop_game", json!({}));
     assert!(stopped[0].contains("the game ended"), "{stopped:?}");

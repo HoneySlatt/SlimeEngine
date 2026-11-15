@@ -110,6 +110,7 @@ cargo test --release -p uwui-agent --test request_memory -- --nocapture  # measu
 cargo test --release -p slime-app --features development --test channel -- --ignored frames_with_agents --nocapture  # measure a run's frames with agents at the channel's bounds (ADR-0250)
 cargo test --release -p slime-editor --lib journal_pages_timed -- --ignored --nocapture  # measure a page of the editor's journal on the editor's thread, on Linux (ADR-0265)
 cargo test --release -p slime-mcp --test answer -- <cooked examples>  # time the engine's answer through its MCP server, the editor's window in a headless Weston with lavapipe (ADR-0269)
+cargo test --release -p slime-mcp --test answer -- --at-once  # time what the MCP server and the channel add, on a program that answers at once; SLIME_MCP_SERVER=<another build> times that server instead (ADR-0274)
 scripts/uwui-program.sh [--features <list>]               # measure what a program on uwui compiles: crates, build times, binary (ADR-0180)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
@@ -490,8 +491,9 @@ an agent's session through the MCP server ([ADR-0148](docs/adr/0148-widgets.md),
 through the MCP server, its operations run by name, its menu and its palette, a row of its
 hierarchy dropped before another, an entity picked in its viewport, then locked and hidden by its
 row's buttons, its second viewport captured, a panel moved to another region and a border between
-two dragged, which must then be at rest, a panel floating, none of its threads waking in 10 s
-([ADR-0156](docs/adr/0156-the-editors-window-and-its-operations.md),
+two dragged, which must then be at rest, a panel floating, none of its threads waking in 10 s, then
+its level played in the `world` example, whose interface the agent reaches while it drives the
+game ([ADR-0156](docs/adr/0156-the-editors-window-and-its-operations.md),
 [ADR-0185](docs/adr/0185-rest-checked-in-ci.md),
 [ADR-0159](docs/adr/0159-picking-and-the-selection.md),
 [ADR-0160](docs/adr/0160-two-viewports-and-blenders-way.md),

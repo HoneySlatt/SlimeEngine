@@ -4,14 +4,17 @@
 
 use rmcp::RoleServer;
 use rmcp::service::RequestContext;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 use uwui_agent::{Fault, Value};
 
 /// What a program answered a request: its outcome, the answer's result or the program's fault,
-/// and the bytes that followed its line, an image's pixels.
+/// and the bytes that followed its line, an image's pixels. Its result is JSON as a carrier gives
+/// it, or a family's own reply as [`request`] reads it.
 #[derive(Debug)]
-pub struct Answer {
+pub struct Answer<T = Value> {
     /// The answer's result, or the fault that the program answered, `STALE` among them.
-    pub outcome: Result<Value, Fault>,
+    pub outcome: Result<T, Fault>,
     /// The bytes that followed the answer's line; none for most answers.
     pub bytes: Vec<u8>,
 }
@@ -106,6 +109,38 @@ pub async fn ask<C: Carrier>(
             Err(CANCELLED.to_owned())
         }
     }
+}
+
+/// Asks `request`, a request of a family's own type, `R` its reply, of the program that `carrier`
+/// reaches, as [`ask`] does: written by the core as its family writes it, and its answer read as
+/// an `R`. Each family's tools take this way, the interface's and a host's own alike.
+///
+/// # Errors
+///
+/// As [`ask`]; and why `request` cannot be written as a request of the core. An answer that does
+/// not read as an `R` is an [`Answer::outcome`] of a fault, `INVALID`, that says so, not an error:
+/// the program's answer is wrong, not the agent's arguments.
+pub async fn request<C: Carrier, R: DeserializeOwned>(
+    carrier: &C,
+    request: &impl Serialize,
+    context: &RequestContext<RoleServer>,
+) -> Result<Answer<R>, String> {
+    let (method, params) = uwui_agent::call(request).map_err(|error| error.to_string())?;
+    let answer = ask(carrier, &method, params, context).await?;
+    Ok(Answer {
+        outcome: answer.outcome.and_then(|result| {
+            uwui_agent::read::<R>(result).map_err(|unread| {
+                Fault::new(
+                    Fault::INVALID,
+                    format!(
+                        "the program's answer does not read as its family's reply: {}",
+                        unread.message
+                    ),
+                )
+            })
+        }),
+        bytes: answer.bytes,
+    })
 }
 
 /// The result of work run on tokio's threads for blocking work: a panic of that work is a failure

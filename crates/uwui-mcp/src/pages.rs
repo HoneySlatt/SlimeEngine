@@ -7,9 +7,11 @@ use std::time::{Duration, Instant};
 use rmcp::RoleServer;
 use rmcp::model::CallToolResult;
 use rmcp::service::RequestContext;
-use uwui_agent::{Fault, Value};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use uwui_agent::Fault;
 
-use crate::carrier::{Carrier, ask};
+use crate::carrier::Carrier;
 use crate::result::{failure, fault};
 
 /// The most bytes of JSON that a page of a list holds, so that what a tool prints stays well
@@ -39,24 +41,24 @@ pub trait Page: Sized {
 
 /// A request of a list, of a family of uwui's core for agents, which a tool reads page after page.
 pub trait List: Clone + Send + 'static {
+    /// The family's type of requests, which writes it.
+    type Request: Serialize + Sync;
+    /// The family's type of replies, which its answer reads as.
+    type Reply: DeserializeOwned;
     /// The page that its answer gives.
     type Page: Page;
-    /// Its method, `family/name`, and its parameters.
-    ///
-    /// # Errors
-    ///
-    /// Why it cannot be written, which the agent reads.
-    fn call(&self) -> Result<(String, Value), String>;
+    /// The request, as its family writes it.
+    fn request(&self) -> &Self::Request;
     /// The request of the rest of the list, from `cursor`, the last page's `next`, once `count`
     /// items were gathered: of at most `bytes` of JSON and of what its own limit leaves; none
     /// once that limit is reached.
     fn resumed(&self, cursor: String, count: u64, bytes: u64) -> Option<Self>;
-    /// The page that an answer's `result` gives.
+    /// The page that its family's `reply` gives.
     ///
     /// # Errors
     ///
     /// A fault when it is no such page.
-    fn page(result: Value) -> Result<Self::Page, Fault>;
+    fn page(reply: Self::Reply) -> Result<Self::Page, Fault>;
 }
 
 /// A page of a list for an agent, from `first`, a request of the list's start or of a cursor that
@@ -100,8 +102,7 @@ async fn one_page<C: Carrier, L: List>(
     context: &RequestContext<RoleServer>,
     request: &L,
 ) -> Result<L::Page, CallToolResult> {
-    let (method, params) = request.call().map_err(failure)?;
-    let answer = ask(carrier, &method, params, context)
+    let answer = crate::carrier::request::<C, L::Reply>(carrier, request.request(), context)
         .await
         .map_err(failure)?;
     L::page(answer.outcome.map_err(fault)?).map_err(fault)

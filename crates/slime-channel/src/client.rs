@@ -9,7 +9,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use uwui_agent::{
-    AgentError, CORE_VERSION, Family, Fault, FromProgram, Hello, Limits, Named, Reader,
+    AgentError, CORE_VERSION, Family, Fault, FromProgram, Hello, Limits, Named, Reader, Refusal,
     ToolSession, Value, Welcome,
 };
 
@@ -62,6 +62,8 @@ pub struct Client {
     program: String,
     /// The events that the game declares, as its welcome listed them.
     events: Vec<String>,
+    /// The families that the tool spoke and the game does not serve, as its welcome listed them.
+    refused: Vec<Refusal>,
 }
 
 /// What the client's callers and its reader share.
@@ -107,8 +109,6 @@ pub struct Pending {
     id: u64,
     answer: mpsc::Receiver<Outcome>,
     shared: Arc<Shared>,
-    /// Whether it asked the interface, whose family's own reply its answer reads as.
-    of_interface: bool,
 }
 
 impl Client {
@@ -216,6 +216,7 @@ impl Client {
         };
         let program = welcome.program.clone();
         let events = welcome.events.clone();
+        let refused = welcome.refused.clone();
         Ok((
             Self {
                 shared,
@@ -223,6 +224,7 @@ impl Client {
                 reader: Some(reader),
                 program,
                 events,
+                refused,
             },
             welcome,
         ))
@@ -231,6 +233,13 @@ impl Client {
     /// The name of the game's program.
     pub fn program(&self) -> &str {
         &self.program
+    }
+
+    /// The families that the client speaks and the game does not serve, each with the game's
+    /// reason and the version that it serves, if any, as its welcome listed them: a request of one of them is refused as it is sent,
+    /// [`ChannelError::Session`]. None while the tool and the game speak each family at one version.
+    pub fn refused(&self) -> &[Refusal] {
+        &self.refused
     }
 
     /// The events that the game declares, which [`Client::subscribe`] may name: `play/time`; none
@@ -293,15 +302,14 @@ impl Client {
     /// # Errors
     ///
     /// [`ChannelError::Session`] when the game does not serve the request's family on this
-    /// connection, or the request is larger than 1 MiB, which sends nothing and leaves the
-    /// connection usable; [`ChannelError::Io`] of the kind `TimedOut` when no place freed in time,
-    /// which sends nothing either; [`ChannelError::Broken`] once the connection broke;
-    /// [`ChannelError::Io`] when it breaks now.
+    /// connection, or the request is larger than 1 MiB, or asks the interface, which
+    /// [`Client::send_call`] sends, each of which sends nothing and leaves the connection usable;
+    /// [`ChannelError::Io`] of the kind `TimedOut` when no place freed in time, which sends
+    /// nothing either; [`ChannelError::Broken`] once the connection broke; [`ChannelError::Io`]
+    /// when it breaks now.
     pub fn send(&self, request: &Request) -> Result<Pending, ChannelError> {
         let (method, params) = request.call()?;
-        let mut pending = self.send_with(|session| session.request(&method, params.clone()))?;
-        pending.of_interface = matches!(request, Request::Interface { .. });
-        Ok(pending)
+        self.send_with(|session| session.request(&method, params.clone()))
     }
 
     /// Sends a request of the core, `method`, `family/name`, with `params`, as [`Client::send`]
@@ -310,7 +318,7 @@ impl Client {
     ///
     /// # Errors
     ///
-    /// As [`Client::send`].
+    /// As [`Client::send`], but that it sends a request of any family, the interface's included.
     pub fn send_call(&self, method: &str, params: Value) -> Result<Pending, ChannelError> {
         self.send_with(|session| session.request(method, params.clone()))
     }
@@ -358,7 +366,6 @@ impl Client {
             id,
             answer: answered,
             shared: Arc::clone(&self.shared),
-            of_interface: false,
         })
     }
 }
@@ -400,10 +407,8 @@ impl Pending {
     ///
     /// As [`Pending::wait`].
     pub fn wait_for(self, timeout: Duration) -> Answer {
-        let of_interface = self.of_interface;
-        self.wait_raw(timeout).and_then(|(outcome, bytes)| {
-            read_reply(outcome, of_interface).map(|reply| (reply, bytes))
-        })
+        self.wait_raw(timeout)
+            .and_then(|(outcome, bytes)| read_reply(outcome).map(|reply| (reply, bytes)))
     }
 
     /// Waits for the answer as [`Pending::wait`] does, and gives it as the core's session read it,
@@ -544,12 +549,12 @@ fn subscribed(answer: Outcome) -> Result<(), ChannelError> {
     }
 }
 
-/// The reply of an answer's outcome, to a request of the interface's family or not: a request
-/// cancelled before the game did it is [`ChannelError::Cancelled`].
-fn read_reply(outcome: Result<Value, Fault>, of_interface: bool) -> Result<Reply, ChannelError> {
+/// The reply of an answer's outcome, to a request of the game's own families: a request cancelled
+/// before the game did it is [`ChannelError::Cancelled`].
+fn read_reply(outcome: Result<Value, Fault>) -> Result<Reply, ChannelError> {
     match outcome {
         Err(fault) if fault.code == Fault::CANCELLED => Err(ChannelError::Cancelled),
-        outcome => Reply::read(outcome, of_interface),
+        outcome => Reply::read(outcome),
     }
 }
 

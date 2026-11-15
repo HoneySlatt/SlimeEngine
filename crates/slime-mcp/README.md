@@ -30,13 +30,19 @@ in scripted input yet: an interface is used through its elements' actions.
   Once the connection to the program is lost, the server opens a new one; once the one to the
   game that an editor plays is, it drops it, and the game's tools drive the editor again.
 - Stands on uwui's MCP library, `uwui-mcp`
-  (`docs/adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md`):
-  the interface's tools are the library's, which the server carries to the game, as it carries
-  its own; a call of these tools that its agent cancels cancels its request in the game, where
-  the server's own tools still wait for the game's answer until M6d.9a2b. A game's refusal, and a
-  cursor that no longer holds, reach the agent as a tool's error, which says what to do. The
-  families of play, the world and editing are still written here, and move onto the library at
-  M6d.9a2b.
+  (`docs/adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md`,
+  `docs/adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md`):
+  its tools come by families of the core for agents, `play` (`src/play.rs`), `world`
+  (`src/world.rs`), `editing` (`src/editing.rs`) and the library's `interface`, each with its
+  paragraph of the server's instructions, beside the server's own tools (`src/main.rs`), each name
+  given once. The server is the library's carrier: it sends each family's request to the program
+  that serves it now, an editor's to the editor and the others to the game that it plays while the
+  game's tools drive it. A call that its agent cancels cancels its request in the program, which
+  then does not do it if it had changed nothing yet; `start_game`, `stop_game`,
+  `drive_played_game`, `cook` and `run_tests` run on to their end. A program's refusal, and a
+  cursor that no longer holds, reach the agent as a tool's error, which says what to do; a family
+  that the program serves at another version than the server is refused in the server's words,
+  which say what to build again.
 - Runs the engine's cooker and `cargo test` in the directory where it runs: run it from the
   repository's root.
 
@@ -91,11 +97,12 @@ The tools, each described to the agent by the server itself, with its parameters
 - `minimize_game`: minimizes the game's window, as the user would; only the user shows it again. A
   game hidden runs no frame of its own, and the frame that answers a request comes after a short
   wait (`docs/adr/0187-a-hidden-window-at-rest.md`).
-- `list_entities`, `find_elements` and `read_logs` give a page at a time ([ADR-0260](../../docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)),
-  small enough for an agent's client to take whole (`PAGE_BYTES`). The first two gather the game's
+- `list_entities`, `find_elements`, `read_logs` and `editor_journal` give a page at a time ([ADR-0260](../../docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)),
+  small enough for an agent's client to take whole (`PAGE_BYTES`). Each gathers the program's
   pages, which its frames cut short, until they hold that much or the list ends; a page that more
-  follow starts with `next`, which `cursor` takes, with the same filter, for the rest, and `limit`
-  asks fewer items. A text too long for a page is cut, and marked. A cursor of a world or an
+  follow starts with `next`, which `cursor` takes, with the same filter, for the rest;
+  `list_entities` and `find_elements` take `limit` for fewer items, `editor_journal` `bytes` for
+  fewer bytes. A text too long for a page is cut, and marked. A cursor of a world or an
   interface that another took the place of fails, saying to list again from the start.
 - `list_entities`, `inspect_entity` and `set_property`: the world, its entities, which
   `list_entities` lists by a `filter` on their names and identities, empty for all, named by their
@@ -137,8 +144,11 @@ The tools, each described to the agent by the server itself, with its parameters
   keys do; `capture_element` gives the part of the image where one shows; `element_style` says
   where the code that wrote an element's own style is, each call's file, line and column, with the
   fields that it set, each with its state and the theme's token that gives its value, if any.
-- `read_logs`: the lines of the game's log after a given line; a page that more follow says
-  which line to read after.
+- `read_logs`: the lines of the game's log, from its oldest kept or from a `cursor`: a page that
+  more follow starts with `next`, and the page that reaches the log's end with `end`, which
+  `cursor` takes later for the lines written after it. A cursor names the program whose log it
+  read, as the server numbers the programs that it connects to: one of another program's log, the
+  editor's or a game that Play started again, is refused, saying to read again from the start.
 - `save_game` and `load_game`: the game's run saved to a file, and loaded from one in place of the
   run, as the game saves and resumes its own runs; a file of the agent's, never the player's save
   (`docs/adr/0125-saves-per-scene.md`).
@@ -202,8 +212,15 @@ did not write, and, the level written, opens it from its file, where it moves th
 step, undoes it, drops a lamp on the ground, duplicates it, copies it and pastes it, places a lamp
 by its prefab's file and goes back and forth in the history, and plays the yard in the `world`
 example, by the operations' names, driving the game with the game's tools while a step made in the
-editor reaches it; it needs no compositor, the examples built and their assets
-cooked. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
+editor reaches it; it reads the editor's log to its end and from there; it needs no compositor, the
+examples built and their assets cooked. `tests/edit_window.rs` drives the editor's window, then
+plays the yard there, and reaches the played game's interface with the interface's tools while
+the game's tools drive it. `tests/cancel.rs` starts a program of its own, its test binary on the
+development channel's listener, which holds an edit while a key is held, as an editor does while a
+person drags: a call that its agent cancels meanwhile reaches the program as the core's cancel,
+and is never applied, MCP answering no cancelled call; and, while `start_game` waits for a program
+that never says where it listens, the server answers its other calls; it needs nothing else, and
+runs with `cargo test`, on Windows too. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
 of *Hunna Wood*'s zone, changes one of the game's components, creates an entity that holds
 another, undoes, redoes and writes the zone; it needs the zone cooked, and `scripts/check.sh` runs
 it with the tests that read the zone. `tests/compositor.rs` starts the `editor` example on a copy of the yard in a compositor of the
@@ -222,8 +239,9 @@ does (`docs/adr/0193-first-measures-of-resources.md`).
 - `tokio`: the runtime that `rmcp` runs on, one thread; the requests to the game wait on threads of
   its own.
 - `serde`: reads the tools' parameters.
-- `uwui-mcp`: uwui's MCP library, its interface's tools, a list's pages, a program's faults as
-  tools' errors, and the captures written as PNG images.
+- `uwui-mcp`: uwui's MCP library: its families of tools, the interface's among them, a request
+  of a family's type, a list's pages, a program's faults as tools' errors, and the captures written
+  as PNG images.
 - `slime-channel`: starts a game with a token and speaks its development channel.
 - For its tests: `serde_json`, which speaks MCP to the server, `base64` and `png`, which read the
   captures that it returns.

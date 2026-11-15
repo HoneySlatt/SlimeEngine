@@ -61,7 +61,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 Started on 2026-11-15 ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)).
 
 - **Goal.** `slime-mcp`'s tools of `play`, `world` and `editing` through `uwui-mcp`.
-- **Crates.** `slime-mcp`, `uwui-mcp`, `slime-channel`.
+- **Crates.** `slime-mcp`, `uwui-mcp`, `slime-channel`, `uwui-agent` ([ADR-0275](adr/0275-a-familys-refusal-gives-the-version-that-the-program-serves.md)).
 - **Delivers, done when, measured:** [its card](stage-6d.md#m6d9a2b1--the-engines-families-on-the-library).
 
 ## Ideas waiting for their milestone
@@ -176,4 +176,4 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
 
 ## Known debt
 
-The known debt still open, 199 items, is in [`debt.md`](debt.md).
+The known debt still open, 198 items, is in [`debt.md`](debt.md).

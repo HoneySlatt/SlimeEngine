@@ -2818,7 +2818,8 @@ under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
 The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md).
 
 - **Goal.** `slime-mcp`'s tools of `play`, `world` and `editing` through `uwui-mcp`.
-- **Crates.** `slime-mcp`, `uwui-mcp`, `slime-channel`.
+- **Crates.** `slime-mcp`, `uwui-mcp`, `slime-channel`; `uwui-agent`'s refusal of a family
+  ([ADR-0275](adr/0275-a-familys-refusal-gives-the-version-that-the-program-serves.md)).
 - **Delivers.** A typed `ask`, which the interface's tools and the engine's take; the families
   `play`, `world` and `editing` as the library's, their lists through `gather`, `slime-mcp`'s own
   loop of pages gone; one rule of routing; the server's instructions written by each family; a
@@ -2837,14 +2838,14 @@ The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/02
 ### M6d.9a2b2 — The server's game off its lock
 
 - **Goal.** No tool of `slime-mcp` waits on its lock for a game that starts, stops or is driven.
-- **Crates.** `slime-mcp`.
+- **Crates.** `slime-mcp`, `uwui-mcp` (a capture's PNG).
 - **Delivers.** One state of the server's game, `Starting`, `Running` or `Stopping`, numbered by
   each start; `start_game` off the lock, given up when its call is cancelled or the game stopped;
   `stop_game` by closing the game's standard input, killed after 120 s; `drive_played_game` off
   the lock, the last call winning; the server's end the same way; a game stopped told so, not
-  connected to again.
-- **Debt settled.** `start_game`, `stop_game` and `drive_played_game` holding the server's lock
-  ([`debt.md`](debt.md)).
+  connected to again; a capture written as PNG off the server's one thread.
+- **Debt settled.** `start_game`, `stop_game` and `drive_played_game` holding the server's lock; a
+  capture written on its one thread ([`debt.md`](debt.md)).
 - **Done when.** `stop_game` ends a game whose sixteen places in flight are held by long steps,
   well within 120 s, the game ending on its own; a start cancelled leaves no game; a start after a
   stop runs; CI is green.

@@ -164,6 +164,12 @@ pub struct Refusal {
     pub family: Family,
     /// Why: the program serves another version, or none.
     pub reason: String,
+    /// The version of it that the program serves; none when it serves none, or in the welcome of
+    /// a program of before this field, which a tool reads as none. A tool compares it with its
+    /// own to tell which side is older
+    /// (`docs/adr/0275-a-familys-refusal-gives-the-version-that-the-program-serves.md`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub served: Option<u32>,
 }
 
 /// The family that a method names: what comes before its `/`.
@@ -630,10 +636,12 @@ impl ProgramSession {
                         family.version, family.name
                     ),
                     family: asked,
+                    served: Some(family.version),
                 }),
                 None => refused.push(Refusal {
                     reason: format!("the program does not serve {:?}", asked.name),
                     family: asked,
+                    served: None,
                 }),
             }
         }
@@ -1044,11 +1052,13 @@ mod tests {
             [
                 Refusal {
                     family: Family::new("world", 1),
-                    reason: "the program serves version 2 of \"world\"".to_owned()
+                    reason: "the program serves version 2 of \"world\"".to_owned(),
+                    served: Some(2),
                 },
                 Refusal {
                     family: Family::new("music", 3),
-                    reason: "the program does not serve \"music\"".to_owned()
+                    reason: "the program does not serve \"music\"".to_owned(),
+                    served: None,
                 },
             ]
         );
@@ -1464,6 +1474,17 @@ mod tests {
         written.as_object_mut().expect("an object").remove("events");
         let read: Welcome = serde_json::from_value(written).expect("a welcome of before reads");
         assert!(read.events.is_empty());
+    }
+
+    #[test]
+    fn a_refusal_gives_the_version_served_and_reads_without_it() {
+        let (mut tool, mut program) = (ToolSession::new(), program());
+        let welcome = open(&mut tool, &mut program, &[("world", 1)]);
+        assert_eq!(welcome.refused[0].served, Some(2));
+        let mut written = serde_json::to_value(&welcome.refused[0]).expect("written");
+        written.as_object_mut().expect("an object").remove("served");
+        let read: Refusal = serde_json::from_value(written).expect("a refusal of before reads");
+        assert_eq!(read.served, None);
     }
 
     #[test]

@@ -26,6 +26,10 @@ pub use uwui_agent::json_size;
 /// A long list read by pages: what bounds a page, its cursor, texts cut to fit
 /// ([`Incoming::page`]).
 pub use uwui_agent::page;
+/// A family that a tool spoke and the game does not serve, with the game's reason and the version
+/// that it serves, if any ([`Client::refused`]), and the family and version that it names.
+pub use uwui_agent::{Family, Refusal};
+pub use wire::why;
 
 /// Locks `mutex`, through a panic of another thread that held it: what it guards stays whole, each
 /// change being made under the lock in one step.
@@ -45,15 +49,23 @@ pub(crate) fn waited<'a, T>(
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
+/// The family of the host's controls of a game, its keys, images, views, reports and log:
+/// `play/pause`.
+pub const PLAY: &str = "play";
+/// The family of a game's world, read and changed: `world/entities`.
+pub const WORLD: &str = "world";
+/// The family of an editor's requests, which [`Request::Edit`] carries: `editing/undo`.
+pub const EDITING: &str = "editing";
+
 /// The families of requests that the channel carries, each at its version, with the names of the
 /// events that it declares ([`Event`]): a tool and a game that speak another version of one refuse
 /// that family alone, and the rest is served
 /// (`docs/adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md`). The
 /// version of the core's session is `uwui_agent::CORE_VERSION`.
 pub const FAMILIES: [(&str, u32, &[&str]); 4] = [
-    ("play", 1, &["time"]),
-    ("world", 2, &[]),
-    ("editing", 2, &[]),
+    (PLAY, 1, &["time"]),
+    (WORLD, 2, &[]),
+    (EDITING, 2, &[]),
     (
         uwui_agent::interface::FAMILY,
         uwui_agent::interface::VERSION,

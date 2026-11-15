@@ -18,11 +18,14 @@
 //! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and checks that the editor,
 //! left alone, wakes for the end of the first run's hint, and is at rest after it, a panel floating
 //! (`docs/adr/0185-rest-checked-in-ci.md`), then quits it by name; started again, it shows the
-//! layout that it was left with, which *Reset layout* gives back as the default.
+//! layout that it was left with, which *Reset layout* gives back as the default; and plays the
+//! yard in the `world` example, whose interface the interface's tools reach while the game's tools
+//! drive it, its world panel opened by its command, then the editor's again
+//! (`docs/adr/0165-editing-while-playing.md`).
 //!
-//! It needs a Wayland compositor, the example built (`cargo build --example editor`) and the
-//! examples' assets cooked, in the directory that its first argument names, or
-//! `target/cooked/examples`: `scripts/check.sh` runs it in a headless Weston with lavapipe, as it
+//! It needs a Wayland compositor, the examples built
+//! (`cargo build --example editor --example world`) and the examples' assets cooked, in the
+//! directory that its first argument names, or `target/cooked/examples`: `scripts/check.sh` runs it in a headless Weston with lavapipe, as it
 //! runs the `interface` test. It is not in the default run of `cargo test` (`test = false` in
 //! Cargo.toml), and has no harness, so that its failures print once.
 
@@ -67,11 +70,15 @@ fn main() {
     let server = server();
     let target = server.parent().expect("the target directory");
     let example = target.join(format!("examples/editor{}", std::env::consts::EXE_SUFFIX));
-    assert!(
-        example.is_file(),
-        "{} is not built: `cargo build --example editor` first",
-        example.display()
-    );
+    // The game that the editor's Play runs, beside it.
+    let game = target.join(format!("examples/world{}", std::env::consts::EXE_SUFFIX));
+    for built in [&example, &game] {
+        assert!(
+            built.is_file(),
+            "{} is not built: `cargo build --example editor --example world` first",
+            built.display()
+        );
+    }
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let assets = std::env::args()
         .nth(1)
@@ -401,6 +408,49 @@ fn main() {
             said[0].starts_with("editor/window/dock/split hierarchy/split viewport/stack history/")
         },
     );
+    // Played, the game that the editor plays is reached by the interface's tools too while the
+    // game's tools drive it, and the editor's interface again once they drive the editor
+    // (`docs/adr/0165-editing-while-playing.md`).
+    let (said, _) = session.tool("run_operation", json!({ "name": "play.start" }));
+    assert_eq!(said, ["done"]);
+    // Play builds the game first, then starts it in its own window: up to a minute on lavapipe, as
+    // the headless session gives it.
+    let started = std::time::Instant::now();
+    let driven = loop {
+        let (said, result) = session.try_tool("drive_played_game", json!({ "played": true }));
+        if result["isError"] != json!(true) {
+            break said;
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(60),
+            "the game that the editor plays: {said:?}"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    assert!(
+        driven[0].contains("drive the game that the editor plays"),
+        "{driven:?}"
+    );
+    // The command `world` opens the `world` example's world panel, in its dev overlay, as F2 does.
+    let (said, _) = session.tool(
+        "act_on_interface",
+        json!({ "action": "command", "command": "world" }),
+    );
+    assert_eq!(said, ["done"]);
+    assert_eq!(path_of(&mut session, "Pane", "World"), "world/panel");
+    let in_game = every_element(&mut session, json!({}));
+    assert!(
+        !in_game.iter().any(|line| line.starts_with("editor/")),
+        "the game's interface, not the editor's: {in_game:?}"
+    );
+    session.tool("drive_played_game", json!({ "played": false }));
+    let in_editor = every_element(&mut session, json!({ "role": "MenuBar" }));
+    assert!(
+        in_editor.iter().any(|line| line.starts_with("editor/")),
+        "the editor's interface again: {in_editor:?}"
+    );
+    let (said, _) = session.tool("run_operation", json!({ "name": "play.stop" }));
+    assert_eq!(said, ["done"]);
     let (said, _) = session.tool("run_operation", json!({ "name": "file.quit" }));
     assert_eq!(said, ["done"]);
     until(

@@ -51,9 +51,10 @@ pub(crate) fn receive(stream: &mut impl Read, reader: &mut Reader) -> Result<Fra
     }
 }
 
-/// `error` and its causes, on one line. `slime_app::error_chain` and `slime-mcp`'s `causes` write
-/// the same for their own errors: `slime-channel` lies below the first and links no logging.
-pub(crate) fn why(error: &dyn std::error::Error) -> String {
+/// `error` and its causes, on one line, each after a colon: what a tool tells of a request that
+/// failed, as `slime-mcp` does. `slime_app::error_chain` writes the same for a program's log, a cause
+/// whose text the chain holds already left out: the build for shipping links no `slime-channel`.
+pub fn why(error: &dyn std::error::Error) -> String {
     let mut why = error.to_string();
     let mut cause = error.source();
     while let Some(error) = cause {

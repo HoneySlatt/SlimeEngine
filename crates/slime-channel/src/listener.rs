@@ -1176,6 +1176,7 @@ mod tests {
         .expect("welcomed");
         assert_eq!(welcome.refused.len(), 1, "{welcome:?}");
         assert_eq!(welcome.refused[0].family.name, "editing");
+        assert_eq!(client.refused(), welcome.refused, "kept for the tool");
         assert_eq!(welcome.served.len(), crate::FAMILIES.len() - 1);
         let game = thread::spawn(move || {
             loop {
@@ -1329,8 +1330,9 @@ mod tests {
         assert!(median < Duration::from_millis(20), "{median:?}");
     }
 
-    /// A request of the interface's family crosses as the family's own, and its answer is read as
-    /// the family's reply, even where its JSON reads as one of the game's own: an image.
+    /// A request of the interface's family crosses as the family's own, sent at the core's level,
+    /// and its answer is read as the family's reply, where its JSON would read as one of the game's
+    /// own: an image. The game's own requests refuse it.
     #[test]
     fn the_interface_s_requests_and_replies_cross_as_its_family_s() {
         let token = Token::generate().expect("random bits");
@@ -1370,8 +1372,25 @@ mod tests {
                 }
             })
         };
-        let (reply, pixels) = client.request(&capture).expect("answered");
-        assert_eq!(reply, Reply::Interface { reply: image });
+        let refused = client.send(&capture).err().expect("refused");
+        assert!(
+            matches!(refused, ChannelError::Session(_))
+                && crate::why(&refused).contains("send_call"),
+            "the interface is asked at the core's level, not as the game's own: {refused}"
+        );
+        let (method, params) = uwui_agent::call(&interface::Request::CaptureElement {
+            element: "main/open".to_owned(),
+        })
+        .expect("written");
+        let (outcome, pixels) = client
+            .send_call(&method, params)
+            .expect("sent")
+            .wait_outcome()
+            .expect("answered");
+        assert_eq!(
+            outcome.and_then(uwui_agent::read::<interface::Reply>),
+            Ok(image)
+        );
         assert_eq!(pixels.len(), 8);
         let (reply, _) = client
             .request(&Request::Capture {

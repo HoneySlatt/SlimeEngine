@@ -126,7 +126,10 @@ game.join().expect("the game answered");
   A tool that speaks a family at the core's level, as uwui's MCP library does, sends with
   `Client::send_call`, a method and its JSON, and reads the answer as the core read it with
   `Pending::wait_outcome`; `Pending::canceller` gives what cancels the request from another thread
-  while one waits for it (`Canceller`).
+  while one waits for it (`Canceller`). The interface's requests go that way alone: `Client::send`
+  refuses `Request::Interface`, whose reply's JSON may read as one of the game's own.
+  `Client::refused` gives the families that the game does not serve, as its welcome said, and
+  `why` writes a failure and its causes on one line, as a tool tells them.
   `Client::connect_with` hands each event and the connection's end to a function of the tool's,
   on the client's own thread, and `Client::subscribe` subscribes. The game's standard input is a pipe that the tool
   holds, and the game ends once it closes, so that no game outlives the tool that started it.
