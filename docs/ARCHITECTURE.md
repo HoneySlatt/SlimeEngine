@@ -38,6 +38,8 @@ it is built this way.
 │   │                    style sheet, five themes; logo/: uwui's logo, outside the code's licenses)
 │   ├── uwui-accesskit/  what a uwui interface means, given to screen readers as AccessKit's tree
 │   ├── uwui-agent/      uwui's core for agents: a session without input or output, in JSON-RPC
+│   ├── uwui-desktop/    uwui's desktop host: an application on uwui alone in a window, on a
+│   │                    windowing layer of its own, Wayland's alone yet
 │   ├── uwui-kdl/        uwui's reader of KDL, the notation of its documents (tests/kdl-suite/:
 │   │                    KDL's official tests, under their own licence)
 │   ├── uwui-macros/     uwui's derive macros: the typed declarations of its styles
@@ -90,6 +92,7 @@ code needs it.
 | [`uwui`](../crates/uwui/README.md) | uwui, the UI framework, for the editor and the interface of games ([ADR-0132](adr/0132-the-engines-ui-framework.md)); today its tree of elements and their layout ([ADR-0140](adr/0140-the-tree-of-elements.md)), its style sheets and themes ([ADR-0141](adr/0141-style-sheets-and-themes.md)), its input and focus ([ADR-0142](adr/0142-input-and-focus.md)), its fields ([ADR-0145](adr/0145-text-edited.md)), its widgets and the editor's look ([ADR-0148](adr/0148-widgets.md)), its layers ([ADR-0150](adr/0150-layers.md)), what its tree means to agents ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), its text ([ADR-0136](adr/0136-the-interfaces-text.md)) and its display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)); headless | `slime-color`, `slime-input`, `uwui-kdl`, `uwui-macros`, `parley`, `fontique`, `swash`, `taffy`, `icu_properties`, `thiserror`, `tracing`; with its `agents` feature, `uwui-agent` | Fonts registered from their bytes and named in stacks, the system's for a program that asks for them, found by fallback once for each writing system then named for it; text shaped, put in the order of its directions, broken into lines and aligned in every writing system, cut with an ellipsis to a box of a width and a most lines; its lines, its glyph runs, the cluster under a point, the position nearest it, carets and selections; each glyph placed at a whole pixel and a position between two, its image rasterized as coverage or color, without hinting; laid-out text kept within a budget of memory, shared with the display lists that hold it; a display list of boxes, shadows, gradients, texts and images, each clipped, its images named by keys; a tree of elements kept from frame to frame in an arena, built by code when a revision moves, matched by keys, its roots each of a direction, filling its target at the size and scale that the host gives it; boxes, labels, images, buttons that show their states, boxes that scroll and lists that build only the rows that show; typed styles in logical pixels, with start and end sides; flexbox and grid by taffy, mirrored for a root from right to left; a frame that lays out and draws again only what changed; style sheets of rules that select elements by kind, classes, key, states and ancestor and set a part of their style, each a list of typed declarations that a rule for a kind may set only where the kind reads them ([ADR-0229](adr/0229-styles-typed-as-declarations.md)), themes of the values that the rules name, each kind's defaults under them, their colors the core's roles that every look gives ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)), and the element's own style written in code with its states, in the mask order, a hover or a press never laying out ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)), and the user's size of text over every text but icons and a list's rows, given with less motion as the user's preferences ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md)), and tokens, the themes' values named in code by their kinds, declared by each crate ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)); a person's input and an agent's actions turned into actions in a queue, the focus moved by Tab and by the arrows within its scope, popups and modal roots stacked over a window, shortcuts read from tables that name commands, and the mouse's buttons that a program reads from them ([ADR-0142](adr/0142-input-and-focus.md), [ADR-0160](adr/0160-two-viewports-and-blenders-way.md)); fields of text, of one line or several, and of numbers, typed, selected by the keys and the pointer, undone, copied and pasted, composed through input methods, which the program reads as actions, changed and committed ([ADR-0145](adr/0145-text-edited.md)); the tree's meaning, made when asked, each element's role, name, value, states, actions, bounds and path ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), and what changed in it, each element marked as its meaning changes, named by a number never given again, with a field's text by runs ([ADR-0146](adr/0146-screen-readers.md)); check boxes, sliders, sections that fold, bars of tabs, two panels and the handle between them, and scroll bars, each an element kind that keeps its state in the tree, takes the pointer, the keys and the focus, and means something to agents and screen readers, its parts styled apart from its box; with its `editor-look` feature, which the examples turn on, the editor's look, the fonts Geist and Geist Mono, Lucide's icons, and a style sheet and stacked themes, a base, dark, light, high contrast and compact ([ADR-0148](adr/0148-widgets.md), [ADR-0149](adr/0149-the-looks-foundations.md)); themes whose values name others and compute colors in OKLCH, stacked; transitions of colors, opacity and a section's height that rules declare, on the host's clock or their root's, as the host gives them ([ADR-0227](adr/0227-the-time-that-motion-reads.md)); an opacity that an element's descendants share; the focus shown to the keyboard alone; boxes on whole pixels; OpenType features of a text ([ADR-0149](adr/0149-the-looks-foundations.md)); layers that the interface places beside an element, at a point or floating, kept within the window and closed as the user leaves them, a modal one dimming the window below it by its backdrop ([ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md)); menus, their submenus and a bar of menus, moved through by the keys; context menus asked for by the pointer's second button and Shift+F10; lists to choose from; tooltips once the pointer rests; floating panels moved, sized, folded and raised; glyphs of a font of icons in place of controls' shapes ([ADR-0150](adr/0150-layers.md)); surfaces that show an image that the program draws and give it the pointer ([ADR-0158](adr/0158-the-viewport.md)); placeholders, buttons that toggle, controls of segments, bars of progress, tabs' counts, fields of search, a field's prefix that drags its number, expressions and units in fields of numbers, the box of a section's header, tooltips of a title and a text, notifications, the palette of commands and the sheet of shortcuts ([ADR-0151](adr/0151-rich-widgets.md)); color wells and their pickers ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)); elements dragged onto others that take drops, by the pointer and by agents ([ADR-0168](adr/0168-rearranging-the-hierarchy.md)); docking, a layout of splits of any number of children and stacks of tabs, normalized, kept as a document of KDL ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)), which a dock builds into a program's tree, a splitter for each border, and panes that F6 moves between ([ADR-0172](adr/0172-regions-of-tabs.md)), and its panels floating in layers or closed, each keeping its place ([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)); with its `agents` feature, the answers to the interface's family of uwui's core for agents, given to the host that serves them: its elements, each with its target, an element at a pixel of a target, actions, the pixels of its target that an element covers, and the places of the calls that wrote an element's own style ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)) |
 | [`uwui-accesskit`](../crates/uwui-accesskit/README.md) | What a uwui interface means, given to screen readers as AccessKit's tree, and what they ask of it given back to the interface, for any host beside its own adapter ([ADR-0146](adr/0146-screen-readers.md), [ADR-0262](adr/0262-uwui-accesskits-api-one-tree-per-window-the-hosts-node-made-when-needed.md)) | `uwui`, `accesskit` (re-exported), `tracing`; its tests, `accesskit_consumer` and `slime-color` | One tree per window, of the part of the interface that its target draws, read through a reader of meaning of its own while a screen reader reads: whole when asked, then what changed after each frame, below the window's node, which the host makes only when an update holds it; a screen reader's request done through the interface's calls, only on the window's tree, on an element of its target, and on an action that the element takes now |
 | [`uwui-agent`](../crates/uwui-agent/README.md) | uwui's core for agents: the session through which a tool reads and drives a program, both of its ends, the program's and the tool's ([ADR-0218](adr/0218-one-core-for-agents-in-uwui.md), [ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)); its name settled at M6d.10 | `serde`, `serde_json`, `thiserror` | A session without input or output, which its carrier feeds and sends; JSON-RPC 2.0 a message a line, bytes announced in a message's envelope, read within limits; a hello that names the agent and the program that carries its requests, gives the carrier's secret and lists the families with their versions, each served or refused alone; requests numbered and matched to their answers; a family's requests and answers written from and read into its own types; the interface's family, its messages, which `uwui` answers ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)) |
+| [`uwui-desktop`](../crates/uwui-desktop/README.md) | uwui's desktop host, a name kept until M6d.10: an application on uwui alone, `run(look, window, app)` and `App`, in a window on a windowing layer of its own, its frames on the platform's signal and none at rest ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md), [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)) | `uwui`, `uwui-render`, `wgpu`, `raw-window-handle`, `pollster`, `slime-input`, `ctrlc`, `tracing`; on Linux, `wayland-client`, `wayland-protocols` and `rustix` | Its core, without a platform: the frames' pacing on the platform's signal, the rest, the time on the grid, the events' times anchored, coalesced wakes, the end on a termination signal through the application's closing. Wayland's layer: an xdg-shell window, its title, identity, minimum size and fullscreen, its closing asked of the application, the compositor's bar where xdg-decoration gives it, the pointer; its own device, `MemoryHints::MemoryUsage`. No keyboard, cursor shapes nor fractional scale before M6d.7a2; no layer for X11, Windows nor macOS before M6d.7b to M6d.7d |
 | [`uwui-kdl`](../crates/uwui-kdl/README.md) | uwui's reader of KDL 2.0, the notation of every document of uwui ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)); its name settled at M6d.10 | None | A text read into a flat tree of nodes and entries, each placed in the text by its span, its strings borrowed where they hold no escape; limits of size, depth and count of items, without recursion; errors at their line and column in characters; KDL's values written, a name, a text and a number, an `f32` read back to its bits; a document written in the normal form of KDL's official tests, which it passes |
 | [`uwui-macros`](../crates/uwui-macros/README.md) | uwui's derive macros: `Declare`, the typed declarations of its styles, which the cascade applies ([ADR-0229](adr/0229-styles-typed-as-declarations.md)); its name settled at M6d.10 | `proc-macro2`, `quote`, `syn` | For a struct of a style, an enum of one declaration for each field, an array's for each of its elements, nested as the struct is ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)); a declaration applied, named by its path, numbered by its leaf, and said to lay out or not; a style's colors listed, which transitions move ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)); `Same`, bit for bit, for the struct and its declarations; the declarations of those fields that a part read by reflection names, and, for uwui's tests, of those that differ from a base |
 | [`uwui-mcp`](../crates/uwui-mcp/README.md) | uwui's MCP library: an AI agent reads and drives a program on uwui through the Model Context Protocol, its tools turned into requests of uwui's core for agents ([ADR-0218](adr/0218-one-core-for-agents-in-uwui.md), [ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)); a library, which no application links | `uwui-agent`, `rmcp`, `tokio`, `serde`, `serde_json`, `base64`, `png`; for its tests, `uwui` (feature `agents`) | A program reached through the carrier that its server's type is, each request sent on a thread that may block, cancelled when its agent cancels the call; the interface's tools: elements found by role and name, an element at a pixel of a target, actions, an element captured as a PNG image, where its own style was written; a long list's pages gathered within the bytes that the agent asks and a time, its cursor first; a program's faults as tools' errors, a stale cursor saying to list again; the agent named as its MCP client names itself, cut to fit a hello |
@@ -186,6 +189,12 @@ uwui-render ──▶ uwui, wgpu (a display list drawn through its canvas, with 
                 slime-color (the canvas's colors encoded), etagere (the glyphs placed in the atlas)
 
 uwui-accesskit ──▶ uwui (its meaning read), accesskit (the tree of screen readers, re-exported)
+
+uwui-desktop ──▶ uwui (the application's interface, given its events and its frames' times),
+                 uwui-render, wgpu (its frames drawn on its own device), slime-input (the
+                 pointer's buttons and wheel), wayland-client, wayland-protocols, rustix (its
+                 Wayland layer and its loop, on Linux), ctrlc (its end on a signal); no other
+                 engine crate, and no engine crate depends on it
 
 slime-cook ──▶ slime-assets, slime-reflect, slime-serialize (metadata files),
                slime-world (the layout of the scene files that it checks), uwui-kdl (the
@@ -299,6 +308,14 @@ lists every dependency.
   ([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)). The engine draws
   through it from `slime-app`'s bridge alone, which lends it the device through `slime-gfx`'s
   door.
+- `uwui-desktop`, uwui's desktop host, depends on `uwui`, `uwui-render`, wgpu and the platform's
+  libraries, and on no engine crate but `slime-color` and `slime-input`, which leave with uwui;
+  no crate of the workspace depends on it, so that the engine's programs build none of uwui's
+  hosts, and `uwui` pulls no windowing library nor wgpu: `scripts/check.sh` checks all three
+  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md),
+  [ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
+  It speaks Wayland itself rather than through winit; no type of a platform's library appears in
+  its public API.
 - `slime-world-render` depends on the world and on the renderer, and neither depends on it: the
   world holds no GPU object, and the renderer draws any list of instances it is given
   ([ADR-0079](adr/0079-the-engines-own-world.md), [ADR-0084](adr/0084-what-the-world-draws.md)).
@@ -306,7 +323,8 @@ lists every dependency.
   headless; the cooker, `slime-cook`, depends on it, and no game links the cooker
   ([ADR-0069](adr/0069-the-asset-pipeline.md)). `slime-render` depends on `slime-assets` to turn
   cooked data into its own GPU objects: each system loads its own kinds of asset.
-- Only `slime-platform` uses winit, and winit's types never appear in a public API
+- Only `slime-platform` uses winit, and winit's types never appear in a public API; uwui's desktop
+  host has a windowing layer of its own
   ([ADR-0011](adr/0011-windowing-with-winit.md)). `slime_platform::Window` exposes the
   `raw-window-handle` traits so that graphics libraries can draw into it.
 - Among the engine's crates, only `slime-gfx` uses wgpu, and wgpu's types never appear in its
@@ -2095,6 +2113,44 @@ The frames asked one after another follow the schedule of `max_frame_rate`, as a
 demand while it runs (`Context::set_on_demand`), as Hunna Wood does while paused
 ([ADR-0185](adr/0185-rest-checked-in-ci.md)).
 
+### An application on uwui's desktop host
+
+An application on uwui alone calls `uwui_desktop::run(look, window, app)`, which never returns
+([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
+The host's *core* knows no platform; its Wayland layer drives it, on Linux alone yet:
+
+```text
+run ─▶ wayland::run: connects (WAYLAND_DISPLAY), makes the xdg-shell window, asks xdg-decoration's
+       server side, commits once and waits for the first configure; opens its device on the
+       window's raw wl_display and wl_surface (MemoryHints::MemoryUsage); sets SIGTERM, SIGINT
+       and SIGHUP's handler
+     ─▶ Session::start: Ui::new(look's fonts), Ui::set_style(look's sheets, themes), App::start
+     ─▶ each turn of the loop:
+          the compositor's events dispatched: a configure acknowledged and the surface resized,
+            a closing asked, a frame callback come, the pointer's events with their times
+            anchored on the host's clock (anchor)
+          a termination signal or a closing ─▶ App::close_requested ─▶ Allow ends the run
+          an event of the window, a wake of another thread (eventfd) ─▶ Pacing::asked_from_outside
+          the person's input ─▶ Ui::event, the pointer's last move held while a frame waits
+          App::step, then the window's requests (title, minimum size, fullscreen)
+          Pacing::next(now, changed or Ui::needs_frame, Ui::next_frame_due):
+            Frame ─▶ acquire the image, Ui::set_target_size, Ui::set_frame_shown(on the grid),
+                     Ui::frame, uwui-render draws, wl_surface.frame asked, present (the driver's
+                     commit carries the callback)
+            WaitUntil, Wait ─▶ poll on the socket, the eventfd and a timerfd on CLOCK_BOOTTIME
+     ─▶ App::stop, then the window and its device dropped; the process exits with 0, or with
+        EXIT_HOST_FAILED or EXIT_START_FAILED, the failure told on the standard error
+```
+
+The pacing follows [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md):
+nothing runs at rest; the first frame after a rest starts at once; while frames run, each waits for
+the frame callback of the one before; a window whose callback does not come, hidden, draws nothing
+for its own changes, and an event of the window or a wake runs a frame once the callback is
+100 ms late, as
+[ADR-0187](adr/0187-a-hidden-window-at-rest.md) says. The time given is on the grid of the
+callbacks, its period measured from their gaps. Frames are not yet drawn just in time, nor timed by
+the presentations' feedback (M6d.7a2).
+
 ### The development channel
 
 A tool, the engine's MCP server or a test, drives a running game through its *development
@@ -2300,9 +2356,13 @@ the headless samples on a Windows runner.
 
 ## `unsafe` code
 
-Two crates contain `unsafe` code. `slime-benches`: its allocator, which counts allocations
+Three crates contain `unsafe` code. `slime-benches`: its allocator, which counts allocations
 ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)). `slime-app`, on Windows alone: three calls to
 Windows' API that read the host's clock, the performance counter, its frequency and the unbiased
-interrupt time ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)). Miri runs none of
-them yet: it gives the first two on Windows, not the third. No other crate of the engine, of its tools or of its games does. [ADR-0005](adr/0005-lints-and-unsafe-policy.md) says when it is allowed and how it
+interrupt time ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)). `uwui-desktop`, on
+Linux: wgpu's surface made on the raw `wl_display` and `wl_surface` of the window, which the host
+keeps alive until the device and its surface are dropped
+([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
+Miri runs none of them yet: it gives the first two on Windows, not the third, nor a compositor. No
+other crate of the engine, of its tools or of its games does. [ADR-0005](adr/0005-lints-and-unsafe-policy.md) says when it is allowed and how it
 must be written.

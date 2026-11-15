@@ -8,6 +8,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- `uwui-desktop`, uwui's desktop host, under MIT OR Apache-2.0 (ADR-0270, ADR-0271): an
+  application on uwui alone, `uwui_desktop::run(look, window, app)` and the `App` trait, in a
+  window on a windowing layer of its own, Wayland's alone yet, through `wayland-client`. Frames on
+  the compositor's frame callback, none at rest; the window's title, app id, minimum size and
+  fullscreen; its closing, and SIGTERM, SIGINT and SIGHUP, asked of the application; the
+  compositor's bar where it gives one; the pointer with its events' times. Its example,
+  `application`. uwui gains `FrameSource::OnGrid` and `EventSource::Anchored`.
 - `uwui-agent`, uwui's core for agents, under MIT OR Apache-2.0 (ADR-0246): a session without input
   or output, JSON-RPC 2.0 a message a line, a hello that names the agent, and families of requests
   each at its version.

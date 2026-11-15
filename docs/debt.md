@@ -6,11 +6,11 @@ Each item says what is missing or wrong, why it stayed, and where it is followed
 An item leaves this file once settled; the milestone that settles it says so.
 Items that a contributor could take on alone are also GitHub issues, linked from the item; this file stays the reference.
 
-- **A device's first allocations reserve large blocks of video memory** ([measured at M6d.0a](measurements.md#m6d0a-the-renderer-against-the-canvas-and-a-program-on-uwui)).
+- **The engine's device reserves large blocks of video memory** ([measured at M6d.0a](measurements.md#m6d0a-the-renderer-against-the-canvas-and-a-program-on-uwui)).
   `slime-gfx`'s `Gpu::new` keeps wgpu's default hint, `MemoryHints::Performance`, whose allocator reserves its blocks at their largest.
-  A game fills them; a small application on uwui never does, and pays for them in video memory.
-  Smaller blocks, `MemoryHints::MemoryUsage` or sizes of their own, may cost a game allocations in more pieces: not measured.
-  Followed at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames)a1, where uwui's desktop host opens its own device ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md), [ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
+  A game fills them; a small program that draws only an interface never does, and pays for them in video memory.
+  uwui's desktop host opens its own device with `MemoryHints::MemoryUsage` since M6d.7a1 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)): an application on uwui no longer pays; its video memory against the blank window is measured by M6d.7a2's tool.
+  Smaller blocks may cost a game allocations in more pieces: not measured; followed at Stage 7's planning, with one memory budget for every load and renderer.
 - **What a load reads waits in staging memory until its copies are submitted** ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
   The renderer's uploader sends at most a budget of bytes per frame; nothing holds back loads that read faster.
   A load of many hundreds of megabytes keeps them in the CPU's memory while it lasts.
@@ -90,9 +90,14 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   No program changes `AppConfig::max_frame_rate`, 60 by default: on a display at 240 Hz, an input during motion waits for the next frame of that schedule.
   Its input to present in motion passes its budget of one frame ([`measurements.md`](measurements.md#m6cq2d-ryzen-7-5800x-and-rx-6900-xt)).
   The editor and applications are to draw at the display's rate: uwui's desktop host from Stage 6d, the editor at M6c.Q2f, once Stage 6c resumes.
-- **No application on uwui has been measured at rest** ([measured at M6d.0b](measurements.md#m6d0b-a-program-on-uwuis-start-and-rest-measured-from-outside)).
+- **An application on uwui rests on Wayland alone, and its rest is checked, not measured** ([measured at M6d.0b](measurements.md#m6d0b-a-program-on-uwuis-start-and-rest-measured-from-outside)).
   The `widgets` example, which [ADR-0180](adr/0180-one-canvas-and-the-frameworks-foundations.md) names, moves two progress bars without end and draws 60 frames a second.
-  Its rest under Wayland and Xwayland is to be measured on an application that rests, from outside, with uwui's desktop host: in each compositor of the series from [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames)a1, from outside by M6d.7a2's tool.
+  Since M6d.7a1, `uwui-desktop`'s `application` example is checked at rest in Weston, sway, KWin and Mutter, none of its threads waking in 10 s ([`compositors.md`](compositors.md)).
+  Its wakes and its processor's time at rest are measured from outside by M6d.7a2's tool; under X11 and Xwayland, from M6d.7b, which brings the host's X11 layer.
+- **uwui's desktop host ends on a lost device or surface** ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
+  M6d.7a1's host configures a surface outdated or lost once again, then ends with `EXIT_HOST_FAILED`; a device lost ends it at its next frame.
+  The engine makes both again within a budget ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)); the host does not yet, and no test loses them.
+  Followed at M6d.7a2, which makes the host whole on Wayland.
 - **`scripts/input-to-present.sh` loses part of its inputs** ([ADR-0200](adr/0200-applications-measured-from-outside.md)).
   It runs `wlrctl` once an input; each run makes a virtual pointer or keyboard and destroys it at once.
   A headless sway gives its seat a pointer only while one exists: a window binds it too late, and the input goes nowhere.
@@ -106,7 +111,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   At 144 or 165 Hz, the default 60 frames a second last 2 or 3 refreshes in turn: judder in motion.
   A game can raise `AppConfig::max_frame_rate` to the display's rate, which the engine does not report, or choose `PresentMode::Fifo`, one image per refresh, which can stall (next item).
   Frames wait for the frame callbacks, but are not aligned on them; to reconsider when a renderer draws real scenes.
-  Decided by [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md): frames on each platform's signal, drawn just in time; built for uwui's desktop host platform by platform from [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames)a1, for the engine at M6c.Q2f.
+  Decided by [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md): frames on each platform's signal, drawn just in time; built for the engine at M6c.Q2f, for uwui's desktop host platform by platform: on Wayland's frame callbacks since M6d.7a1, just in time at M6d.7a2.
 - **Without Mailbox, presenting can still stall the loop.**
   Windows that do not offer it, and applications that choose `PresentMode::Fifo`, wait for the display: one frame per second for a hidden window on niri.
   In a headless Weston with lavapipe, `acquire` waits for Weston's frame callbacks as long as the machine's load makes it.

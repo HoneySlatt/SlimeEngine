@@ -98,6 +98,11 @@ wgpu = { version = "30.0.1", default-features = false, features = ["std", "parki
 # compositor does not draw them, as on GNOME) are built without title text: the text renderer
 # depends on `ttf-parser`, which is unmaintained (RUSTSEC-2026-0192).
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita-notitle"] }
+# uwui's desktop host speaks Wayland itself (ADR-0270): the client through libwayland's own
+# display (`system`), which Vulkan's driver makes its commits on, loaded at run time (`dlopen`);
+# xdg-shell and xdg-decoration (`unstable`). The versions that winit already brings.
+wayland-client = { version = "0.31.15", features = ["system", "dlopen"] }
+wayland-protocols = { version = "0.32.13", features = ["client", "unstable"] }
 # The system's clipboard of text, in slime-platform (ADR-0132, ADR-0145): without its images
 # (`image-data`, which brings the `image` crate), with the Wayland protocol of the compositors that
 # give it (`wayland-data-control`), X11's otherwise.

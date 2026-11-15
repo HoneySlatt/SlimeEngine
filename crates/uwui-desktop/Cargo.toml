@@ -1,0 +1,49 @@
+[package]
+name = "uwui-desktop"
+description = "uwui's desktop host: an application on uwui alone, its window, its frames on the platform's signal and none at rest, on a windowing layer of its own."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT OR Apache-2.0"
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Its end on SIGTERM, SIGINT and SIGHUP, asked of the application as a closing (ADR-0270).
+ctrlc.workspace = true
+# Waits for wgpu's requests, which are futures: the adapter and the device it opens.
+pollster.workspace = true
+# The pointers of Wayland's display and surface given to wgpu, which makes the window's surface
+# on them (ADR-0270).
+raw-window-handle.workspace = true
+# The buttons and the wheel that a person's input arrives as (ADR-0142).
+slime-input.workspace = true
+# Warnings of what the host leaves aside: a protocol that the compositor lacks, a frame not drawn.
+tracing.workspace = true
+uwui.workspace = true
+# Draws each frame's display list into the window's image.
+uwui-render.workspace = true
+# The device that the host opens and the window's surface (ADR-0244).
+wgpu.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# The loop's poll, its eventfd that a wake writes, and its timerfd on CLOCK_BOOTTIME for deadlines;
+# the host's clock (ADR-0251, ADR-0270).
+rustix = { workspace = true, features = ["event"] }
+# Wayland spoken by the host itself, on libwayland's display that Vulkan's driver shares
+# (ADR-0270).
+wayland-client.workspace = true
+# xdg-shell's window and xdg-decoration's choice of who draws its bar.
+wayland-protocols.workspace = true
+
+[dev-dependencies]
+# The example draws in the editor's look, the only look that uwui has yet.
+uwui = { workspace = true, features = ["editor-look"] }
+
+# The example run in a compositor, at rest, then ended by a signal: `scripts/check.sh windowed`
+# and `scripts/compositors.sh` run it, in a compositor of their own.
+[[test]]
+name = "rest"
+test = false

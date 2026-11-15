@@ -12,7 +12,8 @@
 # decorations, its cursor, its clipboard, and a round trip through the clipboard by a person's keys,
 # which scripts/compositor-input.py gives where the compositor takes input; runs the agents'
 # sessions of the editor and of the game, which find them at rest, and minimizes the game
-# (slime-mcp's `edit_window` and `drive`); then reads the window's scale on an output at a
+# (slime-mcp's `edit_window` and `drive`); runs uwui's desktop host's example, at rest, and reads
+# who draws its bar; then reads the window's scale on an output at a
 # fractional scale. What it observes must match the compositor's column of docs/compositors.md, or
 # it fails. Its report, logs and figures go to target/compositors/<compositor>/; drawn with
 # lavapipe, on a session bus of its own. It fetches and cooks the game's zone first, as
@@ -87,6 +88,8 @@ step "Build"
 cargo build --locked --example editor --example window
 cargo build --locked -p hunnawood
 cargo test --locked --no-run -p slime-mcp --test compositor --test edit_window --test drive
+cargo build --locked -p uwui-desktop --example application
+cargo test --locked --no-run -p uwui-desktop --test rest
 cooked=target/cooked/examples
 cargo run --locked -p slime-cook -- cook examples/assets "$cooked"
 scripts/fetch-assets.sh zone/
@@ -257,6 +260,22 @@ run timeout -k 10 300 cargo test --locked -p slime-mcp --test drive | tee "$work
     { cat "$report/compositor-1.log"; exit 1; }
 grep '^minimized: ' "$work/drive.txt" | sed 's/^minimized: /Game minimized: /' | tee -a "$observations"
 observe "Agents' sessions and rest" "pass"
+
+step "uwui's desktop host: an application on uwui alone, at rest, woken by the pointer, ended by a signal"
+# Its own Wayland layer (ADR-0270): X11's comes at M6d.7b.
+if [ "$name" != x11 ]; then
+    run WAYLAND_DEBUG=client timeout -k 10 300 cargo test --locked -p uwui-desktop --test rest \
+        2>"$report/application.log" || { cat "$report/application.log"; exit 1; }
+    observe "uwui's host at rest" "pass"
+    # xdg-decoration's mode 2 is the server's side.
+    if grep -q -E 'zxdg_toplevel_decoration_v1#[0-9]+\.configure\(2\)' "$report/application.log"; then
+        observe "uwui's host's bar" "the compositor's"
+    elif grep -q 'zxdg_toplevel_decoration_v1' "$report/application.log"; then
+        observe "uwui's host's bar" "none, the compositor's refused"
+    else
+        observe "uwui's host's bar" "none, no protocol"
+    fi
+fi
 
 step "Scale: the window example on an output at a fractional scale"
 case "$name" in

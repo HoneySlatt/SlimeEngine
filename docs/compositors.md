@@ -39,6 +39,8 @@ A cell that starts with "—" is not observed: what it says comes from elsewhere
 | Clipboard round trip | not run, no input | round trip | round trip | nothing pasted | round trip |
 | Game minimized | at rest | draws its frames | at rest | at rest | draws its frames |
 | Agents' sessions and rest | pass | pass | pass | pass | pass |
+| uwui's host at rest | pass | pass | pass | pass | — no layer for X11 before M6d.7b |
+| uwui's host's bar | none, no protocol | the compositor's | the compositor's | none, no protocol | — no layer for X11 before M6d.7b |
 
 The rows:
 
@@ -66,10 +68,17 @@ The rows:
   compositor keeps its window shown.
 - **Agents' sessions and rest**: slime-mcp's `edit_window` and `drive`, which find the editor and
   the game at rest ([ADR-0185](adr/0185-rest-checked-in-ci.md)).
+- **uwui's host at rest** and **uwui's host's bar**: `uwui-desktop`'s `application` example, on
+  uwui's own Wayland layer
+  ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)):
+  at rest after its start, woken by the pointer where the compositor takes input and at rest again,
+  then ended by SIGTERM through its closing (its test `rest`); and whether the compositor took
+  `zxdg_toplevel_decoration_v1`'s server side, in its log written with `WAYLAND_DEBUG=client`.
 
 ## What differs
 
-- **Decorations.** Weston and Mutter draw none: winit's are drawn, without a title.
+- **Decorations.** Weston and Mutter draw none: winit's are drawn, without a title; uwui's host
+  has no bar there until M6d.7e.
 - **Fractional scale.** Weston gives integer scales alone; sway, KWin and Mutter give fractional
   ones, which the engine reads.
 - **Clipboard.** Weston and Mutter give no protocol of the clipboard's managers: the engine opens

@@ -81,6 +81,7 @@ if runs lint; then
     cargo clippy --locked -p slime-mcp --test resources -- -D warnings
     cargo clippy --locked -p slime-mcp --test answer -- -D warnings
     cargo clippy --locked -p slime-mcp --test compositor -- -D warnings
+    cargo clippy --locked -p uwui-desktop --test rest -- -D warnings
     # The game built for shipping, without the development channel (ADR-0122): the code that stands in
     # for the channel is compiled only there.
     cargo clippy --locked -p hunnawood --no-default-features --all-targets -- -D warnings
@@ -98,6 +99,7 @@ if runs lint; then
     cargo clippy --locked -p slime-mcp --test resources --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test answer --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test compositor --target x86_64-pc-windows-msvc -- -D warnings
+    cargo clippy --locked -p uwui-desktop --test rest --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p hunnawood --no-default-features --all-targets --target x86_64-pc-windows-msvc -- -D warnings
 
     step "Rustdoc"
@@ -189,6 +191,27 @@ if runs lint; then
         echo "the workspace builds wgpu's GL backend: only scripts/check.sh gles may"
         exit 1
     fi
+
+    step "uwui's desktop host and the engine pull nothing of each other; uwui no windowing library nor wgpu (ADR-0226, ADR-0270)"
+    # Every edge, on every platform and with every feature, at any depth. The trees are read first,
+    # so that a failure of cargo stops the check rather than passing it.
+    host_dependencies=$(cargo tree --locked -p uwui-desktop -e normal,build,dev --target all \
+        --all-features --prefix none)
+    if grep -E '^slime-' <<< "$host_dependencies" | grep -v -E '^slime-(color|input) '; then
+        echo "uwui-desktop depends on the engine crates above: an application on uwui builds none"
+        exit 1
+    fi
+    engine_dependencies=$(cargo tree --locked --workspace --exclude uwui-desktop \
+        -e normal,build,dev --target all --all-features --prefix none)
+    if grep '^uwui-desktop ' <<< "$engine_dependencies"; then
+        echo "a crate of the workspace depends on uwui-desktop: the engine's programs build none of uwui's hosts"
+        exit 1
+    fi
+    if grep -E '^(winit|wgpu|wayland-client|wayland-sys|x11rb|x11-dl|smithay-client-toolkit|objc2-app-kit) ' \
+        <<< "$uwui_dependencies"; then
+        echo "uwui depends on the windowing libraries or the GPU's above: only its hosts and its renderer may"
+        exit 1
+    fi
 fi
 
 if runs headless; then
@@ -257,7 +280,13 @@ if runs windowed; then
     cargo build --locked --examples
     cargo test --locked --no-run -p slime-mcp --test interface --test widgets --test edit_window --test views
     cargo test --locked --no-run -p slime-app --test windowed_lifecycle
+    cargo test --locked --no-run -p uwui-desktop --test rest
     start_weston slime-check
+    # An application on uwui alone, on its own Wayland layer: at rest after its start, none of its
+    # threads waking in 10 s, then ended by SIGTERM through its closing (ADR-0270, ADR-0271).
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 120 cargo test --locked -p uwui-desktop --test rest ||
+        { cat "$runtime/slime-check.log"; exit 1; }
     # Each run takes a few seconds; `timeout` ends a stalled one, with SIGTERM, which stops the engine
     # cleanly, then SIGKILL if that is not enough, and the failure then prints Weston's log.
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \

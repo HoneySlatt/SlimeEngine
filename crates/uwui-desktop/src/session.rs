@@ -1,0 +1,244 @@
+//! An application's run, without a platform: its interface, its window and the calls that the host
+//! makes of it, in their order. Part of the host's core, tested without a window; a platform's
+//! layer drives it.
+
+use std::error::Error;
+use std::fmt;
+use std::task::Waker;
+
+use uwui::DocumentErrors;
+use uwui::tree::Ui;
+
+use crate::app::{App, Close, Look, Window};
+
+/// Why an application did not start.
+#[derive(Debug)]
+pub(crate) enum StartError {
+    /// Its look's documents do not read.
+    Look(DocumentErrors),
+    /// Its [`App::start`] failed.
+    App(Box<dyn Error>),
+}
+
+impl fmt::Display for StartError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Look(errors) => write!(f, "its look does not read: {errors}"),
+            Self::App(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl Error for StartError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Look(_) => None,
+            Self::App(error) => error.source(),
+        }
+    }
+}
+
+/// An application's run: its interface, its window and the application, until it ends.
+pub(crate) struct Session<A> {
+    pub(crate) ui: Ui,
+    pub(crate) window: Window,
+    app: A,
+    /// The window closes: the application allowed it, or closed it itself.
+    ending: bool,
+}
+
+impl<A: App> Session<A> {
+    /// Makes the interface in `look`, given `waker`, and starts `app` in `window`.
+    pub(crate) fn start(
+        look: Look,
+        mut window: Window,
+        mut app: A,
+        waker: Waker,
+    ) -> Result<Self, StartError> {
+        let Look {
+            fonts,
+            sheets,
+            themes,
+        } = look;
+        let mut ui = Ui::new(fonts);
+        ui.set_style(&sheets, &themes).map_err(StartError::Look)?;
+        ui.set_waker(waker);
+        app.start(&mut ui, &mut window).map_err(StartError::App)?;
+        Ok(Self {
+            ui,
+            window,
+            app,
+            ending: false,
+        })
+    }
+
+    /// The application's step, after the events that came and before a frame.
+    pub(crate) fn step(&mut self) {
+        self.app.step(&mut self.ui, &mut self.window);
+        self.ending |= self.window.closing();
+    }
+
+    /// The person or the system asked the window to close: the application chooses.
+    pub(crate) fn close_requested(&mut self) {
+        if self.ending {
+            return;
+        }
+        if self.app.close_requested(&mut self.ui, &mut self.window) == Close::Allow {
+            self.ending = true;
+        }
+        self.ending |= self.window.closing();
+    }
+
+    /// Whether the run ends.
+    pub(crate) fn ending(&self) -> bool {
+        self.ending
+    }
+
+    /// Ends the run: the application's last call.
+    pub(crate) fn stop(mut self) {
+        self.app.stop(&mut self.ui);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use uwui::text::Fonts;
+    use uwui::theme::StyleSheet;
+
+    use super::*;
+    use crate::app::WindowSettings;
+
+    /// An application that writes down each call made of it.
+    #[derive(Default)]
+    struct Told {
+        calls: Vec<&'static str>,
+        fails: bool,
+        keeps: bool,
+        closes_in_step: bool,
+    }
+
+    impl App for &mut Told {
+        fn start(&mut self, _: &mut Ui, window: &mut Window) -> Result<(), Box<dyn Error>> {
+            self.calls.push("start");
+            window.set_title("started");
+            if self.fails {
+                return Err("no data".into());
+            }
+            Ok(())
+        }
+
+        fn step(&mut self, _: &mut Ui, window: &mut Window) {
+            self.calls.push("step");
+            if self.closes_in_step {
+                window.close();
+            }
+        }
+
+        fn close_requested(&mut self, _: &mut Ui, _: &mut Window) -> Close {
+            self.calls.push("close_requested");
+            if self.keeps {
+                Close::Keep
+            } else {
+                Close::Allow
+            }
+        }
+
+        fn stop(&mut self, _: &mut Ui) {
+            self.calls.push("stop");
+        }
+    }
+
+    fn look() -> Look {
+        Look {
+            fonts: Fonts::new(),
+            sheets: Vec::new(),
+            themes: Vec::new(),
+        }
+    }
+
+    fn start(app: &mut Told) -> Result<Session<&mut Told>, StartError> {
+        Session::start(
+            look(),
+            Window::new(WindowSettings::new("a window", "org.example.Test")),
+            app,
+            Waker::noop().clone(),
+        )
+    }
+
+    #[test]
+    fn a_start_that_fails_is_reported_and_never_stopped() {
+        let mut app = Told {
+            fails: true,
+            ..Told::default()
+        };
+        let error = start(&mut app).err().expect("the start fails");
+        assert!(matches!(error, StartError::App(_)));
+        assert_eq!(error.to_string(), "no data");
+        assert_eq!(app.calls, ["start"]);
+    }
+
+    #[test]
+    fn a_look_that_does_not_read_fails_the_start_before_the_application() {
+        let mut app = Told::default();
+        let mut look = look();
+        look.sheets
+            .push(StyleSheet::from_text("broken.style.kdl", "button {"));
+        let error = Session::start(
+            look,
+            Window::new(WindowSettings::new("a window", "org.example.Test")),
+            &mut app,
+            Waker::noop().clone(),
+        )
+        .err()
+        .expect("the look does not read");
+        assert!(matches!(error, StartError::Look(_)));
+        assert!(app.calls.is_empty());
+    }
+
+    #[test]
+    fn a_close_asked_is_the_applications_choice() {
+        let mut app = Told {
+            keeps: true,
+            ..Told::default()
+        };
+        let mut session = start(&mut app).expect("it starts");
+        session.close_requested();
+        assert!(!session.ending());
+        session.step();
+        session.stop();
+        assert_eq!(app.calls, ["start", "close_requested", "step", "stop"]);
+
+        let mut app = Told::default();
+        let mut session = start(&mut app).expect("it starts");
+        session.close_requested();
+        assert!(session.ending());
+        // Asked again as it ends, the application is not asked twice.
+        session.close_requested();
+        session.stop();
+        assert_eq!(app.calls, ["start", "close_requested", "stop"]);
+    }
+
+    #[test]
+    fn an_application_that_closes_its_window_ends_without_being_asked() {
+        let mut app = Told {
+            closes_in_step: true,
+            ..Told::default()
+        };
+        let mut session = start(&mut app).expect("it starts");
+        session.step();
+        assert!(session.ending());
+        session.close_requested();
+        session.stop();
+        assert_eq!(app.calls, ["start", "step", "stop"]);
+    }
+
+    #[test]
+    fn the_requests_of_the_start_wait_for_the_host() {
+        let mut app = Told::default();
+        let mut session = start(&mut app).expect("it starts");
+        assert_eq!(session.window.title(), "started");
+        let requests = session.window.take_requests();
+        assert!(requests.title && !requests.min_size && requests.fullscreen.is_none());
+        assert!(!session.window.take_requests().title);
+    }
+}

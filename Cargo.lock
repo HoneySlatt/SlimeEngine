@@ -3803,6 +3803,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "uwui-desktop"
+version = "0.6.0"
+dependencies = [
+ "ctrlc",
+ "pollster 1.0.1",
+ "raw-window-handle",
+ "rustix 1.1.6",
+ "slime-input",
+ "tracing",
+ "uwui",
+ "uwui-render",
+ "wayland-client",
+ "wayland-protocols",
+ "wgpu",
+]
+
+[[package]]
 name = "uwui-kdl"
 version = "0.6.0"
 

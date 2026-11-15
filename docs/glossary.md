@@ -712,13 +712,19 @@ are hosts ([ADR-0107](adr/0107-the-execution-model.md),
 
 **Host (uwui).** What embeds *uwui* and calls it, owning the loop: it gives uwui its surface, its
 input, the system's keyboard, the lifecycle, the clipboard and the bridge to accessibility, and
-draws when uwui asks for a frame. A desktop program on winit, a Kotlin program on Android, a web
-page and the engine's own loop are hosts ([ADR-0181](adr/0181-uwuis-scope.md)). It talks to uwui
+draws when uwui asks for a frame. uwui's desktop host (`uwui-desktop`), a Kotlin program on
+Android, a web page and the engine's own loop are hosts ([ADR-0181](adr/0181-uwuis-scope.md)). It talks to uwui
 through three channels: *events* that it gives and that answer at once, *questions* that uwui
 answers from its live state, and *outputs* that it reads after each event and frame; and it gives
 uwui one *waker*. Each time it wakes it runs a *step*: the events that came, then a frame or a wake
 ([ADR-0248](adr/0248-the-hosts-api-cut-in-five-built-where-it-is-read.md),
 [ADR-0249](adr/0249-the-hosts-api-its-items-and-their-table.md)).
+
+**Host's core (uwui's desktop host).** What uwui's desktop host holds that is no platform's: the
+pacing of frames and the rest, the events' times anchored, the wakes and the termination signals,
+and the application's run, every time given to it, tested without a window; each platform's layer
+drives it
+([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
 
 **Host's clock (interface).** The one clock in which a *host* gives uwui every time, of frames,
 of input and of what waits, in whole nanoseconds (`uwui::time::Instant`): one that counts the time
@@ -1110,6 +1116,12 @@ example to read it back to the CPU. Image tests render this way, without a windo
 look equal: the interface's *themes* lighten, darken and mix their colors in it, so that a step of
 lightness looks the same on blue as on yellow (`slime_color::Oklch`,
 [ADR-0149](adr/0149-the-looks-foundations.md)).
+
+**On the grid (a frame's time).** The time that a frame shows, where the host reads no time of
+presentation: the platform's last signal plus whole periods of the display, the first after the
+frame starts, anchored again at each signal (`uwui::time::FrameSource::OnGrid`,
+[ADR-0227](adr/0227-the-time-that-motion-reads.md),
+[ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)).
 
 **Open in context.** Editing a *placement*'s prefab in place, inside the level that places it, its
 changes written to the prefab's file ([ADR-0155](adr/0155-the-editors-design.md)). Decided, not

@@ -102,6 +102,8 @@ scripts/frame-pacing.py <trace.json>                      # the frames' pacing a
 scripts/start-times.sh [--gpu] [--cold] [--runs <count>]  # time the editor's and the game's starts in a headless Weston (ADR-0189)
 scripts/input-to-present.sh [--gpu]                       # measure their input to present, a person's input given in a headless sway (ADR-0191)
 nix develop .#compositors -c scripts/compositors.sh weston|sway|kwin|mutter|x11  # run the editor and the game in a headless compositor of the series, against docs/compositors.md (ADR-0195, ADR-0240)
+cargo run -p uwui-desktop --example application           # an application on uwui alone, on uwui's desktop host, on Wayland (ADR-0270)
+cargo test -p uwui-desktop --test rest                    # that example at rest, then ended by SIGTERM, in the Wayland compositor that WAYLAND_DISPLAY names; build the example first (ADR-0271)
 scripts/resources.sh [--gpu] [--heaptrack] [--undos <count>] [--plays <count>]  # measure the editor's and the game's memory, video memory and the GPU's power in a headless Weston (ADR-0193)
 scripts/canvas-cost.sh [--gpu] [--runs <count>]           # measure what the renderer costs an interface against the canvas alone (ADR-0180)
 cargo test --release -p uwui-agent --test request_memory -- --nocapture  # measure what a request's line costs in memory as it is read (ADR-0250)
@@ -496,7 +498,9 @@ two dragged, which must then be at rest, a panel floating, none of its threads w
 [ADR-0169](docs/adr/0169-the-eye-and-the-lock.md), [ADR-0172](docs/adr/0172-regions-of-tabs.md)),
 the `editor` example's start, its log saying when it presented its first image, in a run that quits
 after it, and when it drew its level whole, in a run stopped then
-([ADR-0189](docs/adr/0189-first-measures-of-time.md)), the `world` example's two views captured,
+([ADR-0189](docs/adr/0189-first-measures-of-time.md)), uwui's desktop host's `application`
+example, at rest after its start and ended by SIGTERM through its closing
+([ADR-0271](docs/adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)), the `world` example's two views captured,
 the map's normals shown, its reports read and an entity
 picked at a pixel, by an agent's session through the MCP server, the benchmarks' counters, which
 must equal those that `benches/counters.txt` records, and their ratios of times, each within its
@@ -516,7 +520,10 @@ no adapter for screen readers ([ADR-0146](docs/adr/0146-screen-readers.md)), no 
 `slime-app`'s bridge and the engine's tests that opens `slime-gfx`'s door to wgpu, and no engine
 crate but `slime-color` among `uwui-render`'s dependencies
 ([ADR-0244](docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)), no GL backend of
-wgpu in the workspace's tree but through `uwui-render`'s `gles` feature, `lychee` (links
+wgpu in the workspace's tree but through `uwui-render`'s `gles` feature, no engine crate but
+`slime-color` and `slime-input` in uwui's desktop host's tree, no crate of the workspace that
+depends on that host, and no windowing library nor wgpu in `uwui`'s tree
+([ADR-0226](docs/adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)), `lychee` (links
 between Markdown files), and the lengths of the two files that every agent reads at each
 session's start: `AGENTS.md`, at most 1,500 words, and `docs/PLAN.md`, at most 2,000; what does
 not fit goes to its home ([`AGENTS.md`](AGENTS.md#one-home-per-fact)).
