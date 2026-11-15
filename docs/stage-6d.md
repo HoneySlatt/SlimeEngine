@@ -182,8 +182,9 @@ in git.
   with it M6d.5, the host's API.
 - In progress on track B: [M6d.7](#m6d7--the-desktop-host-its-window-and-its-frames), the
   desktop host's window and frames, cut in six on 2026-11-15 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)): done,
-  [M6d.7a1](#m6d7a1--the-hosts-core-and-its-wayland-window), on 2026-11-15; next,
-  [M6d.7a2](#m6d7a2--wayland-whole-and-the-host-measured).
+  [M6d.7a1](#m6d7a1--the-hosts-core-and-its-wayland-window), on 2026-11-15; then
+  [M6d.7a2](#m6d7a2--wayland-whole-and-the-host-measured), cut in three on 2026-11-15 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): in progress,
+  [M6d.7a2a](PLAN.md#m6d7a2a--waylands-input-and-window).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2376,6 +2377,68 @@ The second part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-
 - **Done when.** Input to present within 4.17 ms at the 99th percentile in a headless sway at
   240 Hz, inputs in motion and at rest, on the GPU with the owner's go; a program made to crash
   leaves its report; a device and a surface lost on purpose drawn again; CI is green.
+- **Measured.** The host's own cost above the blank window, in one run; the applications' budgets'
+  first figures, in uwui's repository.
+
+- **Cut in three** on 2026-11-15, the owner's choice ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): Wayland's input and window; the
+  host made robust; frames and the host measured, last, on the host as the first two leave it. The
+  "Done when" above is met at M6d.7a2c.
+
+### M6d.7a2a — Wayland's input and window
+
+The first part of M6d.7a2 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)), in progress. It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** An application on uwui's desktop host takes the keyboard, and shows its cursor and
+  scale, on Wayland.
+- **Crates.** `uwui-desktop`; `scripts/compositor-input.py`.
+- **Delivers.** The keyboard through libxkbcommon, its compose and its repeat; the cursor's shapes;
+  the fractional scale; activation, the start's token and the window's requests; a click in the
+  series' input; a text typed into the example's field.
+- **Done when.** In sway, KWin and Mutter, the `rest` test clicks the example's field, types into
+  it and finds the text in the row that *Add* makes; the window drawn at the output's scale; CI is
+  green.
+- **Measured.** CI's jobs that build the host, each within 20 minutes.
+
+### M6d.7a2b — The host made robust
+
+The second part of M6d.7a2 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The host survives what it ended on, and tells what it could not survive.
+- **Crates.** `uwui-desktop`; `uwui` (the pointer's identity).
+- **Delivers.** A lost device and a lost surface made again within
+  [ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)'s
+  budget, each lost on purpose by a door of the tests; the crash report and the session's marker
+  ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md));
+  a panic in the program's code ending the run without `stop`
+  ([ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)). Placed
+  here since its card was written: the seam inside the host, a platform layer that knows neither
+  uwui's interface nor the GPU's device, kept so by a check of `cargo tree`
+  ([ADR-0279](adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md));
+  each pointer's identity and device in the host's events, filled by Wayland's layer and the
+  engine's bridge ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)).
+  Its start weighs whether this part is cut again.
+- **Done when.** A device and a surface lost on purpose drawn again in the series; a program made
+  to crash, run headless with its own `XDG_STATE_HOME`, leaves its report, and the next start finds
+  its marker; a program made to panic ends in error, `stop` not called; the layer's check fails on
+  a copy made to pull `uwui` or wgpu; CI is green.
+
+### M6d.7a2c — Frames and the host measured
+
+The third part of M6d.7a2 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Input in motion reaches the next image, and the host's own cost is known.
+- **Crates.** `uwui-desktop`; `scripts/`.
+- **Delivers.** The presentations' times read through `wp_presentation` and given as predicted,
+  the display's period read; frames drawn just in time
+  ([ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)); a
+  blank window on the host's platform layer alone, and one on winit
+  ([ADR-0279](adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md));
+  a tool that runs them and the example in turn in one compositor and measures the start, memory,
+  the binary, rest and input to present.
+- **Done when.** M6d.7a2's "Done when" above.
 - **Measured.** The host's own cost above the blank window, in one run; the applications' budgets'
   first figures, in uwui's repository.
 

@@ -6,7 +6,9 @@
   [0249](0249-the-hosts-api-its-items-and-their-table.md) (the desktop host reads what its table
   names under each platform, not winit's column); amended by
   [0279](0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md) (one windowing layer: a seam in the host now, the engine
-  moved onto it at a port)
+  moved onto it at a port) and
+  [0273](0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md) (M6d.7a2 cut in
+  three)
 - Date: 2026-11-15
 
 ## Context
