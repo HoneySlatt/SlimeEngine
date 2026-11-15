@@ -35,8 +35,12 @@ rustix = { workspace = true, features = ["event"] }
 # Wayland spoken by the host itself, on libwayland's display that Vulkan's driver shares
 # (ADR-0270).
 wayland-client.workspace = true
-# xdg-shell's window and xdg-decoration's choice of who draws its bar.
+# xdg-shell's window and xdg-decoration's choice of who draws its bar; the cursor's shapes, the
+# fractional scale and its viewport, activation (ADR-0273).
 wayland-protocols.workspace = true
+# The keyboard's keymaps, its state and its compose tables, from libxkbcommon loaded at run time
+# (ADR-0270, ADR-0273).
+xkbcommon-dl.workspace = true
 
 [dev-dependencies]
 # The example draws in the editor's look, the only look that uwui has yet.

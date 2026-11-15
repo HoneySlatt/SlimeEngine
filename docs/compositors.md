@@ -41,6 +41,9 @@ A cell that starts with "—" is not observed: what it says comes from elsewhere
 | Agents' sessions and rest | pass | pass | pass | pass | pass |
 | uwui's host at rest | pass | pass | pass | pass | — no layer for X11 before M6d.7b |
 | uwui's host's bar | none, no protocol | the compositor's | the compositor's | none, no protocol | — no layer for X11 before M6d.7b |
+| uwui's host's keys | not run, no input | typed | typed | typed | — no layer for X11 before M6d.7b |
+| uwui's host's cursor | not run, the pointer never entered | by shape | by shape | by shape | — no layer for X11 before M6d.7b |
+| uwui's host's scale | 2.0 | 1.5 | 1.5 | 1.5 | — no layer for X11 before M6d.7b |
 
 The rows:
 
@@ -75,6 +78,12 @@ The rows:
   put on its button *Add*, whose hover draws frames, and at rest again; then ended by SIGTERM
   through its closing (its test `rest`); and whether the compositor took
   `zxdg_toplevel_decoration_v1`'s server side, in its log written with `WAYLAND_DEBUG=client`.
+- **uwui's host's keys**, **uwui's host's cursor** and **uwui's host's scale**: the same example,
+  where the compositor takes input, its field clicked, `s` and `a` typed through the compositor,
+  and the row that *Add* makes named `sa`; its cursor set by `wp_cursor_shape_v1`'s shape, or left
+  to the compositor; the scale that its window drew at on an output at 1.5, at 2 in Weston, its
+  image's width over its logical width
+  ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
 
 ## What differs
 

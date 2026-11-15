@@ -32,16 +32,21 @@ MIT OR Apache-2.0.
 - Holds Wayland's layer, on Linux (`wayland`): its loop on `rustix`, one `poll` on the
   compositor's socket, an eventfd that wakes it and a timerfd on `CLOCK_BOOTTIME`, the host's clock
   (`clock`); an xdg-shell window, its title, its app id, its minimum size and fullscreen without
-  borders, its closing told to the application; the compositor's bar through xdg-decoration, where
-  it gives one; frames on the compositor's frame callback, asked just before each present so that
-  the commit of Vulkan's driver carries it; the pointer's moves, buttons and wheel with their
-  times.
+  borders, its closing told to the application, its activation; the compositor's bar through
+  xdg-decoration, where it gives one; frames on the compositor's frame callback, asked just before
+  each present so that the commit of Vulkan's driver carries it; the pointer's moves, buttons and
+  wheel with their times, and its shape through `wp_cursor_shape_v1`; the keyboard, its keys, its
+  focus and its modifiers, and its repeat, which Wayland leaves to the host; the scale that the
+  compositor prefers, fractional through a viewport, else an integer one.
+- Holds the keyboard's code of libxkbcommon, Linux's (`xkb`): the compositor's keymap, its state,
+  the compose tables of the person's locale, and each key turned into `slime-input`'s `KeyEvent`
+  as that type's contract says.
 - Opens its own device (`gpu`), with wgpu's hint `MemoryHints::MemoryUsage`, the adapter that uses
   the least power, no optional feature, Mailbox where the surface offers it and Fifo elsewhere, and
   draws each frame's display list with `uwui-render` into the window's image.
 
-What waits for its milestone: the keyboard through libxkbcommon, the cursor's shapes, the
-fractional scale, activation, the presentations' times and frames drawn just in time (M6d.7a2);
+What waits for its milestone: a lost device or surface made again, the crash report and the
+session's marker (M6d.7a2b); the presentations' times and frames drawn just in time (M6d.7a2c);
 X11 (M6d.7b), Windows (M6d.7c) and macOS (M6d.7d), where `run` says that it has no layer and ends;
 a bar drawn by uwui where the compositor draws none, Weston and Mutter (M6d.7e); the clipboard,
 input methods and screen readers (M6d.8). [`debt.md`](../../docs/debt.md) holds the rest.
@@ -50,17 +55,21 @@ input methods and screen readers (M6d.8). [`debt.md`](../../docs/debt.md) holds 
 
 - `run(look, window, app)`, its exit statuses `EXIT_HOST_FAILED` and `EXIT_START_FAILED`.
 - `App`, `Close`; `Look`; `WindowSettings`, how the window opens; `Window`, its state and the
-  application's requests.
+  application's requests, `bring_to_front` and `request_attention` among them.
 - `examples/application.rs`: buttons, a field, a list and a dialog, at rest between inputs.
 
 ## Tests
 
-`cargo test -p uwui-desktop` runs the core's tests, on every platform, without a window. The
-`rest` test, `test = false`, runs the example in the Wayland compositor that `WAYLAND_DISPLAY`
-names: an image presented and at rest after its start; where the series gives input, the
-pointer put on its button *Add*, whose hover draws frames, and at rest again; then ended by
-SIGTERM through its closing. Weston takes no input: there the pointer's part does not run. `scripts/check.sh windowed` runs it in a headless
-Weston, and `scripts/compositors.sh` in Weston, sway, KWin and Mutter
+`cargo test -p uwui-desktop` runs the core's tests, on every platform, without a window; on Linux,
+the keyboard's too, on layouts that libxkbcommon compiles from its rules. The `rest` tests,
+`test = false`, run the example in the Wayland compositor that `WAYLAND_DISPLAY` names. The first:
+an image presented and at rest after its start; where the series gives input, the pointer put on
+its button *Add*, whose hover draws frames, and at rest again; its field clicked, `s` and `a`
+typed, and the row that *Add* makes named `sa`, at rest again; then ended by SIGTERM through its
+closing. Weston takes no input: there the input's part does not run. The second: the window drawn
+at the scale that the compositor prefers, and the start's token of activation passed on.
+`scripts/check.sh windowed` runs both in a headless Weston, and `scripts/compositors.sh` in Weston,
+sway, KWin and Mutter, the second on an output at 1.5, at 2 in Weston
 ([`compositors.md`](../../docs/compositors.md)). `scripts/check.sh lint` checks that its tree
 holds no engine crate but `slime-color` and `slime-input`, that no other crate of the workspace
 depends on it, and that `uwui` pulls no windowing library nor wgpu.
@@ -70,8 +79,10 @@ depends on it, and that `uwui` pulls no windowing library nor wgpu.
 `uwui`, the interface it hosts; `uwui-render` and wgpu, which draw it; `raw-window-handle`, the
 window's pointers given to wgpu; `pollster`, which waits for wgpu's requests; `slime-input`, the
 pointer's buttons and wheel; `ctrlc`, the termination signals; `tracing`. On Linux,
-`wayland-client` on libwayland's display, loaded at run time, `wayland-protocols`' xdg-shell and
-xdg-decoration, and `rustix`, the loop's poll, eventfd and timerfd and the clocks.
+`wayland-client` on libwayland's display, loaded at run time, `wayland-protocols`' xdg-shell,
+xdg-decoration, the cursor's shapes, the fractional scale, the viewporter and activation;
+`xkbcommon-dl`, libxkbcommon loaded at run time; and `rustix`, the loop's poll, eventfd and
+timerfd, the clocks and the keymap's read.
 
 ## Must not
 
@@ -79,4 +90,5 @@ xdg-decoration, and `rustix`, the loop's poll, eventfd and timerfd and the clock
   depended on by one; `scripts/check.sh` checks both.
 - Show a type of a platform's library in its public API.
 - Run, poll or draw while nothing happens.
-- Use `unsafe` but where it gives wgpu the window's raw handles, each with its `// SAFETY:`.
+- Use `unsafe` but where it gives wgpu the window's raw handles and where it calls libxkbcommon,
+  each with its `// SAFETY:`.

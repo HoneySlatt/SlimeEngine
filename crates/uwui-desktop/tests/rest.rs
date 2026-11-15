@@ -1,13 +1,22 @@
 //! The `application` example in a Wayland compositor, which the environment names: it starts,
 //! draws and rests, none of its threads waking in 10 s (`docs/adr/0185-rest-checked-in-ci.md`);
 //! where the compositor takes a person's input, the pointer put on its button *Add* hovers it,
-//! which draws frames, and it rests again once the hover's transition ends; a termination signal
-//! then asks it to close, and it ends cleanly. Weston takes no input: there the pointer's part does
-//! not run.
+//! which draws frames, and it rests again once the hover's transition ends; then a click in its
+//! field, `s` and `a` typed, and a click on *Add*, whose row is named `sa`; a termination signal
+//! then asks it to close, and it ends cleanly. Weston takes no input: there the input's part does
+//! not run. It writes on its standard output `keys: typed` once the row is added, and how its
+//! cursor was set, `cursor: by shape`. The series' input counts the output in logical pixels at a scale of 1: this test runs
+//! at that scale.
 //!
-//! The example writes its protocol with `WAYLAND_DEBUG=client` into a file of the test's own, read
-//! for the images it presented, the pointer's events and where its window lies, then written on
-//! the test's standard error, where `scripts/compositors.sh` reads who draws its bar.
+//! A second test, run in a compositor at another scale, finds the window drawn at the scale that
+//! the compositor prefers, and the start's token of activation passed to the compositor where it
+//! gives `xdg_activation_v1`, then ends it, and writes that scale, `scale: 1.5`, on its standard
+//! output.
+//!
+//! The example writes its protocol with `WAYLAND_DEBUG=client` into a file of each test's own,
+//! read for the images it presented and their size, the scale preferred, the pointer's events and
+//! where its window lies, then written on the test's standard error, where
+//! `scripts/compositors.sh` reads who draws its bar.
 //!
 //! The example is built first, `cargo build -p uwui-desktop --example application`;
 //! `scripts/check.sh windowed` runs this test in a headless Weston, and `scripts/compositors.sh` in
@@ -21,10 +30,11 @@
 #![cfg(target_os = "linux")]
 
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 /// How long the program is watched: the quality bar's window of rest.
@@ -86,9 +96,8 @@ fn threads(pid: u32) -> Result<Threads, String> {
     Ok(threads)
 }
 
-/// Waits until `pid` stays still for a second, for at most `SETTLE`, then watches it for `REST`:
-/// what woke, if anything did.
-fn at_rest(pid: u32) -> Result<(), String> {
+/// Waits until `pid` stays still for a second, for at most `SETTLE`: its threads as they are then.
+fn settled(pid: u32) -> Result<Threads, String> {
     let deadline = Instant::now() + SETTLE;
     let mut before = threads(pid)?;
     loop {
@@ -97,12 +106,17 @@ fn at_rest(pid: u32) -> Result<(), String> {
         let still = after == before;
         before = after;
         if still {
-            break;
+            return Ok(before);
         }
         if Instant::now() >= deadline {
             return Err(format!("never still for {STILL:?} within {SETTLE:?}"));
         }
     }
+}
+
+/// Waits until `pid` settles, then watches it for `REST`: what woke, if anything did.
+fn at_rest(pid: u32) -> Result<(), String> {
+    let before = settled(pid)?;
     std::thread::sleep(REST);
     let after = threads(pid)?;
     if after == before {
@@ -134,6 +148,83 @@ fn example() -> PathBuf {
 /// half the button, `examples/application.rs`.
 const ADD: [f64; 2] = [12.0 + 44.0, 8.0 + 14.0];
 
+/// Where the field's middle lies: past *Add* and *Remove* and their gaps, then half the field.
+const FIELD: [f64; 2] = [12.0 + 88.0 + 8.0 + 88.0 + 8.0 + 100.0, 8.0 + 14.0];
+
+/// The example's logical width where the compositor leaves its size to it.
+const WIDTH: f64 = 720.0;
+
+/// The numbers between the parentheses of the last line of `log` that holds `call`.
+fn last_call(log: &str, call: &str) -> Option<Vec<String>> {
+    let line = log.lines().rev().find(|line| line.contains(call))?;
+    let (_, arguments) = line.split_once(call)?;
+    let arguments = arguments.split_once(')')?.0;
+    Some(
+        arguments
+            .split(',')
+            .map(|argument| argument.trim().to_owned())
+            .collect(),
+    )
+}
+
+/// The scale that the compositor prefers for the window, in its log: the fractional one, else the
+/// integer one of its surface, else the largest of the outputs', else 1.
+fn preferred_scale(log: &str) -> f64 {
+    let number =
+        |call| last_call(log, call).and_then(|arguments| arguments.first()?.parse::<f64>().ok());
+    let outputs = log
+        .lines()
+        .filter(|line| line.contains("wl_output#") && !line.contains(" -> "))
+        .filter_map(|line| {
+            line.split_once(".scale(")?
+                .1
+                .split(')')
+                .next()?
+                .parse::<f64>()
+                .ok()
+        })
+        .reduce(f64::max);
+    number(".preferred_scale(")
+        .map(|scale| scale / 120.0)
+        .or_else(|| number(".preferred_buffer_scale("))
+        .or(outputs)
+        .unwrap_or(1.0)
+}
+
+/// The scale that the window drew at, in its log: the width of the last image that its driver
+/// made, by wl_shm or by dmabuf, over its logical width, the toplevel's last configure's or the
+/// example's own.
+fn drawn_scale(log: &str) -> Option<f64> {
+    // The image made last, of either kind: wl_shm's width is its third argument, dmabuf's its
+    // second.
+    let line = log
+        .lines()
+        .rev()
+        .find(|line| line.contains(".create_buffer(") || line.contains(".create_immed("))?;
+    let (call, at) = if line.contains(".create_buffer(") {
+        (".create_buffer(", 2)
+    } else {
+        (".create_immed(", 1)
+    };
+    let width = last_call(line, call)?.get(at)?.clone();
+    let width: f64 = width.parse().ok()?;
+    let logical = log
+        .lines()
+        .filter(|line| line.contains("xdg_toplevel#") && line.contains(".configure("))
+        .filter_map(|line| {
+            line.split_once(".configure(")?
+                .1
+                .split(',')
+                .next()?
+                .trim()
+                .parse::<f64>()
+                .ok()
+        })
+        .rfind(|&width| width > 0.0)
+        .unwrap_or(WIDTH);
+    Some((width / logical * 100.0).round() / 100.0)
+}
+
 /// How many images the driver attached to the example's surface so far, in its protocol's log.
 fn commits(log: &str) -> usize {
     log.lines()
@@ -156,113 +247,216 @@ fn pointer_in_window(log: &str) -> Option<[f64; 2]> {
     Some([x, y])
 }
 
-/// Moves the pointer to `x` and `y` of the output through the series' input, if it takes input.
-fn move_pointer(x: u32, y: u32) -> bool {
+/// Gives `command` to the series' input, if the compositor takes input, `scripts/compositor-input.py`.
+fn input(command: &str) -> bool {
     let Some(socket) = std::env::var_os("SLIME_COMPOSITOR_INPUT") else {
         return false;
     };
     let mut stream = UnixStream::connect(socket).expect("the input's server");
-    writeln!(stream, "move-to {x} {y}").expect("the command is sent");
+    writeln!(stream, "{command}").expect("the command is sent");
     let mut answer = String::new();
     BufReader::new(stream)
         .read_line(&mut answer)
         .expect("the input's server answers");
-    assert_eq!(answer.trim(), "done", "the pointer did not move");
+    assert_eq!(
+        answer.trim(),
+        "done",
+        "the input's server did not run {command:?}"
+    );
     true
 }
 
-/// Ends `child` if the test fails before it does.
-struct Running(Child);
+/// Moves the pointer to `x` and `y` of the output through the series' input, if it takes input.
+fn move_pointer(x: u32, y: u32) -> bool {
+    input(&format!("move-to {x} {y}"))
+}
 
-impl Drop for Running {
+/// The example running, its protocol logged into a file named for the test, its output read on
+/// a thread of its own so that the test waits for each line with a bound.
+struct Example {
+    child: Child,
+    lines: mpsc::Receiver<String>,
+    log: PathBuf,
+}
+
+impl Example {
+    /// Starts the example, its log in `log`, a file of the test's directory, and its start's
+    /// token of activation `token`, and waits for its first line.
+    fn start(log: &str, token: &str) -> Self {
+        assert!(
+            std::env::var_os("WAYLAND_DISPLAY").is_some(),
+            "the test runs in a Wayland compositor, which WAYLAND_DISPLAY names"
+        );
+        let log = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(log);
+        let log_file = std::fs::File::create(&log).expect("the example's log");
+        let mut child = Command::new(example())
+            .env("WAYLAND_DEBUG", "client")
+            .env("XDG_ACTIVATION_TOKEN", token)
+            .stdout(Stdio::piped())
+            .stderr(log_file)
+            .spawn()
+            .expect("the example starts");
+        let output = BufReader::new(child.stdout.take().expect("its output"));
+        let (send, lines) = mpsc::channel();
+        std::thread::spawn(move || {
+            for line in output.lines().map_while(Result::ok) {
+                if send.send(line).is_err() {
+                    break;
+                }
+            }
+        });
+        let example = Self { child, lines, log };
+        let started = example
+            .lines
+            .recv_timeout(SETTLE)
+            .expect("the example writes its first line");
+        assert_eq!(started, "started", "the example did not start");
+        example
+    }
+
+    fn pid(&self) -> u32 {
+        self.child.id()
+    }
+
+    /// Its protocol's log so far.
+    fn read_log(&self) -> String {
+        std::fs::read_to_string(&self.log).expect("the example's log reads")
+    }
+
+    /// Ends it by SIGTERM, which asks it to close: its last lines, once it ended with success.
+    fn end_on_sigterm(mut self) -> Vec<String> {
+        let killed = Command::new("kill")
+            .args(["-TERM", &self.pid().to_string()])
+            .status()
+            .expect("kill runs");
+        assert!(killed.success());
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let status = loop {
+            if let Some(status) = self.child.try_wait().expect("the example's status") {
+                break status;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the example did not end on SIGTERM"
+            );
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        // Its output ended with it: the thread sends what is left, then stops.
+        let rest = self.lines.iter().collect();
+        eprint!("{}", self.read_log());
+        assert!(status.success(), "the example ended with {status}");
+        rest
+    }
+}
+
+impl Drop for Example {
+    /// Ends the example if the test fails before it does.
     fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
+        let _ = self.child.kill();
+        let _ = self.child.wait();
     }
 }
 
 #[test]
 fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
-    assert!(
-        std::env::var_os("WAYLAND_DISPLAY").is_some(),
-        "the test runs in a Wayland compositor, which WAYLAND_DISPLAY names"
-    );
-    let log_path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("rest-application.log");
-    let log_file = std::fs::File::create(&log_path).expect("the example's log");
-    let read_log = || std::fs::read_to_string(&log_path).expect("the example's log reads");
-    let child = Command::new(example())
-        .env("WAYLAND_DEBUG", "client")
-        .stdout(Stdio::piped())
-        .stderr(log_file)
-        .spawn()
-        .expect("the example starts");
-    let mut running = Running(child);
-    let pid = running.0.id();
-    let mut lines = BufReader::new(running.0.stdout.take().expect("its output"));
-    let mut line = String::new();
-    lines.read_line(&mut line).expect("its first line");
-    assert_eq!(line.trim(), "started", "the example did not start");
-
+    let example = Example::start("rest-application.log", "");
+    let pid = example.pid();
+    let shown = example.log.display().to_string();
     if let Err(error) = at_rest(pid) {
         panic!("the example is not at rest after its start: {error}");
     }
     assert!(
-        commits(&read_log()) > 0,
-        "the example presented no image: {}",
-        log_path.display()
+        commits(&example.read_log()) > 0,
+        "the example presented no image: {shown}"
     );
 
     // The output's middle, which the window covers in each compositor of the series: the window's
-    // place on the output follows from where the pointer lies in it.
+    // place on the output follows from where the pointer lies in it, both in logical pixels at
+    // the scale of 1 that the series' input counts in.
     if move_pointer(960, 540) {
         std::thread::sleep(Duration::from_secs(1));
-        let log = read_log();
-        let [x, y] = pointer_in_window(&log).unwrap_or_else(|| {
-            panic!(
-                "the pointer never reached the window: {}",
-                log_path.display()
-            )
-        });
+        let log = example.read_log();
+        let [x, y] = pointer_in_window(&log)
+            .unwrap_or_else(|| panic!("the pointer never reached the window: {shown}"));
         let before = commits(&log);
-        let to = [960.0 - x + ADD[0], 540.0 - y + ADD[1]].map(|side| side.round() as u32);
-        assert!(move_pointer(to[0], to[1]));
+        let place =
+            |at: [f64; 2]| [960.0 - x + at[0], 540.0 - y + at[1]].map(|side| side.round() as u32);
+        let add = place(ADD);
+        assert!(move_pointer(add[0], add[1]));
         let deadline = Instant::now() + Duration::from_secs(5);
-        while commits(&read_log()) == before {
+        while commits(&example.read_log()) == before {
             assert!(
                 Instant::now() < deadline,
-                "the pointer on the button drew no frame: {}",
-                log_path.display()
+                "the pointer on the button drew no frame: {shown}"
             );
             std::thread::sleep(Duration::from_millis(50));
         }
         if let Err(error) = at_rest(pid) {
             panic!("the example is not at rest after the pointer hovered its button: {error}");
         }
+
+        // A name typed into the field, and a row added under it: the keyboard's way whole.
+        let field = place(FIELD);
+        assert!(move_pointer(field[0], field[1]));
+        assert!(input("click"));
+        assert!(input("key s"));
+        assert!(input("key a"));
+        assert!(move_pointer(add[0], add[1]));
+        assert!(input("click"));
+        let added = example
+            .lines
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap_or_else(|_| panic!("the click on Add added no row: {shown}"));
+        assert_eq!(added, "added sa", "the field did not take the keys typed");
+        println!("keys: typed");
+        if let Err(error) = at_rest(pid) {
+            panic!("the example is not at rest after the keys typed: {error}");
+        }
     }
 
-    let killed = Command::new("kill")
-        .args(["-TERM", &pid.to_string()])
-        .status()
-        .expect("kill runs");
-    assert!(killed.success());
-    let deadline = Instant::now() + Duration::from_secs(10);
-    let status = loop {
-        if let Some(status) = running.0.try_wait().expect("the example's status") {
-            break status;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "the example did not end on SIGTERM"
-        );
-        std::thread::sleep(Duration::from_millis(50));
+    let log = example.read_log();
+    let cursor = if log.contains("wp_cursor_shape_device_v1#") && log.contains(".set_shape(") {
+        "by shape"
+    } else if log.contains("wl_pointer#") && log.contains(".enter(") {
+        "the compositor's"
+    } else {
+        "not run, the pointer never entered"
     };
-    let mut rest = String::new();
-    lines.read_to_string(&mut rest).expect("its last lines");
-    eprint!("{}", read_log());
-    assert!(status.success(), "the example ended with {status}");
+    println!("cursor: {cursor}");
     assert_eq!(
-        rest.lines().collect::<Vec<_>>(),
+        example.end_on_sigterm(),
         ["closing asked", "stopped"],
         "the example was not asked to close, then stopped"
     );
+}
+
+/// A token of activation that no compositor gave, which the example's start passes on all the same.
+const TOKEN: &str = "uwui-desktop-test-token";
+
+#[test]
+fn the_window_draws_at_the_scale_that_the_compositor_prefers() {
+    let example = Example::start("scale-application.log", TOKEN);
+    // Settled, the window has its last scale: the compositor tells it once the window shows.
+    if let Err(error) = settled(example.pid()) {
+        panic!("the example never settled: {error}");
+    }
+    let log = example.read_log();
+    let preferred = preferred_scale(&log);
+    let drawn = drawn_scale(&log)
+        .unwrap_or_else(|| panic!("the example made no image: {}", example.log.display()));
+    assert!(
+        (drawn - preferred).abs() < 0.01,
+        "the window drew at {drawn}, the compositor preferring {preferred}: {}",
+        example.log.display()
+    );
+    println!("scale: {drawn:?}");
+    // The start's token activates the window, where the compositor gives activation.
+    if log.contains("\"xdg_activation_v1\"") {
+        assert!(
+            log.contains(&format!(".activate(\"{TOKEN}\", wl_surface#")),
+            "the start's token did not activate the window: {}",
+            example.log.display()
+        );
+    }
+    assert_eq!(example.end_on_sigterm(), ["closing asked", "stopped"]);
 }

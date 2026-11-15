@@ -12,9 +12,10 @@
 # decorations, its cursor, its clipboard, and a round trip through the clipboard by a person's keys,
 # which scripts/compositor-input.py gives where the compositor takes input; runs the agents'
 # sessions of the editor and of the game, which find them at rest, and minimizes the game
-# (slime-mcp's `edit_window` and `drive`); runs uwui's desktop host's example, at rest, and reads
-# who draws its bar; then reads the window's scale on an output at a
-# fractional scale. What it observes must match the compositor's column of docs/compositors.md, or
+# (slime-mcp's `edit_window` and `drive`); runs uwui's desktop host's example, at rest, typed
+# into where the compositor takes input, and reads who draws its bar and how its cursor is set;
+# then reads the window's scale, the engine's and the host's, on an output at a fractional
+# scale. What it observes must match the compositor's column of docs/compositors.md, or
 # it fails. Its report, logs and figures go to target/compositors/<compositor>/; drawn with
 # lavapipe, on a session bus of its own. It fetches and cooks the game's zone first, as
 # `scripts/check.sh game` does.
@@ -262,14 +263,19 @@ run timeout -k 10 300 cargo test --locked -p slime-mcp --test drive | tee "$work
 grep '^minimized: ' "$work/drive.txt" | sed 's/^minimized: /Game minimized: /' | tee -a "$observations"
 observe "Agents' sessions and rest" "pass"
 
-step "uwui's desktop host: an application on uwui alone, at rest, woken by the pointer, ended by a signal"
+step "uwui's desktop host: an application on uwui alone, at rest, woken by the pointer, typed into, ended by a signal"
 # Its own Wayland layer (ADR-0270): X11's comes at M6d.7b.
 if [ "$name" != x11 ]; then
     # The test writes the example's protocol, logged with WAYLAND_DEBUG=client, on its standard
     # error.
-    run timeout -k 10 300 cargo test --locked -p uwui-desktop --test rest -- --nocapture \
-        2>"$report/application.log" || { cat "$report/application.log"; exit 1; }
+    run timeout -k 10 300 cargo test --locked -p uwui-desktop --test rest -- --nocapture --exact \
+        the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal \
+        2>"$report/application.log" | tee "$work/application.txt" ||
+        { cat "$report/application.log"; exit 1; }
     observe "uwui's host at rest" "pass"
+    observe "uwui's host's keys" "$(sed -n 's/^keys: //p' "$work/application.txt" |
+        grep . || echo "not run, no input")"
+    observe "uwui's host's cursor" "$(sed -n 's/^cursor: //p' "$work/application.txt")"
     # xdg-decoration's mode 2 is the server's side.
     if grep -q -E 'zxdg_toplevel_decoration_v1#[0-9]+\.configure\(2\)' "$report/application.log"; then
         observe "uwui's host's bar" "the compositor's"
@@ -292,6 +298,12 @@ case "$name" in
         scale=$(grep -o 'scale_factor[=:] *[0-9.]*' "$report/window-scaled.log" | tail -n 1 |
             grep -o '[0-9.]*$')
         observe "Window's scale" "$scale"
+        # uwui's desktop host, on its own Wayland layer: the scale that its window drew at.
+        run timeout -k 10 120 cargo test --locked -p uwui-desktop --test rest -- --nocapture \
+            --exact the_window_draws_at_the_scale_that_the_compositor_prefers \
+            2>"$report/application-scaled.log" | tee "$work/application-scaled.txt" ||
+            { cat "$report/application-scaled.log"; exit 1; }
+        observe "uwui's host's scale" "$(sed -n 's/^scale: //p' "$work/application-scaled.txt")"
         ;;
 esac
 stop_compositor

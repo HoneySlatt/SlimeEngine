@@ -3817,6 +3817,7 @@ dependencies = [
  "wayland-client",
  "wayland-protocols",
  "wgpu",
+ "xkbcommon-dl",
 ]
 
 [[package]]

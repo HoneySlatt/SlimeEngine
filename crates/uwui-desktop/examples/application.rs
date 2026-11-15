@@ -9,8 +9,9 @@
 //! *Add* puts the field's name, or a numbered one, at the end of the list, which its wheel
 //! scrolls; *Remove* takes its last row away; *About* opens a modal dialog, which its button or
 //! Escape closes. Closing the window, or a termination signal, asks the application, which lets it
-//! close. It writes `started` once it starts, `closing asked` when asked to close and `stopped` as
-//! it ends, which `crates/uwui-desktop/tests/rest.rs` reads; the keyboard reaches it from M6d.7a2.
+//! close. It writes `started` once it starts, `added <the row's name>` at each row that *Add*
+//! makes, `closing asked` when asked to close and `stopped` as it ends, which
+//! `crates/uwui-desktop/tests/rest.rs` reads.
 
 use std::error::Error;
 
@@ -70,6 +71,7 @@ impl App for Application {
                     } else {
                         self.name.trim().to_owned()
                     };
+                    println!("added {name}");
                     self.rows.push(name);
                     changed = true;
                 }

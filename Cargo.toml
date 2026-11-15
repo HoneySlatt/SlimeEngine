@@ -100,9 +100,13 @@ wgpu = { version = "30.0.1", default-features = false, features = ["std", "parki
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita-notitle"] }
 # uwui's desktop host speaks Wayland itself (ADR-0270): the client through libwayland's own
 # display (`system`), which Vulkan's driver makes its commits on, loaded at run time (`dlopen`);
-# xdg-shell and xdg-decoration (`unstable`). The versions that winit already brings.
+# xdg-shell and xdg-decoration (`unstable`); the cursor's shapes, the fractional scale and
+# activation (`staging`). The versions that winit already brings, with its features.
 wayland-client = { version = "0.31.15", features = ["system", "dlopen"] }
-wayland-protocols = { version = "0.32.13", features = ["client", "unstable"] }
+wayland-protocols = { version = "0.32.13", features = ["client", "unstable", "staging"] }
+# libxkbcommon loaded at run time, its keymaps and compose tables, for uwui's desktop host's
+# keyboard on Wayland (ADR-0270, ADR-0273): the version that winit already brings.
+xkbcommon-dl = "0.4.2"
 # The system's clipboard of text, in slime-platform (ADR-0132, ADR-0145): without its images
 # (`image-data`, which brings the `image` crate), with the Wayland protocol of the compositors that
 # give it (`wayland-data-control`), X11's otherwise.

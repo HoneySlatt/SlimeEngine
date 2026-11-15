@@ -24,7 +24,7 @@ The facts, read on 2026-11-15:
   `wp_fractional_scale_v1` and `xdg_activation_v1`, is built already for winit: the host turning it
   on adds no crate.
 - The series' compositors with input, sway, KWin and Mutter, give `wp_cursor_shape_v1` and the
-  fractional scale; Weston gives integer scales alone, and no input
+  fractional scale; Weston gives integer scales alone, through its outputs, and no input
   ([`compositors.md`](../compositors.md)).
 - `scripts/compositor-input.py` moves the pointer and types keys; it cannot click.
 - The host's measure of its own cost must come last: what it measures is the host as M6d.7a2 leaves
@@ -73,7 +73,8 @@ interface asks. A compositor without it keeps its own cursor: loading a theme's 
 
 **The scale:** `wp_fractional_scale_v1` with `wp_viewporter` where both are given, the image
 `round(logical × scale)` pixels and the viewport the window's logical size; else
-`wl_surface`'s preferred integer scale; else 1. The pointer's positions and the wheel's pixels are
+`wl_surface`'s preferred integer scale; else the largest integer scale of the outputs that the
+window lies on, as Weston 16 gives it, whose `wl_compositor` stops at version 5; else 1. The pointer's positions and the wheel's pixels are
 multiplied by the scale, as uwui counts in physical pixels.
 
 **Activation:** the start's token, `XDG_ACTIVATION_TOKEN`, activates the window as it opens. The

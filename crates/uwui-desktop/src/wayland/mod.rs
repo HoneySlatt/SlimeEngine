@@ -12,13 +12,20 @@
 //!   give: there the window has none yet.
 //! - *Its frames*: on the compositor's frame callback (`crate::pacing`).
 //! - *The pointer*: its moves, buttons and wheel, each with the compositor's time anchored on the
-//!   host's clock (`crate::anchor`); entering and leaving with their reception's.
+//!   host's clock (`crate::anchor`); entering and leaving with their reception's. Its shape, through
+//!   `wp_cursor_shape_v1`, where the compositor gives it: elsewhere its own cursor shows.
+//! - *The keyboard*: its keys through libxkbcommon (`crate::xkb`), their times anchored as the
+//!   pointer's; their repeat, the host's own (`repeat`); the focus and the modifiers.
+//! - *The scale*: `wp_fractional_scale_v1` with `wp_viewporter`, the image
+//!   `round(logical × scale)` pixels and the viewport the window's logical size; else the surface's
+//!   preferred integer scale; else 1.
+//! - *Activation*: the start's `XDG_ACTIVATION_TOKEN`, and the application's requests, through
+//!   `xdg_activation_v1`.
 //!
-//! What waits for its milestone: the keyboard through libxkbcommon, the cursor's shapes, the
-//! fractional scale, activation and the presentations' times (M6d.7a2). The window draws at scale
-//! 1, which a compositor at another scale stretches.
+//! What waits for its milestone: the presentations' times (M6d.7a2c).
 
 mod protocol;
+mod repeat;
 mod wait;
 
 use std::error::Error;
@@ -30,14 +37,19 @@ use std::time::Duration;
 use uwui::host::{Event, Input, TargetId, TargetSize};
 use uwui::time::EventTime;
 use wayland_client::globals::{GlobalList, registry_queue_init};
-use wayland_client::protocol::{wl_compositor, wl_seat, wl_surface};
+use wayland_client::protocol::{wl_compositor, wl_output, wl_seat, wl_surface};
 use wayland_client::{Connection, EventQueue, Proxy, QueueHandle};
+use wayland_protocols::wp::fractional_scale::v1::client::{
+    wp_fractional_scale_manager_v1, wp_fractional_scale_v1,
+};
+use wayland_protocols::wp::viewporter::client::{wp_viewport, wp_viewporter};
+use wayland_protocols::xdg::activation::v1::client::xdg_activation_v1;
 use wayland_protocols::xdg::decoration::zv1::client::{
     zxdg_decoration_manager_v1, zxdg_toplevel_decoration_v1,
 };
 use wayland_protocols::xdg::shell::client::{xdg_surface, xdg_toplevel, xdg_wm_base};
 
-use crate::app::{App, Look, Window, WindowSettings};
+use crate::app::{Activation, App, Look, Window, WindowSettings};
 use crate::clock::{self, Suspends};
 use crate::gpu::Gpu;
 use crate::pacing::{Next, Pacing};
@@ -45,7 +57,7 @@ use crate::session::{Session, StartError};
 use crate::wake::{self, Asks};
 use crate::{EXIT_HOST_FAILED, EXIT_START_FAILED};
 
-use protocol::Told;
+use protocol::{Cursor, Kept, Told};
 use wait::Waits;
 
 /// The shortest time suspended after which the events' anchor is made again: what parts the two
@@ -125,17 +137,90 @@ struct Objects {
     xdg_surface: xdg_surface::XdgSurface,
     toplevel: xdg_toplevel::XdgToplevel,
     decoration: Option<zxdg_toplevel_decoration_v1::ZxdgToplevelDecorationV1>,
+    /// The surface's fractional scale and its viewport, where the compositor gives both.
+    fractional: Option<(
+        wp_fractional_scale_v1::WpFractionalScaleV1,
+        wp_viewport::WpViewport,
+    )>,
+    activation: Option<xdg_activation_v1::XdgActivationV1>,
+    seat: Option<wl_seat::WlSeat>,
     // Kept so that their objects live as long as the window's.
+    _outputs: Vec<wl_output::WlOutput>,
     _compositor: wl_compositor::WlCompositor,
     _base: xdg_wm_base::XdgWmBase,
-    _seat: Option<wl_seat::WlSeat>,
+}
+
+/// The scale that the window draws at, as the compositor last preferred it.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Scale {
+    /// `wp_fractional_scale_v1`'s, in 120ths, which the viewport carries.
+    fractional: Option<u32>,
+    /// The surface's preferred integer scale, which its buffer scale carries.
+    integer: Option<i32>,
+}
+
+/// How a scale and a logical size are drawn: the image's size, the physical pixels per logical one,
+/// and the buffer scale and the viewport's destination asked of the surface.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Drawn {
+    pixels: [u32; 2],
+    scale: f64,
+    buffer_scale: i32,
+    destination: Option<[u32; 2]>,
+}
+
+impl Scale {
+    /// How the window of `logical` pixels draws at this scale; the fractional one only where the
+    /// surface has a viewport.
+    fn drawn(self, logical: [u32; 2], viewport: bool) -> Drawn {
+        let logical = logical.map(|side| side.max(1));
+        match (self.fractional.filter(|_| viewport), self.integer) {
+            (Some(fraction), _) if fraction > 0 => {
+                let scale = f64::from(fraction) / 120.0;
+                Drawn {
+                    // Rounded half away from zero, as the protocol asks of a toplevel.
+                    pixels: logical.map(|side| pixels(f64::from(side) * scale)),
+                    scale,
+                    buffer_scale: 1,
+                    destination: Some(logical),
+                }
+            }
+            (_, Some(integer)) if integer > 1 => Drawn {
+                pixels: logical.map(|side| side.saturating_mul(integer.unsigned_abs())),
+                scale: f64::from(integer),
+                buffer_scale: integer,
+                destination: None,
+            },
+            _ => Drawn {
+                pixels: logical,
+                scale: 1.0,
+                buffer_scale: 1,
+                destination: None,
+            },
+        }
+    }
+}
+
+/// A side in whole pixels, rounded half away from zero, one at least.
+fn pixels(side: f64) -> u32 {
+    let side = side.round();
+    if side >= f64::from(u32::MAX) {
+        u32::MAX
+    } else {
+        (side as u32).max(1)
+    }
 }
 
 impl Drop for Objects {
     fn drop(&mut self) {
-        // The decoration goes before its toplevel, as xdg-decoration asks.
+        // The decoration goes before its toplevel, as xdg-decoration asks; the scale's objects
+        // before their surface.
         if let Some(decoration) = self.decoration.take() {
             decoration.destroy();
+        }
+        if let Some((fractional, viewport)) = self.fractional.take() {
+            fractional.destroy();
+            viewport.destroy();
         }
         self.toplevel.destroy();
         self.xdg_surface.destroy();
@@ -156,10 +241,11 @@ struct Host {
     asks: Arc<Asks>,
     suspends: Suspends,
     pacing: Pacing,
-    /// The window's size in physical pixels.
-    size: [u32; 2],
+    /// The scale that the compositor prefers, and how the window draws now.
+    scale: Scale,
+    drawn: Drawn,
     /// The pointer's last move, given to the interface before the next event or frame.
-    held_move: Option<(EventTime, Input<'static>)>,
+    held_move: Option<(EventTime, Kept)>,
 }
 
 impl Host {
@@ -175,6 +261,13 @@ impl Host {
         let handle = queue.handle();
         let mut told = Told::new();
         let objects = Self::window(&globals, &handle, window)?;
+        told.cursor.manager = globals.bind(&handle, 1..=1, ()).ok();
+        if told.cursor.manager.is_none() {
+            tracing::info!(
+                "the compositor gives no wp_cursor_shape_v1: its own cursor shows over the window"
+            );
+        }
+        activate_at_start(&objects);
         // The first configure comes after the first commit, without an image.
         objects.surface.commit();
         while told.configure.is_none() {
@@ -182,10 +275,13 @@ impl Host {
                 .blocking_dispatch(&mut told)
                 .map_err(|cause| failed("the compositor's first configure", cause))?;
         }
-        let size = told
+        let logical = told
             .configure
             .and_then(|configure| configure.size)
             .unwrap_or(window.size());
+        let scale = Scale::default();
+        let drawn = scale.drawn(logical, objects.fractional.is_some());
+        let size = drawn.pixels;
         let display = NonNull::new(connection.backend().display_ptr().cast());
         let surface = NonNull::new(objects.surface.id().as_ptr().cast());
         let (Some(display), Some(surface)) = (display, surface) else {
@@ -208,7 +304,8 @@ impl Host {
             asks,
             suspends: Suspends::new(),
             pacing: Pacing::default(),
-            size,
+            scale,
+            drawn,
             held_move: None,
         })
     }
@@ -220,7 +317,7 @@ impl Host {
         window: &mut Window,
     ) -> Result<Objects, HostError> {
         let compositor: wl_compositor::WlCompositor = globals
-            .bind(handle, 1..=4, ())
+            .bind(handle, 1..=6, ())
             .map_err(|cause| failed("the compositor gives no wl_compositor", cause))?;
         let base: xdg_wm_base::XdgWmBase = globals
             .bind(handle, 1..=6, ())
@@ -231,7 +328,38 @@ impl Host {
             .ok();
         let decorations: Option<zxdg_decoration_manager_v1::ZxdgDecorationManagerV1> =
             globals.bind(handle, 1..=1, ()).ok();
+        let viewporter: Option<wp_viewporter::WpViewporter> = globals.bind(handle, 1..=1, ()).ok();
+        let fractional_manager: Option<wp_fractional_scale_manager_v1::WpFractionalScaleManagerV1> =
+            globals.bind(handle, 1..=1, ()).ok();
+        let activation: Option<xdg_activation_v1::XdgActivationV1> =
+            globals.bind(handle, 1..=1, ()).ok();
+        // Each output's scale, which a compositor without a scale for the surface gives (version
+        // 2); outputs that come later are not followed.
+        let outputs: Vec<wl_output::WlOutput> = globals.contents().with_list(|list| {
+            list.iter()
+                .filter(|global| global.interface == "wl_output" && global.version >= 2)
+                .map(|global| {
+                    globals
+                        .registry()
+                        .bind(global.name, global.version.min(4), handle, ())
+                })
+                .collect()
+        });
         let surface = compositor.create_surface(handle, ());
+        let fractional = match (&fractional_manager, &viewporter) {
+            (Some(manager), Some(viewporter)) => Some((
+                manager.get_fractional_scale(&surface, handle, ()),
+                viewporter.get_viewport(&surface, handle, ()),
+            )),
+            _ => None,
+        };
+        // The managers are needed no more once their objects are made.
+        if let Some(manager) = fractional_manager {
+            manager.destroy();
+        }
+        if let Some(viewporter) = viewporter {
+            viewporter.destroy();
+        }
         let xdg_surface = base.get_xdg_surface(&surface, handle, ());
         let toplevel = xdg_surface.get_toplevel(handle, ());
         toplevel.set_title(window.title().to_owned());
@@ -255,9 +383,12 @@ impl Host {
             xdg_surface,
             toplevel,
             decoration,
+            fractional,
+            activation,
+            seat,
+            _outputs: outputs,
             _compositor: compositor,
             _base: base,
-            _seat: seat,
         })
     }
 
@@ -273,6 +404,12 @@ impl Host {
             self.queue
                 .dispatch_pending(&mut self.told)
                 .map_err(|cause| failed("the connection to the compositor", cause))?;
+            self.told.repeat(clock::now());
+            for token in std::mem::take(&mut self.told.tokens) {
+                if let Some(activation) = &self.objects.activation {
+                    activation.activate(token, &self.objects.surface);
+                }
+            }
             let terminated = self.asks.take_terminated();
             let closed = std::mem::take(&mut self.told.close);
             // An event of the window, a wake or a termination signal asks from outside: it runs a
@@ -299,10 +436,18 @@ impl Host {
                 self.objects.xdg_surface.ack_configure(configure.serial);
                 let size = configure.size.unwrap_or(session.window.size());
                 session.window.configured(size, configure.fullscreen);
-                // Scale 1 until the fractional scale (M6d.7a2).
-                self.size = size;
-                self.gpu.resize(size);
                 // The commit that follows the acknowledgement carries the new size.
+                self.pacing.host_changed();
+            }
+            let scale = Scale {
+                fractional: self.told.fractional_scale,
+                integer: self.told.integer_scale(),
+            };
+            if scale != self.scale {
+                self.scale = scale;
+                self.pacing.asked_from_outside();
+            }
+            if self.draw_at(session.window.size()) {
                 self.pacing.host_changed();
             }
             self.give_inputs(session);
@@ -335,9 +480,45 @@ impl Host {
                 // A frame just drawn waits for its signal: never two in a turn.
                 Next::Frame => Some(clock::now()),
             };
+            // A key held wakes the loop at its next repeat.
+            let deadline = match (deadline, self.told.keys.repeat.deadline()) {
+                (Some(deadline), Some(repeat)) => Some(deadline.min(repeat)),
+                (deadline, repeat) => deadline.or(repeat),
+            };
             self.wait(deadline)?;
         }
         Ok(())
+    }
+
+    /// Draws the window of `logical` pixels at the scale that the compositor prefers: asks the
+    /// surface's buffer scale or its viewport's destination, which the next present's commit
+    /// carries, and sizes the window's images. Whether anything changed.
+    fn draw_at(&mut self, logical: [u32; 2]) -> bool {
+        let viewport = self
+            .objects
+            .fractional
+            .as_ref()
+            .map(|(_, viewport)| viewport);
+        let drawn = self.scale.drawn(logical, viewport.is_some());
+        if drawn == self.drawn {
+            return false;
+        }
+        if drawn.buffer_scale != self.drawn.buffer_scale {
+            self.objects.surface.set_buffer_scale(drawn.buffer_scale);
+        }
+        if let Some(viewport) = viewport
+            && drawn.destination != self.drawn.destination
+        {
+            match drawn.destination {
+                Some([width, height]) => viewport.set_destination(side(width), side(height)),
+                // Unset: the surface's size is its image's, divided by its buffer scale.
+                None => viewport.set_destination(-1, -1),
+            }
+        }
+        self.drawn = drawn;
+        self.told.scale = drawn.scale;
+        self.gpu.resize(drawn.pixels);
+        true
     }
 
     /// Gives the interface the person's input that came, in order; the pointer's last move held
@@ -345,7 +526,7 @@ impl Host {
     fn give_inputs<A: App>(&mut self, session: &mut Session<A>) {
         let inputs = std::mem::take(&mut self.told.inputs);
         for input in gather(inputs, &mut self.held_move, self.pacing.awaiting()) {
-            give(session, input);
+            give(session, &mut self.told.cursor, input);
         }
     }
 
@@ -366,8 +547,32 @@ impl Host {
             Some(false) => toplevel.unset_fullscreen(),
             None => {}
         }
+        if let Some(activation) = requests.activation {
+            self.ask_activation(activation, window.app_id());
+        }
         // The minimum size is the surface's state, which the next commit applies.
         requests.min_size
+    }
+
+    /// Asks the compositor for a token that activates the window, which comes back to the loop
+    /// (`Told::tokens`): bringing it to the front names the person's last press, asking for
+    /// attention names none.
+    fn ask_activation(&self, activation: Activation, app_id: &str) {
+        let Some(manager) = &self.objects.activation else {
+            tracing::info!(
+                "the compositor gives no xdg_activation_v1: the window's request does nothing"
+            );
+            return;
+        };
+        let token = manager.get_activation_token(&self.handle, ());
+        if activation == Activation::Front
+            && let (Some(serial), Some(seat)) = (self.told.serial, &self.objects.seat)
+        {
+            token.set_serial(serial, seat);
+        }
+        token.set_app_id(app_id.to_owned());
+        token.set_surface(&self.objects.surface);
+        token.commit();
     }
 
     /// Draws a frame, started at `now`, and presents it with the compositor's signal asked.
@@ -386,16 +591,17 @@ impl Host {
             return Ok(());
         };
         if let Some(held) = self.held_move.take() {
-            give(session, held);
+            give(session, &mut self.told.cursor, held);
         }
         let ui = &mut session.ui;
-        // Never refused: each side is one pixel at least.
-        if let Ok(size) = TargetSize::new(self.size.map(|side| side.max(1)), 1.0) {
+        // Never refused: each side is one pixel at least, and the scale above zero.
+        let drawn = self.drawn;
+        if let Ok(size) = TargetSize::new(drawn.pixels, drawn.scale as f32) {
             ui.set_target_size(TargetId::MAIN, size);
         }
         ui.set_frame_shown(TargetId::MAIN, self.pacing.shown(now));
         let (list, _) = ui.frame(TargetId::MAIN);
-        serve_outputs(ui);
+        serve_outputs(ui, &mut self.told.cursor);
         let (drawn, result) = self.gpu.draw(image, ui.fonts(), &list);
         if let Err(error) = result {
             tracing::warn!(%error, "a frame is drawn in part");
@@ -444,13 +650,13 @@ impl Host {
 /// each move given only before the event that follows it, and the last one held in `held` while
 /// the frame `awaits` its signal, to be given before the next event or frame.
 fn gather(
-    inputs: Vec<(EventTime, Input<'static>)>,
-    held: &mut Option<(EventTime, Input<'static>)>,
+    inputs: Vec<(EventTime, Kept)>,
+    held: &mut Option<(EventTime, Kept)>,
     awaits: bool,
-) -> Vec<(EventTime, Input<'static>)> {
+) -> Vec<(EventTime, Kept)> {
     let mut given = Vec::with_capacity(inputs.len() + 1);
     for (time, input) in inputs {
-        if let Input::PointerMoved { .. } = input {
+        if let Kept::Other(Input::PointerMoved { .. }) = input {
             *held = Some((time, input));
             continue;
         }
@@ -464,17 +670,24 @@ fn gather(
 }
 
 /// Gives the interface one event on the window, then, if it took it, serves what it asks.
-fn give<A: App>(session: &mut Session<A>, (time, input): (EventTime, Input<'static>)) {
+fn give<A: App>(session: &mut Session<A>, cursor: &mut Cursor, (time, input): (EventTime, Kept)) {
     let ui = &mut session.ui;
-    if ui.event(Event::new(TargetId::MAIN, time, input)).taken() {
-        serve_outputs(ui);
+    let answer = match &input {
+        Kept::Key(key) => ui.event(Event::new(TargetId::MAIN, time, Input::Key(key))),
+        Kept::Other(input) => ui.event(Event::new(TargetId::MAIN, time, *input)),
+    };
+    if answer.taken() {
+        serve_outputs(ui, cursor);
     }
 }
 
-/// Reads the window's outputs and serves them: the clipboard's reads answered with no text until
-/// the host has a clipboard (M6d.8); the cursor's shape and the input method wait for theirs.
-fn serve_outputs(ui: &mut uwui::tree::Ui) {
+/// Reads the window's outputs and serves them: the cursor's shape; the clipboard's reads answered
+/// with no text until the host has a clipboard, and the input method waiting for its own (M6d.8).
+fn serve_outputs(ui: &mut uwui::tree::Ui, cursor: &mut Cursor) {
     let outputs = ui.outputs(TargetId::MAIN);
+    if let Some(shape) = outputs.cursor {
+        cursor.set(shape);
+    }
     for read in outputs.clipboard_reads {
         let input = Input::ClipboardText { read, text: None };
         let _ = ui.event(Event::new(
@@ -482,6 +695,22 @@ fn serve_outputs(ui: &mut uwui::tree::Ui) {
             EventTime::received(clock::now()),
             input,
         ));
+    }
+}
+
+/// Activates the window with the token that started the program, if the environment holds one:
+/// the launcher that started it lets it take the focus so. The variable stays set: a token is
+/// spent once, so a program that the application starts in turn and that reads it is refused.
+fn activate_at_start(objects: &Objects) {
+    let token = std::env::var("XDG_ACTIVATION_TOKEN").unwrap_or_default();
+    if token.is_empty() {
+        return;
+    }
+    match &objects.activation {
+        Some(activation) => activation.activate(token, &objects.surface),
+        None => tracing::info!(
+            "the compositor gives no xdg_activation_v1: the start's token goes unused"
+        ),
     }
 }
 
@@ -496,17 +725,20 @@ mod tests {
 
     use super::*;
 
-    fn moved(at: u64, x: f32) -> (EventTime, Input<'static>) {
+    fn moved(at: u64, x: f32) -> (EventTime, Kept) {
         (
             EventTime::received(Instant::from_nanos(at)),
-            Input::PointerMoved { x, y: 0.0 },
+            Kept::Other(Input::PointerMoved { x, y: 0.0 }),
         )
     }
 
-    fn told(inputs: &[(EventTime, Input<'static>)]) -> Vec<String> {
+    fn told(inputs: &[(EventTime, Kept)]) -> Vec<String> {
         inputs
             .iter()
-            .map(|(time, input)| format!("{} {input:?}", time.at.as_nanos()))
+            .map(|(time, input)| match input {
+                Kept::Other(input) => format!("{} {input:?}", time.at.as_nanos()),
+                Kept::Key(key) => format!("{} {key:?}", time.at.as_nanos()),
+            })
             .collect()
     }
 
@@ -514,7 +746,7 @@ mod tests {
     fn the_pointers_moves_are_gathered_and_the_last_held_while_a_frame_waits() {
         let left = (
             EventTime::received(Instant::from_nanos(3)),
-            Input::PointerLeft,
+            Kept::Other(Input::PointerLeft),
         );
         let mut held = None;
         // Two moves then the pointer leaving: the last move before it, the first dropped.
@@ -530,5 +762,53 @@ mod tests {
         let given = gather(Vec::new(), &mut held, false);
         assert_eq!(told(&given), ["5 PointerMoved { x: 5.0, y: 0.0 }"]);
         assert!(held.is_none());
+    }
+
+    #[test]
+    fn the_window_draws_at_the_fractional_scale_through_its_viewport() {
+        let scale = Scale {
+            fractional: Some(180),
+            integer: Some(2),
+        };
+        // 1.5: 721 × 1.5 is 1081.5, rounded away from zero.
+        assert_eq!(
+            scale.drawn([721, 480], true),
+            Drawn {
+                pixels: [1082, 720],
+                scale: 1.5,
+                buffer_scale: 1,
+                destination: Some([721, 480]),
+            }
+        );
+        // Without a viewport, the integer scale, through the buffer's.
+        assert_eq!(
+            scale.drawn([721, 480], false),
+            Drawn {
+                pixels: [1442, 960],
+                scale: 2.0,
+                buffer_scale: 2,
+                destination: None,
+            }
+        );
+    }
+
+    #[test]
+    fn without_a_scale_or_with_a_wrong_one_the_window_draws_at_one() {
+        let one = Drawn {
+            pixels: [720, 480],
+            scale: 1.0,
+            buffer_scale: 1,
+            destination: None,
+        };
+        assert_eq!(Scale::default().drawn([720, 480], true), one);
+        let wrong = Scale {
+            fractional: Some(0),
+            integer: Some(-3),
+        };
+        assert_eq!(wrong.drawn([720, 480], true), one);
+        // A side of zero counts as one.
+        assert_eq!(Scale::default().drawn([0, 0], false).pixels, [1, 1]);
+        assert_eq!(pixels(f64::MAX), u32::MAX);
+        assert_eq!(pixels(0.2), 1);
     }
 }

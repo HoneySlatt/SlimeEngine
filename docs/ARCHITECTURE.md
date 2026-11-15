@@ -2168,18 +2168,23 @@ run ─▶ wayland::run: connects (WAYLAND_DISPLAY), makes the xdg-shell window,
        and SIGHUP's handler
      ─▶ Session::start: Ui::new(look's fonts), Ui::set_style(look's sheets, themes), App::start
      ─▶ each turn of the loop:
-          the compositor's events dispatched: a configure acknowledged and the surface resized,
-            a closing asked, a frame callback come, the pointer's events with their times
-            anchored on the host's clock (anchor)
+          the compositor's events dispatched: a configure acknowledged, a closing asked, a frame
+            callback come, the scale preferred, a token of activation given; the pointer's and
+            the keyboard's events with their times anchored on the host's clock (anchor), each
+            key through libxkbcommon (xkb), its repeat due (repeat)
+          the window drawn at its scale: the viewport's destination or the buffer's scale asked,
+            the images sized round(logical × scale)
           a termination signal or a closing ─▶ App::close_requested ─▶ Allow ends the run
           an event of the window, a wake of another thread (eventfd) ─▶ Pacing::asked_from_outside
-          the person's input ─▶ Ui::event, the pointer's last move held while a frame waits
-          App::step, then the window's requests (title, minimum size, fullscreen)
+          the person's input ─▶ Ui::event, the pointer's last move held while a frame waits; the
+            cursor's shape that the outputs ask ─▶ wp_cursor_shape_v1
+          App::step, then the window's requests (title, minimum size, fullscreen, activation)
           Pacing::next(now, changed or Ui::needs_frame, Ui::next_frame_due):
             Frame ─▶ acquire the image, Ui::set_target_size, Ui::set_frame_shown(on the grid),
                      Ui::frame, uwui-render draws, wl_surface.frame asked, present (the driver's
                      commit carries the callback)
-            WaitUntil, Wait ─▶ poll on the socket, the eventfd and a timerfd on CLOCK_BOOTTIME
+            WaitUntil, Wait ─▶ poll on the socket, the eventfd and a timerfd on CLOCK_BOOTTIME,
+                     armed for the earliest of the pacing's deadline and the key's repeat
      ─▶ App::stop, after a failure of the host too, then the window and its device dropped; the
         process exits with 0, or with EXIT_HOST_FAILED or EXIT_START_FAILED, the failure told on
         the standard error
@@ -2192,7 +2197,7 @@ for its own changes, and an event of the window or a wake runs a frame once the 
 as
 [ADR-0187](adr/0187-a-hidden-window-at-rest.md) says. The time given is on the grid of the
 callbacks, its period measured from their gaps. Frames are not yet drawn just in time, nor timed by
-the presentations' feedback (M6d.7a2).
+the presentations' feedback (M6d.7a2c).
 
 ### The development channel
 

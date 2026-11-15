@@ -107,8 +107,14 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Followed at [M6d.7a2b](stage-6d.md#m6d7a2b--the-host-made-robust), the owner's choice of 2026-11-15.
 - **uwui's desktop host measures the display's period rather than reading it** ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
   The time on the grid adds whole periods to the last frame callback; the period is the median of the callbacks' gaps while frames follow each other, and before any is measured the frame's start is given.
-  ADR-0227 asks for the display's rate first: no `wl_output` is bound, and a program whose frames all miss one refresh measures twice the period.
+  ADR-0227 asks for the display's rate first: the outputs are bound for their scale alone, and a program whose frames all miss one refresh measures twice the period.
   Followed at M6d.7a2c, whose presentations' times give the refresh of the display that shows the window.
+- **uwui's desktop host shows the compositor's cursor where `wp_cursor_shape_v1` is missing** ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
+  The interface's shapes, the I-beam over a field and the arrows over a splitter, show only through that protocol, which sway, KWin and Mutter give; elsewhere the cursor is whatever the compositor last showed.
+  Drawing a theme's images needs `wayland-cursor`, a dependency put to the owner once a compositor of the field lacks the protocol.
+- **uwui's desktop host follows no global that comes during its run** ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
+  A seat added later gives no pointer or keyboard, and an output plugged later is not bound: where the compositor prefers no scale for the surface, as Weston, a window moved onto it keeps the scale of the outputs known at its start.
+  Followed at M6d.7e, whose several windows follow the outputs.
 - **`scripts/input-to-present.sh` loses part of its inputs** ([ADR-0200](adr/0200-applications-measured-from-outside.md)).
   It runs `wlrctl` once an input; each run makes a virtual pointer or keyboard and destroys it at once.
   A headless sway gives its seat a pointer only while one exists: a window binds it too late, and the input goes nowhere.

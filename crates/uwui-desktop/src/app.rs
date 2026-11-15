@@ -94,6 +94,18 @@ pub(crate) struct Requests {
     pub(crate) min_size: bool,
     /// The application asked to fill the screen, or to stop.
     pub(crate) fullscreen: Option<bool>,
+    /// The application asked the window to be brought to the front, or to ask for attention: the
+    /// last request made.
+    pub(crate) activation: Option<Activation>,
+}
+
+/// What the application asks of the system for its window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Activation {
+    /// Brought to the front, given the focus.
+    Front,
+    /// Shown as asking for the person's attention, its focus left where it is.
+    Attention,
 }
 
 impl Window {
@@ -166,6 +178,23 @@ impl Window {
     /// Asks the compositor to fill the screen with the window, without borders, or to stop.
     pub fn set_fullscreen(&mut self, fullscreen: bool) {
         self.requests.fullscreen = Some(fullscreen);
+    }
+
+    /// Asks the system to bring the window to the front and give it the focus. The system chooses:
+    /// it may refuse a window that the person is not using, so that it does not take the keys from
+    /// another program, and show it as asking for attention instead. On Wayland, the request names
+    /// the person's last press of a key or a button in the window, and does nothing where the
+    /// compositor gives no `xdg_activation_v1`, as Weston.
+    pub fn bring_to_front(&mut self) {
+        self.requests.activation = Some(Activation::Front);
+    }
+
+    /// Asks the system to show that the window wants the person's attention, as its entry in a
+    /// task bar marked, without taking the focus. On Wayland, through `xdg_activation_v1`, which
+    /// some compositors read as a request to bring it to the front; nothing where the compositor
+    /// does not give it.
+    pub fn request_attention(&mut self) {
+        self.requests.activation = Some(Activation::Attention);
     }
 
     /// Closes the window, as the application chose: the run ends after this step, through

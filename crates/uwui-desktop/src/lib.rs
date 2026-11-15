@@ -42,7 +42,8 @@
 //! (`pacing`), the anchor of the events' times (`anchor`), the wakes of other threads and the
 //! termination signals (`wake`), and the application's run (`session`). Wayland's layer
 //! (`wayland`) is the only one: X11, Windows and macOS have theirs at M6d.7's next parts, and
-//! [`run`] there says that it has none and ends.
+//! [`run`] there says that it has none and ends. The keyboard's code of libxkbcommon (`xkb`) is
+//! Linux's, which X11's layer will share.
 //!
 //! No type of a platform's library appears in its public API.
 // A public enumeration may gain cases without breaking a program; one closed by nature says why
@@ -83,6 +84,8 @@ mod clock;
 mod gpu;
 #[cfg(target_os = "linux")]
 mod wayland;
+#[cfg(target_os = "linux")]
+mod xkb;
 
 pub use app::{App, Close, Look, Window, WindowSettings};
 
