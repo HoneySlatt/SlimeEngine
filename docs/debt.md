@@ -98,7 +98,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **uwui's desktop host ends on a lost device or surface** ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
   M6d.7a1's host configures a surface outdated or lost once again, then ends with `EXIT_HOST_FAILED`; a device lost ends it at its next frame.
   The engine makes both again within a budget ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)); the host does not yet, and no test loses them.
-  Followed at M6d.7a2, which makes the host whole on Wayland: its card does not name it yet, and gains it at its start if the owner agrees.
+  Followed at [M6d.7a2](stage-6d.md#m6d7a2--wayland-whole-and-the-host-measured), whose card names it since 2026-11-15, the owner's choice.
 - **uwui's desktop host measures the display's period rather than reading it** ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
   The time on the grid adds whole periods to the last frame callback; the period is the median of the callbacks' gaps while frames follow each other, and before any is measured the frame's start is given.
   ADR-0227 asks for the display's rate first: no `wl_output` is bound, and a program whose frames all miss one refresh measures twice the period.

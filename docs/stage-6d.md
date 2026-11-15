@@ -2368,10 +2368,13 @@ The second part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-
 - **Delivers.** The keyboard through libxkbcommon, the cursor's shapes, the fractional scale,
   activation; the presentations' times read, given as predicted; frames drawn just in time; a
   blank window on winit and wgpu; a tool that runs both in turn in one compositor and measures the
-  start, memory, the binary, rest and input to present; the crash report and the session's marker.
+  start, memory, the binary, rest and input to present; the crash report and the session's marker;
+  a lost device and a lost surface made again within
+  [ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)'s
+  budget, the owner's choice of 2026-11-15.
 - **Done when.** Input to present within 4.17 ms at the 99th percentile in a headless sway at
   240 Hz, inputs in motion and at rest, on the GPU with the owner's go; a program made to crash
-  leaves its report; CI is green.
+  leaves its report; a device and a surface lost on purpose drawn again; CI is green.
 - **Measured.** The host's own cost above the blank window, in one run; the applications' budgets'
   first figures, in uwui's repository.
 
