@@ -11,15 +11,18 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-base64.workspace = true
-# Writes the captures that it returns as PNG images.
-png.workspace = true
 rmcp.workspace = true
 serde.workspace = true
 slime-channel.workspace = true
 tokio.workspace = true
+# uwui's MCP library, on which the server stands: the interface's tools, a page of a list, a
+# program's faults as tools' errors (ADR-0269).
+uwui-mcp.workspace = true
 
 [dev-dependencies]
+# The sessions' tests read the captures that the server returns: PNG images, in base64.
+base64.workspace = true
+png.workspace = true
 serde_json.workspace = true
 
 # Drives Hunna Wood, and checks that it is at rest while paused; it needs a Wayland compositor and
@@ -78,6 +81,13 @@ harness = false
 # headless Weston (ADR-0193).
 [[test]]
 name = "resources"
+test = false
+harness = false
+
+# The engine's answer through the server, measured on the `editor` example's window: a measure, not
+# a check, run by hand in a headless Weston (docs/measurements.md).
+[[test]]
+name = "answer"
 test = false
 harness = false
 

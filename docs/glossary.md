@@ -184,6 +184,9 @@ engine's UI framework draws its *display list* through it, glyphs as images of t
 core's session the bytes that came, and sends the bytes that the session gives back. The engine's,
 on the desktop, is `slime-channel`'s listener and client, on the machine's own address with a
 *token* ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)).
+For uwui's *MCP* library, the carrier is what takes its requests to a program, a request at a
+time: `uwui_mcp::Carrier`, which an MCP server's own type is, `slime-mcp`'s over the engine's
+([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
 
 **Cascade (cascaded shadow maps).** One of the *shadow maps* that together hold the shadows of a
 directional light: what the camera sees up to the light's shadow distance is split along its axis
@@ -990,7 +993,9 @@ but not its textures, its sidedness or the kind of its alpha mode (`Material::se
 Code and Codex, call the tools of other programs. The engine's own server, `slime-mcp`, lets them
 drive a running game through its *development channel*, and edit a level through the editor's
 program ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md),
-[ADR-0122](adr/0122-the-development-channel.md), [ADR-0135](adr/0135-the-editors-program.md)).
+[ADR-0122](adr/0122-the-development-channel.md), [ADR-0135](adr/0135-the-editors-program.md)). It
+stands on uwui's MCP library, `uwui-mcp`, which gives the interface's tools to any program on uwui
+([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
 
 **Meaning (interface).** What an interface's tree says to whoever reads it without seeing it, an
 agent or a screen reader: each element that a person reads or uses, its *role*, its name, a

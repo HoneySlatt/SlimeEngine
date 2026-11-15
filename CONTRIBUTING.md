@@ -107,6 +107,7 @@ scripts/canvas-cost.sh [--gpu] [--runs <count>]           # measure what the ren
 cargo test --release -p uwui-agent --test request_memory -- --nocapture  # measure what a request's line costs in memory as it is read (ADR-0250)
 cargo test --release -p slime-app --features development --test channel -- --ignored frames_with_agents --nocapture  # measure a run's frames with agents at the channel's bounds (ADR-0250)
 cargo test --release -p slime-editor --lib journal_pages_timed -- --ignored --nocapture  # measure a page of the editor's journal on the editor's thread, on Linux (ADR-0265)
+cargo test --release -p slime-mcp --test answer -- <cooked examples>  # time the engine's answer through its MCP server, the editor's window in a headless Weston with lavapipe (ADR-0269)
 scripts/uwui-program.sh [--features <list>]               # measure what a program on uwui compiles: crates, build times, binary (ADR-0180)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
@@ -644,6 +645,6 @@ SlimeEngine is to be licensed under a licence of its own, with a royalty above a
 code are not accepted before 0.14; from then, under a contributor licence agreement, by which the
 contributor keeps the copyright and grants the owner the right to use, sell and license it again.
 uwui's crates, `crates/uwui`, `crates/uwui-accesskit`, `crates/uwui-agent`, `crates/uwui-kdl`,
-`crates/uwui-macros` and `crates/uwui-render`, are under MIT OR Apache-2.0, and take
+`crates/uwui-macros`, `crates/uwui-mcp` and `crates/uwui-render`, are under MIT OR Apache-2.0, and take
 contributions under both, without further terms. The examples are under MIT-0, code made to be
 copied into games ([ADR-0219](docs/adr/0219-test-games-in-place-of-hunna-wood.md)).

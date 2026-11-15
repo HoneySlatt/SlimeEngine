@@ -7,7 +7,7 @@ mod message;
 mod token;
 mod wire;
 
-pub use client::{Client, Launched, Notice, Pending, launch, launch_unless};
+pub use client::{Canceller, Client, Launched, Notice, Outcome, Pending, launch, launch_unless};
 pub use error::ChannelError;
 pub use listener::{Incoming, Listener};
 pub use message::{
@@ -115,6 +115,7 @@ mod threads {
         send_and_sync::<Listener>();
         send_and_sync::<Incoming>();
         send::<crate::Pending>();
+        send_and_sync::<crate::Canceller>();
         send_and_sync::<Client>();
     }
 }

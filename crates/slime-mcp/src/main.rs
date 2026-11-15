@@ -16,7 +16,7 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use base64::Engine as _;
+use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerConfig};
 use rmcp::service::RequestContext;
@@ -25,8 +25,11 @@ use rmcp::{
     tool_router,
 };
 use serde::Deserialize;
-use slime_channel::interface::{self, Action as InterfaceAction};
 use slime_channel::{Client, Edit, Fault, Named, Reply, Request, Token, json_size, launch};
+use uwui_mcp::{
+    Answer, Carrier, LIST_TIME, PAGE_BYTES, Sent, Value, agent_of, failure, fault, image,
+    interface_tools, next_line, page_bytes, text,
+};
 
 /// How long a game is given to say where it listens, by default: `cargo run` may build it first.
 const START_TIMEOUT: Duration = Duration::from_secs(600);
@@ -38,13 +41,6 @@ const STOP_TIMEOUT: Duration = Duration::from_secs(120);
 const TAIL: u64 = 4096;
 /// The server's version, the workspace's.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-/// The most bytes of JSON that a page of a list holds, so that what a tool prints stays well
-/// within what an agent's client takes whole: Claude Code moves an output past 25,000 tokens, or
-/// 50,000 characters, into a file
-/// (`docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md`).
-const PAGE_BYTES: u64 = 32 << 10;
-/// How long a list tool gathers the game's pages before it gives what it has, and their `next`.
-const LIST_TIME: Duration = Duration::from_secs(5);
 /// What the server tells an agent of its tools.
 const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its development channel. \
      Start it with `start_game`; `pause` it, `step` it, `resume` it, `set_speed` changes the speed \
@@ -100,24 +96,22 @@ fn server() -> Named {
     Named::new(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
 }
 
-/// The most characters of the agent's name and of its version that the server names to a game: a
-/// game refuses a hello past 4 KiB, and a client's name is what it says it is.
-const MAX_NAME: usize = 200;
-
-/// The agent that sent a request, as its MCP client names itself, each part cut to [`MAX_NAME`]
-/// characters; unnamed when it gives no name.
-fn agent_of(context: &RequestContext<RoleServer>) -> Named {
-    let cut = |text: String| text.chars().take(MAX_NAME).collect::<String>();
-    context.client_info().map_or_else(
-        || Named::new("an unnamed agent", ""),
-        |client| Named::new(cut(client.name), cut(client.version)),
-    )
-}
-
-/// The server: at most one game at a time.
-#[derive(Clone, Default)]
+/// The server: at most one game at a time. It carries the requests of uwui's MCP library, the
+/// interface's tools, to the game (`docs/adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md`).
+#[derive(Clone)]
 struct Server {
     game: Arc<Mutex<Option<Game>>>,
+    /// Its tools, its own and the library's, shared by its clones, one for each request.
+    tools: Arc<ToolRouter<Self>>,
+}
+
+impl Server {
+    fn new() -> Self {
+        Self {
+            game: Arc::default(),
+            tools: Arc::new(Self::tool_router() + interface_tools::<Self>()),
+        }
+    }
 }
 
 /// What `start_game` takes.
@@ -279,83 +273,6 @@ struct Pick {
     y: u32,
 }
 
-/// What `find_elements` takes.
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct FindElements {
-    /// The role of the elements wanted, as AccessKit names roles, whatever its case: `Button`,
-    /// `Label`, `Image`, `List`, `ListItem`, `ScrollView`, `Dialog`, `Toolbar`, `Group`,
-    /// `TextInput`, `SearchInput`, `MultilineTextInput`, `SpinButton`, `CheckBox`, `Slider`,
-    /// `Details`, `TabList`, `Tab`, `TabPanel`, `Splitter`, `Menu`, `MenuBar`, `MenuItem`,
-    /// `MenuItemCheckBox`, `ComboBox`, `ListBox`, `ListBoxOption`, `Pane`, `ToggleButton`,
-    /// `RadioGroup`, `RadioButton`, `ProgressIndicator`, `Status`, `Alert`, `ColorWell`; any if
-    /// left out.
-    role: Option<String>,
-    /// What their names hold, whatever its case: a button's label, a text; any if left out.
-    name: Option<String>,
-    /// Where the page starts: the `next` that the page before gave, with the same `role` and
-    /// `name`; left out for the list's start.
-    cursor: Option<String>,
-    /// The most elements wanted on the page; left out for as many as fit.
-    limit: Option<u64>,
-}
-
-/// What `element_at` takes.
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct ElementAt {
-    /// The pixel's column, from the left, as in the image that `capture` gives.
-    x: u32,
-    /// Its row, from the top.
-    y: u32,
-}
-
-/// What `act_on_interface` takes.
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct ActOnInterface {
-    /// What to do, whatever its case: `press`, `focus` or `scroll` an element, `set_value` of a
-    /// field, a slider, two panels, a list to choose from or a color well, or `drop` a draggable
-    /// element `onto` a target, which must take it, as `find_elements` lists; or, without an
-    /// element, `next`, `previous`, `up`, `down`, `left`, `right` to move the focus as Tab and the
-    /// arrows do, `accept` as Enter does, `cancel` as Escape does, `command` to give the command
-    /// named `command` as a shortcut does.
-    action: String,
-    /// The element, by the path that `find_elements` gives: `main/bar/open`.
-    element: Option<String>,
-    /// For `scroll`, the offset from the start of the content, in logical pixels.
-    x: Option<f32>,
-    /// For `scroll`, the offset from its top.
-    y: Option<f32>,
-    /// For `command`, the command's name: `undo`.
-    command: Option<String>,
-    /// For `drop`, the target, by its path: a row of the editor's hierarchy,
-    /// `editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3`,
-    /// which takes the name of another, `…/rows/#5/content/name`.
-    onto: Option<String>,
-    /// For `drop`, where in the target, from its top, 0, to its bottom, 1; 0.5 if left out.
-    at: Option<f32>,
-    /// For `set_value`, the text that the field holds then, as a person who replaced what it holds
-    /// and committed would leave it; for a field of numbers, an expression of a finite number, in
-    /// a unit of its family where it has one: `2.5`, `sqrt(2)/2`, `10cm`; for a slider, a finite
-    /// number; for two panels, the share of the first, from 0 to 1; for a splitter, the share of
-    /// the two panels beside it that the first takes, from 0 to 1; for a list to choose from, one
-    /// of its options, `High`, or the place of one, from 0; for a color well, a hexadecimal code,
-    /// `#ff8000`.
-    value: Option<String>,
-}
-
-/// What `capture_element` takes.
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct CaptureElement {
-    /// The element, by the path that `find_elements` gives.
-    element: String,
-}
-
-/// What `element_style` takes.
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct ElementStyle {
-    /// The element, by the path that `find_elements` gives.
-    element: String,
-}
-
 /// What `drive_played_game` takes.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct DrivePlayed {
@@ -396,35 +313,6 @@ struct RunTests {
     arguments: Vec<String>,
 }
 
-/// A result that says what failed, which the agent reads.
-fn failure(message: impl Into<String>) -> CallToolResult {
-    CallToolResult::error(vec![ContentBlock::text(message.into())])
-}
-
-/// The result of a game's fault, `code` and `message`: a cursor that no longer holds says to list
-/// again from the start.
-fn fault(code: i64, message: String) -> CallToolResult {
-    if code == Fault::STALE {
-        failure(format!(
-            "the list changed whole since this cursor was given: list it again from its start, \
-             without `cursor` ({message})"
-        ))
-    } else {
-        failure(message)
-    }
-}
-
-/// The line that starts a page of a list that goes on: its cursor, first, as an agent's client
-/// may cut a long output.
-fn next_line(next: &str) -> String {
-    format!("next: {next} (give it as `cursor`, with the same other arguments, for the rest)")
-}
-
-/// A result of text.
-fn text(message: impl Into<String>) -> CallToolResult {
-    CallToolResult::success(vec![ContentBlock::text(message.into())])
-}
-
 /// The last bytes of the file at `path`, as text.
 fn tail(path: &PathBuf) -> String {
     let Ok(mut file) = File::open(path) else {
@@ -435,21 +323,6 @@ fn tail(path: &PathBuf) -> String {
     let mut bytes = Vec::new();
     let _ = file.read_to_end(&mut bytes);
     String::from_utf8_lossy(&bytes).into_owned()
-}
-
-/// `pixels`, `width` × `height` of four bytes each, as a PNG file.
-fn png(width: u32, height: u32, pixels: &[u8]) -> Result<Vec<u8>, String> {
-    let mut bytes = Vec::new();
-    let mut encoder = png::Encoder::new(&mut bytes, width, height);
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Eight);
-    encoder.set_source_srgb(png::SrgbRenderingIntent::Perceptual);
-    let mut writer = encoder.write_header().map_err(|error| error.to_string())?;
-    writer
-        .write_image_data(pixels)
-        .map_err(|error| error.to_string())?;
-    writer.finish().map_err(|error| error.to_string())?;
-    Ok(bytes)
 }
 
 /// Runs `command` to its end, and says how it ended, with the end of its output.
@@ -559,81 +432,109 @@ impl Server {
     async fn reply(&self, request: Request) -> Result<Result<(Reply, Vec<u8>), String>, McpError> {
         let game = Arc::clone(&self.game);
         tokio::task::spawn_blocking(move || {
-            // The connection that the request goes to, chosen under the lock, which the request
-            // does not hold while it waits for its answer.
-            let (client, to_played) = {
-                let mut slot = game.lock().unwrap_or_else(PoisonError::into_inner);
-                let Some(running) = slot.as_mut() else {
-                    return Err("no game runs: start one with `start_game`".to_owned());
-                };
-                if let Some(ended) = running.ended() {
-                    *slot = None;
-                    return Err(ended);
-                }
-                // What is not an editor's request reaches the game that the editor plays, while
-                // the game's tools drive it.
-                match &running.played {
-                    Some(played) if !matches!(request, Request::Edit { .. }) => {
-                        (Arc::clone(played), true)
-                    }
-                    _ => (Arc::clone(&running.client), false),
-                }
-            };
-            let error = match client.request(&request) {
-                Ok(answer) => return Ok(answer),
-                Err(error) => causes(&error),
-            };
-            // A request that failed on a connection that still serves, as one that timed out,
-            // leaves it as it is.
-            if !client.is_broken() {
-                return Err(error);
-            }
-            let mut slot = game.lock().unwrap_or_else(PoisonError::into_inner);
-            let Some(running) = slot.as_mut() else {
-                return Err(error);
-            };
-            if to_played {
-                let replaced = !running
-                    .played
-                    .as_ref()
-                    .is_some_and(|played| Arc::ptr_eq(played, &client));
-                if replaced {
-                    return Err(format!(
-                        "the game that the editor plays does not answer ({error}); the game's \
-                         tools drive another game meanwhile"
-                    ));
-                }
-                running.played = None;
-                return Err(format!(
-                    "the game that the editor plays does not answer ({error}): the game's tools \
-                     drive the editor again"
-                ));
-            }
-            if let Some(ended) = running.ended() {
-                *slot = None;
-                return Err(format!("{error}\n{ended}"));
-            }
-            if !Arc::ptr_eq(&running.client, &client) {
-                return Err(format!(
-                    "{error}; the server connected to the game again meanwhile: the request may \
-                     have run"
-                ));
-            }
-            Err(match Client::connect(running.address, &running.token, &running.agent, &server()) {
-                Ok(client) => {
-                    running.client = Arc::new(client);
-                    format!(
-                        "{error}; the server connected to the game again: the request may have run"
-                    )
-                }
-                Err(again) => format!(
-                    "{error}; connecting to the game again failed: {}",
-                    causes(&again)
-                ),
-            })
+            let to_editor = matches!(request, Request::Edit { .. });
+            let (client, to_played) = connection(&game, to_editor)?;
+            client
+                .request(&request)
+                .map_err(|error| recovered(&game, &client, to_played, &causes(&error)))
         })
         .await
         .map_err(|error| McpError::internal_error(error.to_string(), None))
+    }
+}
+
+impl Carrier for Server {
+    /// Sends the library's request to the game, as [`Server::ask`] sends the server's own: to the
+    /// game that an editor plays while the game's tools drive it, but for the editor's requests.
+    fn send(&self, method: &str, params: Value) -> Result<Sent, String> {
+        let game = Arc::clone(&self.game);
+        let (client, to_played) = connection(&game, method.starts_with("editing/"))?;
+        let pending = client
+            .send_call(method, params)
+            .map_err(|error| recovered(&game, &client, to_played, &causes(&error)))?;
+        let canceller = pending.canceller();
+        Ok(Sent::new(
+            move || match pending.wait_outcome() {
+                Ok((outcome, bytes)) => Ok(Answer { outcome, bytes }),
+                Err(error) => Err(recovered(&game, &client, to_played, &causes(&error))),
+            },
+            move || canceller.cancel(),
+        ))
+    }
+}
+
+/// The connection that a request goes to, chosen under the server's lock, which the request does
+/// not hold while it waits for its answer, and whether it is the one to the game that an editor
+/// plays: what is not an editor's request, `to_editor`, reaches that game while the game's tools
+/// drive it. A game that ended is forgotten, its end told.
+fn connection(game: &Mutex<Option<Game>>, to_editor: bool) -> Result<(Arc<Client>, bool), String> {
+    let mut slot = game.lock().unwrap_or_else(PoisonError::into_inner);
+    let Some(running) = slot.as_mut() else {
+        return Err("no game runs: start one with `start_game`".to_owned());
+    };
+    if let Some(ended) = running.ended() {
+        *slot = None;
+        return Err(ended);
+    }
+    Ok(match &running.played {
+        Some(played) if !to_editor => (Arc::clone(played), true),
+        _ => (Arc::clone(&running.client), false),
+    })
+}
+
+/// What a request that failed with `error` on `client` says, once what that failure needs is done:
+/// a request that failed on a connection that still serves, as one that timed out, leaves it as it
+/// is; once the connection to the program is lost, a new one replaces it; once the one to the
+/// game that an editor plays is, `to_played`, the game's tools drive the editor again.
+fn recovered(
+    game: &Mutex<Option<Game>>,
+    client: &Arc<Client>,
+    to_played: bool,
+    error: &str,
+) -> String {
+    let error = error.to_owned();
+    if !client.is_broken() {
+        return error;
+    }
+    let mut slot = game.lock().unwrap_or_else(PoisonError::into_inner);
+    let Some(running) = slot.as_mut() else {
+        return error;
+    };
+    if to_played {
+        let replaced = !running
+            .played
+            .as_ref()
+            .is_some_and(|played| Arc::ptr_eq(played, client));
+        if replaced {
+            return format!(
+                "the game that the editor plays does not answer ({error}); the game's tools drive \
+                 another game meanwhile"
+            );
+        }
+        running.played = None;
+        return format!(
+            "the game that the editor plays does not answer ({error}): the game's tools drive the \
+             editor again"
+        );
+    }
+    if let Some(ended) = running.ended() {
+        *slot = None;
+        return format!("{error}\n{ended}");
+    }
+    if !Arc::ptr_eq(&running.client, client) {
+        return format!(
+            "{error}; the server connected to the game again meanwhile: the request may have run"
+        );
+    }
+    match Client::connect(running.address, &running.token, &running.agent, &server()) {
+        Ok(client) => {
+            running.client = Arc::new(client);
+            format!("{error}; the server connected to the game again: the request may have run")
+        }
+        Err(again) => format!(
+            "{error}; connecting to the game again failed: {}",
+            causes(&again)
+        ),
     }
 }
 
@@ -653,22 +554,6 @@ fn paged(gathered: &mut Option<Reply>, reply: Reply) -> Option<String> {
             next.clone()
         }
         (
-            Some(Reply::Interface {
-                reply: interface::Reply::Elements { elements, next },
-            }),
-            Reply::Interface {
-                reply:
-                    interface::Reply::Elements {
-                        elements: more,
-                        next: then,
-                    },
-            },
-        ) => {
-            elements.extend(more);
-            *next = then;
-            next.clone()
-        }
-        (
             Some(Reply::Journal { text, next, lossy }),
             Reply::Journal {
                 text: more,
@@ -683,11 +568,7 @@ fn paged(gathered: &mut Option<Reply>, reply: Reply) -> Option<String> {
         }
         (_, reply) => {
             let next = match &reply {
-                Reply::Entities { next, .. }
-                | Reply::Journal { next, .. }
-                | Reply::Interface {
-                    reply: interface::Reply::Elements { next, .. },
-                } => next.clone(),
+                Reply::Entities { next, .. } | Reply::Journal { next, .. } => next.clone(),
                 _ => None,
             };
             *gathered = Some(reply);
@@ -696,19 +577,10 @@ fn paged(gathered: &mut Option<Reply>, reply: Reply) -> Option<String> {
     }
 }
 
-/// The bytes of JSON of a page that an agent asks `bytes` of: as many, at most [`PAGE_BYTES`];
-/// [`PAGE_BYTES`] when it asks none.
-fn page_bytes(bytes: Option<u64>) -> u64 {
-    bytes.map_or(PAGE_BYTES, |bytes| bytes.min(PAGE_BYTES))
-}
-
 /// How many items the pages gathered hold, and the bytes of JSON that they take.
 fn page_size(gathered: &Reply) -> (u64, u64) {
     let (count, size) = match gathered {
         Reply::Entities { entities, .. } => (entities.len(), json_size(entities)),
-        Reply::Interface {
-            reply: interface::Reply::Elements { elements, .. },
-        } => (elements.len(), json_size(elements)),
         Reply::Journal { text, .. } => (0, json_size(text)),
         _ => (0, 0),
     };
@@ -738,15 +610,6 @@ fn resumed(request: &Request, cursor: String, count: u64, bytes: u64) -> Option<
             limit,
             bytes: most,
             ..
-        }
-        | Request::Interface {
-            request:
-                interface::Request::Elements {
-                    cursor: at,
-                    limit,
-                    bytes: most,
-                    ..
-                },
         } => {
             if let Some(limit) = limit {
                 *limit = limit.checked_sub(count).filter(|&left| left > 0)?;
@@ -773,7 +636,7 @@ fn resumed(request: &Request, cursor: String, count: u64, bytes: u64) -> Option<
 fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
     match reply {
         Reply::Done => text("done"),
-        Reply::Failed { code, message } => fault(code, message),
+        Reply::Failed { code, message } => fault(Fault::new(code, message)),
         Reply::State { state } => text(format!(
             "frame {}, game time {}: {} fixed steps run, {:.3} s of game time, at a speed of {}; \
              {:.3} s of real time; frames of {:.2} ms on average, {:.2} ms at the longest, over the \
@@ -852,7 +715,8 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
             }
             text(said)
         }
-        Reply::Interface { reply } => describe_interface(reply, payload),
+        // The interface's tools ask through uwui's MCP library, which reads its family's replies.
+        Reply::Interface { reply } => failure(format!("the game answered {reply:?}")),
         Reply::Report { text: report } => text(report),
         Reply::Picked { entity, found } => text(if !found {
             "nothing is picked there".to_owned()
@@ -880,16 +744,7 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
             }));
             text(said.join("\n"))
         }
-        Reply::Image { width, height } => match png(width, height, payload) {
-            Ok(bytes) => CallToolResult::success(vec![
-                ContentBlock::text(format!("{width} × {height} pixels")),
-                ContentBlock::image(
-                    base64::engine::general_purpose::STANDARD.encode(bytes),
-                    "image/png",
-                ),
-            ]),
-            Err(error) => failure(format!("the image cannot be written as PNG: {error}")),
-        },
+        Reply::Image { width, height } => image(width, height, payload),
         Reply::History { history } => {
             let list = |labels: &[String]| {
                 if labels.is_empty() {
@@ -956,95 +811,6 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
         Reply::Played { address, .. } => text(format!(
             "the editor plays a game, which listens at {address}"
         )),
-    }
-}
-
-/// What the interface's `reply` says, with `payload`, the bytes that followed it.
-fn describe_interface(reply: interface::Reply, payload: &[u8]) -> CallToolResult {
-    match reply {
-        interface::Reply::Done => text("done"),
-        interface::Reply::Elements { elements, next } => {
-            let mut lines: Vec<String> = next.as_deref().map(next_line).into_iter().collect();
-            if elements.is_empty() {
-                lines.push("no element on this page".to_owned());
-            }
-            lines.extend(elements.into_iter().map(|element| {
-                let mut line = format!("{} — {}", element.path, element.role);
-                // The window draws the main target, 0; another one's element shows nowhere
-                // in its image.
-                if element.target != 0 {
-                    line.push_str(&format!(" on target {}", element.target));
-                }
-                if !element.name.is_empty() {
-                    line.push_str(&format!(" `{}`", element.name));
-                }
-                if let Some(value) = &element.value {
-                    line.push_str(&format!(", holding {value:?}"));
-                }
-                if let Some(description) = &element.description {
-                    line.push_str(&format!(", described {description:?}"));
-                }
-                if let Some(placeholder) = &element.placeholder {
-                    line.push_str(&format!(", showing {placeholder:?} while empty"));
-                }
-                if !element.states.is_empty() {
-                    line.push_str(&format!(", {}", element.states.join(", ")));
-                }
-                line.push_str(&match element.bounds {
-                    Some([x, y, width, height]) => {
-                        format!("; at ({x}, {y}), {width} × {height} pixels")
-                    }
-                    None => "; does not show".to_owned(),
-                });
-                if !element.actions.is_empty() {
-                    line.push_str(&format!("; takes {}", element.actions.join(", ")));
-                }
-                if !element.cut.is_empty() {
-                    line.push_str(&format!(" [cut: {}]", element.cut.join(", ")));
-                }
-                line
-            }));
-            text(lines.join("\n"))
-        }
-        interface::Reply::Image { width, height } => {
-            describe(Reply::Image { width, height }, payload)
-        }
-        interface::Reply::Style { places } => {
-            if places.is_empty() {
-                return text(
-                    "its code wrote no style of its own: the style sheets' rules alone style it",
-                );
-            }
-            text(
-                places
-                    .into_iter()
-                    .map(|place| {
-                        let declarations: Vec<String> = place
-                            .declarations
-                            .into_iter()
-                            .map(|declaration| {
-                                let mut said = declaration.field;
-                                if let Some(state) = declaration.state {
-                                    said.push_str(&format!(" when {state}"));
-                                }
-                                if let Some(token) = declaration.token {
-                                    said.push_str(&format!(" from the theme's token `{token}`"));
-                                }
-                                said
-                            })
-                            .collect();
-                        format!(
-                            "{}:{}:{} — {}",
-                            place.file,
-                            place.line,
-                            place.column,
-                            declarations.join(", ")
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            )
-        }
     }
 }
 
@@ -1306,156 +1072,6 @@ impl Server {
             view: view.unwrap_or_default(),
             x,
             y,
-        })
-        .await
-    }
-
-    #[tool(
-        description = "The elements of the game's interface, in the order of its tree, as its \
-                       last frame left them, whose role and name match: each by its path, which \
-                       names it to the other tools, its role, its name, what a field, a slider, \
-                       two panels or a list to choose from hold, its description (its tooltip), \
-                       the text that a field shows while empty, \
-                       its states (hovered, pressed, focused, disabled, checked, expanded, \
-                       selected, has_popup for what opens a menu or a list beside it), where it \
-                       shows in the image \
-                       that `capture` gives, and what it takes now (press, focus, scroll, \
-                       set_value). Boxes that only lay others out are left out. A page at a \
-                       time: a page that more follow starts with `next`, which `cursor` takes for \
-                       the rest. Texts too long for a page are cut, and marked; a cut path names \
-                       no element."
-    )]
-    async fn find_elements(
-        &self,
-        Parameters(FindElements {
-            role,
-            name,
-            cursor,
-            limit,
-        }): Parameters<FindElements>,
-    ) -> Result<CallToolResult, McpError> {
-        self.list(
-            Request::Interface {
-                request: interface::Request::Elements {
-                    role: role.unwrap_or_default(),
-                    name: name.unwrap_or_default(),
-                    cursor,
-                    limit,
-                    bytes: Some(PAGE_BYTES),
-                },
-            },
-            PAGE_BYTES,
-        )
-        .await
-    }
-
-    #[tool(
-        description = "The element of the game's interface at a pixel of its image, as the pointer \
-                       would reach it, or the nearest above it that means something, as \
-                       `find_elements` gives elements."
-    )]
-    async fn element_at(
-        &self,
-        Parameters(ElementAt { x, y }): Parameters<ElementAt>,
-    ) -> Result<CallToolResult, McpError> {
-        self.ask(Request::Interface {
-            // The pixel of the window's image that `capture` gives, which draws the main target.
-            request: interface::Request::ElementAt {
-                x,
-                y,
-                target: Some(0),
-            },
-        })
-        .await
-    }
-
-    #[tool(
-        description = "Acts in the game's interface as a person would: presses a button, gives an \
-                       element the focus, scrolls a box or a list, or gives a field, a slider, \
-                       two panels, a list to choose from or a color well a value, as \
-                       if a person replaced what it holds and committed, which must take it now; \
-                       or moves the focus, accepts, cancels or gives a command, as keys do. The \
-                       game reads what it asks as its frame goes on."
-    )]
-    async fn act_on_interface(
-        &self,
-        Parameters(act): Parameters<ActOnInterface>,
-    ) -> Result<CallToolResult, McpError> {
-        let action = match act.action.to_lowercase().as_str() {
-            "press" => InterfaceAction::Press,
-            "focus" => InterfaceAction::Focus,
-            "scroll" => match (act.x, act.y) {
-                (Some(x), Some(y)) => InterfaceAction::Scroll { x, y },
-                _ => return Ok(failure("`scroll` needs `x` and `y`")),
-            },
-            "set_value" => match act.value {
-                Some(value) => InterfaceAction::SetValue { value },
-                None => return Ok(failure("`set_value` needs `value`, the element's text")),
-            },
-            "drop" => match act.onto {
-                Some(onto) => InterfaceAction::Drop {
-                    onto,
-                    at: act.at.unwrap_or(0.5),
-                },
-                None => return Ok(failure("`drop` needs `onto`, the path of the target")),
-            },
-            "next" => InterfaceAction::Next,
-            "previous" => InterfaceAction::Previous,
-            "up" => InterfaceAction::Up,
-            "down" => InterfaceAction::Down,
-            "left" => InterfaceAction::Left,
-            "right" => InterfaceAction::Right,
-            "accept" => InterfaceAction::Accept,
-            "cancel" => InterfaceAction::Cancel,
-            "command" => match act.command {
-                Some(name) => InterfaceAction::Command { name },
-                None => return Ok(failure("`command` needs `command`, the command's name")),
-            },
-            other => {
-                return Ok(failure(format!(
-                    "no action `{other}`: `press`, `focus`, `scroll`, `set_value`, `drop`, \
-                     `next`, `previous`, `up`, `down`, `left`, `right`, `accept`, `cancel` or \
-                     `command`"
-                )));
-            }
-        };
-        self.ask(Request::Interface {
-            request: interface::Request::Act {
-                element: act.element.unwrap_or_default(),
-                action,
-            },
-        })
-        .await
-    }
-
-    #[tool(
-        description = "The part of the game's image where an element of its interface shows, by \
-                       the path that `find_elements` gives, once its next frame is drawn."
-    )]
-    async fn capture_element(
-        &self,
-        Parameters(CaptureElement { element }): Parameters<CaptureElement>,
-    ) -> Result<CallToolResult, McpError> {
-        self.ask(Request::Interface {
-            request: interface::Request::CaptureElement { element },
-        })
-        .await
-    }
-
-    #[tool(
-        description = "Where the code that wrote an element's own style is, by the path that \
-                       `find_elements` gives: each call's file, line and column, and the fields \
-                       that it set, `layout.padding.start`, each with the state that it holds \
-                       in, `Hovered`, and the theme's token that gives its value, where one \
-                       does, which a change of the theme rather than of the code changes. The \
-                       style sheets' rules are not listed."
-    )]
-    async fn element_style(
-        &self,
-        Parameters(ElementStyle { element }): Parameters<ElementStyle>,
-    ) -> Result<CallToolResult, McpError> {
-        self.ask(Request::Interface {
-            request: interface::Request::Style { element },
         })
         .await
     }
@@ -1727,7 +1343,7 @@ impl Server {
     }
 }
 
-#[tool_handler]
+#[tool_handler(router = self.tools)]
 impl ServerHandler for Server {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
@@ -1738,7 +1354,7 @@ impl ServerHandler for Server {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let server = Server::default();
+    let server = Server::new();
     let service = server.clone().serve(rmcp::transport::stdio()).await?;
     let served = service.waiting().await;
     // The agent is gone, or the service failed: a game still running goes with it.
@@ -1758,6 +1374,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
     use slime_channel::EntitySummary;
+
+    /// The server's own tools and the library's: none takes a name that another took, which the
+    /// router would replace silently.
+    #[test]
+    fn no_tool_takes_another_s_name() {
+        let own = Server::tool_router().list_all().len();
+        let library = interface_tools::<Server>().list_all().len();
+        assert_eq!(Server::new().tools.list_all().len(), own + library);
+    }
 
     fn entity(name: &str) -> EntitySummary {
         EntitySummary {
@@ -1798,20 +1423,6 @@ mod tests {
         assert_eq!(gathered, Some(stale));
     }
 
-    /// A cursor that no longer holds says to list again from the start; another fault says its
-    /// own message.
-    #[test]
-    fn a_stale_cursor_says_to_list_again() {
-        let said = |result: CallToolResult| {
-            assert_eq!(result.is_error, Some(true));
-            format!("{:?}", result.content)
-        };
-        let stale = said(fault(Fault::STALE, "another world".to_owned()));
-        assert!(stale.contains("list it again from its start"), "{stale}");
-        let refused = said(fault(Fault::REFUSED, "no such entity".to_owned()));
-        assert!(refused.contains("no such entity") && !refused.contains("list it again"));
-    }
-
     /// The rest of a list is asked from the last cursor, within what is left of its `limit`, and
     /// not at all once the limit is reached.
     #[test]
@@ -1836,22 +1447,6 @@ mod tests {
             None,
             "the limit reached"
         );
-        let unlimited = Request::Interface {
-            request: interface::Request::Elements {
-                role: String::new(),
-                name: String::new(),
-                cursor: None,
-                limit: None,
-                bytes: None,
-            },
-        };
-        let Some(Request::Interface {
-            request: interface::Request::Elements { cursor, limit, .. },
-        }) = resumed(&unlimited, "e".to_owned(), 40, 100)
-        else {
-            panic!("the rest of the elements");
-        };
-        assert_eq!((cursor.as_deref(), limit), (Some("e"), None));
         assert_eq!(resumed(&Request::State, "c".to_owned(), 0, 100), None);
     }
 
@@ -1921,14 +1516,5 @@ mod tests {
         );
         let half = journal(&"x".repeat(1022), Some("5"), false);
         assert_eq!(rest_of(&first, "5".to_owned(), &half, 2048), None);
-        assert_eq!(
-            (
-                page_bytes(None),
-                page_bytes(Some(10)),
-                page_bytes(Some(u64::MAX))
-            ),
-            (PAGE_BYTES, 10, PAGE_BYTES),
-            "an agent asks less, never more"
-        );
     }
 }

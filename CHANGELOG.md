@@ -11,6 +11,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `uwui-agent`, uwui's core for agents, under MIT OR Apache-2.0 (ADR-0246): a session without input
   or output, JSON-RPC 2.0 a message a line, a hello that names the agent, and families of requests
   each at its version.
+- `uwui-mcp`, uwui's MCP library, under MIT OR Apache-2.0 (ADR-0269): an agent reads and drives a
+  program on uwui through the Model Context Protocol, through the carrier that its server's type
+  is (`Carrier`, `Sent`, `ask`), a call that its agent cancels cancelling its request. It gives
+  the interface's tools (`interface_tools`), one way of reading a long list's pages (`gather`,
+  `List`, `Page`), a program's faults as tools' errors (`fault`), and the agent as its client
+  names itself, in MCP's handshake or in each request of MCP `2026-07-28` (`agent_of`). The
+  engine's MCP server serves its interface's tools through it. `slime-channel`'s `Client` sends a
+  request at the core's level (`send_call`, `Pending::wait_outcome`), and a request is cancelled
+  from another thread while one waits for it (`Pending::canceller`, `Canceller`).
 - `uwui-accesskit`, under MIT OR Apache-2.0 (ADR-0261, ADR-0262): any host of uwui gives screen
   readers a window's tree through `ScreenReaderTree`, beside its own AccessKit adapter. The crate
   re-exports `accesskit`, with which a host makes its window's node. `slime-app` depends on it in
@@ -169,6 +178,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `find_elements` give pages of some 32 KiB, `next` first, and `read_logs` says first which line to
   read after when more follow. A tool of before cannot
   list on a game of after, nor the reverse.
+- The MCP server's `element_at` takes an optional `target`, the number that `find_elements` gives
+  an element of another target, the window's, 0, when left out; its agent's name and version are
+  cut to 1,024 and 256 bytes of JSON, where it cut 200 characters of each (ADR-0269).
 - The editor's journal is read by pages (ADR-0265, ADR-0267): `editing/journal` (`editing` 2)
   takes its `params`, `{}` for the journal's start, with an optional `cursor` and `bytes`, and
   `Reply::Journal` gives `next` while the journal goes on and `lossy` when bytes that are not

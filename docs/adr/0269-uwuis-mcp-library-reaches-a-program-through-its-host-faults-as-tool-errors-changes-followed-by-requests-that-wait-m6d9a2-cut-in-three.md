@@ -9,7 +9,9 @@
   [0261](0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)
   (an agent follows the interface's changes by a request that waits, not an event) and
   [0265](0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md)
-  (a page that reaches the journal's end gives a cursor there)
+  (a page that reaches the journal's end gives a cursor there); amended by
+  [0272](0272-the-carriers-families-and-its-connections-state-join-it-at-their-first-reader.md)
+  (the carrier's families served and its connection's state join it at their first reader)
 - Date: 2026-11-15
 
 ## Context

@@ -1675,6 +1675,37 @@ mod tests {
     }
 
     #[test]
+    fn a_call_is_cancelled_from_another_thread_while_one_waits_for_its_outcome() {
+        let (listener, token) = opened();
+        let client =
+            Client::connect(listener.address(), &token, &agent(), &client()).expect("accepted");
+        // A call at the core's level, held by the game as an edit that waits for a drag's end,
+        // cancelled while another thread waits for it.
+        let pending = client.send_call("play/pause", Value::Null).expect("sent");
+        let canceller = pending.canceller();
+        let waiting = thread::spawn(move || pending.wait_outcome());
+        let held = taken(&listener);
+        assert_eq!(held.request(), &Request::Pause);
+        canceller.cancel();
+        eventually("the game sees it cancelled", || held.cancelled());
+        held.cancel();
+        let (outcome, bytes) = waiting
+            .join()
+            .expect("the thread waited")
+            .expect("answered");
+        assert_eq!(outcome.map_err(|fault| fault.code), Err(Fault::CANCELLED));
+        assert!(bytes.is_empty());
+        // A call answered gives its result as the core read it.
+        let pending = client.send_call("play/state", Value::Null).expect("sent");
+        taken(&listener).answer(Reply::Done);
+        let (outcome, _) = pending.wait_outcome().expect("answered");
+        assert_eq!(
+            outcome,
+            Ok(uwui_agent::write(&Reply::Done).expect("written"))
+        );
+    }
+
+    #[test]
     fn a_connection_that_closes_cancels_what_the_game_holds_of_it() {
         let (listener, token) = opened();
         let client =

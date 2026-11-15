@@ -79,6 +79,7 @@ if runs lint; then
     cargo clippy --locked -p slime-mcp --test edit_window -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit_zone -- -D warnings
     cargo clippy --locked -p slime-mcp --test resources -- -D warnings
+    cargo clippy --locked -p slime-mcp --test answer -- -D warnings
     cargo clippy --locked -p slime-mcp --test compositor -- -D warnings
     # The game built for shipping, without the development channel (ADR-0122): the code that stands in
     # for the channel is compiled only there.
@@ -95,6 +96,7 @@ if runs lint; then
     cargo clippy --locked -p slime-mcp --test edit_window --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit_zone --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test resources --target x86_64-pc-windows-msvc -- -D warnings
+    cargo clippy --locked -p slime-mcp --test answer --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test compositor --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p hunnawood --no-default-features --all-targets --target x86_64-pc-windows-msvc -- -D warnings
 
@@ -169,6 +171,13 @@ if runs lint; then
         --all-features --prefix none)
     if grep -E '^(uwui|slime)-' <<< "$uwui_agent_dependencies" | grep -v '^uwui-agent '; then
         echo "uwui-agent depends on the crates above"
+        exit 1
+    fi
+    # uwui's MCP library depends on no crate of the engine's: the engine's families are added by
+    # slime-mcp (ADR-0269).
+    uwui_mcp_dependencies=$(cargo tree --locked -p uwui-mcp -e normal --target all --prefix none)
+    if grep -E '^slime-' <<< "$uwui_mcp_dependencies"; then
+        echo "uwui-mcp depends on the engine crates above"
         exit 1
     fi
 
@@ -473,6 +482,11 @@ if runs headless; then
             cargo build --locked -p hunnawood "${flags[@]}"
         fi
         crates=$(cargo tree --locked -p hunnawood "${flags[@]}" -e normal --target all --prefix none)
+        # No application links an MCP server's crates: rmcp is under Apache-2.0 alone (ADR-0269).
+        if grep -E '^(uwui-mcp|rmcp) ' <<< "$crates"; then
+            echo "the game built for $build holds the MCP crates above"
+            exit 1
+        fi
         features=$(cargo tree --locked -p hunnawood "${flags[@]}" -e features --target all -i uwui \
             --prefix none)
         found=()

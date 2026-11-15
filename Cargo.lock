@@ -3234,6 +3234,7 @@ dependencies = [
  "serde_json",
  "slime-channel",
  "tokio",
+ "uwui-mcp",
 ]
 
 [[package]]
@@ -3812,6 +3813,20 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.8",
+]
+
+[[package]]
+name = "uwui-mcp"
+version = "0.6.0"
+dependencies = [
+ "base64",
+ "png",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uwui",
+ "uwui-agent",
 ]
 
 [[package]]

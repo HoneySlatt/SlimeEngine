@@ -4261,3 +4261,30 @@ How long CI's jobs took on `83e2e87`, the commits of the targets' sizes, on 2026
 | `compositors (mutter)` | 13 min 18 s |
 | `compositors (x11)` | 14 min 44 s |
 | Docs' `links` | 19 s |
+
+## M6d.9a2a, uwui's MCP library
+
+On 2026-11-15, on an AMD Ryzen 7 5800X, the machine at rest before each pass (load under 1, no
+`cargo` nor `rustc` running, the other track holding its builds), in release builds: the engine's
+answer through its MCP server, as `slime-mcp`'s measure `answer` takes it
+(`cargo test --release -p slime-mcp --test answer -- <cooked examples>`), the `editor` example's
+window on a copy of the yard in a headless Weston, drawn with lavapipe. Each call is timed from the
+line that the agent writes to the line that it reads: the median and the slowest of 21, after three
+to warm up. Before is `60c6634`, the server's own tools of the interface, built in a worktree of
+its own; after is M6d.9a2a's working tree, those tools through `uwui-mcp`. Five passes each,
+alternated; the median of the five passes' medians.
+
+| Call | Before | After |
+|---|---|---|
+| `game_state` | 16.71 ms | 16.72 ms |
+| `find_elements`, the editor's whole interface, 12.4 kB of text | 17.46 ms | 17.47 ms |
+| `editor_journal`, its first page, 1.3 kB of text | 15.81 ms | 15.82 ms |
+| the slowest of 21, across the calls and the passes | 15.9 to 20.8 ms | 15.9 to 20.2 ms |
+
+The third pass after saw the load rise to 1.3 while it ran, and is marked disturbed: its medians,
+16.15, 18.19 and 15.17 ms, stray from the others' by up to 0.7 ms; without it, the medians are the
+same to 0.01 ms. A call waits for the editor's next frame, which the compositor paces at 60 Hz: the
+floor of some 16.7 ms is one frame, and hides what the library adds, under 0.05 ms. The texts after
+are two bytes longer, the level's path in the measure's own directory. The channel's own answer,
+without a frame, is [M6d.9a1a's](#m6d9a1a-the-development-channel-on-uwuis-core-for-agents)
+figure. The lowest machine supported is not measured.

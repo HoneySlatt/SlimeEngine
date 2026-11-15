@@ -123,6 +123,10 @@ game.join().expect("the game answered");
   agent and the program that carries its requests, and `Client::request`
   sends a `Request` and waits for its `Reply`, from any thread; `Client::send` sends it without
   waiting, its `Pending` answer read with `Pending::wait` or given up with `Pending::cancel`.
+  A tool that speaks a family at the core's level, as uwui's MCP library does, sends with
+  `Client::send_call`, a method and its JSON, and reads the answer as the core read it with
+  `Pending::wait_outcome`; `Pending::canceller` gives what cancels the request from another thread
+  while one waits for it (`Canceller`).
   `Client::connect_with` hands each event and the connection's end to a function of the tool's,
   on the client's own thread, and `Client::subscribe` subscribes. The game's standard input is a pipe that the tool
   holds, and the game ends once it closes, so that no game outlives the tool that started it.

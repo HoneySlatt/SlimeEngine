@@ -28,8 +28,9 @@ const ANSWER_TIMEOUT: Duration = Duration::from_secs(600);
 /// What a request's answer is: the reply, and the bytes that follow it.
 type Answer = Result<(Reply, Vec<u8>), ChannelError>;
 
-/// An answer as the core's session read it: its outcome, and the bytes that follow it.
-type Raw = Result<(Result<Value, Fault>, Vec<u8>), ChannelError>;
+/// An answer as the core's session read it, before a family reads it: its outcome, a result or the
+/// game's fault, and the bytes that follow it ([`Pending::wait_outcome`]).
+pub type Outcome = Result<(Result<Value, Fault>, Vec<u8>), ChannelError>;
 
 /// What a client tells its owner, on the thread that reads the connection
 /// ([`Client::connect_with`]).
@@ -77,7 +78,7 @@ struct State {
     session: ToolSession,
     /// Where each request in flight waits for its answer, by number; a request given up is no
     /// longer here, and its answer, which still comes, is dropped.
-    waiting: HashMap<u64, mpsc::Sender<Raw>>,
+    waiting: HashMap<u64, mpsc::Sender<Outcome>>,
     /// Why the connection broke, once it did.
     broken: Option<Broken>,
 }
@@ -104,7 +105,7 @@ impl Broken {
 /// A request in flight, whose answer comes later ([`Pending::wait`]).
 pub struct Pending {
     id: u64,
-    answer: mpsc::Receiver<Raw>,
+    answer: mpsc::Receiver<Outcome>,
     shared: Arc<Shared>,
     /// Whether it asked the interface, whose family's own reply its answer reads as.
     of_interface: bool,
@@ -303,6 +304,17 @@ impl Client {
         Ok(pending)
     }
 
+    /// Sends a request of the core, `method`, `family/name`, with `params`, as [`Client::send`]
+    /// does, for a tool that speaks a family at the core's level, as uwui's MCP library does: its
+    /// answer is read by [`Pending::wait_outcome`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Client::send`].
+    pub fn send_call(&self, method: &str, params: Value) -> Result<Pending, ChannelError> {
+        self.send_with(|session| session.request(method, params.clone()))
+    }
+
     /// Sends the request that `numbered` makes of the session, once a place in flight is free, as
     /// [`Client::send`] says.
     fn send_with(
@@ -394,8 +406,28 @@ impl Pending {
         })
     }
 
+    /// Waits for the answer as [`Pending::wait`] does, and gives it as the core's session read it,
+    /// for a request of [`Client::send_call`]: a fault of the game, `CANCELLED` included, is its
+    /// outcome, not an error.
+    ///
+    /// # Errors
+    ///
+    /// As [`Pending::wait`], but for [`ChannelError::Cancelled`] and the replies that do not read.
+    pub fn wait_outcome(self) -> Outcome {
+        self.wait_raw(ANSWER_TIMEOUT)
+    }
+
+    /// What cancels the request from another thread, while one waits for its answer
+    /// ([`Canceller::cancel`]).
+    pub fn canceller(&self) -> Canceller {
+        Canceller {
+            id: self.id,
+            shared: Arc::clone(&self.shared),
+        }
+    }
+
     /// Waits for the answer as the core's session read it, as [`Pending::wait_for`] does.
-    fn wait_raw(self, timeout: Duration) -> Raw {
+    fn wait_raw(self, timeout: Duration) -> Outcome {
         match self.answer.recv_timeout(timeout) {
             Ok(answer) => answer,
             Err(mpsc::RecvTimeoutError::Timeout) => {
@@ -420,25 +452,45 @@ impl Pending {
     /// something, [`ChannelError::Cancelled`] if it had not. Nothing is sent once the answer came,
     /// nor on a connection broken.
     pub fn cancel(&self) {
-        self.send_cancel(&mut locked(&self.shared.writer));
+        self.canceller().cancel();
     }
 
     /// Sends the cancel on `writer`, the connection, locked.
     fn send_cancel(&self, writer: &mut TcpStream) {
-        let line = {
-            let state = locked(&self.shared.state);
-            if state.broken.is_some() {
-                return;
-            }
-            match state.session.cancel(self.id) {
-                Ok(Some(line)) => line,
-                _ => return,
-            }
-        };
-        if let Err(error) = send(writer, &line, &[]) {
-            locked(&self.shared.state).broken = Some(Broken::Io(error.kind(), error.to_string()));
-            self.shared.answered.notify_all();
+        send_cancel(&self.shared, self.id, writer);
+    }
+}
+
+/// What cancels a request in flight from any thread, apart from its [`Pending`], which a thread
+/// may hold while it waits for the answer ([`Pending::canceller`]).
+pub struct Canceller {
+    id: u64,
+    shared: Arc<Shared>,
+}
+
+impl Canceller {
+    /// Asks the game to cancel the request, as [`Pending::cancel`] does.
+    pub fn cancel(&self) {
+        send_cancel(&self.shared, self.id, &mut locked(&self.shared.writer));
+    }
+}
+
+/// Sends the cancel of the request `id` on `writer`, the connection, locked: nothing once its answer
+/// came, nor on a connection broken.
+fn send_cancel(shared: &Shared, id: u64, writer: &mut TcpStream) {
+    let line = {
+        let state = locked(&shared.state);
+        if state.broken.is_some() {
+            return;
         }
+        match state.session.cancel(id) {
+            Ok(Some(line)) => line,
+            _ => return,
+        }
+    };
+    if let Err(error) = send(writer, &line, &[]) {
+        locked(&shared.state).broken = Some(Broken::Io(error.kind(), error.to_string()));
+        shared.answered.notify_all();
     }
 }
 
@@ -484,7 +536,7 @@ fn read_answers(mut stream: TcpStream, mut reader: Reader, shared: &Shared, noti
 }
 
 /// The outcome of a subscription's answer, or of its end's.
-fn subscribed(answer: Raw) -> Result<(), ChannelError> {
+fn subscribed(answer: Outcome) -> Result<(), ChannelError> {
     match answer?.0 {
         Ok(_) => Ok(()),
         Err(fault) if fault.code == Fault::CANCELLED => Err(ChannelError::Cancelled),

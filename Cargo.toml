@@ -53,10 +53,10 @@ windows-sys = { version = "0.61.2", features = ["Win32_System_Performance", "Win
 # Reads PNG files: the source images of the asset pipeline's cooker; the examples and tests write
 # and read them too (reference images, the offscreen example).
 png = "0.18.1"
-# The engine's MCP server only (ADR-0099, ADR-0122): the Model Context Protocol, through its
-# official SDK, served on standard input and output, its tools' parameters described by the
-# JSON Schema of `schemars`, which rmcp re-exports; tokio, the runtime it runs on; base64, which
-# encodes the images it returns. serde reads the tools' parameters, and writes the messages of
+# uwui's MCP library and the engine's MCP server only (ADR-0099, ADR-0122, ADR-0269): the Model
+# Context Protocol, through its official SDK, served on standard input and output, its tools'
+# parameters described by the JSON Schema of `schemars`, which rmcp re-exports; tokio, the runtime
+# it runs on; base64, which encodes the images it returns. serde reads the tools' parameters, and writes the messages of
 # uwui's core for agents and of the development channel (ADR-0246).
 base64 = "0.23"
 rmcp = { version = "3.9.0", default-features = false, features = ["server", "macros", "transport-io"] }
@@ -161,6 +161,7 @@ uwui = { path = "crates/uwui" }
 uwui-accesskit = { path = "crates/uwui-accesskit" }
 uwui-agent = { path = "crates/uwui-agent" }
 uwui-kdl = { path = "crates/uwui-kdl" }
+uwui-mcp = { path = "crates/uwui-mcp" }
 uwui-macros = { path = "crates/uwui-macros" }
 uwui-render = { path = "crates/uwui-render" }
 # The sample game's library, which its editor package links (ADR-0110).

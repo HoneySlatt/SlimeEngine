@@ -29,6 +29,14 @@ in scripted input yet: an interface is used through its elements' actions.
   each a request in flight on the one connection (`docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md`).
   Once the connection to the program is lost, the server opens a new one; once the one to the
   game that an editor plays is, it drops it, and the game's tools drive the editor again.
+- Stands on uwui's MCP library, `uwui-mcp`
+  (`docs/adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md`):
+  the interface's tools are the library's, which the server carries to the game, as it carries
+  its own; a call of these tools that its agent cancels cancels its request in the game, where
+  the server's own tools still wait for the game's answer until M6d.9a2b. A game's refusal, and a
+  cursor that no longer holds, reach the agent as a tool's error, which says what to do. The
+  families of play, the world and editing are still written here, and move onto the library at
+  M6d.9a2b.
 - Runs the engine's cooker and `cargo test` in the directory where it runs: run it from the
   repository's root.
 
@@ -111,13 +119,14 @@ The tools, each described to the agent by the server itself, with its parameters
   it picks nothing that its user hid or locked (`docs/adr/0169-the-eye-and-the-lock.md`).
 - `find_elements`, `element_at`, `act_on_interface`, `capture_element` and `element_style`: the
   game's interface, as its last frame left it (`docs/adr/0143-what-agents-see-of-the-interface.md`),
-  through the interface's family, which uwui answers
+  through the interface's family, which uwui answers, tools of uwui's MCP library
   (`docs/adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md`). `find_elements`
   lists its elements of a role, `Button`, and whose names hold a text, each by its path, which names
   it to the other tools, its role, name, what a field, a slider, two panels, a list to choose from
   or a color well hold, its description, which its tooltip gives, the text that a field shows while
-  empty, its states, where it shows, and what it takes now; `element_at` names the one at a pixel of
-  the image that `capture` gives; `act_on_interface` presses, focuses or scrolls one, gives a field
+  empty, its states, where it shows, and what it takes now, and the target of an element that the
+  window does not draw; `element_at` names the one at a pixel of the image that `capture` gives,
+  or of another target's that it names; `act_on_interface` presses, focuses or scrolls one, gives a field
   a value as a person who replaced its text and committed would (`docs/adr/0146-screen-readers.md`),
   a slider or two panels theirs (`docs/adr/0148-widgets.md`), a list to choose from an option
   (`docs/adr/0150-layers.md`), and a color well a hexadecimal code, `#ff8000`
@@ -213,9 +222,11 @@ does (`docs/adr/0193-first-measures-of-resources.md`).
 - `tokio`: the runtime that `rmcp` runs on, one thread; the requests to the game wait on threads of
   its own.
 - `serde`: reads the tools' parameters.
-- `base64`: encodes the captures, as MCP carries images.
-- `png`: writes the captures.
+- `uwui-mcp`: uwui's MCP library, its interface's tools, a list's pages, a program's faults as
+  tools' errors, and the captures written as PNG images.
 - `slime-channel`: starts a game with a token and speaks its development channel.
+- For its tests: `serde_json`, which speaks MCP to the server, `base64` and `png`, which read the
+  captures that it returns.
 
 ## Must not
 

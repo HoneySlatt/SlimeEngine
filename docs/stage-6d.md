@@ -2737,9 +2737,12 @@ In progress, its card in [`PLAN.md`](PLAN.md#m6d9a2a--the-library).
 
 - **Goal.** `slime-mcp`'s every tool through `uwui-mcp`.
 - **Crates.** `slime-mcp`, `uwui-mcp`, `slime-channel`.
-- **Delivers.** The families `play`, `world` and `editing` as the library's; the game that an
-  editor plays reached by the interface's tools too, tested; the server's instructions written
-  by each family; a tool's name taken twice refused.
+- **Delivers.** The families `play`, `world` and `editing` as the library's; the carrier's
+  families served, a tool of a family not served refused in the server's words
+  ([ADR-0272](adr/0272-the-carriers-families-and-its-connections-state-join-it-at-their-first-reader.md)); the game that an
+  editor plays reached by the interface's tools too, tested; a call that its agent cancels while
+  an edit waits for a drag never applied, tested through the server; the server's instructions
+  written by each family; a tool's name taken twice refused.
 - **Debt settled.** `stop_game` and `drive_played_game` holding the server's lock; three helpers
   that write an error's chain ([`debt.md`](debt.md)).
 - **Done when.** The engine's MCP session tests pass through the library; `stop_game` ends a
