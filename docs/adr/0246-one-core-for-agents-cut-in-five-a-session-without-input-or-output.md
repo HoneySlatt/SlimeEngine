@@ -5,7 +5,8 @@
   channel's messages in JSON-RPC through `serde`, versioned by family, `slime-reflect` and
   `slime-serialize` gone from `slime-channel`) and [0218](0218-one-core-for-agents-in-uwui.md)
   (M6d.9a cut in five); amended by [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) (one waker, meaning followed by each reader, an
-  element's capture from the host's image)
+  element's capture from the host's image) and [0269](0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md) (uwui's MCP server as a program waits for a
+  carrier of uwui's own)
 - Date: 2026-11-12
 
 ## Context

@@ -5,7 +5,7 @@
   (the journal's place: a byte, not an entry) and
   [0260](0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)
   (the journal's number, its bounds and its floor); amended by
-  [0267](0267-a-page-of-the-journal-apart-from-the-one-handler-a-cut-journals-start-refused-a-floor-of-4-kib.md) (a cut journal's start refused; a page's floor of 4 KiB)
+  [0267](0267-a-page-of-the-journal-apart-from-the-one-handler-a-cut-journals-start-refused-a-floor-of-4-kib.md) (a cut journal's start refused; a page's floor of 4 KiB) and [0269](0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md) (a page at the journal's end gives a cursor there)
 - Date: 2026-11-14
 
 ## Context

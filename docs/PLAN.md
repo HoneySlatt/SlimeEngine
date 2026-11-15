@@ -21,7 +21,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
   - Track A, uwui's core, in the main checkout: M6d.9a, cut in five
     ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
     done, M6d.9a1a to [M6d.9a1b3b2](stage-6d.md#m6d9a1b3b2--the-editors-journal), M6d.9a1
-    whole; next, [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families).
+    whole; M6d.9a2 cut in three ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)), in progress,
+    [M6d.9a2a](#m6d9a2a--the-library).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; in progress,
     [M6d.7](#m6d7--the-desktop-host-its-window-and-its-frames).
   - M6d.10 to M6d.12 run alone.
@@ -43,7 +44,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.7 — The desktop host: its window and its frames](#m6d7--the-desktop-host-its-window-and-its-frames) | In progress |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
-| [M6d.9a2 to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families) | Planned |
+| [M6d.9a2a — The library](#m6d9a2a--the-library) | In progress |
+| [M6d.9a2b to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a2b--the-engine-on-the-library) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
@@ -59,6 +61,19 @@ Started on 2026-11-14 by a design session; its full card: `git show 6917f57:docs
   a headless sway at 240 Hz; ADR-0226's checks fail both ways when they must; a crash leaves its
   report; CI is green, macOS included.
 - **Measured.** The host's own cost above a blank window, in one run.
+
+## M6d.9a2a — The library
+
+Started on 2026-11-15 ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
+
+- **Goal.** uwui's MCP library, and `slime-mcp`'s tools of the interface through it.
+- **Crates.** `uwui-mcp`, new; `slime-mcp`; `slime-channel`.
+- **Delivers.** The carrier's interface, the engine's and one in memory; the interface's tools;
+  one loop of pages; faults as tools' errors; MCP's cancel as the core's; the agent's name cut.
+- **Done when.** The library's session tests drive a `Ui` in memory, on Windows too, through
+  MCP's handshake and `2026-07-28`'s requests; the engine's interface tests pass through it; CI
+  is green.
+- **Measured.** Before, at its base commit: the engine's answer through MCP.
 
 ## Ideas waiting for their milestone
 

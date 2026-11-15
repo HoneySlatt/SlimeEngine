@@ -29,18 +29,18 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Followed at uwui's first stage, whose carrier of `uwui dev` is the second to keep the bounds, and which moves them into the core.
 - **`slime-mcp`'s `stop_game` and `drive_played_game` hold the server's lock while their requests wait** ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)).
   So that one game at a time runs, they hold it for their own requests, and the agent's other calls wait meanwhile; with every place in flight held by long steps, `stop_game` waits for one, and `resume`, which would free them, waits for the lock.
-  Followed at [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families), which builds the server on uwui's MCP library.
+  Followed at [M6d.9a2b](stage-6d.md#m6d9a2b--the-engine-on-the-library), which builds the server's families on uwui's MCP library ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
 - **The budget of a frame's start for the tools' requests is not measured from input to present** ([ADR-0252](adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md)).
   It is measured by a headless run's frames with agents at the channel's bounds; `scripts/input-to-present.sh` starts its programs without a channel, and gives no agent.
   A frame's start takes one request of each connection whatever the budget; a page of a list takes its share of it past a floor of visits, so that seven agents listing make frames of about 1.7 ms, 1 ms of it the measure's rest ([`measurements.md`](measurements.md#m6d9a1b3b1-lists)), where they made frames of about 4 ms before; a request of another kind that costs much, as a capture, still takes what it costs.
   Followed at uwui's first stage, whose measures of input to present run on uwui's own host, with its agents.
 - **Three helpers write an error and its causes on one line** ([ADR-0008](adr/0008-errors-logging-and-assertions.md)).
   `slime_app::error_chain`, `slime-mcp`'s `causes` and `slime-channel`'s `why` write the same; neither crate links another's, `slime-channel` lying below `slime-app` and linking no logging.
-  Followed at M6d.9a2, which builds `slime-mcp` on uwui's MCP library and can share one.
+  Followed at [M6d.9a2b](stage-6d.md#m6d9a2b--the-engine-on-the-library), which builds `slime-mcp` on uwui's MCP library and can share one.
 - **The core for agents writes a float that is not finite as `null`** ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)).
   JSON holds no other; a family's float reads `null` as a fault, so such a float is refused where it is read, not where it is written, and a family holds no optional float, which would read it as none (`uwui_agent::write`).
   `slime-mcp` cuts the agent's name and version to 200 characters, so that a hello stays within its limit; no test checks the cut.
-  Followed at [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families), whose MCP library names the agent.
+  The name's cut is followed at [M6d.9a2a](PLAN.md#m6d9a2a--the-library), whose MCP library names the agent; the float's at uwui's first stage, whose carrier of the core writes its messages.
 - **Some answers that may grow are not paged** ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
   `editing/history` gives its steps and its selection whole, `world/entity` an entity's components whole, `play/report` a report whole, `play/pick` and `world/entity` an entity's identity and name whole: past the tool's line, each is `TOO_LARGE` for good.
   A cursor of elements grows with the depth of the tree: past the depth that `uwui_agent::page::MARGIN` gives, a page for a tool whose line is short may pass that line, and the list stops there.
@@ -55,7 +55,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Followed at [M6c.Q2f](stage-6c.md#m6cq2f--the-editor-at-the-displays-rate), which holds the editor's frames to the display's rate.
 - **An agent follows the editor's steps by reading its journal again** ([ADR-0265](adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md)).
   A page that reaches the journal's end gives no cursor, as every list's: an agent that waits for the next steps reads the journal again from its start, the level's entry included.
-  Followed at [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families), whose events an agent subscribes to through uwui's MCP library: an event of the editor's steps.
+  Followed at [M6d.9a2c](stage-6d.md#m6d9a2c--waiting), whose journal waits for its next steps ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
 - **The process's number that binds the cursors has no randomness on the web** ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
   `slime-channel` draws it with `getrandom`, falling back on `std`'s hashing keys, which are not random on `wasm32-unknown-unknown`.
   Followed at the web's carrier, which draws it from its host.
@@ -865,7 +865,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A row of a list is found by its number; the names of its texts are not gathered into its own, unless its builder names it, as the editor's hierarchy names its items.
   Followed at uwui's first stage, whose lists key their rows by what they show, and whose paths read back every key.
   Games link `uwui` through `slime-app`, whether they have an interface or not.
-  `slime-mcp` names an element's target only when it is not the window's, and reads `element_at` on the window's target; no test gives it an element of another target, the engine drawing one ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)); followed at [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families), whose MCP library serves uwui's programs.
+  `slime-mcp` names an element's target only when it is not the window's, and reads `element_at` on the window's target; no test gives it an element of another target, the engine drawing one ([ADR-0259](adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md)); followed at [M6d.9a2a](PLAN.md#m6d9a2a--the-library), whose MCP library's tests give it an interface of two targets.
 - **The dev overlay** ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md), [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)).
   A frame after an entity is spawned or despawned makes the world panel's list again, every name read and filtered: past the budget of a list's frame at 100 000 entities.
   A frame after a rename reads again the names that changed and filters the list: under a millisecond there ([measurements](measurements.md#m6c5a-ryzen-7-5800x)).

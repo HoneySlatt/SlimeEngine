@@ -4,7 +4,8 @@
   crate's name left to M6d.10; late answers numbered) and
   [0249](0249-the-hosts-api-its-items-and-their-table.md) (each accessibility update numbered; a
   screen reader's action with the number of its update); amended by
-  [0262](0262-uwui-accesskits-api-one-tree-per-window-the-hosts-node-made-when-needed.md)
+  [0262](0262-uwui-accesskits-api-one-tree-per-window-the-hosts-node-made-when-needed.md) and
+  [0269](0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md) (an agent follows the interface's changes by a request that waits, not an event)
 - Date: 2026-11-14
 
 ## Context

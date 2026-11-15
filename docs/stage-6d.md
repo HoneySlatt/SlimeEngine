@@ -144,7 +144,10 @@ in git.
   ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)): done,
   [M6d.9a1b3b1](#m6d9a1b3b1--lists), on the same day, and
   [M6d.9a1b3b2](#m6d9a1b3b2--the-editors-journal), the editor's journal, on the same day; then
-  [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families),
+  [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families), cut in three on 2026-11-15
+  ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)):
+  in progress, [M6d.9a2a](#m6d9a2a--the-library); then
+  [M6d.9a2b](#m6d9a2b--the-engine-on-the-library), [M6d.9a2c](#m6d9a2c--waiting),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
@@ -2610,20 +2613,41 @@ under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
 
 ### M6d.9a2 — uwui's MCP library and families
 
-- **Goal.** uwui's MCP server, and the engine's on it.
-- **Crates.** uwui's MCP library, new, named at its start; `slime-mcp`.
-- **Delivers.** The MCP library on `rmcp`, its tools by families, the interface's among them;
-  `slime-mcp` on it with the engine's families and its own tools, a program started, assets cooked,
-  tests run; one way of paging a list for every tool, its cursors passed through untouched, `STALE`
-  given to MCP's clients as −32602
-  ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)); an event of the interface's changes, which an agent subscribes to,
-  through a reader of meaning of its own
-  ([ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)).
-- **Done when.** The engine's MCP session tests pass through the library; a session test of uwui's
-  server drives an example; CI is green.
-- **Debt settled.** An agent that follows the editor's steps by reading its journal again, by an
-  event of the steps, the owner's choice of 2026-11-14 ([`debt.md`](debt.md)).
-- **Measured.** The engine's answer through MCP against its figure before.
+- **Goal.** uwui's MCP library, and the engine's MCP server on it.
+- **Cut in three** at its start, on 2026-11-15 ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)): the library reaches a program through its
+  host's carrier; a program's faults reach an agent as a tool's errors; an agent follows what
+  changes through requests that wait, not events. uwui's MCP server as a program of its own waits
+  for a carrier of uwui's.
+
+### M6d.9a2a — The library
+
+In progress, its card in [`PLAN.md`](PLAN.md#m6d9a2a--the-library).
+
+### M6d.9a2b — The engine on the library
+
+- **Goal.** `slime-mcp`'s every tool through `uwui-mcp`.
+- **Crates.** `slime-mcp`, `uwui-mcp`, `slime-channel`.
+- **Delivers.** The families `play`, `world` and `editing` as the library's; the game that an
+  editor plays reached by the interface's tools too, tested; the server's instructions written
+  by each family; a tool's name taken twice refused.
+- **Debt settled.** `stop_game` and `drive_played_game` holding the server's lock; three helpers
+  that write an error's chain ([`debt.md`](debt.md)).
+- **Done when.** The engine's MCP session tests pass through the library; `stop_game` ends a
+  game whose places in flight are all held; CI is green.
+- **Measured.** The engine's answer through MCP against its figure before M6d.9a2a.
+
+### M6d.9a2c — Waiting
+
+- **Goal.** An agent waits for a change of the interface, or for the editor's next steps.
+- **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `slime-editor`, `uwui-mcp`,
+  `slime-mcp`; its parts in `uwui` and `slime-app` timed against M6d.7.
+- **Delivers.** `interface/wait` and the journal's `wait` and `end`; `interface` 4 and `editing`
+  3; the tools that wait, each under 60 s, giving `after`.
+- **Debt settled.** An agent that follows the editor's steps by reading its journal again
+  ([`debt.md`](debt.md)).
+- **Done when.** A tool waits for a dialog to close and for the next step, each seen once; a
+  frame with no wait in flight costs as before; CI is green.
+- **Measured.** From a change to the waiting tool's answer; a still frame's counters.
 
 ### M6d.9a3a — Attaching, and the person's consent
 
