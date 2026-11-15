@@ -192,7 +192,9 @@ impl Ui {
     }
 
     /// Gives the interface the host's waker, which any thread may call to ask the host for a step:
-    /// the events that came, then a frame. Clones of it ask the same host.
+    /// the events that came, then the program's own, then a frame if the interface then asks for
+    /// one ([`Ui::needs_frame`]): a wake that changes nothing draws nothing. Wakes that come before
+    /// the host steps are one. Clones of it ask the same host.
     pub fn set_waker(&mut self, waker: Waker) {
         self.waker = waker;
     }

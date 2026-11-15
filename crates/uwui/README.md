@@ -89,12 +89,14 @@ Its logo is not under the code's licenses: its author keeps its rights, and
 - The host gives `Ui` its times (`time`, `docs/adr/0227-the-time-that-motion-reads.md`), in whole
   nanoseconds: `Instant`, a time of the host's clock, which counts a suspend, and `RootTime`, a
   time of a root's clock, which cannot be mixed. Before each frame of each target, when it shows
-  and where that time comes from (`Ui::set_frame_shown`), which that target's motions read; with
-  each input event, when it came (`host::Event`); each root's clock, its time and its speed, by
+  and where that time comes from (`Ui::set_frame_shown`), which that target's motions read: the
+  frame's start, as the engine gives it, or on the grid of the platform's signals, as uwui's
+  desktop host does (`FrameSource`); with each input event, when it came (`host::Event`), its
+  reception or the platform's own time anchored on the host's clock (`EventSource`); each root's clock, its time and its speed, by
   default the host's at speed 1, read at its target's frame's time (`Ui::set_root_clock`). What follows which clock is `RootClock`'s: in short, what
   answers a person follows the host's, the rest its root's, which a paused game holds, and a layer
   follows the root that it opens over. The host gives the waker by which any thread asks it for a
-  step (`Ui::set_waker`, `Ui::waker`).
+  step (`Ui::set_waker`, `Ui::waker`), which draws a frame only if the interface then asks one.
 - The host gives `Ui` a person's input as events (`host`, `Ui::event`,
   `docs/adr/0249-the-hosts-api-its-items-and-their-table.md`,
   `docs/adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md`): the

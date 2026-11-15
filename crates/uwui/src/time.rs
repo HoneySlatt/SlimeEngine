@@ -134,8 +134,8 @@ impl FrameShown {
 /// Where a frame's time comes from (`docs/adr/0227-the-time-that-motion-reads.md`).
 ///
 /// The platforms' own times, given by Apple and Android, predicted from past presentations on
-/// Wayland, Windows and X11, asked for, ready under a variable refresh, or on the display's grid,
-/// come with the hosts that read them.
+/// Wayland, Windows and X11, asked for, or ready under a variable refresh, come with the hosts that
+/// read them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum FrameSource {
@@ -146,6 +146,13 @@ pub enum FrameSource {
     /// presentation, as the engine's windowed loop does. Motion then lags by the frames in flight,
     /// and steps with the host's wakes.
     Started,
+    /// On the display's grid: the last signal of the platform that the host observed, plus whole
+    /// periods of the display, the first after the frame starts. Anchored again at each signal,
+    /// never accumulated; where the platform gives no rate, the period is measured from the
+    /// signals' gaps. What uwui's desktop host gives where it reads no time of presentation, a
+    /// frame callback of Wayland's for its signal
+    /// (`docs/adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md`).
+    OnGrid,
 }
 
 /// The time at which an input event came, and where that time comes from: given with each event
@@ -167,6 +174,15 @@ impl EventTime {
         }
     }
 
+    /// An event that came `at`, its platform's own time anchored on the host's clock
+    /// ([`EventSource::Anchored`]).
+    pub const fn anchored(at: Instant) -> Self {
+        Self {
+            at,
+            source: EventSource::Anchored,
+        }
+    }
+
     /// An event that came `at`, at the time that a test or a headless run gives.
     pub const fn simulated(at: Instant) -> Self {
         Self {
@@ -178,8 +194,7 @@ impl EventTime {
 
 /// Where an input event's time comes from (`docs/adr/0227-the-time-that-motion-reads.md`).
 ///
-/// A platform's own times, in a clock that the host knows or anchored from another clock, come with
-/// the hosts that read them.
+/// A platform's own times in a clock that the host knows come with the hosts that read them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum EventSource {
@@ -187,6 +202,12 @@ pub enum EventSource {
     /// stamp taken in a batch, or behind a busy frame, comes late.
     #[default]
     Received,
+    /// The platform's own time of the event, in another clock or from an undefined base, as
+    /// Wayland's milliseconds: the gaps between events kept from their own times, the whole
+    /// anchored on their reception by the least gap between reception and the event's time over a
+    /// sliding window, never after its reception
+    /// (`docs/adr/0227-the-time-that-motion-reads.md`).
+    Anchored,
     /// The time that a test or a headless run gives, as `host::Person` gives it.
     Simulated,
 }
