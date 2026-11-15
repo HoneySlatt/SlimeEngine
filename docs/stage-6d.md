@@ -146,7 +146,7 @@ in git.
   [M6d.9a1b3b2](#m6d9a1b3b2--the-editors-journal), the editor's journal, on the same day; then
   [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families), cut in three on 2026-11-15
   ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)):
-  in progress, [M6d.9a2a](#m6d9a2a--the-library); then
+  done, [M6d.9a2a](#m6d9a2a--the-library), on 2026-11-15; then
   [M6d.9a2b](#m6d9a2b--the-engine-on-the-library), [M6d.9a2c](#m6d9a2c--waiting),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
@@ -2731,7 +2731,38 @@ under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
 
 ### M6d.9a2a — The library
 
-In progress, its card in [`PLAN.md`](PLAN.md#m6d9a2a--the-library).
+The first part of M6d.9a2, started on 2026-11-15, designed in [ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md),
+under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** uwui's MCP library, and `slime-mcp`'s tools of the interface through it.
+- **Crates.** `uwui-mcp`, new; `slime-mcp`; `slime-channel`.
+- **Delivers.** The carrier's interface, the engine's and one in memory; the interface's tools;
+  one loop of pages; faults as tools' errors; MCP's cancel as the core's; the agent's name cut.
+- **Done when.** The library's session tests drive a `Ui` in memory, on Windows too, through
+  MCP's handshake and `2026-07-28`'s requests; the engine's interface tests pass through it; CI
+  is green.
+- **Measured.** Before, at its base commit: the engine's answer through MCP.
+- **Result.** Done on 2026-11-15, CI green on `35c6ac6` ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md), [ADR-0272](adr/0272-the-carriers-families-and-its-connections-state-join-it-at-their-first-reader.md)):
+  - `uwui-mcp`, under MIT OR Apache-2.0: `Carrier`, which an MCP server's own type is, sends a
+    request of the core and cancels it; `ask` runs it on threads that may block, and a call that
+    its agent cancels cancels its request, sent or not yet; `interface_tools` gives the interface's
+    five tools to any such server; `gather` reads a long list's pages, `next` first; a program's
+    faults are tools' errors; `agent_of` cuts the agent's name in bytes of JSON.
+  - `slime-mcp`'s server is the engine's carrier, over the development channel, the game that an
+    editor plays reached as before; `slime-channel`'s `Client::send_call` and `Canceller` serve
+    it. `element_at` takes a target.
+  - The library's session tests speak MCP to its server through a pipe in memory, on an interface
+    of two targets that `uwui` answers through both ends of the core's session; the engine's
+    `interface` and `widgets` session tests pass through the library.
+  - Measured ([`measurements.md`](measurements.md#m6d9a2a-uwuis-mcp-library)): the engine's
+    answer through MCP unchanged, some 16.7 ms, one frame of the editor's at 60 Hz, which hides
+    what the library adds.
+  - The closing review found the crate's licence files missing and unnamed in `LICENSE.md`, a
+    test that would fail on Windows, a cancel that could block the server's one thread, and drift
+    from ADR-0269, which ADR-0272 records; all fixed. 26 mutations of the new code each fail a
+    test; the guard that sends nothing once a call is cancelled covers a race too short to test.
+  - Left for later ([`debt.md`](debt.md)): `slime-mcp`'s own loop of pages beside the library's,
+    a tool's name taken twice caught by a test only (M6d.9a2b).
 
 ### M6d.9a2b — The engine on the library
 

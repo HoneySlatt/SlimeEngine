@@ -21,8 +21,9 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
   - Track A, uwui's core, in the main checkout: M6d.9a, cut in five
     ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
     done, M6d.9a1a to [M6d.9a1b3b2](stage-6d.md#m6d9a1b3b2--the-editors-journal), M6d.9a1
-    whole; M6d.9a2 cut in three ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)), in progress,
-    [M6d.9a2a](#m6d9a2a--the-library).
+    whole; M6d.9a2 cut in three ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)): done,
+    [M6d.9a2a](stage-6d.md#m6d9a2a--the-library); next,
+    [M6d.9a2b](stage-6d.md#m6d9a2b--the-engine-on-the-library).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six, in progress,
     [M6d.7a1](#m6d7a1--the-hosts-core-and-its-wayland-window).
   - M6d.10 to M6d.12 run alone.
@@ -45,7 +46,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.7a2 to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7a2--wayland-whole-and-the-host-measured) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
-| [M6d.9a2a — The library](#m6d9a2a--the-library) | In progress |
+| [M6d.9a2a — The library](stage-6d.md#m6d9a2a--the-library) | Done |
 | [M6d.9a2b to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a2b--the-engine-on-the-library) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
@@ -65,19 +66,6 @@ Started on 2026-11-15 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-lay
 - **Done when.** The example rests in Weston, sway, KWin and Mutter in the series' job; each check
   fails on a program made to pull what it forbids; the engine unchanged; CI is green.
 - **Measured.** CI's jobs that build the host, each within 20 minutes.
-
-## M6d.9a2a — The library
-
-Started on 2026-11-15 ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
-
-- **Goal.** uwui's MCP library, and `slime-mcp`'s tools of the interface through it.
-- **Crates.** `uwui-mcp`, new; `slime-mcp`; `slime-channel`.
-- **Delivers.** The carrier's interface, the engine's and one in memory; the interface's tools;
-  one loop of pages; faults as tools' errors; MCP's cancel as the core's; the agent's name cut.
-- **Done when.** The library's session tests drive a `Ui` in memory, on Windows too, through
-  MCP's handshake and `2026-07-28`'s requests; the engine's interface tests pass through it; CI
-  is green.
-- **Measured.** Before, at its base commit: the engine's answer through MCP.
 
 ## Ideas waiting for their milestone
 

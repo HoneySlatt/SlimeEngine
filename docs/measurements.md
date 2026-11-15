@@ -4288,3 +4288,27 @@ floor of some 16.7 ms is one frame, and hides what the library adds, under 0.05 
 are two bytes longer, the level's path in the measure's own directory. The channel's own answer,
 without a frame, is [M6d.9a1a's](#m6d9a1a-the-development-channel-on-uwuis-core-for-agents)
 figure. The lowest machine supported is not measured.
+
+GitHub's hosted runners, on 2026-11-15, each run green, on `35c6ac6`:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 10 min 23 s |
+| `check (headless)` | 12 min 19 s |
+| `check (windowed)` | 8 min 56 s |
+| `check (game)` | 12 min 56 s |
+| `check (gles)` | 3 min 29 s |
+| `windows (tests)` | 15 min 52 s |
+| `windows (render)` | 7 min 8 s |
+| `windows (game)` | 7 min 10 s |
+| `windows-release` | 16 min 18 s |
+| `compositors (weston)` | 11 min 37 s |
+| `compositors (sway)` | 11 min 22 s |
+| `compositors (kwin)` | 10 min 15 s |
+| `compositors (mutter)` | 12 min 3 s |
+| `compositors (x11)` | 10 min 59 s |
+| Docs' `links` | 19 s |
+
+Every job stays within its limit of 20 minutes; `windows-release`, the longest, has 3 min 42 s of
+margin. `check (lint)` took 2 min 16 s more than on `83e2e87`, with the new crate linted on Linux and
+Windows.
