@@ -59,8 +59,10 @@ pub(crate) struct Pacing {
     /// each hold.
     checked: bool,
     /// Whether something outside asked for a frame since the last one: an event of the window or a
-    /// wake of another thread.
+    /// wake of another thread. Forgotten once a step changed nothing.
     outside: bool,
+    /// A change of the host's own that the next frame carries.
+    pending: bool,
     /// The last signal, and whether a frame was drawn at it, so that the gap to the next one is a
     /// refresh.
     signal: Option<Signal>,
@@ -82,6 +84,20 @@ impl Pacing {
     /// runs one even while the window holds its frames, once their signal is late.
     pub(crate) fn asked_from_outside(&mut self) {
         self.outside = true;
+    }
+
+    /// A change of the host's own, a configure acknowledged or a request of the window, which the
+    /// next frame's commit must carry: a frame is wanted until one is drawn.
+    pub(crate) fn host_changed(&mut self) {
+        self.pending = true;
+    }
+
+    /// The host had no image to draw the frame started at `now` into, and presented nothing: it
+    /// tries again once a signal would be late, as a frame whose signal does not come, rather than
+    /// at once.
+    pub(crate) fn missed(&mut self, now: Instant) {
+        self.awaiting = Some(now);
+        self.checked = false;
     }
 
     /// Whether the last image presented waits for its signal.
@@ -114,24 +130,26 @@ impl Pacing {
     /// What the host does next, at `now`: `wanted` when the interface or the program changed what
     /// shows, `due` the interface's next frame asked though nothing changes.
     pub(crate) fn next(&mut self, now: Instant, wanted: bool, due: Option<Instant>) -> Next {
-        let wanted = wanted || due.is_some_and(|due| due <= now);
-        let deadline = || due.map_or(Next::Wait, Next::WaitUntil);
+        let wanted = wanted || self.pending || due.is_some_and(|due| due <= now);
+        if !wanted {
+            // What asked from outside was served by a step that changed nothing.
+            self.outside = false;
+        }
         let next = match self.awaiting {
             None if wanted => Next::Frame,
-            None => deadline(),
+            None => due.map_or(Next::Wait, Next::WaitUntil),
             Some(asked) => {
                 let late = asked + SIGNAL_WAIT;
-                if wanted && (self.outside || !self.checked) {
-                    if now >= late {
-                        Next::Frame
-                    } else {
-                        Next::WaitUntil(late)
-                    }
-                } else if wanted {
-                    // The window holds its frames: the signal, an event or a wake runs this again.
-                    Next::Wait
-                } else {
-                    deadline()
+                let may = self.outside || !self.checked;
+                match (wanted, may) {
+                    (true, true) if now >= late => Next::Frame,
+                    (true, true) => Next::WaitUntil(late),
+                    // Before its check, the time that the interface waits for wakes the window
+                    // once, no sooner than the signal is late.
+                    (false, true) => due.map_or(Next::Wait, |due| Next::WaitUntil(due.max(late))),
+                    // The window holds its frames: the signal, an event or a wake runs this
+                    // again. A hidden window wakes for nothing that it waits for (ADR-0227).
+                    (_, false) => Next::Wait,
                 }
             }
         };
@@ -156,6 +174,7 @@ impl Pacing {
         }
         self.awaiting = Some(now);
         self.outside = false;
+        self.pending = false;
     }
 
     /// The display's period, measured from the signals' gaps: their median; none before one gap.
@@ -327,5 +346,61 @@ mod tests {
         }
         assert_eq!(pacing.period(), Some(16 * MS));
         assert_eq!(pacing.gaps.len(), 6);
+    }
+    #[test]
+    fn a_change_of_the_hosts_own_waits_for_the_signal_then_draws() {
+        let mut pacing = Pacing::default();
+        pacing.next(at(0), true, None);
+        pacing.drew(at(0));
+        // A configure acknowledged while the callback is awaited: the frame must carry it.
+        pacing.host_changed();
+        assert_eq!(pacing.next(at(1), false, None), Next::WaitUntil(at(100)));
+        pacing.signalled(at(4));
+        assert_eq!(pacing.next(at(4), false, None), Next::Frame);
+        pacing.drew(at(4));
+        pacing.signalled(at(8));
+        assert_eq!(pacing.next(at(8), false, None), Next::Wait);
+    }
+
+    #[test]
+    fn a_window_that_holds_its_frames_wakes_for_no_due_time_once_checked() {
+        let mut pacing = Pacing::default();
+        pacing.next(at(0), true, None);
+        pacing.drew(at(0));
+        // Before its check, the due time wakes it once, no sooner than the signal is late.
+        assert_eq!(
+            pacing.next(at(10), false, Some(at(50))),
+            Next::WaitUntil(at(100))
+        );
+        assert_eq!(pacing.next(at(100), false, Some(at(50))), Next::Frame);
+        pacing.drew(at(100));
+        // Checked, the hidden window waits for nothing but the signal, an event or a wake.
+        assert_eq!(pacing.next(at(120), false, Some(at(300))), Next::Wait);
+    }
+
+    #[test]
+    fn a_wake_that_changes_nothing_asks_no_frame_of_a_hidden_window_later() {
+        let mut pacing = Pacing::default();
+        pacing.next(at(0), true, None);
+        pacing.drew(at(0));
+        pacing.next(at(150), true, None);
+        pacing.drew(at(150));
+        // A wake whose step changed nothing.
+        pacing.asked_from_outside();
+        assert_eq!(pacing.next(at(300), false, None), Next::Wait);
+        // The interface's own change, later, still waits while the window is hidden.
+        assert_eq!(pacing.next(at(400), true, None), Next::Wait);
+    }
+
+    #[test]
+    fn a_frame_without_an_image_tries_again_once_the_signal_would_be_late() {
+        let mut pacing = Pacing::default();
+        // No image twice: each time, one more try a signal's wait later, not a hold.
+        pacing.next(at(0), true, None);
+        pacing.missed(at(0));
+        assert_eq!(pacing.next(at(50), true, None), Next::WaitUntil(at(100)));
+        assert_eq!(pacing.next(at(100), true, None), Next::Frame);
+        pacing.missed(at(100));
+        assert_eq!(pacing.next(at(200), true, None), Next::Frame);
     }
 }

@@ -264,7 +264,9 @@ observe "Agents' sessions and rest" "pass"
 step "uwui's desktop host: an application on uwui alone, at rest, woken by the pointer, ended by a signal"
 # Its own Wayland layer (ADR-0270): X11's comes at M6d.7b.
 if [ "$name" != x11 ]; then
-    run WAYLAND_DEBUG=client timeout -k 10 300 cargo test --locked -p uwui-desktop --test rest \
+    # The test writes the example's protocol, logged with WAYLAND_DEBUG=client, on its standard
+    # error.
+    run timeout -k 10 300 cargo test --locked -p uwui-desktop --test rest -- --nocapture \
         2>"$report/application.log" || { cat "$report/application.log"; exit 1; }
     observe "uwui's host at rest" "pass"
     # xdg-decoration's mode 2 is the server's side.

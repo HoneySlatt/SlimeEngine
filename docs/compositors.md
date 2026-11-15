@@ -71,8 +71,9 @@ The rows:
 - **uwui's host at rest** and **uwui's host's bar**: `uwui-desktop`'s `application` example, on
   uwui's own Wayland layer
   ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)):
-  at rest after its start, woken by the pointer where the compositor takes input and at rest again,
-  then ended by SIGTERM through its closing (its test `rest`); and whether the compositor took
+  an image presented and at rest after its start; where the compositor takes input, the pointer
+  put on its button *Add*, whose hover draws frames, and at rest again; then ended by SIGTERM
+  through its closing (its test `rest`); and whether the compositor took
   `zxdg_toplevel_decoration_v1`'s server side, in its log written with `WAYLAND_DEBUG=client`.
 
 ## What differs

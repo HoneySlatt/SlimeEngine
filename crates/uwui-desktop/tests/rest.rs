@@ -1,7 +1,13 @@
-//! The `application` example in a Wayland compositor, which the environment names: it starts and
-//! rests, none of its threads waking in 10 s (`docs/adr/0185-rest-checked-in-ci.md`); where the
-//! compositor takes a person's input, the pointer moved onto its window wakes it, and it rests
-//! again once its hover ends; a termination signal then asks it to close, and it ends cleanly.
+//! The `application` example in a Wayland compositor, which the environment names: it starts,
+//! draws and rests, none of its threads waking in 10 s (`docs/adr/0185-rest-checked-in-ci.md`);
+//! where the compositor takes a person's input, the pointer put on its button *Add* hovers it,
+//! which draws frames, and it rests again once the hover's transition ends; a termination signal
+//! then asks it to close, and it ends cleanly. Weston takes no input: there the pointer's part does
+//! not run.
+//!
+//! The example writes its protocol with `WAYLAND_DEBUG=client` into a file of the test's own, read
+//! for the images it presented, the pointer's events and where its window lies, then written on
+//! the test's standard error, where `scripts/compositors.sh` reads who draws its bar.
 //!
 //! The example is built first, `cargo build -p uwui-desktop --example application`;
 //! `scripts/check.sh windowed` runs this test in a headless Weston, and `scripts/compositors.sh` in
@@ -124,6 +130,32 @@ fn example() -> PathBuf {
     example
 }
 
+/// Where the *Add* button's middle lies in the window, in logical pixels: the bar's padding, then
+/// half the button, `examples/application.rs`.
+const ADD: [f64; 2] = [12.0 + 44.0, 8.0 + 14.0];
+
+/// How many images the driver attached to the example's surface so far, in its protocol's log.
+fn commits(log: &str) -> usize {
+    log.lines()
+        .filter(|line| line.contains(".attach(wl_buffer#"))
+        .count()
+}
+
+/// Where the pointer last entered or moved in the window, in the window's logical pixels: the
+/// last two numbers of the last `wl_pointer`'s `enter` or `motion` in the log.
+fn pointer_in_window(log: &str) -> Option<[f64; 2]> {
+    let line = log.lines().rev().find(|line| {
+        line.contains("wl_pointer#") && (line.contains(".enter(") || line.contains(".motion("))
+    })?;
+    let arguments = line.rsplit_once('(')?.1.trim_end().trim_end_matches(')');
+    let mut numbers = arguments
+        .rsplit(',')
+        .map(|number| number.trim().parse::<f64>());
+    let y = numbers.next()?.ok()?;
+    let x = numbers.next()?.ok()?;
+    Some([x, y])
+}
+
 /// Moves the pointer to `x` and `y` of the output through the series' input, if it takes input.
 fn move_pointer(x: u32, y: u32) -> bool {
     let Some(socket) = std::env::var_os("SLIME_COMPOSITOR_INPUT") else {
@@ -155,9 +187,13 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
         std::env::var_os("WAYLAND_DISPLAY").is_some(),
         "the test runs in a Wayland compositor, which WAYLAND_DISPLAY names"
     );
+    let log_path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("rest-application.log");
+    let log_file = std::fs::File::create(&log_path).expect("the example's log");
+    let read_log = || std::fs::read_to_string(&log_path).expect("the example's log reads");
     let child = Command::new(example())
+        .env("WAYLAND_DEBUG", "client")
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
+        .stderr(log_file)
         .spawn()
         .expect("the example starts");
     let mut running = Running(child);
@@ -170,20 +206,37 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
     if let Err(error) = at_rest(pid) {
         panic!("the example is not at rest after its start: {error}");
     }
+    assert!(
+        commits(&read_log()) > 0,
+        "the example presented no image: {}",
+        log_path.display()
+    );
 
-    // The output's middle, which the window covers in each compositor of the series.
+    // The output's middle, which the window covers in each compositor of the series: the window's
+    // place on the output follows from where the pointer lies in it.
     if move_pointer(960, 540) {
-        let before = threads(pid).expect("the example runs");
+        std::thread::sleep(Duration::from_secs(1));
+        let log = read_log();
+        let [x, y] = pointer_in_window(&log).unwrap_or_else(|| {
+            panic!(
+                "the pointer never reached the window: {}",
+                log_path.display()
+            )
+        });
+        let before = commits(&log);
+        let to = [960.0 - x + ADD[0], 540.0 - y + ADD[1]].map(|side| side.round() as u32);
+        assert!(move_pointer(to[0], to[1]));
         let deadline = Instant::now() + Duration::from_secs(5);
-        while threads(pid).expect("the example runs") == before {
+        while commits(&read_log()) == before {
             assert!(
                 Instant::now() < deadline,
-                "the pointer's move did not wake the example"
+                "the pointer on the button drew no frame: {}",
+                log_path.display()
             );
             std::thread::sleep(Duration::from_millis(50));
         }
         if let Err(error) = at_rest(pid) {
-            panic!("the example is not at rest after the pointer moved: {error}");
+            panic!("the example is not at rest after the pointer hovered its button: {error}");
         }
     }
 
@@ -205,6 +258,7 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
     };
     let mut rest = String::new();
     lines.read_to_string(&mut rest).expect("its last lines");
+    eprint!("{}", read_log());
     assert!(status.success(), "the example ended with {status}");
     assert_eq!(
         rest.lines().collect::<Vec<_>>(),

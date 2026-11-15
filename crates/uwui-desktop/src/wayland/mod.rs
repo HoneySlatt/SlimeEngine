@@ -80,18 +80,25 @@ pub(crate) fn run<A: App>(look: Look, settings: WindowSettings, app: A) -> i32 {
             return EXIT_HOST_FAILED;
         }
     };
-    let session = match Session::start(look, window, app, host.asks.waker()) {
+    let session = match Session::start(look, window, app, host.asks.waker(), clock::now()) {
         Ok(session) => session,
         Err(error) => {
             let what = match error {
                 StartError::Look(_) => "the application's look does not read",
                 StartError::App(_) => "the application cannot start",
             };
+            // Its `Display` holds the cause alone.
             report(what, &error);
             return EXIT_START_FAILED;
         }
     };
-    match host.run(session) {
+    let mut host = host;
+    let mut session = session;
+    let ran = host.run(&mut session);
+    // The application's last call, after a failure too, so that it may keep its work: the window
+    // may be gone, its device lost.
+    session.stop();
+    match ran {
         Ok(()) => 0,
         Err(error) => {
             report("uwui's desktop host stopped", &error);
@@ -254,27 +261,36 @@ impl Host {
         })
     }
 
-    /// The loop, until the application ends.
-    fn run<A: App>(mut self, mut session: Session<A>) -> Result<(), HostError> {
+    /// The loop, until the application ends or the host fails.
+    fn run<A: App>(&mut self, session: &mut Session<A>) -> Result<(), HostError> {
         // The first frame runs at once, the window's size given.
-        let mut changed = true;
+        self.pacing.host_changed();
         loop {
-            self.queue
-                .dispatch_pending(&mut self.told)
-                .map_err(|cause| failed("the connection to the compositor", cause))?;
+            // Before the events are timed: their anchor is made again after a suspend.
             if self.suspends.take() >= RESUMED {
                 self.told.resumed();
             }
+            self.queue
+                .dispatch_pending(&mut self.told)
+                .map_err(|cause| failed("the connection to the compositor", cause))?;
             let terminated = self.asks.take_terminated();
             let closed = std::mem::take(&mut self.told.close);
+            // An event of the window, a wake or a termination signal asks from outside: it runs a
+            // frame even while the window holds its frames, once their signal is late (ADR-0187).
+            let woken = self.asks.take_woken();
+            if woken
+                || terminated
+                || closed
+                || !self.told.inputs.is_empty()
+                || self.told.configure.is_some()
+            {
+                self.pacing.asked_from_outside();
+            }
             if terminated || closed {
                 session.close_requested();
-            }
-            // An event of the window or a wake asks from outside: it runs a frame even while the
-            // window holds its frames, once their signal is late (ADR-0187).
-            let woken = self.asks.take_woken();
-            if woken || !self.told.inputs.is_empty() || self.told.configure.is_some() {
-                self.pacing.asked_from_outside();
+                if session.ending() {
+                    break;
+                }
             }
             if let Some(at) = self.told.signal.take() {
                 self.pacing.signalled(at);
@@ -286,24 +302,26 @@ impl Host {
                 // Scale 1 until the fractional scale (M6d.7a2).
                 self.size = size;
                 self.gpu.resize(size);
-                changed = true;
+                // The commit that follows the acknowledgement carries the new size.
+                self.pacing.host_changed();
             }
-            self.give_inputs(&mut session);
+            self.give_inputs(session);
             session.step();
             if session.ending() {
                 break;
             }
-            changed |= self.make_requests(&mut session.window);
+            if self.make_requests(&mut session.window) {
+                self.pacing.host_changed();
+            }
             let now = clock::now();
             let ui = &session.ui;
             let mut next = self.pacing.next(
                 now,
-                changed || ui.needs_frame(TargetId::MAIN),
+                ui.needs_frame(TargetId::MAIN),
                 ui.next_frame_due(TargetId::MAIN),
             );
-            changed = false;
             if next == Next::Frame {
-                self.frame(&mut session, now)?;
+                self.frame(session, now)?;
                 let ui = &session.ui;
                 next = self.pacing.next(
                     clock::now(),
@@ -319,27 +337,15 @@ impl Host {
             };
             self.wait(deadline)?;
         }
-        session.stop();
         Ok(())
     }
 
     /// Gives the interface the person's input that came, in order; the pointer's last move held
     /// while the frame waits for its signal, as uwui asks the moves of a frame gathered.
     fn give_inputs<A: App>(&mut self, session: &mut Session<A>) {
-        for (time, input) in std::mem::take(&mut self.told.inputs) {
-            if let Input::PointerMoved { .. } = input {
-                self.held_move = Some((time, input));
-                continue;
-            }
-            if let Some(held) = self.held_move.take() {
-                give(session, held);
-            }
-            give(session, (time, input));
-        }
-        if !self.pacing.awaiting()
-            && let Some(held) = self.held_move.take()
-        {
-            give(session, held);
+        let inputs = std::mem::take(&mut self.told.inputs);
+        for input in gather(inputs, &mut self.held_move, self.pacing.awaiting()) {
+            give(session, input);
         }
     }
 
@@ -375,9 +381,8 @@ impl Host {
             .acquire()
             .map_err(|cause| failed("the window's image", cause))?;
         let Some(image) = image else {
-            // No image now: the frame counts as drawn, its signal late, so that the loop holds
-            // rather than asks again at once.
-            self.pacing.drew(now);
+            // No image now: tried again a signal's wait later, rather than at once.
+            self.pacing.missed(now);
             return Ok(());
         };
         if let Some(held) = self.held_move.take() {
@@ -408,16 +413,20 @@ impl Host {
         let Some(guard) = self.queue.prepare_read() else {
             return Ok(());
         };
-        match self.connection.flush() {
-            Ok(()) => {}
-            // The socket is full: what waits is sent at the next turn.
+        // A full socket: the wait ends too once it can be written to, and the next turn sends
+        // what waits.
+        let full = match self.connection.flush() {
+            Ok(()) => false,
             Err(wayland_client::backend::WaylandError::Io(error))
-                if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                if error.kind() == std::io::ErrorKind::WouldBlock =>
+            {
+                true
+            }
             Err(cause) => return Err(failed("the connection to the compositor", cause)),
-        }
+        };
         let readable = self
             .waits
-            .wait(guard.connection_fd(), deadline)
+            .wait(guard.connection_fd(), deadline, full)
             .map_err(|cause| failed("the loop's wait", cause))?;
         if readable {
             match guard.read() {
@@ -429,6 +438,29 @@ impl Host {
         }
         Ok(())
     }
+}
+
+/// The person's input in the order that the interface takes it: the pointer's moves gathered,
+/// each move given only before the event that follows it, and the last one held in `held` while
+/// the frame `awaits` its signal, to be given before the next event or frame.
+fn gather(
+    inputs: Vec<(EventTime, Input<'static>)>,
+    held: &mut Option<(EventTime, Input<'static>)>,
+    awaits: bool,
+) -> Vec<(EventTime, Input<'static>)> {
+    let mut given = Vec::with_capacity(inputs.len() + 1);
+    for (time, input) in inputs {
+        if let Input::PointerMoved { .. } = input {
+            *held = Some((time, input));
+            continue;
+        }
+        given.extend(held.take());
+        given.push((time, input));
+    }
+    if !awaits {
+        given.extend(held.take());
+    }
+    given
 }
 
 /// Gives the interface one event on the window, then, if it took it, serves what it asks.
@@ -456,4 +488,47 @@ fn serve_outputs(ui: &mut uwui::tree::Ui) {
 /// A side of a size for the protocol, which counts in `i32`: zero for none.
 fn side(pixels: u32) -> i32 {
     i32::try_from(pixels).unwrap_or(i32::MAX)
+}
+
+#[cfg(test)]
+mod tests {
+    use uwui::time::Instant;
+
+    use super::*;
+
+    fn moved(at: u64, x: f32) -> (EventTime, Input<'static>) {
+        (
+            EventTime::received(Instant::from_nanos(at)),
+            Input::PointerMoved { x, y: 0.0 },
+        )
+    }
+
+    fn told(inputs: &[(EventTime, Input<'static>)]) -> Vec<String> {
+        inputs
+            .iter()
+            .map(|(time, input)| format!("{} {input:?}", time.at.as_nanos()))
+            .collect()
+    }
+
+    #[test]
+    fn the_pointers_moves_are_gathered_and_the_last_held_while_a_frame_waits() {
+        let left = (
+            EventTime::received(Instant::from_nanos(3)),
+            Input::PointerLeft,
+        );
+        let mut held = None;
+        // Two moves then the pointer leaving: the last move before it, the first dropped.
+        let given = gather(vec![moved(1, 1.0), moved(2, 2.0), left], &mut held, true);
+        assert_eq!(
+            told(&given),
+            ["2 PointerMoved { x: 2.0, y: 0.0 }", "3 PointerLeft"]
+        );
+        // While a frame waits, the last move is held, then replaced by a later one.
+        assert!(gather(vec![moved(4, 4.0)], &mut held, true).is_empty());
+        assert!(gather(vec![moved(5, 5.0)], &mut held, true).is_empty());
+        // Once nothing waits, the held move is given.
+        let given = gather(Vec::new(), &mut held, false);
+        assert_eq!(told(&given), ["5 PointerMoved { x: 5.0, y: 0.0 }"]);
+        assert!(held.is_none());
+    }
 }

@@ -2138,15 +2138,16 @@ run ─▶ wayland::run: connects (WAYLAND_DISPLAY), makes the xdg-shell window,
                      Ui::frame, uwui-render draws, wl_surface.frame asked, present (the driver's
                      commit carries the callback)
             WaitUntil, Wait ─▶ poll on the socket, the eventfd and a timerfd on CLOCK_BOOTTIME
-     ─▶ App::stop, then the window and its device dropped; the process exits with 0, or with
-        EXIT_HOST_FAILED or EXIT_START_FAILED, the failure told on the standard error
+     ─▶ App::stop, after a failure of the host too, then the window and its device dropped; the
+        process exits with 0, or with EXIT_HOST_FAILED or EXIT_START_FAILED, the failure told on
+        the standard error
 ```
 
 The pacing follows [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md):
 nothing runs at rest; the first frame after a rest starts at once; while frames run, each waits for
 the frame callback of the one before; a window whose callback does not come, hidden, draws nothing
-for its own changes, and an event of the window or a wake runs a frame once the callback is
-100 ms late, as
+for its own changes, and an event of the window or a wake runs a frame once the callback is late,
+as
 [ADR-0187](adr/0187-a-hidden-window-at-rest.md) says. The time given is on the grid of the
 callbacks, its period measured from their gaps. Frames are not yet drawn just in time, nor timed by
 the presentations' feedback (M6d.7a2).
@@ -2356,13 +2357,16 @@ the headless samples on a Windows runner.
 
 ## `unsafe` code
 
-Three crates contain `unsafe` code. `slime-benches`: its allocator, which counts allocations
-([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)). `slime-app`, on Windows alone: three calls to
+Four crates contain `unsafe` code. `slime-benches`: its allocator, which counts allocations
+([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)); `uwui-agent`, in its test of what a request's
+line costs, the same kind of allocator
+([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)). `slime-app`, on Windows alone: three calls to
 Windows' API that read the host's clock, the performance counter, its frequency and the unbiased
 interrupt time ([ADR-0251](adr/0251-the-engines-host-clock-and-its-times.md)). `uwui-desktop`, on
 Linux: wgpu's surface made on the raw `wl_display` and `wl_surface` of the window, which the host
 keeps alive until the device and its surface are dropped
 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
-Miri runs none of them yet: it gives the first two on Windows, not the third, nor a compositor. No
+Miri runs none of them yet: of `slime-app`'s calls it gives the first two on Windows, not the
+third, nor a compositor. No
 other crate of the engine, of its tools or of its games does. [ADR-0005](adr/0005-lints-and-unsafe-policy.md) says when it is allowed and how it
 must be written.

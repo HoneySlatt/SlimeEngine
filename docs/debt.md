@@ -97,7 +97,11 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **uwui's desktop host ends on a lost device or surface** ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
   M6d.7a1's host configures a surface outdated or lost once again, then ends with `EXIT_HOST_FAILED`; a device lost ends it at its next frame.
   The engine makes both again within a budget ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)); the host does not yet, and no test loses them.
-  Followed at M6d.7a2, which makes the host whole on Wayland.
+  Followed at M6d.7a2, which makes the host whole on Wayland: its card does not name it yet, and gains it at its start if the owner agrees.
+- **uwui's desktop host measures the display's period rather than reading it** ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
+  The time on the grid adds whole periods to the last frame callback; the period is the median of the callbacks' gaps while frames follow each other, and before any is measured the frame's start is given.
+  ADR-0227 asks for the display's rate first: no `wl_output` is bound, and a program whose frames all miss one refresh measures twice the period.
+  Followed at M6d.7a2, whose presentations' times give the refresh of the display that shows the window.
 - **`scripts/input-to-present.sh` loses part of its inputs** ([ADR-0200](adr/0200-applications-measured-from-outside.md)).
   It runs `wlrctl` once an input; each run makes a virtual pointer or keyboard and destroys it at once.
   A headless sway gives its seat a pointer only while one exists: a window binds it too late, and the input goes nowhere.
@@ -816,7 +820,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   An event carries its time ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)), of which uwui keeps the time, not its source.
   The engine gives no root a clock of its own: no game's root runs on uwui yet, and the dev overlay and the editor follow the host's clock.
   A motion asks for every frame while it moves.
-  Followed for uwui's desktop host at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames)'s parts, which read each platform's times and events' times (Wayland at M6d.7a2, X11 at M6d.7b, Windows at M6d.7c, macOS at M6d.7d), the system's notice that it resumed with the time suspended (Linux at M6d.7b, Windows at M6d.7c, macOS at M6d.7d), and macOS's clock (M6d.7d) ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)); for the engine, its frame's time at M6c.Q2f ([ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)); the layer of games' interfaces, which feeds a game's clock to its roots ([`uwui-needs.md`](uwui-needs.md#slimeengines-own)); uwui's first stage builds the caps of motion.
+  Followed for uwui's desktop host at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames)'s parts, which read each platform's times and events' times (Wayland's pointer since M6d.7a1, its keyboard and frames at M6d.7a2, X11 at M6d.7b, Windows at M6d.7c, macOS at M6d.7d), the system's notice that it resumed with the time suspended (Linux at M6d.7b, Windows at M6d.7c, macOS at M6d.7d), and macOS's clock (M6d.7d) ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)); for the engine, its frame's time at M6c.Q2f ([ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)); the layer of games' interfaces, which feeds a game's clock to its roots ([`uwui-needs.md`](uwui-needs.md#slimeengines-own)); uwui's first stage builds the caps of motion.
 - **Of the window's lifecycle, uwui hears the focus alone** ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
   A suspend, a resume and low memory are not given: winit 0.30 gives them on phones and the web alone, nowhere the engine runs.
   A target removed, lost or made again is not given: nothing in uwui reads them yet, and the engine's target goes only as the run ends.

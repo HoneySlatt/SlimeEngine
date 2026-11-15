@@ -206,7 +206,7 @@ pub enum Close {
 /// The host calls [`start`](Self::start) once its window and interface are made, then
 /// [`step`](Self::step) each time it wakes, after the events that came and before a frame;
 /// [`close_requested`](Self::close_requested) when the person or the system asks the window to
-/// close; and [`stop`](Self::stop) once, as the run ends. Nothing runs while nothing happens: a step
+/// close; and [`stop`](Self::stop) once, as the run ends, after a failure of the host too. Nothing runs while nothing happens: a step
 /// runs on an event, a wake of the interface's waker
 /// ([`Ui::waker`](uwui::tree::Ui::waker)), a frame of the interface, or a time that it waits for.
 pub trait App {
@@ -230,7 +230,10 @@ pub trait App {
         Close::Allow
     }
 
-    /// The run ends: the window is still open, and closes after it. By default, nothing.
+    /// The run ends: the window closed, the application allowed it or closed it, or the host
+    /// failed, its connection to the compositor broken or its device lost, the window then
+    /// perhaps gone. The last call, so that the application may keep its work; the interface is
+    /// still whole. By default, nothing.
     fn stop(&mut self, ui: &mut Ui) {
         let _ = ui;
     }

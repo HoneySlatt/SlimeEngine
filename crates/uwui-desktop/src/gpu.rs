@@ -44,6 +44,9 @@ pub(crate) struct Gpu {
     device: wgpu::Device,
     /// Set when the device is lost, by its callback.
     lost: Arc<AtomicBool>,
+    /// Whether the surface is configured again once the image held is presented: wgpu refuses to
+    /// configure a surface while one of its images is held.
+    stale: bool,
 }
 
 /// A frame's image, drawn, to be presented once the platform's signal is asked for
@@ -178,6 +181,7 @@ impl Gpu {
             queue,
             device,
             lost,
+            stale: false,
         })
     }
 
@@ -205,8 +209,8 @@ impl Gpu {
             match self.surface.get_current_texture() {
                 wgpu::CurrentSurfaceTexture::Success(texture) => return Ok(Some(texture)),
                 wgpu::CurrentSurfaceTexture::Suboptimal(texture) => {
-                    // Drawn as it is; the surface is configured again for the next frame.
-                    self.surface.configure(&self.device, &self.config);
+                    // Drawn as it is; the surface is configured again once it is presented.
+                    self.stale = true;
                     return Ok(Some(texture));
                 }
                 wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
@@ -270,8 +274,12 @@ impl Gpu {
         (Drawn(image), drawn)
     }
 
-    /// Presents a frame's image: on Wayland, the driver commits the surface.
-    pub(crate) fn present(&self, drawn: Drawn) {
+    /// Presents a frame's image: on Wayland, the driver commits the surface. A surface that gave
+    /// a suboptimal image is configured again then, once no image of it is held.
+    pub(crate) fn present(&mut self, drawn: Drawn) {
         self.queue.present(drawn.0);
+        if std::mem::take(&mut self.stale) {
+            self.surface.configure(&self.device, &self.config);
+        }
     }
 }

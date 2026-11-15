@@ -7,6 +7,8 @@ use std::fmt;
 use std::task::Waker;
 
 use uwui::DocumentErrors;
+use uwui::host::TargetId;
+use uwui::time::{FrameShown, FrameSource, Instant};
 use uwui::tree::Ui;
 
 use crate::app::{App, Close, Look, Window};
@@ -23,7 +25,7 @@ pub(crate) enum StartError {
 impl fmt::Display for StartError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Look(errors) => write!(f, "its look does not read: {errors}"),
+            Self::Look(errors) => write!(f, "{errors}"),
             Self::App(error) => write!(f, "{error}"),
         }
     }
@@ -48,12 +50,14 @@ pub(crate) struct Session<A> {
 }
 
 impl<A: App> Session<A> {
-    /// Makes the interface in `look`, given `waker`, and starts `app` in `window`.
+    /// Makes the interface in `look`, given `waker` and the host's time `now`, and starts `app` in
+    /// `window`.
     pub(crate) fn start(
         look: Look,
         mut window: Window,
         mut app: A,
         waker: Waker,
+        now: Instant,
     ) -> Result<Self, StartError> {
         let Look {
             fonts,
@@ -63,6 +67,15 @@ impl<A: App> Session<A> {
         let mut ui = Ui::new(fonts);
         ui.set_style(&sheets, &themes).map_err(StartError::Look)?;
         ui.set_waker(waker);
+        // What the application adds as it starts, a notification, waits from the host's time,
+        // not from the clock's zero.
+        ui.set_frame_shown(
+            TargetId::MAIN,
+            FrameShown {
+                at: now,
+                source: FrameSource::Started,
+            },
+        );
         app.start(&mut ui, &mut window).map_err(StartError::App)?;
         Ok(Self {
             ui,
@@ -162,6 +175,7 @@ mod tests {
             Window::new(WindowSettings::new("a window", "org.example.Test")),
             app,
             Waker::noop().clone(),
+            Instant::from_nanos(7),
         )
     }
 
@@ -188,6 +202,7 @@ mod tests {
             Window::new(WindowSettings::new("a window", "org.example.Test")),
             &mut app,
             Waker::noop().clone(),
+            Instant::from_nanos(7),
         )
         .err()
         .expect("the look does not read");
@@ -240,5 +255,19 @@ mod tests {
         let requests = session.window.take_requests();
         assert!(requests.title && !requests.min_size && requests.fullscreen.is_none());
         assert!(!session.window.take_requests().title);
+    }
+
+    #[test]
+    fn the_interface_has_the_hosts_time_before_the_application_starts() {
+        let mut app = Told::default();
+        let mut session = start(&mut app).expect("it starts");
+        let (_, stats) = session.ui.frame(uwui::host::TargetId::MAIN);
+        assert_eq!(
+            stats.shown,
+            uwui::time::FrameShown {
+                at: Instant::from_nanos(7),
+                source: uwui::time::FrameSource::Started,
+            }
+        );
     }
 }

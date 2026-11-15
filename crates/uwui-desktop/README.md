@@ -15,12 +15,12 @@ MIT OR Apache-2.0.
   the look first, its fonts, style sheets and themes; the window's settings; the application, an
   `App`, whose `start` builds its roots and may fail, whose `step` runs after the events and before
   each frame, whose `close_requested` keeps the window open or lets it close, and whose `stop`
-  runs as the run ends.
+  runs as the run ends, after a failure of the host too, so that it may keep its work.
 - Holds a *core* that knows no platform, tested without a window:
   - `pacing`: nothing runs at rest; the first frame after a rest starts at once; while frames run,
     one per refresh, each on the signal that the image before asked; a window whose signal does
     not come holds its frames, an event of the window or a wake from another thread running one
-    once the signal is 100 ms late ([ADR-0187](../../docs/adr/0187-a-hidden-window-at-rest.md)); the time given to the
+    once the signal is late ([ADR-0187](../../docs/adr/0187-a-hidden-window-at-rest.md)); the time given to the
     interface on the grid of the signals (`FrameSource::OnGrid`), its period measured from their
     gaps.
   - `anchor`: the platform's times of its events, in another clock, placed on the host's clock by
@@ -57,8 +57,9 @@ input methods and screen readers (M6d.8). [`debt.md`](../../docs/debt.md) holds 
 
 `cargo test -p uwui-desktop` runs the core's tests, on every platform, without a window. The
 `rest` test, `test = false`, runs the example in the Wayland compositor that `WAYLAND_DISPLAY`
-names: at rest after its start, woken by the pointer where the series gives input and at rest
-again, then ended by SIGTERM through its closing. `scripts/check.sh windowed` runs it in a headless
+names: an image presented and at rest after its start; where the series gives input, the
+pointer put on its button *Add*, whose hover draws frames, and at rest again; then ended by
+SIGTERM through its closing. Weston takes no input: there the pointer's part does not run. `scripts/check.sh windowed` runs it in a headless
 Weston, and `scripts/compositors.sh` in Weston, sway, KWin and Mutter
 ([`compositors.md`](../../docs/compositors.md)). `scripts/check.sh lint` checks that its tree
 holds no engine crate but `slime-color` and `slime-input`, that no other crate of the workspace

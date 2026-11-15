@@ -207,7 +207,7 @@ if runs lint; then
         echo "a crate of the workspace depends on uwui-desktop: the engine's programs build none of uwui's hosts"
         exit 1
     fi
-    if grep -E '^(winit|wgpu|wayland-client|wayland-sys|x11rb|x11-dl|smithay-client-toolkit|objc2-app-kit) ' \
+    if grep -E '^(winit|wgpu|wgpu-core|wgpu-hal|wgpu-types|naga|ash|raw-window-handle|wayland-client|wayland-backend|wayland-protocols|wayland-sys|x11rb|x11-dl|smithay-client-toolkit|objc2-app-kit) ' \
         <<< "$uwui_dependencies"; then
         echo "uwui depends on the windowing libraries or the GPU's above: only its hosts and its renderer may"
         exit 1

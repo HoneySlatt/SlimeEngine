@@ -43,11 +43,13 @@ impl Waits {
     }
 
     /// Waits until `wayland` can be read, the loop is woken, or `deadline` passes; none for no
-    /// deadline. Answers whether `wayland` can be read, or ended.
+    /// deadline; and, when `write`, until `wayland` can be written to, its socket full before.
+    /// Answers whether `wayland` can be read, or ended.
     pub(super) fn wait(
         &mut self,
         wayland: BorrowedFd<'_>,
         deadline: Option<Instant>,
+        write: bool,
     ) -> io::Result<bool> {
         if deadline != self.armed {
             // An absolute time of zero disarms the timer: a deadline is one nanosecond at least.
@@ -70,7 +72,14 @@ impl Waits {
             self.armed = deadline;
         }
         let mut fds = [
-            PollFd::new(&wayland, PollFlags::IN),
+            PollFd::new(
+                &wayland,
+                if write {
+                    PollFlags::IN | PollFlags::OUT
+                } else {
+                    PollFlags::IN
+                },
+            ),
             PollFd::new(&*self.wake, PollFlags::IN),
             PollFd::new(&self.timer, PollFlags::IN),
         ];
@@ -92,6 +101,6 @@ impl Waits {
             // A timer that fired is disarmed.
             self.armed = None;
         }
-        Ok(!wayland.is_empty())
+        Ok(wayland.intersects(PollFlags::IN | PollFlags::ERR | PollFlags::HUP))
     }
 }

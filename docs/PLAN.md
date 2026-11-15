@@ -176,4 +176,4 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
 
 ## Known debt
 
-The known debt still open, 197 items, is in [`debt.md`](debt.md).
+The known debt still open, 199 items, is in [`debt.md`](debt.md).

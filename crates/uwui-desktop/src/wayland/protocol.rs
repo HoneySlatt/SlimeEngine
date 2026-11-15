@@ -84,9 +84,81 @@ impl Told {
         self.anchor.reset();
     }
 
-    /// The time of an event that the compositor stamped `millis`, received now.
-    fn time(&mut self, millis: u32) -> EventTime {
-        EventTime::anchored(self.anchor.time(millis, clock::now()))
+    /// The time of an event that the compositor stamped `millis`, received at `received`.
+    fn time(&mut self, millis: u32, received: Instant) -> EventTime {
+        EventTime::anchored(self.anchor.time(millis, received))
+    }
+
+    /// What the pointer did, but entering and leaving, which name a surface: its moves, its buttons
+    /// and its wheel, gathered by the pointer's frames, received at `received`.
+    fn pointer(&mut self, event: wl_pointer::Event, received: Instant) {
+        match event {
+            wl_pointer::Event::Motion {
+                time,
+                surface_x,
+                surface_y,
+            } => {
+                let time = self.time(time, received);
+                self.push(
+                    time,
+                    Input::PointerMoved {
+                        x: surface_x as f32,
+                        y: surface_y as f32,
+                    },
+                );
+            }
+            wl_pointer::Event::Button {
+                time,
+                button,
+                state,
+                ..
+            } => {
+                let state = match state {
+                    WEnum::Value(wl_pointer::ButtonState::Pressed) => ButtonState::Pressed,
+                    _ => ButtonState::Released,
+                };
+                let time = self.time(time, received);
+                self.push(
+                    time,
+                    Input::PointerButton {
+                        button: mouse_button(button),
+                        state,
+                    },
+                );
+            }
+            wl_pointer::Event::Axis { time, axis, value } => {
+                self.axis.time = Some(time);
+                if let Some(at) = axis_index(axis) {
+                    self.axis.pixels[at] += value;
+                }
+            }
+            wl_pointer::Event::AxisDiscrete { axis, discrete } => {
+                if let Some(at) = axis_index(axis) {
+                    self.axis.notches[at] += discrete;
+                }
+            }
+            wl_pointer::Event::Frame => {
+                let axis = std::mem::take(&mut self.axis);
+                let Some(millis) = axis.time else {
+                    return;
+                };
+                // uwui's wheel scrolls up for a positive motion, Wayland's down: signs turned.
+                let delta = if axis.notches != [0, 0] {
+                    ScrollDelta::Lines {
+                        x: -axis.notches[0] as f32,
+                        y: -axis.notches[1] as f32,
+                    }
+                } else {
+                    ScrollDelta::Pixels {
+                        x: -axis.pixels[0],
+                        y: -axis.pixels[1],
+                    }
+                };
+                let time = self.time(millis, received);
+                self.push(time, Input::Wheel(delta));
+            }
+            _ => {}
+        }
     }
 
     fn push(&mut self, time: EventTime, input: Input<'static>) {
@@ -269,71 +341,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Told {
             wl_pointer::Event::Leave { .. } => {
                 told.push(EventTime::received(clock::now()), Input::PointerLeft);
             }
-            wl_pointer::Event::Motion {
-                time,
-                surface_x,
-                surface_y,
-            } => {
-                let time = told.time(time);
-                told.push(
-                    time,
-                    Input::PointerMoved {
-                        x: surface_x as f32,
-                        y: surface_y as f32,
-                    },
-                );
-            }
-            wl_pointer::Event::Button {
-                time,
-                button,
-                state,
-                ..
-            } => {
-                let state = match state {
-                    WEnum::Value(wl_pointer::ButtonState::Pressed) => ButtonState::Pressed,
-                    _ => ButtonState::Released,
-                };
-                let time = told.time(time);
-                told.push(
-                    time,
-                    Input::PointerButton {
-                        button: mouse_button(button),
-                        state,
-                    },
-                );
-            }
-            wl_pointer::Event::Axis { time, axis, value } => {
-                told.axis.time = Some(time);
-                if let Some(at) = axis_index(axis) {
-                    told.axis.pixels[at] += value;
-                }
-            }
-            wl_pointer::Event::AxisDiscrete { axis, discrete } => {
-                if let Some(at) = axis_index(axis) {
-                    told.axis.notches[at] += discrete;
-                }
-            }
-            wl_pointer::Event::Frame => {
-                let axis = std::mem::take(&mut told.axis);
-                let Some(millis) = axis.time else {
-                    return;
-                };
-                // uwui's wheel scrolls up for a positive motion, Wayland's down: signs turned.
-                let delta = if axis.notches != [0, 0] {
-                    ScrollDelta::Lines {
-                        x: -axis.notches[0] as f32,
-                        y: -axis.notches[1] as f32,
-                    }
-                } else {
-                    ScrollDelta::Pixels {
-                        x: -axis.pixels[0],
-                        y: -axis.pixels[1],
-                    }
-                };
-                let time = told.time(millis);
-                told.push(time, Input::Wheel(delta));
-            }
-            _ => {}
+            event => told.pointer(event, clock::now()),
         }
     }
 }
@@ -371,5 +379,98 @@ mod tests {
         assert_eq!(mouse_button(0x113), MouseButton::Back);
         assert_eq!(mouse_button(0x114), MouseButton::Forward);
         assert_eq!(mouse_button(0x115), MouseButton::Other(0x115));
+    }
+
+    fn at(millis: u64) -> Instant {
+        Instant::from_nanos(millis * 1_000_000)
+    }
+
+    fn inputs(told: &mut Told) -> Vec<String> {
+        told.inputs
+            .drain(..)
+            .map(|(time, input)| {
+                format!(
+                    "{} {:?} {input:?}",
+                    time.at.as_nanos() / 1_000_000,
+                    time.source
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_pointers_moves_and_buttons_carry_their_anchored_times() {
+        let mut told = Told::new();
+        // The compositor's clock 5 s behind the host's; the first event came 2 ms late.
+        let motion = |time, x, y| wl_pointer::Event::Motion {
+            time,
+            surface_x: x,
+            surface_y: y,
+        };
+        told.pointer(motion(1_000, 10.5, 20.0), at(6_002));
+        told.pointer(motion(1_008, 11.0, 21.0), at(6_009));
+        told.pointer(
+            wl_pointer::Event::Button {
+                serial: 1,
+                time: 1_010,
+                button: 0x110,
+                state: WEnum::Value(wl_pointer::ButtonState::Pressed),
+            },
+            at(6_013),
+        );
+        assert_eq!(
+            inputs(&mut told),
+            [
+                "6002 Anchored PointerMoved { x: 10.5, y: 20.0 }",
+                "6009 Anchored PointerMoved { x: 11.0, y: 21.0 }",
+                "6011 Anchored PointerButton { button: Left, state: Pressed }",
+            ]
+        );
+    }
+
+    #[test]
+    fn the_wheel_is_gathered_by_the_pointers_frame_its_signs_turned() {
+        let mut told = Told::new();
+        let vertical = || WEnum::Value(wl_pointer::Axis::VerticalScroll);
+        // A notch down: lines, scrolling down, as uwui signs it.
+        told.pointer(
+            wl_pointer::Event::Axis {
+                time: 100,
+                axis: vertical(),
+                value: 15.0,
+            },
+            at(5_100),
+        );
+        told.pointer(
+            wl_pointer::Event::AxisDiscrete {
+                axis: vertical(),
+                discrete: 1,
+            },
+            at(5_100),
+        );
+        assert!(
+            told.inputs.is_empty(),
+            "the wheel waits for the pointer's frame"
+        );
+        told.pointer(wl_pointer::Event::Frame, at(5_100));
+        // A touchpad's motion across, without notches: pixels.
+        told.pointer(
+            wl_pointer::Event::Axis {
+                time: 120,
+                axis: WEnum::Value(wl_pointer::Axis::HorizontalScroll),
+                value: -3.5,
+            },
+            at(5_120),
+        );
+        told.pointer(wl_pointer::Event::Frame, at(5_120));
+        // A frame without the wheel gives nothing.
+        told.pointer(wl_pointer::Event::Frame, at(5_130));
+        assert_eq!(
+            inputs(&mut told),
+            [
+                "5100 Anchored Wheel(Lines { x: 0.0, y: -1.0 })",
+                "5120 Anchored Wheel(Pixels { x: 3.5, y: -0.0 })",
+            ]
+        );
     }
 }
