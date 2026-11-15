@@ -10,7 +10,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   `slime-gfx`'s `Gpu::new` keeps wgpu's default hint, `MemoryHints::Performance`, whose allocator reserves its blocks at their largest.
   A game fills them; a small application on uwui never does, and pays for them in video memory.
   Smaller blocks, `MemoryHints::MemoryUsage` or sizes of their own, may cost a game allocations in more pieces: not measured.
-  Followed at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames), where uwui's desktop host opens its own device ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)).
+  Followed at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames)a1, where uwui's desktop host opens its own device ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md), [ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
 - **What a load reads waits in staging memory until its copies are submitted** ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
   The renderer's uploader sends at most a budget of bytes per frame; nothing holds back loads that read faster.
   A load of many hundreds of megabytes keeps them in the CPU's memory while it lasts.
@@ -86,7 +86,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The editor and applications are to draw at the display's rate: uwui's desktop host from Stage 6d, the editor at M6c.Q2f, once Stage 6c resumes.
 - **No application on uwui has been measured at rest** ([measured at M6d.0b](measurements.md#m6d0b-a-program-on-uwuis-start-and-rest-measured-from-outside)).
   The `widgets` example, which [ADR-0180](adr/0180-one-canvas-and-the-frameworks-foundations.md) names, moves two progress bars without end and draws 60 frames a second.
-  Its rest under Wayland and Xwayland is to be measured on an application that rests, from outside, with uwui's desktop host at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames).
+  Its rest under Wayland and Xwayland is to be measured on an application that rests, from outside, with uwui's desktop host: in each compositor of the series from [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames)a1, from outside by M6d.7a2's tool.
 - **`scripts/input-to-present.sh` loses part of its inputs** ([ADR-0200](adr/0200-applications-measured-from-outside.md)).
   It runs `wlrctl` once an input; each run makes a virtual pointer or keyboard and destroys it at once.
   A headless sway gives its seat a pointer only while one exists: a window binds it too late, and the input goes nowhere.
@@ -100,7 +100,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   At 144 or 165 Hz, the default 60 frames a second last 2 or 3 refreshes in turn: judder in motion.
   A game can raise `AppConfig::max_frame_rate` to the display's rate, which the engine does not report, or choose `PresentMode::Fifo`, one image per refresh, which can stall (next item).
   Frames wait for the frame callbacks, but are not aligned on them; to reconsider when a renderer draws real scenes.
-  Followed at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames), whose ADR of the frames' rate amends ADR-0021.
+  Decided by [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md): frames on each platform's signal, drawn just in time; built for uwui's desktop host platform by platform from [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames)a1, for the engine at M6c.Q2f.
 - **Without Mailbox, presenting can still stall the loop.**
   Windows that do not offer it, and applications that choose `PresentMode::Fifo`, wait for the display: one frame per second for a hidden window on niri.
   In a headless Weston with lavapipe, `acquire` waits for Weston's frame callbacks as long as the machine's load makes it.
@@ -108,7 +108,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **A hidden window keeps drawing on X11, and on Windows when it is covered**, at the scheduled rate (2 to 3 % of one CPU core on the development machine).
   A program run on demand, as the editor (`AppConfig::on_demand`), draws only when woken.
   On Wayland, a hidden window draws when the compositor sends it a frame callback: never in Weston, once a second in niri ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
-  On X11 and macOS, a window covered whole holds its frames once the system says so ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)); under a compositing manager, Xwayland included, the X server reports every window visible, and the window keeps drawing. Windows tells no covered window through winit; DXGI's notice of occlusion is M6d.7's. Checked by hand alone: nothing in CI covers a window.
+  On X11 and macOS, a window covered whole holds its frames once the system says so ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)); under a compositing manager, Xwayland included, the X server reports every window visible, and the window keeps drawing. Windows tells no covered window through winit, and DXGI's `DXGI_STATUS_OCCLUDED` never comes under the flip model that wgpu uses; uwui's desktop host reads Windows' at M6d.7c ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)). Checked by hand alone: nothing in CI covers a window.
   On Windows, a minimized window, of size zero, draws nothing and wakes not at all (ADR-0187); not checked in the virtual machine yet.
 - **A window that holds its frames** ([ADR-0187](adr/0187-a-hidden-window-at-rest.md), [ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)), hidden on Wayland, minimized on Windows, covered on X11 and macOS, or while its surface is given up, runs a frame only for what asks from outside.
   A run with a frame limit (`--frames`) does not reach it while hidden.
@@ -805,16 +805,16 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   An event carries its time ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)), of which uwui keeps the time, not its source.
   The engine gives no root a clock of its own: no game's root runs on uwui yet, and the dev overlay and the editor follow the host's clock.
   A motion asks for every frame while it moves.
-  Followed at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames), which reads the platforms' times, finds the system's notice that it resumed, gives the time suspended with it, and reads macOS's clock; the layer of games' interfaces, which feeds a game's clock to its roots ([`uwui-needs.md`](uwui-needs.md#slimeengines-own)); uwui's first stage builds the caps of motion.
+  Followed for uwui's desktop host at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames)'s parts, which read each platform's times and events' times (Wayland at M6d.7a2, X11 at M6d.7b, Windows at M6d.7c, macOS at M6d.7d), the system's notice that it resumed with the time suspended (Linux at M6d.7b, Windows at M6d.7c, macOS at M6d.7d), and macOS's clock (M6d.7d) ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)); for the engine, its frame's time at M6c.Q2f ([ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)); the layer of games' interfaces, which feeds a game's clock to its roots ([`uwui-needs.md`](uwui-needs.md#slimeengines-own)); uwui's first stage builds the caps of motion.
 - **Of the window's lifecycle, uwui hears the focus alone** ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
   A suspend, a resume and low memory are not given: winit 0.30 gives them on phones and the web alone, nowhere the engine runs.
   A target removed, lost or made again is not given: nothing in uwui reads them yet, and the engine's target goes only as the run ends.
   Whether a target is covered is not given: nothing in uwui draws it otherwise; the engine holds a covered window's frames itself.
   The focus's loss ends a drag and Alt alone; a press of a button held as the focus left still presses it at the release that the platform makes.
-  Followed at M6d.7, the system's notice of a resume and several windows; a host on a phone for the rest.
+  Followed at M6d.7's parts: the system's notice of a resume on each platform (M6d.7b to M6d.7d), several windows (M6d.7e); a host on a phone for the rest.
 - **A modal root reaches its own target alone, and the engine gives the pointer's moves of a frame as one** ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md), [ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md), [ADR-0258](adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md)).
   A modal root blocks its own target alone: a dialog in a window of its own, or panels torn off into windows, would need one that blocks a parent window or every window, which nothing reads yet.
-  A target's record of its frames, its time and whether it holds a change, is kept as long as the interface: a target removed waits for M6d.7, the first host whose targets go during a run ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
+  A target's record of its frames, its time and whether it holds a change, is kept as long as the interface: a target removed waits for M6d.7e, the first host whose targets go during a run ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
   The active target is the one of the last key, button or system's focus given; a write of the program's own, without a person's gesture, goes to that window.
   The engine has one window: it holds one move of the pointer, without a target, the owner's choice; a host of several windows holds one for each.
   The engine holds the pointer's last move until another event or the frame: what the editor's viewport measures along the path, a drag's threshold and an orbit's length, sees one move for each frame, so a move out and back within a frame counts for nothing.
@@ -822,9 +822,9 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The outputs tell the window only what changed since the run last read them: a presentation must give the same interface at every call once it gave one (`Presentation::ui`), or the window keeps the cursor and the input method that the interface asked before; no presentation gives another, and the contract stays until one does ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
   The cost of a move on the lowest machine that the quality bar names is not measured: that machine is not set up yet ([`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-owner)).
   The moves between two frames, the wheel's phase, a field's purpose, the pointer's entering and whether the cursor shows are not built: no code reads them.
-  The surrounding text is not told as an output after each change, and whether a point is uwui's tells no kind of region, a bar's caption, edges or buttons: their readers are M6d.8's input methods and M6d.7's decorations ([ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)).
+  The surrounding text is not told as an output after each change, and whether a point is uwui's tells no kind of region, a bar's caption, edges or buttons: their readers are M6d.8's input methods and M6d.7e's decorations ([ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)).
   A question over a field of 4,000 bytes whose long word follows text of two directions costs about 0.2 ms, ten times as much as over one direction, the character at a point included; the cause, found neither in uwui nor yet in parley, is not known ([`measurements.md`](measurements.md#m6d5c2-the-clipboard-and-the-hosts-questions)).
-  Followed at M6d.7, a target removed, several windows and a layer's own; the pen, inertial scrolling and the hosts of Android and the web, which read the rest.
+  Followed at M6d.7e, a target removed, several windows and a layer's own; the pen, inertial scrolling and the hosts of Android and the web, which read the rest.
 - **Starting many transitions at once looks each one up in the list of those under way** ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)).
   `Ui`'s styling and a section's reveal search the list of transitions under way before adding an element to it: a change of look that starts a transition on each of the editor's 12,487 elements makes about 78 million comparisons, inside the frame of the change that `ui.tree.look` times.
   Its share of that frame is not measured; found by M6d.5c3b's closing review, outside its change.

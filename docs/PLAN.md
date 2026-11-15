@@ -24,7 +24,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     whole; M6d.9a2 cut in three ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)), in progress,
     [M6d.9a2a](#m6d9a2a--the-library).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; in progress,
-    [M6d.7](#m6d7--the-desktop-host-its-window-and-its-frames).
+    [M6d.7](#m6d7--the-desktop-host-its-window-and-its-frames), cut in six.
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: deleting the branches `m6d1b-bench`, `m6d4a-prototype` and
@@ -41,7 +41,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.4a to M6d.4b2 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
 | [M6d.5a to M6d.5e2 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Done |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
-| [M6d.7 — The desktop host: its window and its frames](#m6d7--the-desktop-host-its-window-and-its-frames) | In progress |
+| [M6d.7a1 to M6d.7e — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | In progress |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a2a — The library](#m6d9a2a--the-library) | In progress |
@@ -53,14 +53,10 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 
 ## M6d.7 — The desktop host: its window and its frames
 
-Started on 2026-11-14 by a design session; its full card: `git show 6917f57:docs/stage-6d.md`.
-
-- **Goal.** An application on uwui alone: its window, frames at the display's rate, none at rest.
-- **Crates.** uwui's desktop host, new; `uwui`; an example.
-- **Done when.** It rests on every compositor of the series; input to present within 4.17 ms in
-  a headless sway at 240 Hz; ADR-0226's checks fail both ways when they must; a crash leaves its
-  report; CI is green, macOS included.
-- **Measured.** The host's own cost above a blank window, in one run.
+Designed on 2026-11-15, building nothing ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md), [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)): a windowing layer of uwui's own,
+frames on each platform's signal drawn just in time, cut in six by platform. Next, in its own
+session: [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window), the host's core
+and its Wayland window; its card moves here as it starts.
 
 ## M6d.9a2a — The library
 

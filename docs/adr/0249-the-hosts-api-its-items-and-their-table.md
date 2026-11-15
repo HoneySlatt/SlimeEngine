@@ -11,7 +11,8 @@
   [0261](0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md) (no number on accessibility updates nor on a screen reader's action),
   [0264](0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md) (the lifecycle's rows, the preferences' row and the engine's column) and
   [0268](0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md) (a target's size given by a
-  method, in physical pixels; the engine's column)
+  method, in physical pixels; the engine's column), then by [0270](0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md) (the desktop host
+  reads what each platform's cell names, not winit's)
 - Date: 2026-11-13
 
 ## Context

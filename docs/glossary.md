@@ -385,6 +385,11 @@ what is in front of them, as a grid or the icons of lights; over the image, line
 as the box of what is selected ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md),
 [ADR-0129](adr/0129-drawing-for-the-editor.md)).
 
+**Drawn just in time (frame).** A frame of uwui's desktop host that starts as late as its measured
+work allows before the compositor takes its image, so that an input that comes before it reaches
+that image while frames run, and frames stay in step with the display
+([ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)).
+
 **Drag and drop (interface).** An element made draggable, pressed and moved past a few pixels, is
 carried onto another made a *target of drops*, which a release over it gives the element, and where
 in the target, from its top to its bottom; Escape gives it up. Agents drop through the same action
@@ -572,7 +577,8 @@ the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 motion reads, one for each window that presents. Its *source* says how the host knows it: given by
 the platform, predicted from past presentations, asked of the platform, ready under a variable
 refresh, on the display's grid, or simulated in tests. `slime-app` gives the frame's start until
-M6d.7 ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
+M6c.Q2f ([ADR-0227](adr/0227-the-time-that-motion-reads.md),
+[ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)).
 
 **Frames on demand.** A program's loop that runs a frame only when something asks for one, an event
 of the window, a request of the *development channel*, the interface while it moves or once its
@@ -1567,6 +1573,11 @@ requests go back through it to the interface (`uwui_accesskit::ScreenReaderTree`
 Wood* are checked, each the reference of a family: Weston, sway, KWin, Mutter, and X11 through
 Xvfb ([ADR-0195](adr/0195-a-series-of-headless-compositors.md)). What each gives and what the
 engine does there is in [`compositors.md`](compositors.md).
+
+**Session's marker.** A file that uwui's desktop host writes as a program starts and removes at a
+clean end: found at the next start, it tells that the run ended otherwise, a crash, an abort, a
+power cut, and counts the hours without a crash
+([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
 
 **Set aside.** Kept but not applied, and reported: an *override*, a reference or a part of a *save*
 whose target the *prefab* or the world no longer has (`slime_world::SetAside`,

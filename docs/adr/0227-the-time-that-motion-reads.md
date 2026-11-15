@@ -13,7 +13,9 @@
   present time, and tasks woken outside a frame, run at a wake that draws nothing); amended by
   [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) (what M6d.5's API carries is built where it is read)
   and [0251](0251-the-engines-host-clock-and-its-times.md) (the next wake and a wake that draws
-  nothing come with uwui's executor)
+  nothing come with uwui's executor), then by [0270](0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md) (the desktop host reads each event's time
+  from its platform; no pull request to winit for uwui) and [0271](0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md) (the time given: the
+  platform's, else on the grid)
 - Date: 2026-11-10
 
 ## Context

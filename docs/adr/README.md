@@ -89,7 +89,7 @@ the ADR linking to it.
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028, 0030 |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
 | [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022, 0025, 0043 and 0107 |
-| [0021](0021-frame-pacing.md) | Frame pacing | Accepted; amended by 0155, 0156, 0185 and 0187 |
+| [0021](0021-frame-pacing.md) | Frame pacing | Accepted; amended by 0155, 0156, 0185, 0187 and 0271 |
 | [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amended by 0025, 0044, 0075 and 0103 |
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
 | [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted; extended on 2026-10-13 |
@@ -249,13 +249,13 @@ the ADR linking to it.
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180, 0181, 0194 and 0203 |
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
 | [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
-| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225, 0226, 0227, 0233, 0236, 0241, 0243, 0244 and 0248 |
+| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225, 0226, 0227, 0233, 0236, 0241, 0243, 0244, 0248 and 0270 |
 | [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Superseded by 0214 for the engine; amends 0006 and 0181 |
 | [0183](0183-uwuis-logo.md) | uwui's logo | Accepted |
 | [0184](0184-the-engines-logo.md) | The engine's logo | Accepted |
 | [0185](0185-rest-checked-in-ci.md) | Rest, checked in CI | Accepted; amends 0021, 0156 and 0175; amended by 0195 |
 | [0186](0186-counters-and-ratios-in-ci.md) | Counters and ratios in CI | Accepted; amends 0005, 0104 and 0175; amended by 0189 |
-| [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021; amended by 0227 and 0264 |
+| [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021; amended by 0227, 0264 and 0271 |
 | [0188](0188-a-light-check-for-documentation.md) | A light check for documentation | Accepted; amends 0007 |
 | [0189](0189-first-measures-of-time.md) | First measures of time | Accepted; amends 0104, 0175 and 0186; amended by 0191 and 0215 |
 | [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181; amended by 0194, 0197, 0199, 0202, 0203, 0205, 0209, 0211, 0212, 0213, 0218, 0220, 0222, 0225, 0226, 0227, 0234 and 0235 |
@@ -295,7 +295,7 @@ the ADR linking to it.
 | [0224](0224-a-files-change-reaches-the-application-through-the-development-tool.md) | A file's change reaches the application through the development tool | Accepted; amends 0212 |
 | [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) | Layouts written in KDL, reached from code by their names | Accepted; amends 0080, 0132, 0141, 0181, 0190, 0210, 0220 and 0222; amended by 0226 and 0241 |
 | [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) | An application started in one call, each root given its look | Accepted; amends 0149, 0181, 0190, 0213, 0215, 0220, 0222, 0223 and 0225; amended by 0231, 0237 and 0248 |
-| [0227](0227-the-time-that-motion-reads.md) | The time that motion reads | Accepted; amends 0009, 0107, 0149, 0171, 0181, 0187, 0190, 0205 and 0211; amended by 0248 and 0251 |
+| [0227](0227-the-time-that-motion-reads.md) | The time that motion reads | Accepted; amends 0009, 0107, 0149, 0171, 0181, 0187, 0190, 0205 and 0211; amended by 0248, 0251, 0270 and 0271 |
 | [0228](0228-ci-split-again-each-job-within-20-minutes.md) | CI split again, each job within 20 minutes | Accepted; amends 0104, 0123 and 0155 |
 | [0229](0229-styles-typed-as-declarations.md) | Styles typed as declarations, a rule's kind checked | Accepted; amends 0141, 0220 and 0222; amended by 0230, 0231, 0232, 0238 and 0241 |
 | [0230](0230-the-cores-roles-and-each-kinds-defaults.md) | The core's roles, and each kind's defaults from its look | Accepted; amends 0141, 0223 and 0229; amended by 0238 |
@@ -317,7 +317,7 @@ the ADR linking to it.
 | [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) | One core for agents cut in five: a session without input or output, in JSON-RPC, versioned by family | Accepted; amends 0110, 0122 and 0218; amended by 0248 and 0269 |
 | [0247](0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md) | The canvas tested on OpenGL ES through a feature of `uwui-render` alone | Accepted; amends 0016 and 0243 |
 | [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) | The host's API cut in five: built where it is read, three channels and a waker, AccessKit's translation in a crate of its own | Accepted; amends 0181, 0226, 0227 and 0246; amended by 0249, 0253, 0255, 0261 and 0264 |
-| [0249](0249-the-hosts-api-its-items-and-their-table.md) | The host's API: its items in three channels, and how each maps on five platforms | Accepted; amends 0248; amended by 0251, 0253, 0255, 0256, 0261, 0264 and 0268 |
+| [0249](0249-the-hosts-api-its-items-and-their-table.md) | The host's API: its items in three channels, and how each maps on five platforms | Accepted; amends 0248; amended by 0251, 0253, 0255, 0256, 0261, 0264, 0268 and 0270 |
 | [0250](0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md) | Requests in flight answered in any order, cancelled with an answer, bounded in the core; events by subscription; M6d.9a1b cut in three | Accepted; amends 0122 and 0161; amended by 0252, 0254, 0256, 0259, 0260 and 0265 |
 | [0251](0251-the-engines-host-clock-and-its-times.md) | The engine's host clock and its times: rustix and windows-sys, the times given before each frame and event, the wake waiting for the executor | Accepted; amends 0227 and 0249; amended by 0253, 0258 and 0268 |
 | [0252](0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md) | The channel's bounds of memory kept by its carrier until a second carrier; a place freed as its answer leaves; the budget measured by a run's frames | Accepted; amends 0250 |
@@ -338,3 +338,5 @@ the ADR linking to it.
 | [0267](0267-a-page-of-the-journal-apart-from-the-one-handler-a-cut-journals-start-refused-a-floor-of-4-kib.md) | A page of the journal apart from the editor's one handler; a cut journal's start refused; a page's floor of 4 KiB | Accepted; amends 0156 and 0265 |
 | [0268](0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md) | Each target its size from its host; a root fills it; stacked roots take where they act | Accepted; amends 0140, 0142, 0249, 0251, 0256 and 0258 |
 | [0269](0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md) | uwui's MCP library reaches a program through its host's carrier; faults as tools' errors; changes followed by requests that wait; M6d.9a2 cut in three | Accepted; amends 0209, 0246, 0260, 0261 and 0265 |
+| [0270](0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md) | uwui's desktop host on a windowing layer of its own, its application's side, its crashes; M6d.7 cut in six | Accepted; amends 0181, 0227 and 0249 |
+| [0271](0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md) | Frames on the platform's signal, drawn just in time, none at rest | Accepted; amends 0021, 0187 and 0227 |

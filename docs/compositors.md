@@ -82,8 +82,8 @@ The rows:
 - **Rates and clocks.** KWin's virtual output refreshes at 60 Hz: neither an option nor a custom
   mode of its settings changes it. Weston's presentation clock is `CLOCK_MONOTONIC_RAW`, the others'
   `CLOCK_MONOTONIC`. Xvfb gives no refresh rate: the engine's frames there follow its own schedule.
-- **Presentation feedback.** No program of the engine asks for it today: M6d.7 reads it in the
-  desktop host.
+- **Presentation feedback.** No program of the engine asks for it today: uwui's desktop host reads it
+  from M6d.7a2 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
 - **Focus on X11.** Without a window manager, Xvfb gives no window the keyboard's focus: the series
   gives it to the window under the pointer, as a manager whose focus follows the pointer would.
 

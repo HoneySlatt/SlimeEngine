@@ -177,8 +177,9 @@ in git.
   [M6d.5e1](#m6d5e1--the-lifecycle) and
   [M6d.5e2](#m6d5e2--each-targets-size-and-scale-from-its-host), on 2026-11-14, M6d.5e whole, and
   with it M6d.5, the host's API.
-- In progress on track B: [M6d.7](PLAN.md#m6d7--the-desktop-host-its-window-and-its-frames), the
-  desktop host's window and frames, from 2026-11-14.
+- In progress on track B: [M6d.7](#m6d7--the-desktop-host-its-window-and-its-frames), the
+  desktop host's window and frames, cut in six on 2026-11-15 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)); next,
+  [M6d.7a1](#m6d7a1--the-hosts-core-and-its-wayland-window).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2272,7 +2273,132 @@ The second half of M6d.5e ([ADR-0264](adr/0264-the-lifecycle-before-each-targets
 
 ### M6d.7 — The desktop host: its window and its frames
 
-In progress, its card in [`PLAN.md`](PLAN.md#m6d7--the-desktop-host-its-window-and-its-frames).
+- **Goal.** An application runs on uwui alone: its window, frames at the display's rate, none at
+  rest, on every compositor of the series.
+- **Crates.** uwui's desktop host, a new crate; `uwui`; an example.
+- **Delivers.** The window's identity, its minimum size, fullscreen, brought to the front, its
+  closing intercepted; decorations of the system where the compositor draws them, drawn by uwui
+  elsewhere. The ADR of the frames' rate, which amends [ADR-0021](adr/0021-frame-pacing.md) and
+  which M6c.Q2f waits for: on the compositor's signal on Wayland, by the refresh rate of the
+  display that holds the window on Windows and X11, a display that reports none included; the
+  time that the engine's windowed loop gives its interface. The platforms' times of frames read
+  with code of the host's own, since winit gives none; input's events stamped at reception,
+  measured, and a pull request proposed to winit for their times, after a search for an existing
+  one; the notice that the system resumed, on each platform; whether the host reaches the
+  presentation's times under wgpu: on Wayland, its own presentation feedback and commit timer on a
+  surface whose commits Vulkan's driver makes, on Windows DXGI's statistics, the presentation
+  manager and DWM's timing with several displays
+  ([ADR-0227](adr/0227-the-time-that-motion-reads.md)). A waker from any thread; an example; a check that a program on uwui and its host compiles neither the
+  renderer, the world nor the editor, and its other side, that the engine's programs compile none
+  of uwui's hosts
+  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); a job of CI that builds and tests uwui and its host on macOS
+  ([ADR-0173](adr/0173-the-platforms-of-applications.md)). A *blank window*, a program on winit and
+  wgpu that only clears its window and presents it, among the programs measured
+  ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)). The host's crash reports,
+  written on the machine and never sent
+  ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)).
+- **Done when.** The example rests on every compositor of the series; its input to present is
+  within 4.17 ms in a headless sway at 240 Hz; the check fails on a program made to pull
+  `slime-render`, and its other side on an engine's program made to pull uwui's host; a program
+  on the host made to crash leaves its report on the machine; CI is green, macOS included.
+- **How to test.** `cargo test -p uwui`; the series' job; `scripts/input-to-present.sh`.
+- **Measured.** The host's own cost, what the example adds above the blank window, in the same run:
+  start, memory, the binary's size, rest, input to present. The applications' budgets get first
+  figures, not judged on the example.
+- **By hand.** The owner's desktop; the Windows virtual machine; macOS 26
+  ([ADR-0196](adr/0196-checks-by-hand-on-macos.md)).
+
+- **Cut in six** by a design session, on 2026-11-15 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)): uwui's desktop host on a windowing
+  layer of its own, Wayland, X11, Win32 and AppKit spoken directly, the owner's choice; the
+  application's side, `run(look, window, app)`; code of the engine's taken under uwui's licence,
+  each copy named; crash reports as a text and a session's marker. The frames' rate
+  ([ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)): on each platform's signal, drawn just in time, none at rest; the engine at M6c.Q2f.
+  Each part runs the example on one platform more; the "Done when" above is met at M6d.7d.
+
+### M6d.7a1 — The host's core and its Wayland window
+
+The first part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** An application on uwui alone opens its window on Wayland and rests there.
+- **Crates.** `uwui-desktop`, new; `uwui` (`FrameSource::OnGrid`); `scripts/`.
+- **Delivers.** The host's core, without a platform: the pacing of [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md), the rest, the clock
+  given to it, wakes, termination, `run(look, window, app)` and `App`. The Wayland layer on
+  `wayland-client`: its loop on `rustix`, the window and its requests (title, identity, minimum
+  size, fullscreen, closing intercepted), the compositor's decorations, frames on its callback,
+  the pointer with its events' times. Its own device, `MemoryHints::MemoryUsage`. An example of
+  buttons, a field, a dialog and a list. ADR-0226's check both ways, and `uwui` pulling no
+  windowing library nor wgpu.
+- **Done when.** The example rests in Weston, sway, KWin and Mutter in the series' job; each check
+  fails on a program made to pull what it forbids; the engine's sessions, rest and counters
+  unchanged; CI is green.
+- **How to test.** `cargo test -p uwui-desktop`; `scripts/compositors.sh`.
+- **Measured.** CI's jobs that build the host, each within 20 minutes.
+
+### M6d.7a2 — Wayland whole, and the host measured
+
+The second part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The host on Wayland as the bar asks, and its own cost measured.
+- **Crates.** `uwui-desktop`; `scripts/`.
+- **Delivers.** The keyboard through libxkbcommon, the cursor's shapes, the fractional scale,
+  activation; the presentations' times read, given as predicted; frames drawn just in time; a
+  blank window on winit and wgpu; a tool that runs both in turn in one compositor and measures the
+  start, memory, the binary, rest and input to present; the crash report and the session's marker.
+- **Done when.** Input to present within 4.17 ms at the 99th percentile in a headless sway at
+  240 Hz, inputs in motion and at rest, on the GPU with the owner's go; a program made to crash
+  leaves its report; CI is green.
+- **Measured.** The host's own cost above the blank window, in one run; the applications' budgets'
+  first figures, in uwui's repository.
+
+### M6d.7b — X11
+
+The third part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The host on X11, at rest under Xvfb.
+- **Delivers.** `x11rb`'s window, XKB, XInput2, Present's notices, RandR's rate; Linux's notice of a
+  resume, logind's `PrepareForSleep`; their dependencies put to the owner.
+- **Done when.** The example rests under Xvfb in the series' job; a resume reaches uwui on Linux;
+  CI is green.
+
+### M6d.7c — Windows
+
+The fourth part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The host on Windows, in step with DWM.
+- **Delivers.** A Win32 window, its messages and keyboard; DWM's signal on a thread of its own;
+  DXGI's statistics; the resume's notice; a covered window.
+- **Done when.** The example's tests pass in CI on Windows; CI is green.
+- **By hand.** The Windows virtual machine: the window at rest, covered, dragged, after a sleep.
+
+### M6d.7d — macOS
+
+The fifth part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The host on macOS, and macOS in CI.
+- **Delivers.** An AppKit window, the view's display link, `mach_continuous_time`, the wake's
+  notice; a CI job on macOS for uwui's crates and the host, its runner and scope designed at its
+  start.
+- **Done when.** The card's whole "Done when"; CI is green, macOS included.
+- **By hand.** macOS 26 ([ADR-0196](adr/0196-checks-by-hand-on-macos.md)).
+
+### M6d.7e — Decorations drawn by uwui, and several windows
+
+The sixth part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** A window has its bar wherever the compositor draws none, and a program opens several.
+- **Delivers.** A bar, its title, buttons and edges drawn by uwui under Weston and Mutter, through
+  [ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)'s kinds of a
+  point; Windows' and macOS's bars given a place in uwui's layout; several windows, a target
+  removed, a layer's own target.
+- **Done when.** A window under Weston and Mutter moves, resizes, minimizes, maximizes and closes
+  by its bar; CI is green.
+
 
 ### M6d.8 — The desktop host: clipboard, input methods, accessibility
 

@@ -5,7 +5,8 @@
   `AppConfig::on_demand`, which replaces the paced run without a window),
   [0185](0185-rest-checked-in-ci.md) (a hidden window draws on the compositor's signal, from
   M6c.Q2c) and [0187](0187-a-hidden-window-at-rest.md) (how: on Wayland, frames wait for the
-  compositor's signal, and the loop sets no deadline of its own)
+  compositor's signal, and the loop sets no deadline of its own), then by [0271](0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md) (frames at the
+  display's rate, on the platform's signal and drawn just in time; the schedule a cap, from M6c.Q2f)
 - Date: 2026-10-12
 
 ## Context
