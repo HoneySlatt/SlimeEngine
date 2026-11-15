@@ -315,9 +315,11 @@ if runs windowed; then
     # The editor's window used by an agent's session through the MCP server: operations run by
     # name, its menu and its palette, a level opened by its path typed where no dialog of the
     # system opens, the first run's hint, and at rest, a panel floating, none of its threads waking
-    # in 10 s (ADR-0156, ADR-0157, ADR-0185). Without the developer's session bus of D-Bus, which
-    # its adapter for screen readers would reach, the editor at rest is the one that CI runs.
-    cargo build --locked --example editor
+    # in 10 s (ADR-0156, ADR-0157, ADR-0185), then its level played in the `world` example, whose
+    # interface the agent reaches while it drives the game (ADR-0165, ADR-0274). Without the
+    # developer's session bus of D-Bus, which its adapter for screen readers would reach, the editor
+    # at rest is the one that CI runs.
+    cargo build --locked --example editor --example world
     env -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check \
         VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test edit_window -- "$cooked/first" ||

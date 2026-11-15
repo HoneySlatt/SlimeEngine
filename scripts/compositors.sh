@@ -85,7 +85,8 @@ step() { printf '\n==> %s: %s\n' "$name" "$*"; }
 observe() { echo "$1: $2" | tee -a "$observations"; }
 
 step "Build"
-cargo build --locked --example editor --example window
+# `world` is the game that `edit_window`'s editor plays.
+cargo build --locked --example editor --example window --example world
 cargo build --locked -p hunnawood
 cargo test --locked --no-run -p slime-mcp --test compositor --test edit_window --test drive
 cargo build --locked -p uwui-desktop --example application
