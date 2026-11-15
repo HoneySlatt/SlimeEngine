@@ -25,8 +25,9 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     [M6d.9a2a](stage-6d.md#m6d9a2a--the-library); M6d.9a2b cut in two
     ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)): in progress,
     [M6d.9a2b1](#m6d9a2b1--the-engines-families-on-the-library).
-  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six, in progress,
-    [M6d.7a1](#m6d7a1--the-hosts-core-and-its-wayland-window).
+  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six: done,
+    [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window); next,
+    [M6d.7a2](stage-6d.md#m6d7a2--wayland-whole-and-the-host-measured).
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: deleting the branches `m6d1b-bench`, `m6d4a-prototype` and
@@ -43,7 +44,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.4a to M6d.4b2 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
 | [M6d.5a to M6d.5e2 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Done |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
-| [M6d.7a1 — The host's core and its Wayland window](#m6d7a1--the-hosts-core-and-its-wayland-window) | In progress |
+| [M6d.7a1 — The host's core and its Wayland window](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) | Done |
 | [M6d.7a2 to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7a2--wayland-whole-and-the-host-measured) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
@@ -54,20 +55,6 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.7a1 — The host's core and its Wayland window
-
-Started on 2026-11-15 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md), [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)).
-
-- **Goal.** An application on uwui alone opens its window on Wayland and rests there.
-- **Crates.** `uwui-desktop`, new; `uwui`; `scripts/`.
-- **Delivers.** The host's core: pacing, rest, its clock given, wakes, termination,
-  `run(look, window, app)`, `App`. Wayland on `wayland-client`, its loop on `rustix`: the window's
-  requests, the compositor's decorations, frames on its callback, the pointer and its times. Its
-  own device. An example. ADR-0226's check both ways; `uwui` pulling no windowing library nor wgpu.
-- **Done when.** The example rests in Weston, sway, KWin and Mutter in the series' job; each check
-  fails on a program made to pull what it forbids; the engine unchanged; CI is green.
-- **Measured.** CI's jobs that build the host, each within 20 minutes.
 
 ## M6d.9a2b1 — The engine's families on the library
 
@@ -180,6 +167,9 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
 - **Each window's size and scale** (M6d.5e2): the editor in the Windows virtual machine moved
   between screens of two scales, and its scale changed while it runs: laid out again at once,
   sharp; minimized and restored as it was.
+- **An application on uwui's desktop host** (M6d.7a1): `cargo run -p uwui-desktop --example
+  application` on the owner's desktop: its window, its bar or none, the pointer on its buttons,
+  list and dialog, then at rest; closed by its window's button, then by Ctrl+C in its terminal.
 - **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
   left by Alt and Tab, Alt held or mid-drag: no bar in focus, nothing dropped; *Hunna Wood*'s
   button that loses the surface, on Direct3D 12: drawn again.

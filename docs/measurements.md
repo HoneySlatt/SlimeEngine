@@ -4312,3 +4312,40 @@ GitHub's hosted runners, on 2026-11-15, each run green, on `35c6ac6`:
 Every job stays within its limit of 20 minutes; `windows-release`, the longest, has 3 min 42 s of
 margin. `check (lint)` took 2 min 16 s more than on `83e2e87`, with the new crate linted on Linux and
 Windows.
+
+## M6d.7a1, the host's core and its Wayland window
+
+uwui's desktop host is checked, not timed, at this part: its own cost above the blank window is
+M6d.7a2's measure. Its example's rest is checked in the series' job: none of its threads wakes in
+10 s after its start, nor after the pointer's hover on its button ends, in Weston, sway, KWin and
+Mutter ([`compositors.md`](compositors.md)).
+
+GitHub's hosted runners, on 2026-11-15, each run green, on `5272440`, against `35c6ac6` before it
+([M6d.9a2a](#m6d9a2a-uwuis-mcp-library)):
+
+| Job | Time | Before |
+|---|---|---|
+| `check (lint)` | 10 min 38 s | 10 min 23 s |
+| `check (headless)` | 14 min 18 s | 12 min 19 s |
+| `check (windowed)` | 12 min 54 s | 8 min 56 s |
+| `check (game)` | 10 min 25 s | 12 min 56 s |
+| `check (gles)` | 3 min 39 s | 3 min 29 s |
+| `windows (tests)` | 16 min 19 s | 15 min 52 s |
+| `windows (render)` | 5 min 10 s | 7 min 8 s |
+| `windows (game)` | 7 min 41 s | 7 min 10 s |
+| `windows-release` | 16 min 7 s | 16 min 18 s |
+| `compositors (weston)` | 11 min 45 s | 11 min 37 s |
+| `compositors (sway)` | 17 min 27 s | 11 min 22 s |
+| `compositors (kwin)` | 13 min 3 s | 10 min 15 s |
+| `compositors (mutter)` | 15 min 49 s | 12 min 3 s |
+| `compositors (x11)` | 11 min 39 s | 10 min 59 s |
+| Docs' `links` | 18 s | 19 s |
+
+Every job stays within its limit of 20 minutes; `compositors (sway)`, the longest, has 2 min 33 s
+of margin. Most of the growth is the runners': in sway, the builds that this milestone does not
+change took 47 % longer than before (3 min 55 s then 5 min 45 s for the editor's, the same in
+proportion for the others), and in `check (windowed)` 30 % longer. What the host adds: in each
+compositor's job, the example built, some 70 s on that runner, its test built, 3 s, and its run,
+25 s with input, 12 s without; in `check (windowed)`, its test built with the features of its
+package alone, 66 s, and its run, 12 s. A job near its limit can build the host's test with the
+others' in one invocation, which shares their dependencies.

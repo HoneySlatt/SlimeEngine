@@ -181,8 +181,9 @@ in git.
   [M6d.5e2](#m6d5e2--each-targets-size-and-scale-from-its-host), on 2026-11-14, M6d.5e whole, and
   with it M6d.5, the host's API.
 - In progress on track B: [M6d.7](#m6d7--the-desktop-host-its-window-and-its-frames), the
-  desktop host's window and frames, cut in six on 2026-11-15 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)); in progress,
-  [M6d.7a1](PLAN.md#m6d7a1--the-hosts-core-and-its-wayland-window).
+  desktop host's window and frames, cut in six on 2026-11-15 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)): done,
+  [M6d.7a1](#m6d7a1--the-hosts-core-and-its-wayland-window), on 2026-11-15; next,
+  [M6d.7a2](#m6d7a2--wayland-whole-and-the-host-measured).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2320,7 +2321,42 @@ The second half of M6d.5e ([ADR-0264](adr/0264-the-lifecycle-before-each-targets
 
 ### M6d.7a1 — The host's core and its Wayland window
 
-In progress, its card in [`PLAN.md`](PLAN.md#m6d7a1--the-hosts-core-and-its-wayland-window).
+The first part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md), [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** An application on uwui alone opens its window on Wayland and rests there.
+- **Crates.** `uwui-desktop`, new; `uwui`; `scripts/`.
+- **Delivers.** The host's core: pacing, rest, its clock given, wakes, termination,
+  `run(look, window, app)`, `App`. Wayland on `wayland-client`, its loop on `rustix`: the window's
+  requests, the compositor's decorations, frames on its callback, the pointer and its times. Its
+  own device. An example. ADR-0226's check both ways; `uwui` pulling no windowing library nor wgpu.
+- **Done when.** The example rests in Weston, sway, KWin and Mutter in the series' job; each check
+  fails on a program made to pull what it forbids; the engine unchanged; CI is green.
+- **Measured.** CI's jobs that build the host, each within 20 minutes.
+- **Result.** Done on 2026-11-15, CI green:
+  - `uwui-desktop`, MIT OR Apache-2.0: `run(look, window, app)`, `App` (`start` that may fail,
+    `step`, `close_requested`, `stop`, run after a failure of the host too, the owner's choice),
+    `Look`, `WindowSettings`, `Window`, the exit statuses. Its core, tested without a window, on
+    Windows too: the pacing of ADR-0271 on the frame callback with ADR-0187's holds, the time on
+    the grid, the events' times anchored, coalesced wakes, SIGTERM, SIGINT and SIGHUP asked of the
+    application. uwui gained `FrameSource::OnGrid` and `EventSource::Anchored`.
+  - Wayland's layer on `wayland-client` and `rustix`'s poll, eventfd and timerfd: an xdg-shell
+    window, its title, app id, minimum size and fullscreen, its closing asked, the compositor's bar
+    through xdg-decoration, frames on the callback asked just before the driver's commit, the
+    pointer with its times; its own device, `MemoryHints::MemoryUsage`. The clock and the holds
+    adapted from the engine's, under uwui's licence. On Windows, `run` says that it has no layer.
+  - The example, `application`, rests in Weston, sway, KWin and Mutter, the pointer's hover on its
+    button drawing frames where the series gives input; the bar is the compositor's in sway and
+    KWin, none in Weston and Mutter ([`compositors.md`](compositors.md)). The three checks of
+    `scripts/check.sh lint` fail each on a copy made to pull what it forbids. The engine's
+    sessions, rest and counters unchanged.
+  - Every job of CI within its 20 minutes
+    ([`measurements.md`](measurements.md#m6d7a1-the-hosts-core-and-its-wayland-window)).
+  - The closing review found a suboptimal image freezing the window, a configure acknowledged
+    while a frame waited never drawn, the rest test's pointer step unable to fail, `App::stop`
+    skipped on a failure, and sixteen smaller defects; each fixed, under a test that failed first
+    where lavapipe can show it. Debt left: a lost device or surface ends the run, and the
+    display's period measured rather than read ([`debt.md`](debt.md)).
 
 ### M6d.7a2 — Wayland whole, and the host measured
 
