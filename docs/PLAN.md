@@ -23,8 +23,9 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     done, M6d.9a1a to [M6d.9a1b3b2](stage-6d.md#m6d9a1b3b2--the-editors-journal), M6d.9a1
     whole; M6d.9a2 cut in three ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)): done,
     [M6d.9a2a](stage-6d.md#m6d9a2a--the-library); M6d.9a2b cut in two
-    ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)): in progress,
-    [M6d.9a2b1](#m6d9a2b1--the-engines-families-on-the-library).
+    ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)): done,
+    [M6d.9a2b1](stage-6d.md#m6d9a2b1--the-engines-families-on-the-library); next,
+    [M6d.9a2b2](stage-6d.md#m6d9a2b2--the-servers-game-off-its-lock).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six: done,
     [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window); next,
     [M6d.7a2](stage-6d.md#m6d7a2--wayland-whole-and-the-host-measured).
@@ -49,20 +50,12 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a2a — The library](stage-6d.md#m6d9a2a--the-library) | Done |
-| [M6d.9a2b1 — The engine's families on the library](#m6d9a2b1--the-engines-families-on-the-library) | In progress |
+| [M6d.9a2b1 — The engine's families on the library](stage-6d.md#m6d9a2b1--the-engines-families-on-the-library) | Done |
 | [M6d.9a2b2 to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a2b2--the-servers-game-off-its-lock) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.9a2b1 — The engine's families on the library
-
-Started on 2026-11-15 ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)).
-
-- **Goal.** `slime-mcp`'s tools of `play`, `world` and `editing` through `uwui-mcp`.
-- **Crates.** `slime-mcp`, `uwui-mcp`, `slime-channel`, `uwui-agent` ([ADR-0275](adr/0275-a-familys-refusal-gives-the-version-that-the-program-serves.md)).
-- **Delivers, done when, measured:** [its card](stage-6d.md#m6d9a2b1--the-engines-families-on-the-library).
 
 ## Ideas waiting for their milestone
 

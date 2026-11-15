@@ -4390,3 +4390,26 @@ programs held the load near 1 throughout: the second pass's run of the window af
 fifth pass's two runs of the window, saw the load rise to 1.8 to 2.1 while they ran, and are marked
 disturbed; their medians are within 0.03 ms of the others'. The lowest machine supported is not
 measured.
+
+GitHub's hosted runners, on 2026-11-15, each run green, on `2a9eaf2`:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 58 s |
+| `check (headless)` | 14 min 39 s |
+| `check (windowed)` | 12 min 45 s |
+| `check (game)` | 12 min 49 s |
+| `check (gles)` | 3 min 25 s |
+| `windows (tests)` | 13 min 19 s |
+| `windows (render)` | 6 min 0 s |
+| `windows (game)` | 5 min 57 s |
+| `windows-release` | 12 min 3 s |
+| `compositors (weston)` | 11 min 39 s |
+| `compositors (sway)` | 11 min 46 s |
+| `compositors (kwin)` | 13 min 38 s |
+| `compositors (mutter)` | 12 min 0 s |
+| `compositors (x11)` | 12 min 18 s |
+| Docs' `links`, on `4e02479` | 19 s |
+
+Every job stays within its limit of 20 minutes; `check (headless)`, the longest, has 5 min 21 s of
+margin.

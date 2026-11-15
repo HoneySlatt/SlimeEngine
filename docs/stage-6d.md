@@ -149,7 +149,7 @@ in git.
   done, [M6d.9a2a](#m6d9a2a--the-library), on 2026-11-15; then
   [M6d.9a2b](#m6d9a2b--the-engine-on-the-library), cut in two on 2026-11-15
   ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)):
-  [M6d.9a2b1](#m6d9a2b1--the-engines-families-on-the-library), in progress, and
+  done, [M6d.9a2b1](#m6d9a2b1--the-engines-families-on-the-library), on the same day; then
   [M6d.9a2b2](#m6d9a2b2--the-servers-game-off-its-lock); then [M6d.9a2c](#m6d9a2c--waiting),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
@@ -2834,6 +2834,34 @@ The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/02
   tested in the editor's window; CI is green.
 - **Measured.** The engine's answer through MCP against its figure before M6d.9a2a, and what the
   MCP layer adds where frames do not hide it.
+- **Result.** Done on 2026-11-15, CI green on `2a9eaf2` ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md),
+  [ADR-0275](adr/0275-a-familys-refusal-gives-the-version-that-the-program-serves.md)):
+  - `uwui-mcp`: a request of a family's own type, `request`, which the interface's tools and the
+    engine's take; `List` typed by its family; a server's tools gathered by families, `Family` and
+    `Tools`, each with its paragraph of the server's instructions, a tool's name taken twice an
+    error, `Taken`, as the server is built.
+  - `slime-mcp`: its 27 tools of `play`, `world` and `editing` through the library, in a module
+    each, its own loop of pages and error helper gone; one rule of routing; a call that its agent
+    cancels cancelled in the program; `read_logs` by a cursor bound to its program, its pages held
+    to that program, `next` while lines follow and `end` at the log's end.
+  - A family that the program serves at another version is refused in words that name the side to
+    build again: the core's refusal gives the version served (`uwui-agent`, ADR-0275).
+  - `slime-channel`: `why` public, `Client::refused`, the families' names; its tool's side refuses
+    the interface's requests, which `send_call` sends.
+  - Tested: a call cancelled while the program holds its edit, through the server, on a program of
+    the test's own, on Windows too; the server answering while a game starts; the played game's
+    interface reached in the editor's window; cursors of the editor's log and of its game's refused
+    each by the other.
+  - Measured ([`measurements.md`](measurements.md#m6d9a2b1-the-engines-families-on-uwuis-mcp-library)):
+    the calls answered at once take some 0.08 ms less than before M6d.9a2a, 0.124 ms for a short
+    reply; on the editor's window, one frame at 60 Hz still, some 16.7 ms.
+  - The closing review found `read_logs` holding the server's one thread while a game started,
+    its cursor's binding untested and racing, and the side to build again undecided, which the
+    owner settled by ADR-0275; all fixed, and a second review found the corrections whole. 27
+    mutations of the new code, 26 fail a test; the one left touched a check that the corrections
+    removed. The series of compositors builds the `world` example, which `edit_window` plays.
+  - Left for later ([`debt.md`](debt.md)): the server's game on its lock and a capture's PNG on
+    its one thread (M6d.9a2b2); two helpers of an error's chain (M6d.12).
 
 ### M6d.9a2b2 — The server's game off its lock
 
