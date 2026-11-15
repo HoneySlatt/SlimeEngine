@@ -8,6 +8,7 @@ wlroots' virtual pointers and keyboards for sway, libei for KWin and Mutter, XTe
     scripts/compositor-input.py serve sway|kwin|mutter|x11 <socket>
     scripts/compositor-input.py move-to <x> <y>   # the pointer, in the output's logical pixels
     scripts/compositor-input.py key <keys>        # keys pressed together, `ctrl+a`
+    scripts/compositor-input.py click             # the primary button, pressed and let go
 
 `serve` holds a virtual keyboard and a virtual pointer for as long as it runs, and takes the other
 commands on a Unix socket, whose path `SLIME_COMPOSITOR_INPUT` gives them. A device made for each
@@ -38,6 +39,8 @@ import time
 KEYS = {"ctrl": 29, "a": 30, "s": 31, "c": 46, "v": 47}
 # The modifiers' bits in the keymap below, which wlroots' virtual keyboard must be told.
 MODIFIERS = {"ctrl": 4}
+# The primary button, as Linux's input codes name it, which libei and wlroots' virtual pointer take.
+BTN_LEFT = 0x110
 
 # The logical size of the series' output, which wlroots' absolute motion is given in.
 OUTPUT = (1920, 1080)
@@ -156,6 +159,13 @@ class Wlroots:
         self.send(self.pointer, 4, b"")
         self.roundtrip(lambda *_: None)
 
+    def click(self):
+        # zwlr_virtual_pointer_v1.button, pressed then let go, each in its frame.
+        for state in (1, 0):
+            self.send(self.pointer, 2, struct.pack("<III", self.now(), BTN_LEFT, state))
+            self.send(self.pointer, 4, b"")
+        self.roundtrip(lambda *_: None)
+
     def key(self, keys):
         # zwp_virtual_keyboard_v1.key, and its modifiers, which the client holds the state of.
         for key in keys:
@@ -191,6 +201,7 @@ class Libei:
     # Capabilities of a device, `enum ei_device_capability`, and events, `enum ei_event_type`.
     CAP_POINTER_ABSOLUTE = 1 << 1
     CAP_KEYBOARD = 1 << 2
+    CAP_BUTTON = 1 << 5
     EVENT_DISCONNECT = 2
     EVENT_SEAT_ADDED = 3
     EVENT_DEVICE_REMOVED = 6
@@ -234,7 +245,7 @@ class Libei:
         if (error := lib.ei_setup_backend_fd(self.ei, fds.get(handle))) != 0:
             sys.exit(f"compositor-input: libei refused the compositor's socket: error {-error}")
         self.devices = {}
-        self.wanted = [self.CAP_POINTER_ABSOLUTE, self.CAP_KEYBOARD]
+        self.wanted = [self.CAP_POINTER_ABSOLUTE, self.CAP_BUTTON, self.CAP_KEYBOARD]
         self.sequence = 0
         deadline = time.monotonic() + SETUP_SECONDS
         while any(cap not in self.devices for cap in self.wanted):
@@ -308,6 +319,12 @@ class Libei:
         self.lib.ei_device_pointer_motion_absolute(device, x, y)
         self.frame(device)
 
+    def click(self):
+        device = self.device(self.CAP_BUTTON)
+        for pressed in (True, False):
+            self.lib.ei_device_button_button(device, BTN_LEFT, pressed)
+            self.frame(device)
+
     def key(self, keys):
         device = self.device(self.CAP_KEYBOARD)
         for pressed, order in ((True, keys), (False, list(reversed(keys)))):
@@ -339,6 +356,7 @@ def library():
         ("ei_device_frame", None, [pointer, ctypes.c_uint64]),
         ("ei_device_pointer_motion_absolute", None, [pointer, ctypes.c_double, ctypes.c_double]),
         ("ei_device_keyboard_key", None, [pointer, ctypes.c_uint32, ctypes.c_bool]),
+        ("ei_device_button_button", None, [pointer, ctypes.c_uint32, ctypes.c_bool]),
     ]:
         function = getattr(lib, name)
         function.restype = result
@@ -366,6 +384,9 @@ class Xtest:
         ).stdout
         window = dict(line.split("=", 1) for line in under.split())["WINDOW"]
         self.run("windowfocus", window)
+
+    def click(self):
+        self.run("click", "1")
 
     def key(self, keys):
         self.run("key", "+".join(keys))
@@ -410,6 +431,8 @@ def serve(compositor, path):
                     devices.move_to(*position(words[1:]))
                 elif words[:1] == ["key"] and len(words) == 2:
                     devices.key(keys_of(words[1]))
+                elif words == ["click"]:
+                    devices.click()
                 else:
                     raise ValueError(f"no command {' '.join(words)!r}")
                 answer = "done"
@@ -446,6 +469,7 @@ def main():
     elif (
         (arguments[:1] == ["move-to"] and len(arguments) == 3)
         or (arguments[:1] == ["key"] and len(arguments) == 2)
+        or arguments == ["click"]
     ):
         send(arguments)
     else:
