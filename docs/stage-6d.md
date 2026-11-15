@@ -147,7 +147,10 @@ in git.
   [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families), cut in three on 2026-11-15
   ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)):
   done, [M6d.9a2a](#m6d9a2a--the-library), on 2026-11-15; then
-  [M6d.9a2b](#m6d9a2b--the-engine-on-the-library), [M6d.9a2c](#m6d9a2c--waiting),
+  [M6d.9a2b](#m6d9a2b--the-engine-on-the-library), cut in two on 2026-11-15
+  ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)):
+  [M6d.9a2b1](#m6d9a2b1--the-engines-families-on-the-library), in progress, and
+  [M6d.9a2b2](#m6d9a2b2--the-servers-game-off-its-lock); then [M6d.9a2c](#m6d9a2c--waiting),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
@@ -2767,18 +2770,46 @@ under [the stage's rules](#stage-6d--uwui-leaves-the-engine).
 ### M6d.9a2b — The engine on the library
 
 - **Goal.** `slime-mcp`'s every tool through `uwui-mcp`.
+- **Cut in two** at its start, on 2026-11-15 ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)): the engine's
+  families take the core's typed way; a family not served is refused as it is sent; the server's
+  game comes off its lock in a part of its own, as concurrent work.
+
+### M6d.9a2b1 — The engine's families on the library
+
+The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md).
+
+- **Goal.** `slime-mcp`'s tools of `play`, `world` and `editing` through `uwui-mcp`.
 - **Crates.** `slime-mcp`, `uwui-mcp`, `slime-channel`.
-- **Delivers.** The families `play`, `world` and `editing` as the library's; the carrier's
-  families served, a tool of a family not served refused in the server's words
-  ([ADR-0272](adr/0272-the-carriers-families-and-its-connections-state-join-it-at-their-first-reader.md)); the game that an
-  editor plays reached by the interface's tools too, tested; a call that its agent cancels while
-  an edit waits for a drag never applied, tested through the server; the server's instructions
-  written by each family; a tool's name taken twice refused.
-- **Debt settled.** `stop_game` and `drive_played_game` holding the server's lock; three helpers
-  that write an error's chain ([`debt.md`](debt.md)).
-- **Done when.** The engine's MCP session tests pass through the library; `stop_game` ends a
-  game whose places in flight are all held; CI is green.
-- **Measured.** The engine's answer through MCP against its figure before M6d.9a2a.
+- **Delivers.** A typed `ask`, which the interface's tools and the engine's take; the families
+  `play`, `world` and `editing` as the library's, their lists through `gather`, `slime-mcp`'s own
+  loop of pages gone; one rule of routing; the server's instructions written by each family; a
+  tool's name taken twice an error as the server is built; a family not served refused as it is
+  sent, in the carrier's words; `read_logs` by a cursor bound to its program; the tool's side of
+  `slime-channel` without its second way to the interface; `slime_channel::why` public.
+- **Debt settled.** `slime-mcp`'s own loop of pages; a tool's name taken twice caught by a test
+  only; the error's chain, three helpers made two ([`debt.md`](debt.md)).
+- **Done when.** The engine's MCP session tests pass through the library; a call that its agent
+  cancels while an edit waits becomes the core's cancel of that request, on a program of the
+  test's own, on Windows too; the game that an editor plays is reached by the interface's tools,
+  tested in the editor's window; CI is green.
+- **Measured.** The engine's answer through MCP against its figure before M6d.9a2a, and what the
+  MCP layer adds where frames do not hide it.
+
+### M6d.9a2b2 — The server's game off its lock
+
+- **Goal.** No tool of `slime-mcp` waits on its lock for a game that starts, stops or is driven.
+- **Crates.** `slime-mcp`.
+- **Delivers.** One state of the server's game, `Starting`, `Running` or `Stopping`, numbered by
+  each start; `start_game` off the lock, given up when its call is cancelled or the game stopped;
+  `stop_game` by closing the game's standard input, killed after 120 s; `drive_played_game` off
+  the lock, the last call winning; the server's end the same way; a game stopped told so, not
+  connected to again.
+- **Debt settled.** `start_game`, `stop_game` and `drive_played_game` holding the server's lock
+  ([`debt.md`](debt.md)).
+- **Done when.** `stop_game` ends a game whose sixteen places in flight are held by long steps,
+  well within 120 s, the game ending on its own; a start cancelled leaves no game; a start after a
+  stop runs; CI is green.
+- **Measured.** CI's jobs that run the server's tests, each within 20 minutes.
 
 ### M6d.9a2c — Waiting
 

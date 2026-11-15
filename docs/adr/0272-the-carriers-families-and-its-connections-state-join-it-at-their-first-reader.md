@@ -2,7 +2,9 @@
 
 - Status: Accepted; amends
   [0269](0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)
-  (what the library's carrier gives)
+  (what the library's carrier gives); amended by
+  [0274](0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md) (the families served never join the carrier: it refuses as it
+  sends)
 - Date: 2026-11-15
 
 ## Context

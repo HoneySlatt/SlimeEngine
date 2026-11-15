@@ -11,7 +11,8 @@
   [0265](0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md)
   (a page that reaches the journal's end gives a cursor there); amended by
   [0272](0272-the-carriers-families-and-its-connections-state-join-it-at-their-first-reader.md)
-  (the carrier's families served and its connection's state join it at their first reader)
+  (the carrier's families served and its connection's state join it at their first reader) and
+  [0274](0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md) (M6d.9a2b cut in two)
 - Date: 2026-11-15
 
 ## Context
