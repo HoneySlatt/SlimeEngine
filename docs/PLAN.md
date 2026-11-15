@@ -23,8 +23,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     done, M6d.9a1a to [M6d.9a1b3b2](stage-6d.md#m6d9a1b3b2--the-editors-journal), M6d.9a1
     whole; M6d.9a2 cut in three ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)), in progress,
     [M6d.9a2a](#m6d9a2a--the-library).
-  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; in progress,
-    [M6d.7](#m6d7--the-desktop-host-its-window-and-its-frames), cut in six.
+  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six, in progress,
+    [M6d.7a1](#m6d7a1--the-hosts-core-and-its-wayland-window).
   - M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: deleting the branches `m6d1b-bench`, `m6d4a-prototype` and
@@ -41,7 +41,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.4a to M6d.4b2 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
 | [M6d.5a to M6d.5e2 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Done |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
-| [M6d.7a1 to M6d.7e — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | In progress |
+| [M6d.7a1 — The host's core and its Wayland window](#m6d7a1--the-hosts-core-and-its-wayland-window) | In progress |
+| [M6d.7a2 to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7a2--wayland-whole-and-the-host-measured) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a2a — The library](#m6d9a2a--the-library) | In progress |
@@ -51,12 +52,19 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
 
-## M6d.7 — The desktop host: its window and its frames
+## M6d.7a1 — The host's core and its Wayland window
 
-Designed on 2026-11-15, building nothing ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md), [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)): a windowing layer of uwui's own,
-frames on each platform's signal drawn just in time, cut in six by platform. Next, in its own
-session: [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window), the host's core
-and its Wayland window; its card moves here as it starts.
+Started on 2026-11-15 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md), [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)).
+
+- **Goal.** An application on uwui alone opens its window on Wayland and rests there.
+- **Crates.** `uwui-desktop`, new; `uwui`; `scripts/`.
+- **Delivers.** The host's core: pacing, rest, its clock given, wakes, termination,
+  `run(look, window, app)`, `App`. Wayland on `wayland-client`, its loop on `rustix`: the window's
+  requests, the compositor's decorations, frames on its callback, the pointer and its times. Its
+  own device. An example. ADR-0226's check both ways; `uwui` pulling no windowing library nor wgpu.
+- **Done when.** The example rests in Weston, sway, KWin and Mutter in the series' job; each check
+  fails on a program made to pull what it forbids; the engine unchanged; CI is green.
+- **Measured.** CI's jobs that build the host, each within 20 minutes.
 
 ## M6d.9a2a — The library
 
@@ -90,11 +98,10 @@ From two outside reviews, kept by the owner on 2026-11-10; each joins its milest
 
 ## Checks by hand waiting for the owner
 
-The owner makes them later, together, as decided on 2026-10-20. Each milestone adds its own once
-done; a check made leaves the list, its result written in its milestone, then in
-[`history.md`](history.md). The game runs with `--new --save <a file of its own>`, leaving the
-owner's save alone. After Stage 6e's first milestone, a check that names *Hunna Wood* runs on
-`games/open-world` ([ADR-0219](adr/0219-test-games-in-place-of-hunna-wood.md)).
+The owner makes them later, together (2026-10-20). A milestone adds its own once done; a check
+made leaves the list, its result in its milestone, then in [`history.md`](history.md). The game
+runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, a check naming
+*Hunna Wood* runs on `games/open-world` ([ADR-0219](adr/0219-test-games-in-place-of-hunna-wood.md)).
 
 - **The very modest laptop** (M6d.0c): its inventory, given on 2026-11-06 from `lshw -short` and
   `inxi -CGmSz`, lacks its display's size and rate, its storage and its Vulkan driver, which
@@ -124,7 +131,7 @@ owner's save alone. After Stage 6e's first milestone, a check that names *Hunna 
   Wood* and the yard, on Linux and in the Windows virtual machine.
 - **Building the game again** (M6c.4c): a change of *Hunna Wood*'s rules built and started again,
   on Linux and in the Windows virtual machine; there, a build while the game runs, which Windows
-  may keep from replacing a running program, and the console windows that must not open.
+  may refuse, and no console window opening.
 - **The hierarchy** (M6c.5a): on the zone; read by Orca on Linux and by Narrator in the Windows
   virtual machine.
 - **Reparenting by drags** (M6c.5b): on the zone, and in the Windows virtual machine.
@@ -138,7 +145,7 @@ owner's save alone. After Stage 6e's first milestone, a check that names *Hunna 
 - **A hidden game at rest** (M6c.Q2c): *Hunna Wood* minimized in the Windows virtual machine,
   drawing nothing and waking not at all, and drawing again once shown.
 - **G20, in the Windows virtual machine.** A source asset whose `.meta` differs from its own name
-  by case only, cooked twice: whether its ID changes at each cook, and whether `slime-cook watch`
+  by case only, cooked twice: whether its ID changes, and whether `slime-cook watch`
   cooks it again without end (see [Left by the audit of 0.4](debt.md#left-by-the-audit-of-04)).
 - **The build for shipping on Windows** (C1): `cargo build --profile shipping -p hunnawood
   --no-default-features` in the Windows virtual machine, then the game run with `--new --save
@@ -151,13 +158,12 @@ owner's save alone. After Stage 6e's first milestone, a check that names *Hunna 
   Windows virtual machine, shown as it was at the first start of an editor of 0.7, then kept in
   `<program's name>.layout.kdl`; an editor before 0.7 started after it, which keeps its own.
 - **The interface after a lost device, on Direct3D 12** (M6d.4b1a, M6d.4b1b): in the Windows
-  virtual machine, *Hunna Wood*'s button that loses the GPU device, with the dev overlay open, the
-  loss reported through `slime-gfx`'s door, then the overlay drawn again on the new device.
+  virtual machine, *Hunna Wood*'s button that loses the device, its dev overlay open: the loss
+  reported through `slime-gfx`'s door, the overlay drawn again on the new device.
 - **Input methods as the host's outputs** (M6d.5c1): on the owner's Linux desktop with an input
   method of Japanese or Chinese, and in the Windows virtual machine with Microsoft's: a
-  composition in a field of the editor, its window beside the caret as it moves; the focus moved
-  to another field, then back to the first, mid-composition, the composition ended each time and
-  the next one starting clean.
+  composition in a field of the editor, its window beside the moving caret; the focus moved to
+  another field and back, mid-composition, each composition ended and the next starting clean.
 - **The clipboard through the outputs** (M6d.5c2): on the owner's Linux desktop and in the Windows
   virtual machine, copy, cut and paste in a field of the editor, by the keys and between it and
   another program; the editor's own copy and paste of entities; on macOS, whether ⌘V asks the
@@ -172,10 +178,10 @@ owner's save alone. After Stage 6e's first milestone, a check that names *Hunna 
   pressing a button and setting a field of the `interface` example.
 - **A covered window at rest** (M6d.5c3b): *Hunna Wood* paused, its dev overlay open, the pointer
   leaving its window as another covers it, in the Windows virtual machine, the macOS one and on
-  bare X11 (M6d.5e1): the game asking no frame while covered, and drawing again once shown.
-- **Each window's size and scale** (M6d.5e2): the editor in the Windows virtual machine, moved
-  between two screens of different scales and its scale changed in the system's settings while it
-  runs, laid out again at once and sharp; minimized and restored, as it was.
+  bare X11 (M6d.5e1): no frame asked while covered, drawn again once shown.
+- **Each window's size and scale** (M6d.5e2): the editor in the Windows virtual machine moved
+  between screens of two scales, and its scale changed while it runs: laid out again at once,
+  sharp; minimized and restored as it was.
 - **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
   left by Alt and Tab, Alt held or mid-drag: no bar in focus, nothing dropped; *Hunna Wood*'s
   button that loses the surface, on Direct3D 12: drawn again.

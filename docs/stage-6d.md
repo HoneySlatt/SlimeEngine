@@ -178,8 +178,8 @@ in git.
   [M6d.5e2](#m6d5e2--each-targets-size-and-scale-from-its-host), on 2026-11-14, M6d.5e whole, and
   with it M6d.5, the host's API.
 - In progress on track B: [M6d.7](#m6d7--the-desktop-host-its-window-and-its-frames), the
-  desktop host's window and frames, cut in six on 2026-11-15 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)); next,
-  [M6d.7a1](#m6d7a1--the-hosts-core-and-its-wayland-window).
+  desktop host's window and frames, cut in six on 2026-11-15 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)); in progress,
+  [M6d.7a1](PLAN.md#m6d7a1--the-hosts-core-and-its-wayland-window).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2317,23 +2317,7 @@ The second half of M6d.5e ([ADR-0264](adr/0264-the-lifecycle-before-each-targets
 
 ### M6d.7a1 — The host's core and its Wayland window
 
-The first part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)). It follows the rules of
-[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** An application on uwui alone opens its window on Wayland and rests there.
-- **Crates.** `uwui-desktop`, new; `uwui` (`FrameSource::OnGrid`); `scripts/`.
-- **Delivers.** The host's core, without a platform: the pacing of [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md), the rest, the clock
-  given to it, wakes, termination, `run(look, window, app)` and `App`. The Wayland layer on
-  `wayland-client`: its loop on `rustix`, the window and its requests (title, identity, minimum
-  size, fullscreen, closing intercepted), the compositor's decorations, frames on its callback,
-  the pointer with its events' times. Its own device, `MemoryHints::MemoryUsage`. An example of
-  buttons, a field, a dialog and a list. ADR-0226's check both ways, and `uwui` pulling no
-  windowing library nor wgpu.
-- **Done when.** The example rests in Weston, sway, KWin and Mutter in the series' job; each check
-  fails on a program made to pull what it forbids; the engine's sessions, rest and counters
-  unchanged; CI is green.
-- **How to test.** `cargo test -p uwui-desktop`; `scripts/compositors.sh`.
-- **Measured.** CI's jobs that build the host, each within 20 minutes.
+In progress, its card in [`PLAN.md`](PLAN.md#m6d7a1--the-hosts-core-and-its-wayland-window).
 
 ### M6d.7a2 — Wayland whole, and the host measured
 
