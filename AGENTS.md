@@ -72,7 +72,7 @@ Never report as working what was not verified: say what was not, and why.
 ## Architecture rules
 
 - Crate dependencies flow one way, per `docs/ARCHITECTURE.md`. No cycles, no shortcuts across layers.
-- wgpu types stay in `slime-gfx` and `uwui-render`; `slime-app`'s bridge and engine tests use them through `slime-gfx`'s door (ADR-0244); else, engine-owned handles.
+- wgpu types stay in `slime-gfx`, `uwui-render` and `uwui-desktop`; `slime-app`'s bridge and engine tests use them through `slime-gfx`'s door (ADR-0244); else, engine-owned handles.
 - The editor is a client of the engine: public API only.
 - The engine runs headless (no window, renderer or audio); core systems never depend on them.
 - Internal Rust APIs may change freely. Nothing is stable before 1.0.
@@ -171,11 +171,10 @@ At each milestone's end, report:
 ## Working with several agents
 
 - One session per milestone; after its report, the next starts from the repository.
-- Hand research and reviews to subagents; keep their conclusions.
 - Each agent takes one milestone or crate at a time, as `docs/PLAN.md` assigns.
 - Edit only files in your scope. Report changes needed elsewhere.
 - One agent at a time edits shared files: `docs/PLAN.md`, `docs/ARCHITECTURE.md`, workspace `Cargo.toml`.
-- A reviewing agent on the strongest model checks each milestone against this file, the ADRs and the quality bar before reporting.
+- A closing review (the `delegate` skill's `reviewer-closing`) checks each milestone against this file, the ADRs and the quality bar before reporting.
 
 ## Language
 
