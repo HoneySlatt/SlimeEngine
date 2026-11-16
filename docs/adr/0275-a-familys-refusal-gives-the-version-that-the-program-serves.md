@@ -2,7 +2,7 @@
 
 - Status: Accepted; amends
   [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) (the welcome's
-  refusals)
+  refusals); amended by [0278](0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md) (the version given, a major and a minor)
 - Date: 2026-11-15
 
 ## Context

@@ -319,7 +319,7 @@ the ADR linking to it.
 | [0243](0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md) | The canvas reads its items by their index, from a storage buffer or a texture, and draws in passes | Accepted; amends 0137 and 0181; amended by 0245 and 0247 |
 | [0244](0244-the-engine-lends-its-device-through-a-guarded-door.md) | The engine lends its device to uwui through a guarded door, and draws uwui from `slime-app` | Accepted; amends 0016, 0031, 0181 and 0242 |
 | [0245](0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md) | The interface's GPU budget counts what it adds to the frame | Accepted; amends 0114, 0137 and 0243 |
-| [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) | One core for agents cut in five: a session without input or output, in JSON-RPC, versioned by family | Accepted; amends 0110, 0122 and 0218; amended by 0248, 0269 and 0275 |
+| [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) | One core for agents cut in five: a session without input or output, in JSON-RPC, versioned by family | Accepted; amends 0110, 0122 and 0218; amended by 0248, 0269, 0275 and 0278 |
 | [0247](0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md) | The canvas tested on OpenGL ES through a feature of `uwui-render` alone | Accepted; amends 0016 and 0243 |
 | [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) | The host's API cut in five: built where it is read, three channels and a waker, AccessKit's translation in a crate of its own | Accepted; amends 0181, 0226, 0227 and 0246; amended by 0249, 0253, 0255, 0261 and 0264 |
 | [0249](0249-the-hosts-api-its-items-and-their-table.md) | The host's API: its items in three channels, and how each maps on five platforms | Accepted; amends 0248; amended by 0251, 0253, 0255, 0256, 0261, 0264, 0268 and 0270 |
@@ -347,6 +347,7 @@ the ADR linking to it.
 | [0271](0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md) | Frames on the platform's signal, drawn just in time, none at rest | Accepted; amends 0021, 0187 and 0227 |
 | [0272](0272-the-carriers-families-and-its-connections-state-join-it-at-their-first-reader.md) | A carrier's families served and its connection's state join it at their first reader | Accepted; amends 0269; amended by 0274 |
 | [0274](0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md) | The engine's families typed on the core's way; a family not served refused as it is sent; a tool's name taken twice an error; M6d.9a2b cut in two | Accepted; amends 0269 and 0272 |
-| [0275](0275-a-familys-refusal-gives-the-version-that-the-program-serves.md) | A family's refusal gives the version that the program serves | Accepted; amends 0246 |
+| [0275](0275-a-familys-refusal-gives-the-version-that-the-program-serves.md) | A family's refusal gives the version that the program serves | Accepted; amends 0246; amended by 0278 |
 | [0276](0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md) | The engine follows uwui by one exact commit until its 1.0 | Accepted; amends 0194; amended by 0277 |
 | [0277](0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md) | The engine ported to uwui at the end of each of uwui's stages | Accepted; amends 0276 |
+| [0278](0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md) | Families versioned by major and minor, tools speaking several majors | Accepted; amends 0246 and 0275 |

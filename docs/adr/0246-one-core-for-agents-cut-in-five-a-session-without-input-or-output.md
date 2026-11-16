@@ -7,7 +7,8 @@
   (M6d.9a cut in five); amended by [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) (one waker, meaning followed by each reader, an
   element's capture from the host's image), [0269](0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md) (uwui's MCP server as a program waits for a
   carrier of uwui's own) and [0275](0275-a-familys-refusal-gives-the-version-that-the-program-serves.md)
-  (a family's refusal gives the version that the program serves)
+  (a family's refusal gives the version that the program serves), then by
+  [0278](0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md) (major and minor versions, tools speaking several majors)
 - Date: 2026-11-12
 
 ## Context

@@ -160,7 +160,7 @@ Realistic changes and failures, each with what it must leave true and how that i
 | A component, an asset kind, a render pass, an interface element or an editor operation added outside its crate | added without editing a central list | review | components are; the others are lists to edit |
 | The simulation run on several threads, or replayed bit for bit | the same world at each step | *A replay*, above, from Stage 7 | its contract is written for one thread |
 | A server, or the replay check, without a window or a GPU | built without wgpu, winit or uwui | a `cargo tree` check, as uwui's | not met: `slime-app` builds them; not checked |
-| uwui released apart, the engine on an older release | the engine builds, and the tools of either release drive it | the engine follows one exact commit of uwui ([ADR-0276](adr/0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md)) | not met: a tool refuses a program that serves another version of its family, M6d.10 |
+| uwui released apart, the engine on an older release | the engine builds, and the tools of either release drive it | the engine follows one exact commit of uwui ([ADR-0276](adr/0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md)) | not met: a tool refuses a program that serves another version of its family, until [ADR-0278](adr/0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md) is built |
 
 ### Without a figure
 
