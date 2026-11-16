@@ -1,7 +1,8 @@
 # 0276. The engine follows uwui by one exact commit until its 1.0
 
 - Status: Accepted; amends [0194](0194-stage-6d-uwui-leaving-the-engine.md) (how the engine
-  follows uwui after the move, settled before M6d.10)
+  follows uwui after the move, settled before M6d.10); amended by
+  [0277](0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md) (the rhythm of its moves)
 - Date: 2026-11-16
 
 ## Context
@@ -79,8 +80,8 @@ With it, delivered at M6d.11:
 - A game that names uwui itself, or `slime-color`, risks two copies; the README shows the
   re-exports.
 - uwui's history is never rewritten on `main`: a commit that the engine names must stay fetchable.
-- The rhythm at which the engine moves its `rev` before uwui's 1.0, and agents' families served
-  over a range of versions, are decided apart.
+- The rhythm at which the engine moves its `rev` before uwui's 1.0 is
+  [ADR-0277](0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md); agents' families served over a range of versions are decided apart.
 
 ## Validation and reconsideration
 
