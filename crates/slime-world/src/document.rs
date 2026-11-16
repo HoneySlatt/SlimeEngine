@@ -31,7 +31,8 @@ const START: &str = "start";
 /// The layout of saves that this program writes, and the only one that it reads
 /// (`docs/adr/0125-saves-per-scene.md`): 5, the differences of each entity from its base. 1 was
 /// that of the saves of 0.3, 2 of 0.4, 3 of those written since P1, 4 of those of M6a.7a: each
-/// held what differs from a start world that the game made again.
+/// held what differs from a start world that the game made again. A change of the layout comes
+/// with its upgrade from the one before, from 5 on (`docs/adr/0288-saves-migrated-from-their-layout-5-on.md`).
 const LAYOUT_VERSION: u64 = 5;
 /// The scenes spawned under keys, the last under each, by their keys: their asset IDs, names and
 /// contents.

@@ -1034,11 +1034,10 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   Themes, style sheets and shortcuts in KDL have no version field; dock layouts have one, and a migration ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   Once files circulate, a change of their meaning cannot be told from an error.
   Settled by V1, on track A before M6d.10.
-- **A save of an older layout is refused, not migrated.**
+- **A save of an older layout is refused, not migrated** ([ADR-0288](adr/0288-saves-migrated-from-their-layout-5-on.md)).
   `slime_world`'s reader of saves refuses any layout but `LAYOUT_VERSION` (`crates/slime-world/src/document.rs`); scene files accept every layout up to it.
   Nothing is lost: *Hunna Wood* sets the old save aside.
-  [ADR-0207](adr/0207-what-slimeengine-is-to-become.md) promises saves that are migrated; each layout changed once players keep saves is one more to carry.
-  A decision for the owner, before a game ships.
+  From layout 5 on, saves are migrated: S1, on track A after V1, builds the reader of older layouts and layout 5's fixture; layouts 1 to 4 stay set aside.
 - **The simulation is written for one thread, and draws identities from the system's randomness.**
   `Simulation::fixed_step` takes `&mut World`, as do 119 parameters of the engine and its games.
   `World::new_id` draws from `RandomState::new()` (`crates/slime-world/src/scene.rs`); queries walk in no particular order, which changes as components come and go.

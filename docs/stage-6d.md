@@ -2942,6 +2942,20 @@ Not a milestone of agents': uwui's documents, on track A after M6d.9a2b2
 - **Done when.** `scripts/check.sh` passes; each reader's tests read version 1 with and without its
   node, and refuse version 2.
 
+### S1 — Saves migrated from layout 5
+
+Not a milestone of uwui's: the engine's saves, on track A after V1
+([ADR-0288](adr/0288-saves-migrated-from-their-layout-5-on.md)).
+
+- **Goal.** A save of a layout from 5 up to the reader's own reads, each layout upgraded to the
+  next in turn.
+- **Crates.** `slime-world`'s reader of saves; *Hunna Wood*'s fixtures.
+- **Delivers.** The reader of layouts from 5 on, as scene files read theirs; a fixture of layout 5
+  loaded in CI; the rule that a change of the layout comes with its upgrade, in the reader's
+  rustdoc; layouts 1 to 4 set aside as today.
+- **Done when.** `scripts/check.sh` passes; a test reads layout 5's fixture through the reader of a
+  layout 6 made for the test, then thrown away.
+
 ### M6d.10 — uwui designed as a project
 
 - **Goal.** uwui's repository is ready to receive its code. Builds nothing.

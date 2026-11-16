@@ -34,6 +34,9 @@ Do not write one for choices that are local to a function or a module and cheap 
    goes in the milestone's plan, or in a new ADR, never into an older ADR's status. Fixing a typo,
    a broken link, or a factual error that leaves the decision unchanged is fine; the commit message
    says what was corrected.
+   An ADR that holds several topics and changes on one of them alone is superseded in part: the new
+   one states that topic's rule whole, `Accepted; supersedes in part NNNN (the topic)`, the old one
+   `…; superseded in part by NNNN (the topic)`, and stays in force for the rest.
 5. Older ADRs amend others, `Accepted; amends NNNN (what it changes)`, the way before ADR-0280.
    D1, before the move, consolidates every chain: one new ADR for each topic supersedes them,
    stating the rule whole. After it, a milestone that touches a topic still spread does the same.
@@ -287,7 +290,7 @@ the ADR linking to it.
 | [0204](0204-signals-written-by-hand-for-the-prototypes.md) | Signals written by hand for M6d.1b's prototypes | Accepted; amends 0202 |
 | [0205](0205-signals-change-uwuis-interface.md) | Signals change uwui's interface, and live values its drawing | Accepted; amends 0190; amended by 0206, 0210, 0211 and 0227 |
 | [0206](0206-slatty-ported-again-the-daw-later.md) | Slatty ported again; the DAW later | Accepted; amends 0203 and 0205 |
-| [0207](0207-what-slimeengine-is-to-become.md) | What SlimeEngine is to become | Accepted; amends 0098; amended by 0214, 0215, 0219 and 0220 |
+| [0207](0207-what-slimeengine-is-to-become.md) | What SlimeEngine is to become | Accepted; superseded in part by 0288; amends 0098; amended by 0214, 0215, 0219 and 0220 |
 | [0208](0208-the-engines-promises-and-systems.md) | The engine's promises and systems | Accepted; amends 0098, 0107 and 0114; amended by 0215, 0216 and 0217 |
 | [0209](0209-platforms-the-editor-and-agents.md) | Platforms, the editor and agents | Accepted; amends 0098, 0099, 0122 and 0190; amended by 0214, 0215, 0218, 0239 and 0269 |
 | [0210](0210-signals-named-for-a-reload.md) | Signals named for a reload, through serde | Accepted; amends 0202 and 0205; amended by 0211, 0212 and 0225 |
@@ -367,3 +370,4 @@ the ADR linking to it.
 | [0285](0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md) | Every pointer named in the host's events; the tree following each with touch | Accepted |
 | [0286](0286-every-document-of-uwui-versioned-as-dock-layouts-are.md) | Every document of uwui versioned, as dock layouts are | Accepted |
 | [0287](0287-the-simulations-contract-designed-at-stage-7-its-questions-written-now.md) | The simulation's contract designed at Stage 7, its questions written now | Accepted |
+| [0288](0288-saves-migrated-from-their-layout-5-on.md) | Saves migrated from their layout 5 on | Accepted; supersedes in part 0207 |

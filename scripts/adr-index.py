@@ -2,8 +2,9 @@
 """Writes, or checks, the index of docs/adr/README.md from the ADRs themselves.
 
 Each ADR's title is its heading; its status in the index is read from the `Status` lines. A
-relation between two ADRs, one amending or superseding the other, counts when either one's status
-names it: the oldest ADRs wrote it on one side alone. The check refuses a status that names an ADR
+relation between two ADRs, one amending or superseding the other, whole or in part, counts when
+either one's status names it: the oldest ADRs wrote it on one side alone. An ADR superseded in part
+stays in force for the rest. The check refuses a status that names an ADR
 that does not exist, and, from ADR-0280 on, a supersession that both sides do not name
 (docs/adr/0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md).
 
@@ -26,6 +27,8 @@ LINK = re.compile(r"\[(?:ADR-)?(\d{4})\]\([^)]*\)")
 TOKEN = re.compile(r"⟦(\d{4})⟧")
 # The words that start a list of ADRs in a status, longest first: "amended by" before "amended".
 RELATION_WORDS = [
+    ("superseded in part by", "superseded_in_part_by"),
+    ("supersedes in part", "supersedes_in_part"),
     ("superseded by", "superseded_by"),
     ("supersedes", "supersedes"),
     ("amended by", "amended_by"),
@@ -33,12 +36,21 @@ RELATION_WORDS = [
     ("amended", "amended_by"),
     ("amends", "amends"),
 ]
-RELATIONS = ["superseded_by", "supersedes", "amends", "amended_by"]
+RELATIONS = [
+    "superseded_by",
+    "supersedes",
+    "superseded_in_part_by",
+    "supersedes_in_part",
+    "amends",
+    "amended_by",
+]
 OPPOSITE = {
     "amends": "amended_by",
     "amended_by": "amends",
     "supersedes": "superseded_by",
     "superseded_by": "supersedes",
+    "supersedes_in_part": "superseded_in_part_by",
+    "superseded_in_part_by": "supersedes_in_part",
 }
 
 
@@ -109,7 +121,13 @@ def index_status(adr, relations):
         parts = [f"Superseded by {first}{rest}"]
     else:
         parts = [adr.state]
-    for relation, words in (("supersedes", "supersedes"), ("amends", "amends"), ("amended_by", "amended by")):
+    for relation, words in (
+        ("supersedes", "supersedes"),
+        ("supersedes_in_part", "supersedes in part"),
+        ("superseded_in_part_by", "superseded in part by"),
+        ("amends", "amends"),
+        ("amended_by", "amended by"),
+    ):
         if relations[relation]:
             parts.append(f"{words} {listed(relations[relation])}")
     return "; ".join(parts)
@@ -130,12 +148,16 @@ def relations_of(adrs, problems):
     for number, own in relations.items():
         own["amends"] -= own["supersedes"]
         own["amended_by"] -= own["superseded_by"]
-        for newer in own["superseded_by"]:
-            if int(newer) >= BOTH_SIDES_FROM:
-                if newer not in known[number].named["superseded_by"]:
-                    problems.append(f"{number}'s status does not say that {newer} supersedes it")
-                if number not in known[newer].named["supersedes"]:
-                    problems.append(f"{newer}'s status does not say that it supersedes {number}")
+        for older, newer, words in (
+            ("superseded_by", "supersedes", "supersedes"),
+            ("superseded_in_part_by", "supersedes_in_part", "supersedes in part"),
+        ):
+            for later in own[older]:
+                if int(later) >= BOTH_SIDES_FROM:
+                    if later not in known[number].named[older]:
+                        problems.append(f"{number}'s status does not say that {later} {words} it")
+                    if number not in known[later].named[newer]:
+                        problems.append(f"{later}'s status does not say that it {words} {number}")
     return relations
 
 
