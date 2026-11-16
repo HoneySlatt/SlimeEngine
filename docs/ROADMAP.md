@@ -145,6 +145,23 @@ CI checks budgets through exact counters, draws, elements, bytes, allocations, a
 | The *agent bench* | the engine's tasks, a system of a game written, a level built from a brief, a bug fixed from a crash report, a scene brought within its budget, given to the same agents in the engine, Unreal, Unity and Godot; success, tries, tokens and time, with the models and their versions; the goal, provisional, at least the best's success on fewer tokens (ADR-0215) | its runs, in `docs/measurements.md` | by hand, at each release, once a new game can be made and cooked outside this repository (ADR-0220) | a target |
 | The *creation bench* | fixed tasks, a km² of dense forest with a village, a character imported and animated, a lit interior, a short cutscene, a quest with its dialogue, done in the engine and in Unreal by the same person and agents: 4 times less waiting, imports, cooking, shaders and light; 2.5 times less human time, its bias written beside each figure; the quality judged blind (ADR-0215) | its runs, timed | by hand, each task from the stage that builds what it needs | a target |
 
+### Architecture and stability
+
+Realistic changes and failures, each with what it must leave true and how that is checked. A change is checked by tracing it through the code, never by building a future feature; a failure by a test where one can run it. The ownership, limits and costly changes they test are in [`ARCHITECTURE.md`](ARCHITECTURE.md#invariants-and-ownership); what is missed, in [`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10).
+
+| Scenario | It must leave true | Checked by | State |
+|---|---|---|---|
+| A new major version of wgpu, winit, parley, taffy or accesskit | the change stays in the crate that wraps it: wgpu in `slime-gfx`, `uwui-render` and `uwui-desktop`, winit in `slime-platform`, the text and layout in `uwui` | `scripts/check.sh`'s `cargo tree` checks for uwui's crates; review for the engine's | contained in the engine; once uwui leaves, wgpu and accesskit move on both sides at once, M6d.10 |
+| The GPU's device lost in the middle of a frame | the run goes on, on a new device, or stops with an error past its bound | the engine's tests of a lost device, on lavapipe; Direct3D 12 by hand | met; that nothing holds the old device is not checked |
+| A crash or a full disk while a file is written | the previous file whole; nothing half written read as good | tests of the writers and of the editor's journal | met for cooked files, levels and *Hunna Wood*'s saves; a save cut at a section's boundary loads in part |
+| A file of an older version: a save, a level, a layout, a cooked file | read, migrated, cooked again, or refused and set aside; never lost | fixtures in CI: *Hunna Wood*'s save, the editor's layouts | levels and layouts read; saves refused, not migrated |
+| A tool that floods the development channel | the game's frames within their budget, its memory bounded | `slime-channel`'s tests | met, within estimated bounds |
+| Hours of use: undos, redos and runs of Play repeated | no memory that grows, no work left behind | the *Memory* budget above | measured by hand |
+| A component, an asset kind, a render pass, an interface element or an editor operation added outside its crate | added without editing a central list | review | components are; the others are lists to edit |
+| The simulation run on several threads, or replayed bit for bit | the same world at each step | *A replay*, above, from Stage 7 | its contract is written for one thread |
+| A server, or the replay check, without a window or a GPU | built without wgpu, winit or uwui | a `cargo tree` check, as uwui's | not met: `slime-app` builds them; not checked |
+| uwui released apart, the engine on an older release | the engine builds, and the tools of either release drive it | M6d.10 sets how the engine follows uwui | not decided |
+
 ### Without a figure
 
 - Games' accessibility: controls that can be remapped, subtitles, modes for colour-blind players, camera shake and motion blur that can be turned off, at Stage 7; then all that an engine can give of the Xbox Accessibility Guidelines, native and checked, each game choosing what it turns on (ADR-0208).

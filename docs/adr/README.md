@@ -57,8 +57,13 @@ Each rejected option and the reason it was rejected.
 
 ## Consequences
 
-What becomes easier, what becomes harder, the debt accepted, and the cost of reversing the
-decision later.
+What becomes easier, what becomes harder, the debt accepted, the compatibility it promises, and
+the cost of migrating or reversing it later.
+
+## Validation and reconsideration
+
+The change and failure scenarios that bore on it, each fact marked measured, reviewed or assumed;
+what would justify proposing a new decision to the owner. Omitted when nothing applies.
 ```
 
 Keep ADRs short. If a decision needs a long explanation, the explanation probably belongs in

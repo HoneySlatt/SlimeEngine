@@ -2348,6 +2348,61 @@ The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-wi
 `scripts/check.sh` compiles the whole workspace for Windows on Linux, and CI runs the tests and
 the headless samples on a Windows runner.
 
+## Invariants and ownership
+
+The rules every change keeps; each links to where it is enforced or told whole.
+
+- Crates depend one way ([above](#dependency-rules)). uwui's crates depend on no engine crate,
+  and no engine crate on `uwui-desktop`: `scripts/check.sh` checks both with `cargo tree`. That
+  the engine's core builds without a window or a GPU is checked by review alone
+  ([`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10)).
+- The world has one writer at a time, on the main thread: the simulation's step, the editor's
+  session, or the development channel's requests, taken at a frame's start within a share of it
+  ([above](#the-development-channel)). Every write goes through `&mut World`.
+- An `Entity` holds within one run; files and saves name entities by their `PersistentId` alone
+  ([above](#the-world), [saving](#saving-and-loading-a-world)).
+- The GPU's device is shared through the `Gpu` and its clones; whoever finds it lost records the
+  loss there, and the run replaces it once nothing holds the old one
+  ([above](#losing-the-gpu)).
+- The editor reaches the engine through public APIs alone, and runs a game's code in a process
+  of its own for Play ([above](#editing-a-level)).
+- What may cross threads is stated, type by type ([above](#threads)). State shared by the whole
+  process is limited to facts of the process (signals, the trace, the log, the waker) and two
+  queues, the task pool and the renderer's lane of loads.
+
+## Limits and recovery
+
+- Bounded, with what happens at the bound: the development channel's connections, requests in
+  flight and bytes unwritten, and its share of each frame
+  ([ADR-0252](adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md));
+  the world's log of removals, which tells a reader that fell behind; the copies to the GPU, a
+  budget of bytes a frame ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)). What
+  a load reads before its copies are submitted is not bounded ([`debt.md`](debt.md)).
+- The cooker's files, the editor's levels and *Hunna Wood*'s saves are written to a temporary
+  file, synced, then renamed: a crash or a full disk leaves the previous file whole. The engine
+  gives games no such writer yet ([`debt.md`](debt.md)). A file that does not read is set aside
+  (`slime_app::data::set_aside`), never written over; a cooked file that does not read is cooked
+  again.
+- The editor's journal gives back, after a crash, the steps that the level had not received
+  ([above](#editing-a-level)).
+- A lost device is replaced, within a bound of new devices over a time, then the run stops with
+  an error ([above](#losing-the-gpu)). A termination signal ends a run through its `stop` methods
+  ([above](#termination-signals)).
+- What the engine reads and promises of each file, damaged or of another version:
+  [ADR-0096](adr/0096-the-files-the-engine-reads.md),
+  [ADR-0102](adr/0102-a-damaged-file-gives-an-error.md). Saves of another layout are refused,
+  not migrated yet ([`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10)).
+
+## Evolution constraints
+
+The changes known to cost most today, each an item of
+[`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10): the simulation's contract,
+written for one thread; the lists that a new asset kind, render pass, interface element or editor
+operation must be added to; `slime-app`, which always builds a window, the GPU and uwui; and
+uwui's boundary with the engine, which M6d.10 settles. The scenarios that check these, and where
+each stands, are in the quality bar
+([`ROADMAP.md`](ROADMAP.md#architecture-and-stability)).
+
 ## Where to start reading
 
 1. [`README.md`](../README.md) for what the project is and its state.

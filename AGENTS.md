@@ -45,7 +45,7 @@ cargo run --example editor -- --level <copy> --journal <file>
 cargo run --quiet -p slime-mcp
 ```
 
-- Every other command: `CONTRIBUTING.md`, "Commands", where new ones go; here only those every session needs.
+- Every other command: `CONTRIBUTING.md`, "Commands", where new ones go.
 - Tests run on lavapipe, a CPU Vulkan driver: `CONTRIBUTING.md`, "GPU".
 
 Keep off the owner's files and desktop:
@@ -62,7 +62,7 @@ A milestone is done only when:
 - Build, tests, clippy, fmt, doc pass (`scripts/check.sh`), before the report.
 - The binary or example ran as expected.
 - New behaviour has tests where practical.
-- The quality bar's budgets (`docs/ROADMAP.md`) that it touches are measured; one missed is debt.
+- The quality bar's budgets and scenarios (`docs/ROADMAP.md`) that it touches are measured or checked; one missed is debt.
 - `docs/PLAN.md` shows the new status.
 - Every document the change affects is updated, then reread as a newcomer would.
 - Each architecture decision is recorded in an ADR.
@@ -79,7 +79,7 @@ Never report as working what was not verified: say what was not, and why.
 
 ## Code rules
 
-- No abstraction without a second concrete use; no trait, generic or layer "just in case".
+- An abstraction needs a concrete gain: reuse, or isolating an unstable dependency, an invariant or a test; nothing "just in case".
 - Do not reimplement the standard library unless a measurement justifies it.
 - Every `unsafe` block has a `// SAFETY:` comment saying why it is sound.
 - Follow the ADRs' conventions (errors, logging, naming); if none applies: propose an ADR, never decide silently.
@@ -164,7 +164,7 @@ At each milestone's end, report:
 
 - What was done.
 - Notable design choices, why, alternatives rejected.
-- The budgets measured, and their figures.
+- The budgets and scenarios checked, and their figures.
 - What to read first.
 - Shortcuts taken and debt introduced (`docs/debt.md`).
 
