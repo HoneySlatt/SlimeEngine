@@ -5,6 +5,43 @@ depend on each other, and where to start reading. It describes the repository as
 [`ROADMAP.md`](ROADMAP.md) describes where it is going, and [`adr/`](adr/README.md) records why
 it is built this way.
 
+## In one page
+
+A Rust workspace holds the engine (crates `slime-*`), uwui, its UI framework (`uwui*`, which moves
+to a repository of its own at M6d.11), the engine's tools, and a game, examples and benchmarks
+that use the engine as any client would. Dependencies flow one way, from the bottom up:
+
+- **Vocabulary, depending on nothing:** `slime-input` (keys and buttons), `slime-color` (the one
+  colour type), `slime-tasks` (the thread pool).
+- **Data, headless:** `slime-reflect` describes types at run time; `slime-serialize` writes and
+  reads their values; `slime-assets` reads cooked data by ID; `slime-world` keeps a game's
+  entities, components and hierarchy.
+- **Drawing:** `slime-gfx`, the only engine crate that uses wgpu; `slime-render`, the renderer, on
+  `slime-gfx`'s types; `slime-world-render`, the bridge that builds each frame from a world.
+- **The window:** `slime-platform`, the only engine crate that uses winit.
+- **Running a game:** `slime-app` hosts a game as a *simulation*, its rules stepped at a fixed
+  rate on the world, and a *presentation*, what the player sees; it owns the main loop,
+  draws uwui's interfaces through `uwui-render`, and serves tools through `slime-channel`.
+- **uwui:** `uwui` (the tree of elements, layout, styles, text; headless), `uwui-render` (drawing,
+  on a device that its host lends), `uwui-accesskit` (screen readers), `uwui-agent` and `uwui-mcp`
+  (agents), `uwui-kdl` and `uwui-macros` (its documents and styles), `uwui-desktop` (its own host
+  and windowing layer). No uwui crate depends on an engine crate.
+- **Tools, which no game links:** `slime-cook` turns source assets into cooked data;
+  `slime-editor` edits levels through the engine's public API, and runs the game's code in a
+  process of its own for Play; `slime-devui` is the overlay of a running program; `slime-mcp`
+  lets an AI agent drive a running game.
+
+The main flows, each told whole [below](#main-flows): source assets are cooked once, then loaded
+by ID; each frame, input reaches the simulation, which steps the world, and the presentation draws
+the world and its interface; a save is the world written as a document, which the game writes to disk;
+the editor changes a level by commands, kept in a journal, and writes the scene file back; a tool
+reaches a program through the development channel, by families of requests that the program
+serves.
+
+The rules that every change keeps are under
+[Invariants and ownership](#invariants-and-ownership); where to start reading,
+[at the end](#where-to-start-reading).
+
 ## Repository layout
 
 ```text

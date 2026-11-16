@@ -1084,8 +1084,7 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   Contributions' terms are decided ([ADR-0214](adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)), without the agreement's text or anything that checks it; source files carry no SPDX line.
   No crate's name is reserved on crates.io, and the names' policy that ADR-0207 promises before 0.14 is not written.
   Decisions for the owner; the agreement waits for the lawyer.
-- **The documentation is long, and a rule spreads across amendments.**
+- **The documentation is long, and older rules spread across amendments.**
   About 645,000 words of Markdown; `ARCHITECTURE.md` near 28,000.
-  187 of 274 ADRs are amended and 3 superseded: a topic's current rule is read across a chain.
-  `docs/PLAN.md` and `CHANGELOG.md` change at nearly every commit, so two changes made at once conflict.
-  A proposal for the owner ([`PLAN.md`](PLAN.md#ideas-waiting-for-their-milestone)).
+  From [ADR-0280](adr/0280-a-changed-decision-written-whole-the-changelog-in-fragments.md) on, a changed decision supersedes the old one whole, and the changelog is written in fragments; the 187 ADRs amended before stay chains until a milestone touches their topic.
+  `docs/PLAN.md` still changes at nearly every commit, so two changes made at once conflict there.

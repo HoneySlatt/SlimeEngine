@@ -10,9 +10,10 @@
 # cooks first (the flag makes an incomplete flake.lock an error instead of a silent update), and
 # `... scripts/check.sh gles`, uwui-render's canvas on wgpu's GL backend, which nothing else builds
 # (ADR-0247). Without an argument, it runs the five parts, one after the other. `docs` checks the
-# links between Markdown files and the lengths of AGENTS.md and docs/PLAN.md alone, which the lint
-# part does too: CI's `docs` workflow runs it, with lychee alone, on a change of Markdown files
-# outside the crates (ADR-0188).
+# links between Markdown files, the ADRs' index, the changelog's fragments and the lengths of
+# AGENTS.md and docs/PLAN.md alone, which the lint part does too: CI's `docs` workflow runs it,
+# with lychee and Python alone, on a change of Markdown files outside the crates (ADR-0188,
+# ADR-0280).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -609,6 +610,11 @@ if runs lint || [ "$part" = docs ]; then
         mapfile -t markdown < <(find . -name '*.md' -not -path './target/*' -not -path './.git/*')
     fi
     lychee --offline --include-fragments --no-progress "${markdown[@]}"
+
+    step "The ADRs' index and the changelog's fragments"
+    # The index is written from the ADRs, and each fragment waits for a release (ADR-0280).
+    python3 -I scripts/adr-index.py
+    python3 -I scripts/changelog.py
 
     step "The files that every session reads, within their lengths"
     # Every agent reads them at each session's start (AGENTS.md): their limits keep that cost low.

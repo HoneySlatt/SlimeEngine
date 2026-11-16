@@ -84,8 +84,7 @@ From the review of the architecture of 2026-11-16, its items in
   ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
 - Before Stage 7's systems: an ADR on the simulation's contract, its parallel access, its seeded
   randomness and its order of iteration; a typed copy of the world; a host without window or GPU.
-- For the owner: the contributors' files and terms, the names reserved, and shorter documents:
-  ADRs superseded rather than amended, a short overview, the changelog in fragments.
+- For the owner: the contributors' files and terms, and the names reserved.
 
 ## Checks by hand waiting for the owner
 

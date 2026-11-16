@@ -588,8 +588,9 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
 owner's go.
 
 1. In one commit: set the version in the root `Cargo.toml` and the tag that the README's "Using
-   SlimeEngine in a game" names, with its list of crates; rename the `[Unreleased]` section of
-   `CHANGELOG.md` to `[<version>] - <date>`; update [`docs/PLAN.md`](docs/PLAN.md) and [`docs/history.md`](docs/history.md).
+   SlimeEngine in a game" names, with its list of crates; run `scripts/changelog.py --merge`, which
+   moves `changelog.d/`'s fragments into `CHANGELOG.md`, then rename its `[Unreleased]` section to
+   `[<version>] - <date>`; update [`docs/PLAN.md`](docs/PLAN.md) and [`docs/history.md`](docs/history.md).
 2. Push that commit and wait for its CI run to pass.
 3. Tag that commit, not a later one, then push the tag:
    `git tag -a v<version> -m "SlimeEngine <version>" <commit>`.
@@ -609,7 +610,9 @@ owner's go.
    which document covers what: each fact has one home, which the others link to.
 3. Do not commit code that fails the checks of the
    [definition of done](AGENTS.md#definition-of-done).
-4. A source asset, a glTF, PNG, JPEG or scene file (`.scene`) that the cooker reads, is committed
+4. A change that users see adds a fragment to [`changelog.d/`](changelog.d/README.md), never an edit
+   of `CHANGELOG.md`, so that two changes made at once do not meet there.
+5. A source asset, a glTF, PNG, JPEG or scene file (`.scene`) that the cooker reads, is committed
    with its metadata file, `<file>.meta`, which holds its asset ID
    ([ADR-0069](docs/adr/0069-the-asset-pipeline.md)): `cargo run -p slime-cook -- scan <directory>`
    writes one for each new file. Move or rename the two together, so that the asset keeps its ID;
@@ -619,7 +622,7 @@ owner's go.
    `scripts/fetch-assets.sh` ([ADR-0070](docs/adr/0070-the-sample-games-source-assets.md);
    [`games/hunnawood/README.md`](games/hunnawood/README.md#its-assets) says how to add one, and
    how to build the zone again with Blender).
-5. Code that reads a file from outside the program, cooked data, the manifest, a save, a scene
+6. Code that reads a file from outside the program, cooked data, the manifest, a save, a scene
    file, a source asset or its metadata file, follows
    [ADR-0096](docs/adr/0096-the-files-the-engine-reads.md): a damaged or edited file gives an
    error, never a panic, a hang or memory exhausted, and the reader's tests damage its input,

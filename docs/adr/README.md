@@ -26,12 +26,19 @@ Do not write one for choices that are local to a function or a module and cheap 
 2. The project owner (the person who validates direction and architecture) decides.
 3. The ADR is written in the same change that first applies the decision, so that it describes
    a decision that is actually in effect.
-4. An accepted ADR is never edited to change its meaning. To change a decision, write a new ADR that
-   supersedes the old one, and set the old one's status to `Superseded by NNNN`. When a new ADR
-   changes only part of an older one, the older one's status becomes `Accepted; amended by NNNN`,
-   and the new one's says what it changes of it, `Accepted; amends NNNN (what it changes)`. Fixing a
-   typo, a broken link, or a factual error that leaves the decision unchanged is fine; the commit
-   message says what was corrected.
+4. An accepted ADR is never edited to change its meaning. To change a decision, even in part,
+   write a new ADR that supersedes it and states the whole rule then in force on its topic, so that
+   one ADR is read for it: its status is `Accepted; supersedes NNNN`, the old one's
+   `Superseded by NNNN` ([ADR-0280](0280-a-changed-decision-written-whole-the-changelog-in-fragments.md)). An ADR that adds a decision without
+   changing one names the older in its context alone. A precision decided while a milestone runs
+   goes in the milestone's plan, or in a new ADR, never into an older ADR's status. Fixing a typo,
+   a broken link, or a factual error that leaves the decision unchanged is fine; the commit message
+   says what was corrected.
+5. Older ADRs amend others, `Accepted; amends NNNN (what it changes)`, the way before ADR-0280.
+   When a milestone touches a topic whose rule is spread across amendments, one new ADR supersedes
+   them, stating the rule whole.
+6. The index below is written by `scripts/adr-index.py --write`, from each ADR's heading and
+   status; `scripts/check.sh` checks it, and that a supersession is named on both sides.
 
 ## Format
 
@@ -40,7 +47,7 @@ File name: `NNNN-short-title.md`, numbered in order of acceptance, never reused.
 ```markdown
 # NNNN. Title in the imperative or as a noun phrase
 
-- Status: Accepted | Accepted; amends NNNN (what) | Accepted; amended by NNNN | Superseded by NNNN
+- Status: Accepted | Accepted; supersedes NNNN | Superseded by NNNN
 - Date: YYYY-MM-DD
 
 ## Context
@@ -86,156 +93,156 @@ the ADR linking to it.
 | [0010](0010-main-loop-ownership.md) | Main loop ownership and the application API | Accepted; amended by 0020 and 0107 |
 | [0011](0011-windowing-with-winit.md) | Windowing and input with winit, behind `slime-platform` | Accepted; amended by 0020 and 0181 |
 | [0012](0012-clean-shutdown-on-termination-signals.md) | Clean shutdown on termination signals | Accepted |
-| [0013](0013-windowed-smoke-test-in-weston.md) | Windowed smoke test in a headless Weston compositor | Accepted; amended by 0020, 0024 |
-| [0014](0014-amend-roadmap-for-stage-2-and-windows.md) | Amend the roadmap for Stage 2 and for Windows | Accepted |
-| [0015](0015-platforms-and-ci.md) | Platforms and CI on Linux and Windows | Accepted; amended by 0173 |
-| [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted; amended by 0022, 0031, 0025, 0036, 0044, 0098, 0114, 0244 and 0247 |
+| [0013](0013-windowed-smoke-test-in-weston.md) | Windowed smoke test in a headless Weston compositor | Accepted; amended by 0020 and 0024 |
+| [0014](0014-amend-roadmap-for-stage-2-and-windows.md) | Amend the roadmap for Stage 2 and for Windows | Accepted; amends 0002 and 0004 |
+| [0015](0015-platforms-and-ci.md) | Platforms and CI on Linux and Windows | Accepted; amends 0007; amended by 0173 |
+| [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted; amended by 0022, 0025, 0031, 0036, 0044, 0098, 0114, 0244 and 0247 |
 | [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted; amended by 0026, 0033 and 0044 |
-| [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028, 0030 |
-| [0019](0019-default-log-filter.md) | Default log filter | Accepted |
-| [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022, 0025, 0043 and 0107 |
-| [0021](0021-frame-pacing.md) | Frame pacing | Accepted; amended by 0155, 0156, 0185, 0187 and 0271 |
-| [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amended by 0025, 0044, 0075 and 0103 |
-| [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
-| [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted; extended on 2026-10-13 |
-| [0025](0025-giving-up-a-lost-surface.md) | Giving up a window's surface that is lost for good | Accepted; amended by 0264 |
-| [0026](0026-resource-binding-and-depth.md) | Resource binding and depth in `slime-gfx` | Accepted; amended by 0032, 0033, 0047, 0106, 0115 and 0117 |
+| [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028 and 0030 |
+| [0019](0019-default-log-filter.md) | Default log filter | Accepted; amends 0008 |
+| [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amends 0010, 0011 and 0013; amended by 0021, 0022, 0025, 0043 and 0107 |
+| [0021](0021-frame-pacing.md) | Frame pacing | Accepted; amends 0020; amended by 0155, 0156, 0185, 0187 and 0271 |
+| [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amends 0016 and 0020; amended by 0025, 0044, 0075 and 0103 |
+| [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted; amends 0006 |
+| [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted; amends 0013 |
+| [0025](0025-giving-up-a-lost-surface.md) | Giving up a window's surface that is lost for good | Accepted; amends 0016, 0020 and 0022; amended by 0264 |
+| [0026](0026-resource-binding-and-depth.md) | Resource binding and depth in `slime-gfx` | Accepted; amends 0017; amended by 0032, 0033, 0047, 0106, 0115 and 0117 |
 | [0027](0027-the-render-crate.md) | The render crate, what it draws, and glam | Accepted; amended by 0034, 0035, 0037, 0038, 0039, 0040, 0041, 0047, 0048, 0111 and 0117 |
-| [0028](0028-image-tests-tolerate-a-few-pixels.md) | Image tests tolerate a few differing pixels | Accepted; amended by 0030 |
-| [0029](0029-temporary-gltf-loading.md) | Temporary glTF loading, in the examples | Superseded by 0069 |
-| [0030](0030-image-tests-strict-on-the-reference-driver.md) | Image tests: strict on the reference driver, loose on the others | Accepted; amended by 0054 |
-| [0031](0031-dev-overlay-with-egui.md) | The dev overlay with egui, and wgpu for the engine's tooling | Accepted; widened on 2026-10-13; amended by 0052, 0105, 0132; superseded by 0152 for the overlay and 0181; amended by 0244 |
-| [0032](0032-mipmaps-computed-at-texture-creation.md) | Mipmaps computed by the engine when a texture is created | Accepted; amended by 0039 and 0071 |
-| [0033](0033-gpu-layer-for-multi-pass-rendering.md) | The GPU layer for multi-pass rendering | Accepted; amended by 0038, 0039, 0041, 0047, 0059 and 0122 |
-| [0034](0034-hdr-rendering-and-tone-mapping.md) | HDR rendering and tone mapping | Accepted; amended by 0035, 0037, 0039, 0040, 0041, 0051, 0127 and 0216 |
-| [0035](0035-physically-based-materials.md) | Physically based materials | Accepted; amended by 0037, 0039, 0069, 0111 and 0216 |
-| [0036](0036-direct3d-12-shader-compiler.md) | The shader compiler of Direct3D 12 | Accepted; amended by 0066 |
-| [0037](0037-lights-in-physical-units-and-pre-exposure.md) | Lights in physical units, and pre-exposure | Accepted; amended by 0038, 0039, 0040 and 0042 |
-| [0038](0038-shadow-mapping.md) | Shadow mapping | Accepted; amended by 0039, 0041, 0047, 0049, 0050, 0061, 0063, 0064 and 0126 |
-| [0039](0039-image-based-lighting-computed-on-the-cpu.md) | Image-based lighting computed on the CPU | Accepted; amended by 0041 |
-| [0040](0040-bloom.md) | Bloom | Accepted; amended by 0041 |
-| [0041](0041-render-graph.md) | The render graph | Accepted; amended by 0111, 0115, 0126, 0129 and 0158 |
-| [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted; amended by 0102 and 0106 |
-| [0043](0043-application-errors-during-a-run.md) | Application errors during a run | Accepted |
-| [0044](0044-running-out-of-gpu-memory.md) | Running out of GPU memory | Accepted |
-| [0045](0045-one-linear-color-type.md) | One linear color type | Accepted; amended by 0079, 0084 |
+| [0028](0028-image-tests-tolerate-a-few-pixels.md) | Image tests tolerate a few differing pixels | Accepted; amends 0018; amended by 0030 |
+| [0029](0029-temporary-gltf-loading.md) | Temporary glTF loading, in the examples | Superseded by 0069; amended by 0035 |
+| [0030](0030-image-tests-strict-on-the-reference-driver.md) | Image tests: strict on the reference driver, loose on the others | Accepted; amends 0018 and 0028; amended by 0054 |
+| [0031](0031-dev-overlay-with-egui.md) | The dev overlay with egui, and wgpu for the engine's tooling | Superseded by 0152 for the overlay, and 0181; amends 0006 and 0016; amended by 0052, 0105, 0132 and 0244 |
+| [0032](0032-mipmaps-computed-at-texture-creation.md) | Mipmaps computed by the engine when a texture is created | Accepted; amends 0026; amended by 0039 and 0071 |
+| [0033](0033-gpu-layer-for-multi-pass-rendering.md) | The GPU layer for multi-pass rendering | Accepted; amends 0017 and 0026; amended by 0038, 0039, 0041, 0047, 0059 and 0122 |
+| [0034](0034-hdr-rendering-and-tone-mapping.md) | HDR rendering and tone mapping | Accepted; amends 0027; amended by 0035, 0037, 0039, 0040, 0041, 0051, 0127 and 0216 |
+| [0035](0035-physically-based-materials.md) | Physically based materials | Accepted; amends 0027, 0029 and 0034; amended by 0037, 0039, 0069, 0111 and 0216 |
+| [0036](0036-direct3d-12-shader-compiler.md) | The shader compiler of Direct3D 12 | Accepted; amends 0016; amended by 0066 |
+| [0037](0037-lights-in-physical-units-and-pre-exposure.md) | Lights in physical units, and pre-exposure | Accepted; amends 0027, 0034 and 0035; amended by 0038, 0039, 0040 and 0042 |
+| [0038](0038-shadow-mapping.md) | Shadow mapping | Accepted; amends 0027, 0033 and 0037; amended by 0039, 0041, 0047, 0049, 0050, 0061, 0063, 0064 and 0126 |
+| [0039](0039-image-based-lighting-computed-on-the-cpu.md) | Image-based lighting computed on the CPU | Accepted; amends 0027, 0032, 0033, 0034, 0035, 0037 and 0038; amended by 0041 |
+| [0040](0040-bloom.md) | Bloom | Accepted; amends 0027, 0034 and 0037; amended by 0041 |
+| [0041](0041-render-graph.md) | The render graph | Accepted; amends 0027, 0033, 0034, 0038, 0039 and 0040; amended by 0111, 0115, 0126, 0129 and 0158 |
+| [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted; amends 0037; amended by 0102 and 0106 |
+| [0043](0043-application-errors-during-a-run.md) | Application errors during a run | Accepted; amends 0020 |
+| [0044](0044-running-out-of-gpu-memory.md) | Running out of GPU memory | Accepted; amends 0016, 0017 and 0022 |
+| [0045](0045-one-linear-color-type.md) | One linear color type | Accepted; amended by 0079 and 0084 |
 | [0046](0046-constructors-for-the-structs-a-game-fills-in.md) | Constructors for the structs a game fills in | Accepted |
-| [0047](0047-reversed-depth-with-an-infinite-far-plane.md) | Reversed depth with an infinite far plane | Accepted; amended by 0126 |
-| [0048](0048-rendering-relative-to-the-camera.md) | Rendering relative to the camera | Accepted; amended by 0079 and 0126 |
-| [0049](0049-instances-that-cast-no-shadow.md) | Instances that cast no shadow | Accepted; amended by 0050 |
-| [0050](0050-a-shadow-region-that-follows-the-camera.md) | A shadow region that follows the camera | Accepted; amended by 0063, 0064 and 0065 |
-| [0051](0051-dithering-8-bit-outputs.md) | Dithering 8-bit outputs | Accepted |
-| [0052](0052-amend-roadmap-before-0-1.md) | Amend the roadmap before 0.1 | Accepted; amended by 0056, 0064, 0067, 0097, 0098 and 0132 |
+| [0047](0047-reversed-depth-with-an-infinite-far-plane.md) | Reversed depth with an infinite far plane | Accepted; amends 0026, 0027, 0033 and 0038; amended by 0126 |
+| [0048](0048-rendering-relative-to-the-camera.md) | Rendering relative to the camera | Accepted; amends 0027; amended by 0079 and 0126 |
+| [0049](0049-instances-that-cast-no-shadow.md) | Instances that cast no shadow | Accepted; amends 0038; amended by 0050 |
+| [0050](0050-a-shadow-region-that-follows-the-camera.md) | A shadow region that follows the camera | Accepted; amends 0038 and 0049; amended by 0063, 0064 and 0065 |
+| [0051](0051-dithering-8-bit-outputs.md) | Dithering 8-bit outputs | Accepted; amends 0034 |
+| [0052](0052-amend-roadmap-before-0-1.md) | Amend the roadmap before 0.1 | Accepted; amends 0031; amended by 0056, 0064, 0067, 0097, 0098 and 0132 |
 | [0053](0053-one-home-per-fact.md) | One home per fact in the documentation | Accepted |
-| [0054](0054-image-tests-allow-0-2-percent-on-other-drivers.md) | Image tests allow 0.2 % of the pixels to differ on other drivers | Accepted |
-| [0055](0055-games-in-the-workspace.md) | Games in the workspace | Accepted; amended by 0067 and 0110 |
-| [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) | Stage 3d: anti-aliasing and the shadows of spot lights | Accepted; amended by 0058, 0064 and 0127 |
+| [0054](0054-image-tests-allow-0-2-percent-on-other-drivers.md) | Image tests allow 0.2 % of the pixels to differ on other drivers | Accepted; amends 0030 |
+| [0055](0055-games-in-the-workspace.md) | Games in the workspace | Accepted; amends 0004; amended by 0067 and 0110 |
+| [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) | Stage 3d: anti-aliasing and the shadows of spot lights | Accepted; amends 0052; amended by 0058, 0064 and 0127 |
 | [0057](0057-what-the-first-game-asks-of-the-next-stages.md) | What the first game asks of the next stages | Accepted; amended by 0121 |
-| [0058](0058-shadows-for-every-spot-light-in-one-atlas.md) | Shadows for every spot light, in one atlas | Accepted; amended by 0126 |
-| [0059](0059-multisampling-in-the-gpu-layer.md) | Multisampling in the GPU layer | Accepted; amended by 0060 and 0115 |
-| [0060](0060-resolving-the-samples-weighed-by-their-brightness.md) | Resolving the samples weighed by their brightness | Accepted |
-| [0061](0061-projecting-the-shadows-of-spot-lights.md) | Projecting the shadows of spot lights | Accepted; amended by 0062 and 0063 |
-| [0062](0062-looking-spot-shadows-up-off-the-triangle.md) | Looking spot lights' shadows up off the triangle | Accepted; amended by 0063 and 0065 |
-| [0063](0063-a-smoother-shadow-filter.md) | A smoother shadow filter | Accepted; amended by 0064 |
-| [0064](0064-cascaded-shadow-maps.md) | Cascaded shadow maps | Accepted; amended by 0065 and 0126 |
-| [0065](0065-reading-the-cascades.md) | Reading the cascades | Accepted |
-| [0066](0066-shipping-dxc-beside-the-programs.md) | Shipping DXC beside the programs | Accepted |
-| [0067](0067-hunna-wood-replaces-nightwatch.md) | Hunna Wood replaces Nightwatch as the sample game | Accepted; amended by 0219 |
+| [0058](0058-shadows-for-every-spot-light-in-one-atlas.md) | Shadows for every spot light, in one atlas | Accepted; amends 0056; amended by 0126 |
+| [0059](0059-multisampling-in-the-gpu-layer.md) | Multisampling in the GPU layer | Accepted; amends 0033; amended by 0060 and 0115 |
+| [0060](0060-resolving-the-samples-weighed-by-their-brightness.md) | Resolving the samples weighed by their brightness | Accepted; amends 0059 |
+| [0061](0061-projecting-the-shadows-of-spot-lights.md) | Projecting the shadows of spot lights | Accepted; amends 0038; amended by 0062 and 0063 |
+| [0062](0062-looking-spot-shadows-up-off-the-triangle.md) | Looking spot lights' shadows up off the triangle | Accepted; amends 0061; amended by 0063 and 0065 |
+| [0063](0063-a-smoother-shadow-filter.md) | A smoother shadow filter | Accepted; amends 0038, 0050, 0061 and 0062; amended by 0064 |
+| [0064](0064-cascaded-shadow-maps.md) | Cascaded shadow maps | Accepted; amends 0038, 0050, 0052, 0056 and 0063; amended by 0065 and 0126 |
+| [0065](0065-reading-the-cascades.md) | Reading the cascades | Accepted; amends 0050, 0062 and 0064 |
+| [0066](0066-shipping-dxc-beside-the-programs.md) | Shipping DXC beside the programs | Accepted; amends 0036 |
+| [0067](0067-hunna-wood-replaces-nightwatch.md) | Hunna Wood replaces Nightwatch as the sample game | Accepted; amends 0052 and 0055; amended by 0219 |
 | [0068](0068-stage-4-in-two-halves.md) | Stage 4 in two halves, and audio import at Stage 7 | Accepted; amended by 0078 |
-| [0069](0069-the-asset-pipeline.md) | The asset pipeline: identity, cooking and what a game loads | Accepted; amended by 0080, 0102 and 0106 |
+| [0069](0069-the-asset-pipeline.md) | The asset pipeline: identity, cooking and what a game loads | Accepted; supersedes 0029; amends 0035; amended by 0080, 0102 and 0106 |
 | [0070](0070-the-sample-games-source-assets.md) | The sample game's source assets: free, listed, mirrored | Accepted |
-| [0071](0071-cooked-textures.md) | Cooked textures | Accepted; amended by 0102 and 0106 |
+| [0071](0071-cooked-textures.md) | Cooked textures | Accepted; amends 0032; amended by 0102 and 0106 |
 | [0072](0072-stage-4b-live-assets.md) | Stage 4b: live assets | Accepted; amended by 0078, 0103, 0107 and 0155 |
 | [0073](0073-loading-scenes-in-the-background.md) | Loading scenes in the background | Accepted; amended by 0074, 0107, 0113 and 0128 |
-| [0074](0074-uploading-textures-without-holding-up-frames.md) | Uploading textures without holding up frames | Accepted; amended by 0107 |
-| [0075](0075-recovering-from-a-lost-gpu-device.md) | Recovering from a lost GPU device | Accepted; amended by 0103 |
+| [0074](0074-uploading-textures-without-holding-up-frames.md) | Uploading textures without holding up frames | Accepted; amends 0073; amended by 0107 |
+| [0075](0075-recovering-from-a-lost-gpu-device.md) | Recovering from a lost GPU device | Accepted; amends 0022; amended by 0103 |
 | [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted; amended by 0084, 0102 and 0155 |
 | [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted; amended by 0104 |
-| [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted; amended by 0090 |
-| [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amended by 0087, 0107, 0108, 0109 and 0112 |
-| [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amended by 0085, 0086, 0101, 0181, 0225 and 0241 |
+| [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted; amends 0068 and 0072; amended by 0090 |
+| [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amends 0045 and 0048; amended by 0087, 0107, 0108, 0109 and 0112 |
+| [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amends 0069; amended by 0085, 0086, 0101, 0181, 0225 and 0241 |
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted; amended by 0109 and 0132 |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted; amended by 0119 |
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087, 0106 and 0108 |
-| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106, 0111, 0113, 0120, 0126 and 0128 |
-| [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086, 0087, 0101, 0108 and 0241 |
-| [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087, 0091 and 0102 |
-| [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088, 0089, 0092, 0093, 0101, 0108, 0112, 0124 and 0125 |
-| [0088](0088-saving-and-resuming-a-run.md) | Saving and resuming a run | Accepted; amended by 0101, 0108, 0112 and 0125 |
-| [0089](0089-scenes-and-prefabs.md) | Scenes and prefabs | Accepted; amended by 0101, 0112, 0134 and 0155 |
-| [0090](0090-stage-5b-scenes-and-prefabs.md) | Stage 5b: scenes and prefabs | Accepted; amended by 0097, 0116 and 0131 |
-| [0091](0091-scene-documents-and-placements.md) | Scene documents and placements | Accepted; amended by 0102, 0112 and 0155 |
-| [0092](0092-a-world-written-back-as-a-scene.md) | A world written back as a scene | Accepted; amended by 0101, 0108, 0109 and 0134 |
-| [0093](0093-saves-and-hot-reload-with-placements.md) | Saves and hot reload with placements | Accepted; amended by 0101, 0109, 0112 and 0125 |
+| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amends 0045 and 0076; amended by 0106, 0111, 0113, 0120, 0126 and 0128 |
+| [0085](0085-reflection.md) | Reflection | Accepted; amends 0008 and 0080; amended by 0086, 0087, 0101, 0108 and 0241 |
+| [0086](0086-serialization.md) | Serialization | Accepted; amends 0080 and 0085; amended by 0087, 0091 and 0102 |
+| [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amends 0079, 0083, 0085 and 0086; amended by 0088, 0089, 0092, 0093, 0101, 0108, 0112, 0124 and 0125 |
+| [0088](0088-saving-and-resuming-a-run.md) | Saving and resuming a run | Accepted; amends 0087; amended by 0101, 0108, 0112 and 0125 |
+| [0089](0089-scenes-and-prefabs.md) | Scenes and prefabs | Accepted; amends 0087; amended by 0101, 0112, 0134 and 0155 |
+| [0090](0090-stage-5b-scenes-and-prefabs.md) | Stage 5b: scenes and prefabs | Accepted; amends 0078; amended by 0097, 0116 and 0131 |
+| [0091](0091-scene-documents-and-placements.md) | Scene documents and placements | Accepted; amends 0086; amended by 0102, 0112 and 0155 |
+| [0092](0092-a-world-written-back-as-a-scene.md) | A world written back as a scene | Accepted; amends 0087; amended by 0101, 0108, 0109 and 0134 |
+| [0093](0093-saves-and-hot-reload-with-placements.md) | Saves and hot reload with placements | Accepted; amends 0087; amended by 0101, 0109, 0112 and 0125 |
 | [0094](0094-the-binary-encoding-of-documents.md) | The binary encoding of documents | Accepted |
 | [0095](0095-cooked-scene-files.md) | Cooked scene files | Accepted |
 | [0096](0096-the-files-the-engine-reads.md) | The files the engine reads: what they may hold, and what the engine promises | Accepted; amended by 0122 and 0176 |
-| [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) | An audit pass and a foundations pass before Stage 6, and the roadmap after them | Accepted; amended by 0098, 0099, 0100, 0107, 0112, 0114, 0116, 0131 and 0177 |
-| [0098](0098-the-games-the-engine-aims-at.md) | The games the engine aims at, and the roadmap they shape | Accepted; amended by 0114, 0116, 0131, 0132, 0170, 0173, 0207, 0208, 0209, 0215, 0216, 0217 and 0220 |
-| [0099](0099-ai-agents-drive-the-engine.md) | AI agents drive the engine through its own MCP server | Accepted; amended by 0122, 0209 and 0218 |
-| [0100](0100-updates-of-shipped-games.md) | Updates of shipped games | Accepted; amended by 0173 |
-| [0101](0101-saves-and-identities-that-never-mislead.md) | Saves and identities that never mislead | Accepted; amended by 0109, 0112, 0124 and 0125 |
-| [0102](0102-a-damaged-file-gives-an-error.md) | A damaged file gives an error, never a crash | Accepted; amended by 0176 |
-| [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) | A lost GPU device is recovered wherever the loss is found | Accepted |
-| [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114, 0123, 0144, 0175, 0186, 0189, 0221 and 0228 |
-| [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Superseded by 0152 |
-| [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amended by 0117 and 0126 |
+| [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) | An audit pass and a foundations pass before Stage 6, and the roadmap after them | Accepted; amends 0052 and 0090; amended by 0098, 0099, 0100, 0107, 0112, 0114, 0116, 0131 and 0177 |
+| [0098](0098-the-games-the-engine-aims-at.md) | The games the engine aims at, and the roadmap they shape | Accepted; amends 0016, 0052 and 0097; amended by 0114, 0116, 0131, 0132, 0170, 0173, 0207, 0208, 0209, 0215, 0216, 0217 and 0220 |
+| [0099](0099-ai-agents-drive-the-engine.md) | AI agents drive the engine through its own MCP server | Accepted; amends 0097; amended by 0122, 0209 and 0218 |
+| [0100](0100-updates-of-shipped-games.md) | Updates of shipped games | Accepted; amends 0097; amended by 0173 |
+| [0101](0101-saves-and-identities-that-never-mislead.md) | Saves and identities that never mislead | Accepted; amends 0080, 0085, 0087, 0088, 0089, 0092 and 0093; amended by 0109, 0112, 0124 and 0125 |
+| [0102](0102-a-damaged-file-gives-an-error.md) | A damaged file gives an error, never a crash | Accepted; amends 0042, 0069, 0071, 0076, 0086 and 0091; amended by 0176 |
+| [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) | A lost GPU device is recovered wherever the loss is found | Accepted; amends 0022, 0072 and 0075 |
+| [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amends 0004 and 0077; amended by 0114, 0123, 0144, 0175, 0186, 0189, 0221 and 0228 |
+| [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Superseded by 0152; amends 0031; amended by 0132 |
+| [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amends 0026, 0042, 0069, 0071, 0083 and 0084; amended by 0117 and 0126 |
 | [0107](0107-the-execution-model.md) | The execution model | Accepted; amends 0009, 0010, 0020, 0072, 0073, 0074, 0079 and 0097; amended by 0118, 0121, 0208, 0217 and 0227 |
-| [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted; amended by 0119, 0124 and 0167 |
-| [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116, 0124, 0134 and 0217 |
-| [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116, 0121, 0122, 0134, 0155, 0175 and 0246 |
-| [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115, 0120, 0126, 0127 and 0129 |
-| [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amended by 0125, 0155 and 0217 |
-| [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amended by 0120 and 0128 |
-| [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120, 0138, 0175, 0208, 0215, 0216 and 0245 |
-| [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117, 0129, 0130, 0132, 0159 and 0216 |
-| [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted; amended by 0124, 0126 and 0131 |
-| [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted; amended by 0128 and 0138 |
-| [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) | The task pool and the copies to the GPU | Accepted |
-| [0119](0119-the-worlds-ticks-blocks-and-log.md) | The world's ticks, blocks and log | Accepted |
-| [0120](0120-a-frame-that-owns-what-it-draws.md) | A frame that owns what it draws | Accepted; amended by 0121 |
-| [0121](0121-a-game-as-a-simulation-and-a-presentation.md) | A game as a simulation and a presentation | Accepted; amended by 0122, 0134, 0135 and 0155 |
-| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125, 0126, 0127, 0128, 0130, 0134, 0135, 0143, 0146, 0155, 0209, 0218, 0246 and 0250 |
+| [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted; amends 0079, 0083, 0085, 0087, 0088 and 0092; amended by 0119, 0124 and 0167 |
+| [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amends 0079, 0081, 0092, 0093 and 0101; amended by 0116, 0124, 0134 and 0217 |
+| [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amends 0055; amended by 0116, 0121, 0122, 0134, 0155, 0175 and 0246 |
+| [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amends 0027, 0035, 0041 and 0084; amended by 0115, 0120, 0126, 0127 and 0129 |
+| [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amends 0079, 0087, 0088, 0089, 0091, 0093, 0097 and 0101; amended by 0125, 0155 and 0217 |
+| [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amends 0073 and 0084; amended by 0120 and 0128 |
+| [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amends 0016, 0097, 0098 and 0104; amended by 0120, 0138, 0175, 0208, 0215, 0216 and 0245 |
+| [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amends 0026, 0041, 0059 and 0111; amended by 0117, 0129, 0130, 0132, 0159 and 0216 |
+| [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted; amends 0090, 0097, 0098, 0109 and 0110; amended by 0124, 0126 and 0131 |
+| [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted; amends 0026, 0027, 0106 and 0115; amended by 0128 and 0138 |
+| [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) | The task pool and the copies to the GPU | Accepted; amends 0107 |
+| [0119](0119-the-worlds-ticks-blocks-and-log.md) | The world's ticks, blocks and log | Accepted; amends 0082 and 0108 |
+| [0120](0120-a-frame-that-owns-what-it-draws.md) | A frame that owns what it draws | Accepted; amends 0084, 0111, 0113 and 0114; amended by 0121 |
+| [0121](0121-a-game-as-a-simulation-and-a-presentation.md) | A game as a simulation and a presentation | Accepted; amends 0057, 0107, 0110 and 0120; amended by 0122, 0134, 0135 and 0155 |
+| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amends 0033, 0096, 0099, 0110 and 0121; amended by 0125, 0126, 0127, 0128, 0130, 0134, 0135, 0143, 0146, 0155, 0209, 0218, 0246 and 0250 |
 | [0123](0123-the-linux-checks-in-two-jobs.md) | The Linux checks in two jobs | Accepted; amends 0007 and 0104; amended by 0155, 0175 and 0228 |
-| [0124](0124-driven-components-keys-and-created-entities-in-levels.md) | Driven components, start keys and created entities written into levels | Accepted; amended by 0125 |
-| [0125](0125-saves-per-scene.md) | Saves per scene, scenes unloaded and adoption | Accepted |
-| [0126](0126-views-apart-from-the-renderer.md) | Views apart from the renderer | Accepted; amended by 0127 |
-| [0127](0127-the-settings-of-a-view.md) | The settings of a view | Accepted; amended by 0128, 0158, 0159 |
-| [0128](0128-asset-requests.md) | Asset requests | Accepted |
-| [0129](0129-drawing-for-the-editor.md) | Drawing for the editor | Accepted; amended by 0159 and 0161 |
-| [0130](0130-picking.md) | Picking | Accepted |
-| [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134, 0137, 0140, 0142, 0145, 0148, 0149, 0152 and 0155 |
-| [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137, 0140, 0143, 0145, 0146, 0148, 0149, 0170 and 0225 |
-| [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted; amended by 0139 |
-| [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 and 0155 |
-| [0135](0135-the-editors-program.md) | The editor's program | Accepted; amended by 0156 and 0161 |
+| [0124](0124-driven-components-keys-and-created-entities-in-levels.md) | Driven components, start keys and created entities written into levels | Accepted; amends 0087, 0101, 0108, 0109 and 0116; amended by 0125 |
+| [0125](0125-saves-per-scene.md) | Saves per scene, scenes unloaded and adoption | Accepted; amends 0087, 0088, 0093, 0101, 0112, 0122 and 0124 |
+| [0126](0126-views-apart-from-the-renderer.md) | Views apart from the renderer | Accepted; amends 0038, 0041, 0047, 0048, 0058, 0064, 0084, 0106, 0111, 0116 and 0122; amended by 0127 |
+| [0127](0127-the-settings-of-a-view.md) | The settings of a view | Accepted; amends 0034, 0056, 0111, 0122 and 0126; amended by 0128, 0158 and 0159 |
+| [0128](0128-asset-requests.md) | Asset requests | Accepted; amends 0073, 0084, 0113, 0117, 0122 and 0127 |
+| [0129](0129-drawing-for-the-editor.md) | Drawing for the editor | Accepted; amends 0041, 0111 and 0115; amended by 0159 and 0161 |
+| [0130](0130-picking.md) | Picking | Accepted; amends 0115 and 0122 |
+| [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amends 0090, 0097, 0098 and 0116; amended by 0134, 0137, 0140, 0142, 0145, 0148, 0149, 0152 and 0155 |
+| [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amends 0031, 0052, 0081, 0098, 0105 and 0115; amended by 0137, 0140, 0143, 0145, 0146, 0148, 0149, 0170 and 0225 |
+| [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted; amends 0006; amended by 0139 |
+| [0134](0134-the-editors-core.md) | The editor's core | Accepted; amends 0089, 0092, 0109, 0110, 0121, 0122 and 0131; amended by 0135 and 0155 |
+| [0135](0135-the-editors-program.md) | The editor's program | Accepted; amends 0121, 0122 and 0134; amended by 0156 and 0161 |
 | [0136](0136-the-interfaces-text.md) | The interface's text | Accepted |
-| [0137](0137-the-canvas.md) | The canvas | Accepted; amended by 0152, 0175, 0234, 0243 and 0245 |
-| [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted; amended by 0175 |
-| [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |
-| [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143, 0146, 0175 and 0268 |
-| [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted; amended by 0149, 0181, 0222, 0223, 0225, 0229, 0230, 0231 and 0241 |
-| [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145, 0150, 0152, 0153, 0154, 0160, 0241 and 0268 |
-| [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted; amended by 0146, 0156, 0259 and 0260 |
-| [0144](0144-the-cooked-zones-key-in-ci.md) | The cooked zone's key in CI | Accepted |
-| [0145](0145-text-edited.md) | Text edited | Accepted |
-| [0146](0146-screen-readers.md) | Screen readers | Accepted; amended by 0147 and 0181 |
-| [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted |
-| [0148](0148-widgets.md) | Widgets | Accepted; amended by 0149 |
-| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151, 0170, 0223, 0226, 0227 and 0237 |
-| [0150](0150-layers.md) | Layers | Accepted; amended by 0154, 0157, 0174 |
-| [0151](0151-rich-widgets.md) | Rich widgets | Accepted |
-| [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
-| [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted; amended by 0172 |
-| [0154](0154-floating-panels-and-held-keys.md) | Floating panels and held keys | Accepted |
-| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158, 0159, 0160, 0161, 0162, 0172, 0174, 0175, 0177 and 0228 |
-| [0156](0156-the-editors-window-and-its-operations.md) | The editor's window and its operations | Accepted; amended by 0185 and 0267 |
-| [0157](0157-dialogs-the-cursor-held-and-the-gpus-identity.md) | Dialogs, the cursor held and the GPU's identity | Accepted |
-| [0158](0158-the-viewport.md) | The viewport | Accepted; amended by 0159, 0160 |
-| [0159](0159-picking-and-the-selection.md) | Picking and the selection | Accepted; amended by 0160 |
-| [0160](0160-two-viewports-and-blenders-way.md) | Two viewports and Blender's way | Accepted |
-| [0161](0161-the-open-step-and-the-handles.md) | The open step and the handles | Accepted; amended by 0250 |
-| [0162](0162-creating-copying-and-arranging.md) | Creating, copying and arranging | Accepted |
+| [0137](0137-the-canvas.md) | The canvas | Accepted; amends 0131 and 0132; amended by 0152, 0175, 0234, 0243 and 0245 |
+| [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted; amends 0114 and 0117; amended by 0175 |
+| [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted; amends 0133 |
+| [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amends 0131 and 0132; amended by 0141, 0143, 0146, 0175 and 0268 |
+| [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted; amends 0140; amended by 0149, 0181, 0222, 0223, 0225, 0229, 0230, 0231 and 0241 |
+| [0142](0142-input-and-focus.md) | Input and focus | Accepted; amends 0131; amended by 0145, 0150, 0152, 0153, 0154, 0160, 0241 and 0268 |
+| [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted; amends 0122, 0132 and 0140; amended by 0146, 0156, 0259 and 0260 |
+| [0144](0144-the-cooked-zones-key-in-ci.md) | The cooked zone's key in CI | Accepted; amends 0104 |
+| [0145](0145-text-edited.md) | Text edited | Accepted; amends 0131, 0132 and 0142 |
+| [0146](0146-screen-readers.md) | Screen readers | Accepted; amends 0122, 0132, 0140 and 0143; amended by 0147 and 0181 |
+| [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted; amends 0146 |
+| [0148](0148-widgets.md) | Widgets | Accepted; amends 0131 and 0132; amended by 0149 |
+| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amends 0131, 0132, 0141 and 0148; amended by 0151, 0170, 0223, 0226, 0227 and 0237 |
+| [0150](0150-layers.md) | Layers | Accepted; amends 0142; amended by 0154, 0157 and 0174 |
+| [0151](0151-rich-widgets.md) | Rich widgets | Accepted; amends 0149 |
+| [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; supersedes 0031 and 0105; amends 0131, 0137 and 0142; amended by 0153 |
+| [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted; amends 0142 and 0152; amended by 0172 |
+| [0154](0154-floating-panels-and-held-keys.md) | Floating panels and held keys | Accepted; amends 0142 and 0150 |
+| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amends 0021, 0072, 0076, 0089, 0091, 0110, 0112, 0121, 0122, 0123, 0131 and 0134; amended by 0156, 0158, 0159, 0160, 0161, 0162, 0172, 0174, 0175, 0177 and 0228 |
+| [0156](0156-the-editors-window-and-its-operations.md) | The editor's window and its operations | Accepted; amends 0021, 0135, 0143 and 0155; amended by 0185 and 0267 |
+| [0157](0157-dialogs-the-cursor-held-and-the-gpus-identity.md) | Dialogs, the cursor held and the GPU's identity | Accepted; amends 0150 |
+| [0158](0158-the-viewport.md) | The viewport | Accepted; amends 0041, 0127 and 0155; amended by 0159 and 0160 |
+| [0159](0159-picking-and-the-selection.md) | Picking and the selection | Accepted; amends 0115, 0127, 0129, 0155 and 0158; amended by 0160 |
+| [0160](0160-two-viewports-and-blenders-way.md) | Two viewports and Blender's way | Accepted; amends 0142, 0155, 0158 and 0159 |
+| [0161](0161-the-open-step-and-the-handles.md) | The open step and the handles | Accepted; amends 0129, 0135 and 0155; amended by 0250 |
+| [0162](0162-creating-copying-and-arranging.md) | Creating, copying and arranging | Accepted; amends 0155 |
 | [0163](0163-placing-prefabs-and-the-history-panel.md) | Placing prefabs and the history panel | Accepted |
 | [0164](0164-play.md) | Play | Accepted; amended by 0254 |
 | [0165](0165-editing-while-playing.md) | Editing while playing | Accepted |
@@ -254,7 +261,7 @@ the ADR linking to it.
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180, 0181, 0194 and 0203 |
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
 | [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
-| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225, 0226, 0227, 0233, 0236, 0241, 0243, 0244, 0248, 0270 and 0279 |
+| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; supersedes 0031; amends 0011, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225, 0226, 0227, 0233, 0236, 0241, 0243, 0244, 0248, 0270 and 0279 |
 | [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Superseded by 0214 for the engine; amends 0006 and 0181 |
 | [0183](0183-uwuis-logo.md) | uwui's logo | Accepted |
 | [0184](0184-the-engines-logo.md) | The engine's logo | Accepted |
@@ -278,21 +285,21 @@ the ADR linking to it.
 | [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) | How M6d.1 compares ways of writing an application | Accepted; amends 0190, 0194 and 0199; amended by 0204, 0210 and 0212 |
 | [0203](0203-pilots-replaced-pluto-and-a-daw.md) | uwui's pilots replaced: Pluto's client and a DAW | Accepted; amends 0178, 0181, 0190, 0194, 0198 and 0199; amended by 0206 |
 | [0204](0204-signals-written-by-hand-for-the-prototypes.md) | Signals written by hand for M6d.1b's prototypes | Accepted; amends 0202 |
-| [0205](0205-signals-change-uwuis-interface.md) | Signals change uwui's interface, and live values its drawing | Accepted; amends 0190; amended by 0206, 0210, 0211 and 0227; checked against Slatty's and the engine's lists |
-| [0206](0206-slatty-ported-again-the-daw-later.md) | Slatty ported again; the DAW later | Accepted; amends 0203 and 0205; its check done |
-| [0207](0207-what-slimeengine-is-to-become.md) | What SlimeEngine is to become | Accepted; amends 0098 and principle 8; amended by 0214, 0215, 0219 and 0220 |
+| [0205](0205-signals-change-uwuis-interface.md) | Signals change uwui's interface, and live values its drawing | Accepted; amends 0190; amended by 0206, 0210, 0211 and 0227 |
+| [0206](0206-slatty-ported-again-the-daw-later.md) | Slatty ported again; the DAW later | Accepted; amends 0203 and 0205 |
+| [0207](0207-what-slimeengine-is-to-become.md) | What SlimeEngine is to become | Accepted; amends 0098; amended by 0214, 0215, 0219 and 0220 |
 | [0208](0208-the-engines-promises-and-systems.md) | The engine's promises and systems | Accepted; amends 0098, 0107 and 0114; amended by 0215, 0216 and 0217 |
 | [0209](0209-platforms-the-editor-and-agents.md) | Platforms, the editor and agents | Accepted; amends 0098, 0099, 0122 and 0190; amended by 0214, 0215, 0218, 0239 and 0269 |
 | [0210](0210-signals-named-for-a-reload.md) | Signals named for a reload, through serde | Accepted; amends 0202 and 0205; amended by 0211, 0212 and 0225 |
 | [0211](0211-the-executor-and-other-threads-through-channels.md) | The interface's executor, and other threads through channels | Accepted; amends 0190, 0205 and 0210; amended by 0227 |
 | [0212](0212-a-functions-body-reloaded-through-subsecond-and-dx.md) | A function's body reloaded through subsecond and dx | Accepted; amends 0190, 0202 and 0210; amended by 0224 |
 | [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) | uwui's reach, its lead, its themes and agents | Accepted; amends 0173, 0181, 0190, 0196, 0198 and 0199; amended by 0214, 0215, 0218, 0222, 0226, 0233 and 0236 |
-| [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) | The engine under a licence of its own, with a royalty | Accepted; supersedes 0182 for the engine; amends 0006, 0207, 0209 and 0213; amended by 0219 |
+| [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) | The engine under a licence of its own, with a royalty | Accepted; supersedes 0182; amends 0006, 0207, 0209 and 0213; amended by 0219 |
 | [0215](0215-the-engine-measured-against-the-market.md) | The engine measured against the market | Accepted; amends 0098, 0114, 0175, 0176, 0189, 0207, 0208, 0209 and 0213; amended by 0226 |
 | [0216](0216-light-geometry-and-the-gpus-floor.md) | Light, geometry and the GPU's floor | Accepted; amends 0034, 0035, 0098, 0114, 0115 and 0208 |
 | [0217](0217-worlds-by-density-generated-and-destroyed.md) | Worlds by density, generated and destroyed | Accepted; amends 0098, 0107, 0109, 0112 and 0208; amended by 0239 |
 | [0218](0218-one-core-for-agents-in-uwui.md) | One core for agents, in uwui | Accepted; amends 0099, 0122, 0190, 0209 and 0213; amended by 0246 |
-| [0219](0219-test-games-in-place-of-hunna-wood.md) | Test games in place of Hunna Wood | Accepted; amends 0006, 0067, 0207, 0214 and principle 4 |
+| [0219](0219-test-games-in-place-of-hunna-wood.md) | Test games in place of Hunna Wood | Accepted; amends 0006, 0067, 0207 and 0214 |
 | [0220](0220-the-roadmap-reshaped-by-the-market.md) | The roadmap reshaped by the market | Accepted; amends 0098, 0190, 0194 and 0207; amended by 0221, 0222, 0225, 0226, 0229, 0241 and 0242 |
 | [0221](0221-compiling-within-its-budgets.md) | Compiling within its budgets | Accepted; amends 0104 and 0220 |
 | [0222](0222-what-a-theme-is.md) | What a theme is: values, rules and parts written as data | Accepted; amends 0141, 0190, 0213 and 0220; amended by 0225, 0226 and 0229 |
@@ -329,7 +336,7 @@ the ADR linking to it.
 | [0253](0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md) | Input as the host's events, answered at once, and each target's outputs: M6d.5c cut in three | Accepted; amends 0248, 0249 and 0251; amended by 0255, 0256 and 0257 |
 | [0254](0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md) | Events declared in the welcome, replaced in the carrier, published at the frame's end; Play waits on one queue | Accepted; amends 0164 and 0250 |
 | [0255](0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md) | The clipboard through the outputs, and the host's questions | Accepted; amends 0248, 0249 and 0253; amended by 0256 |
-| [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) | Each root on its target, each target its input and outputs, the active target; M6d.5c3 cut in two | Accepted; amends 0249, 0250, 0253 and 0255; amended by 0257, 0258, 0264 and 0268 |
+| [0256](0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md) | Each root on its target, each target its input and outputs, the active target: M6d.5c3 cut in two | Accepted; amends 0249, 0250, 0253 and 0255; amended by 0257, 0258, 0264 and 0268 |
 | [0257](0257-targets-known-from-their-first-root-a-moved-root-below-its-new-targets-modal-root.md) | Targets known from their first root; a root moved stands below its new target's modal root | Accepted; amends 0253 and 0256 |
 | [0258](0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md) | Each target its frame and its time; a change asks for its target's frame | Accepted; amends 0251 and 0256; amended by 0268 |
 | [0259](0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md) | The interface's family in `uwui-agent`, answered by `uwui`; an element's own style by a request of its own; M6d.9a1b3 cut in two | Accepted; amends 0143 and 0250 |
@@ -341,7 +348,7 @@ the ADR linking to it.
 | [0265](0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md) | The editor's journal read by pages: its number drawn by the journal, pages of whole entries in bytes, read on the editor's thread, bytes not UTF-8 replaced and marked | Accepted; amends 0250 and 0260; amended by 0267 and 0269 |
 | [0266](0266-uwui-targets-the-owners-shell-its-lock-and-login-screens-and-what-yuna-draws.md) | uwui targets the owner's shell, its lock and login screens, and what Yuna draws | Accepted; amends 0199 |
 | [0267](0267-a-page-of-the-journal-apart-from-the-one-handler-a-cut-journals-start-refused-a-floor-of-4-kib.md) | A page of the journal apart from the editor's one handler; a cut journal's start refused; a page's floor of 4 KiB | Accepted; amends 0156 and 0265 |
-| [0268](0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md) | Each target its size from its host; a root fills it; stacked roots take where they act | Accepted; amends 0140, 0142, 0249, 0251, 0256 and 0258 |
+| [0268](0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md) | Each target its size from its host; a root fills it; stacked roots take where they act | Accepted; amends 0140, 0142, 0249, 0251, 0256, 0258 and 0264 |
 | [0269](0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md) | uwui's MCP library reaches a program through its host's carrier; faults as tools' errors; changes followed by requests that wait; M6d.9a2 cut in three | Accepted; amends 0209, 0246, 0260, 0261 and 0265; amended by 0272 and 0274 |
 | [0270](0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md) | uwui's desktop host on a windowing layer of its own, its application's side, its crashes; M6d.7 cut in six | Accepted; amends 0181, 0227 and 0249; amended by 0279 |
 | [0271](0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md) | Frames on the platform's signal, drawn just in time, none at rest | Accepted; amends 0021, 0187 and 0227 |
@@ -352,3 +359,4 @@ the ADR linking to it.
 | [0277](0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md) | The engine ported to uwui at the end of each of uwui's stages | Accepted; amends 0276 |
 | [0278](0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md) | Families versioned by major and minor, tools speaking several majors | Accepted; amends 0246 and 0275 |
 | [0279](0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md) | One windowing layer: a seam in uwui's host now, the engine moved onto it at a port | Accepted; amends 0181 and 0270 |
+| [0280](0280-a-changed-decision-written-whole-the-changelog-in-fragments.md) | A changed decision written whole, the changelog in fragments | Accepted |

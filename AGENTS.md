@@ -117,9 +117,9 @@ Each file: what it holds; when to update.
   created or role changed.
 - `docs/ARCHITECTURE.md`: crates and roles, dependency graph, cross-crate flows without figures, where to start;
   structure or flows change.
-- `docs/adr/NNNN-title.md`: context, decision, rejected alternatives, consequences; each decision;
+- `docs/adr/NNNN-title.md`: context, decision, rejected alternatives, consequences; each decision, superseded whole when changed;
   afterwards only its status changes.
-- `docs/adr/README.md`: the ADRs' index and statuses; either changes.
+- `docs/adr/README.md`: the ADRs' process; its index generated.
 - `docs/PLAN.md`: the current stage's status, the milestone in progress, the checks by hand; every milestone.
 - `docs/stage-6d.md`: Stage 6d's whole plan while in progress; summed up in `docs/history.md` at its end.
 - `docs/stage-6c.md`: Stage 6c's plan while paused; back into `docs/PLAN.md` when it resumes.
@@ -129,7 +129,7 @@ Each file: what it holds; when to update.
 - `docs/history.md`: finished stages in brief, versions and ADRs, newest first; a stage finished.
 - `docs/ROADMAP.md`: direction, stage order, exit criteria, quality bar budgets;
   a stage reshaped, merged or dropped; a budget changed (ADR).
-- `CHANGELOG.md`: user-visible changes, once, per release; such a change, a release tagged.
+- `changelog.d/`: a fragment per user-visible change, gathered into `CHANGELOG.md` at a release.
 - `docs/measurements.md`: build, benchmark, CI figures per milestone or machine;
   a speed-up claimed, benchmarks changed, a milestone done.
 - `docs/glossary.md`: the project's terms; one coined or changing meaning.
