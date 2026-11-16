@@ -1022,10 +1022,10 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   A surface declares its role and name, but not its actions: a screen reader or an agent cannot use what a program draws in it (`tree/meaning.rs`).
   An application forks uwui to add a widget; each widget built before the public path has to move onto it.
   The path is designed with uwui's authoring API, and the surface's actions placed, by M6d.10.
-- **The interface's text has no identity for translation.**
+- **The interface's text has no identity for translation** ([ADR-0284](adr/0284-uwuis-text-a-message-or-a-literal-from-its-authoring-api-fluent-later.md)).
   A label is a `String`; uwui has no catalogue of messages, no plurals and no formatting by locale ([`uwui-needs.md`](uwui-needs.md) asks for Fluent).
   Every label written before them is to be found and keyed again.
-  Followed at M6d.10.
+  uwui's authoring API carries messages, a locale and a fake language of test from its first stage, Fluent before its 1.0; M6d.10 places them.
 - **uwui's input knows one pointer, without an identity.**
   `Input`'s pointer events carry no pointer's number: no touch, pen, gestures or scroll inertia (see *Input not reported yet* above).
   A new event is cheap, `Input` being `#[non_exhaustive]`; hover, press and capture kept per pointer are not, since every target's state assumes one.
