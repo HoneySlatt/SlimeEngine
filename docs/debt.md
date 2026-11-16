@@ -1007,3 +1007,85 @@ The audit did not cover NVIDIA and Intel GPUs, X11, a game outside the workspace
 - **`Manifest::from_bytes` refuses a valid manifest whose names are short** (G53, low; M6c.7): it assumes 45 bytes per entry where the least is 37.
 - **With `--watch`, after the cooked data is cleaned, a reload that the game refuses leaves it unable to save** (G56, low; M6c.7, with cooking from the editor).
   `SceneLibrary::reload` forgets the changed scenes before the game accepts them, and the files of the old manifest are gone.
+
+## Left by the review of the architecture before M6d.10
+
+A review of 2026-11-16 read the code against what contributors, a change and a failure ask of it; it built and ran nothing, and its counts come from searches.
+Each item below is costlier the longer it waits: more code written on it, or more files in the wild.
+uwui's boundary with the engine, which the review also weighed, is M6d.10's question ([`PLAN.md`](PLAN.md#ideas-waiting-for-their-milestone)).
+
+- **Most of uwui's enumerations are closed to new cases.**
+  7 of uwui's 67 `pub enum`s are `#[non_exhaustive]`; `Kind`, the list of elements' kinds (`crates/uwui/src/tree.rs`), is not.
+  Once others depend on uwui, a case added breaks their `match`; before, the attribute costs nothing.
+  Followed at [M6d.10](stage-6d.md#m6d10--uwui-designed-as-a-project), which sets the rule.
+- **An element of a new kind can be made only inside uwui.**
+  `Kind` lists 28 kinds, their behaviour is private (`tree/control.rs`), and uwui's public traits are sealed.
+  `Kind::Surface`, for content drawn by the program, reads as an image to screen readers (`tree/meaning.rs`).
+  An application forks uwui to add a widget; each widget built before a public path has to move onto it.
+  [ADR-0222](adr/0222-what-a-theme-is.md) plans parts, states and slots as API; followed at M6d.10.
+- **The interface's text has no identity for translation.**
+  A label is a `String`; uwui has no catalogue of messages, no plurals and no formatting by locale ([`uwui-needs.md`](uwui-needs.md) asks for Fluent).
+  Every label written before them is to be found and keyed again.
+  Followed at M6d.10.
+- **uwui's input knows one pointer, without an identity.**
+  `Input`'s pointer events carry no pointer's number: no touch, pen, gestures or scroll inertia (see *Input not reported yet* above).
+  A new event is cheap, `Input` being `#[non_exhaustive]`; hover, press and capture kept per pointer are not, since every target's state assumes one.
+  Followed at M6d.10.
+- **uwui's documents carry no version, but dock layouts.**
+  Themes, style sheets and shortcuts in KDL have no version field; dock layouts have one, and a migration ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+  Once files circulate, a change of their meaning cannot be told from an error.
+  Followed at M6d.10.
+- **A save of an older layout is refused, not migrated.**
+  `slime_world`'s reader of saves refuses any layout but `LAYOUT_VERSION` (`crates/slime-world/src/document.rs`); scene files accept every layout up to it.
+  Nothing is lost: *Hunna Wood* sets the old save aside.
+  [ADR-0207](adr/0207-what-slimeengine-is-to-become.md) promises saves that are migrated; each layout changed once players keep saves is one more to carry.
+  A decision for the owner, before a game ships.
+- **The simulation is written for one thread, and draws identities from the system's randomness.**
+  `Simulation::fixed_step` takes `&mut World`, as do 119 parameters of the engine and its games.
+  `World::new_id` draws from `RandomState::new()` (`crates/slime-world/src/scene.rs`); queries walk in no particular order, which changes as components come and go.
+  [ADR-0208](adr/0208-the-engines-promises-and-systems.md) promises a simulation that runs in parallel and replays bit for bit, its randomness seeded by the engine.
+  Each system written before these rules is one more to change; a decision for the owner, before Stage 7's systems.
+- **`slime-app` always builds the GPU, the window and uwui.**
+  Its manifest takes `slime-gfx` with wgpu, `slime-platform`, `uwui` and `uwui-render` in every build.
+  A server, or the replay check that ADR-0208 puts in CI, would build them all.
+  Followed at Stage 7's planning.
+- **The editor's operations are names, and one without a request compiles.**
+  Its 60 operations are strings (`crates/slime-editor/src/operation.rs`), matched in six places.
+  A name that `Session` cannot answer ends on `unreachable!` at run time (`session.rs`); the test that runs every operation covers those of the selection and the window.
+  Followed at Stage 6c's rest ([`stage-6c.md`](stage-6c.md)).
+- **An asset kind is added in five crates.**
+  `AssetKind` (`crates/slime-assets/src/manifest.rs`), `SOURCE_EXTENSIONS` (`crates/slime-cook/src/scan.rs`) and about twenty matches in `slime-cook`'s `cook.rs` name every kind; no kind has an importer of its own.
+  Audio's import, at Stage 7, is the second user that asks for one.
+- **Four files hold more than 3,000 lines, 47 more than 1,000.**
+  The editor's `window.rs` (5,674), the renderer's `renderer.rs` (5,213, `Renderer::prepare` 635 of them), uwui's `tree.rs` (3,167) and the world's `document.rs` (3,110).
+  A change and its review cost more there, and two changes at once meet.
+  Each is split by feature when a milestone works in it.
+- **Restoring a device does not check that the program let the old one go.**
+  Direct3D 12 opens no device while a removed one lives in the process ([`ARCHITECTURE.md`](ARCHITECTURE.md#losing-the-gpu)); `slime-gfx`'s restore trusts that no clone of the old `Gpu` remains.
+  No check of CI loses a device on Direct3D 12 with a window.
+  Not followed yet; cheap within a milestone that touches `slime-gfx`.
+- **The renderer's lane of loads looks for its next task among all that wait.**
+  `drain` (`crates/slime-render/src/loads.rs`) scans every waiting task under one lock of the process, and a load makes a task per mesh and per texture: a cost that grows with the square of the tasks waiting, inferred, not measured.
+  The lane and the task pool are the process's: tests that load take turns.
+  Followed at Stage 10a, whose cells load thousands of assets.
+- **Nothing checks that the engine's core stays off the GPU and the window.**
+  `scripts/check.sh` checks uwui's crates and hosts by `cargo tree`; that the engine runs headless (`AGENTS.md`) is checked by review alone.
+  Not followed yet; a check like uwui's is cheap.
+- **No lint keeps `unwrap` and `expect` off what reads outside input.**
+  [ADR-0008](adr/0008-errors-logging-and-assertions.md) lets a broken invariant panic, and no lint tells an invariant from an input; the crates' sources hold about 1,540 calls, tests included.
+  Every call added makes the lint costlier to adopt.
+  Not followed yet.
+- **The whole check needs Nix.**
+  `scripts/check.sh` stops without `SLIME_LAVAPIPE_ICD`; images of reference are strict for any adapter named llvmpipe (`examples/common/reference_image.rs`), so another Mesa's lavapipe may fail them (not tried); wgpu is built without Metal, so nothing draws on macOS.
+  A contributor without Nix runs cargo's commands by hand, as `CONTRIBUTING.md` says.
+  Not followed yet.
+- **Outside contributors have no files of their own.**
+  No code of conduct, `SECURITY.md`, templates of issues or pull requests, nor CODEOWNERS.
+  Contributions' terms are decided ([ADR-0214](adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)), without the agreement's text or anything that checks it; source files carry no SPDX line.
+  No crate's name is reserved on crates.io, and the names' policy that ADR-0207 promises before 0.14 is not written.
+  Decisions for the owner; the agreement waits for the lawyer.
+- **The documentation is long, and a rule spreads across amendments.**
+  About 645,000 words of Markdown; `ARCHITECTURE.md` near 28,000.
+  187 of 274 ADRs are amended and 3 superseded: a topic's current rule is read across a chain.
+  `docs/PLAN.md` and `CHANGELOG.md` change at nearly every commit, so two changes made at once conflict.
+  A proposal for the owner ([`PLAN.md`](PLAN.md#ideas-waiting-for-their-milestone)).
