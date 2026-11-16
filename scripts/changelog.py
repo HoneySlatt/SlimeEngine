@@ -3,7 +3,8 @@
 
 A change that users see adds a fragment to `changelog.d/` rather than editing CHANGELOG.md, so that
 two changes made at once never meet in one file
-(docs/adr/0280-a-changed-decision-written-whole-the-changelog-in-fragments.md). A fragment is named
+(docs/adr/0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md).
+A fragment is named
 `<section>-<name>.md`, its section one of SECTIONS, and holds the section's entries, each a list's
 item; `changelog.d/README.md` says how to write one.
 

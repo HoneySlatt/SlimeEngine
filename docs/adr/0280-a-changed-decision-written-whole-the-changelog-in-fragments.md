@@ -1,6 +1,7 @@
 # 0280. A changed decision written whole, the changelog in fragments
 
-- Status: Accepted
+- Status: Superseded by [0281](0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md) (every chain consolidated at
+  D1, before the move)
 - Date: 2026-11-16
 
 ## Context

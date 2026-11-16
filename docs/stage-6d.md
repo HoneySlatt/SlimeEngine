@@ -2958,6 +2958,22 @@ The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/02
   `#[non_exhaustive]` ([`debt.md`](debt.md)). uwui's `AGENTS.md`, roadmap and plan updated.
 - **Done when.** The owner has validated uwui's documents; each decision is recorded in an ADR.
 
+### D1 — The decisions consolidated
+
+Not a milestone of uwui's alone: every ADR of the repository, between M6d.10 and M6d.11
+([ADR-0281](adr/0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md)).
+
+- **Goal.** One ADR read for each topic: every rule spread across amendments stated whole, before
+  the move splits the ADRs between the two repositories.
+- **Delivers.** The cut of topics, each falling to uwui or to the engine, put to the owner first;
+  then, for each topic, one ADR that supersedes those it replaces, the rule in force stated whole,
+  written by one agent and checked by another against the ADRs that it replaces;
+  Stage 6d's own ADRs among the topics, D1 among its milestones; the documents that link to a
+  superseded ADR pointed at its successor; the index written again (`scripts/adr-index.py`).
+- **Done when.** No ADR in force is amended; each topic's ADR has been checked against those it
+  replaces; `scripts/check.sh` passes; the owner has validated the cut of topics.
+- **Measured.** The ADRs in force and their words, before and after.
+
 ### M6d.11 — The move
 
 - **Goal.** uwui's code lives in its repository, and the engine depends on it.

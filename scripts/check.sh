@@ -13,7 +13,7 @@
 # links between Markdown files, the ADRs' index, the changelog's fragments and the lengths of
 # AGENTS.md and docs/PLAN.md alone, which the lint part does too: CI's `docs` workflow runs it,
 # with lychee and Python alone, on a change of Markdown files outside the crates (ADR-0188,
-# ADR-0280).
+# ADR-0281).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -612,7 +612,7 @@ if runs lint || [ "$part" = docs ]; then
     lychee --offline --include-fragments --no-progress "${markdown[@]}"
 
     step "The ADRs' index and the changelog's fragments"
-    # The index is written from the ADRs, and each fragment waits for a release (ADR-0280).
+    # The index is written from the ADRs, and each fragment waits for a release (ADR-0281).
     python3 -I scripts/adr-index.py
     python3 -I scripts/changelog.py
 

@@ -1086,5 +1086,5 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   Decisions for the owner; the agreement waits for the lawyer.
 - **The documentation is long, and older rules spread across amendments.**
   About 645,000 words of Markdown; `ARCHITECTURE.md` near 28,000.
-  From [ADR-0280](adr/0280-a-changed-decision-written-whole-the-changelog-in-fragments.md) on, a changed decision supersedes the old one whole, and the changelog is written in fragments; the 187 ADRs amended before stay chains until a milestone touches their topic.
+  From [ADR-0281](adr/0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md) on, a changed decision supersedes the old one whole, and the changelog is written in fragments; the ADRs amended before stay chains until D1 consolidates them, before the move.
   `docs/PLAN.md` still changes at nearly every commit, so two changes made at once conflict there.

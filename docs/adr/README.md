@@ -29,14 +29,14 @@ Do not write one for choices that are local to a function or a module and cheap 
 4. An accepted ADR is never edited to change its meaning. To change a decision, even in part,
    write a new ADR that supersedes it and states the whole rule then in force on its topic, so that
    one ADR is read for it: its status is `Accepted; supersedes NNNN`, the old one's
-   `Superseded by NNNN` ([ADR-0280](0280-a-changed-decision-written-whole-the-changelog-in-fragments.md)). An ADR that adds a decision without
+   `Superseded by NNNN` ([ADR-0281](0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md)). An ADR that adds a decision without
    changing one names the older in its context alone. A precision decided while a milestone runs
    goes in the milestone's plan, or in a new ADR, never into an older ADR's status. Fixing a typo,
    a broken link, or a factual error that leaves the decision unchanged is fine; the commit message
    says what was corrected.
 5. Older ADRs amend others, `Accepted; amends NNNN (what it changes)`, the way before ADR-0280.
-   When a milestone touches a topic whose rule is spread across amendments, one new ADR supersedes
-   them, stating the rule whole.
+   D1, before the move, consolidates every chain: one new ADR for each topic supersedes them,
+   stating the rule whole. After it, a milestone that touches a topic still spread does the same.
 6. The index below is written by `scripts/adr-index.py --write`, from each ADR's heading and
    status; `scripts/check.sh` checks it, and that a supersession is named on both sides.
 
@@ -359,4 +359,5 @@ the ADR linking to it.
 | [0277](0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md) | The engine ported to uwui at the end of each of uwui's stages | Accepted; amends 0276 |
 | [0278](0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md) | Families versioned by major and minor, tools speaking several majors | Accepted; amends 0246 and 0275 |
 | [0279](0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md) | One windowing layer: a seam in uwui's host now, the engine moved onto it at a port | Accepted; amends 0181 and 0270 |
-| [0280](0280-a-changed-decision-written-whole-the-changelog-in-fragments.md) | A changed decision written whole, the changelog in fragments | Accepted |
+| [0280](0280-a-changed-decision-written-whole-the-changelog-in-fragments.md) | A changed decision written whole, the changelog in fragments | Superseded by 0281 |
+| [0281](0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md) | Decisions written whole, consolidated before the move; the changelog in fragments | Accepted; supersedes 0280 |

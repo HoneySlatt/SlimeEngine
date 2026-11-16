@@ -2,7 +2,7 @@
 
 A change that users see adds one file here, rather than editing [`CHANGELOG.md`](../CHANGELOG.md):
 two changes made at once then never meet in one file
-([ADR-0280](../docs/adr/0280-a-changed-decision-written-whole-the-changelog-in-fragments.md)).
+([ADR-0281](../docs/adr/0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md)).
 
 - **Its name** is `<section>-<name>.md`. The section is one of `added`, `changed`, `deprecated`,
   `removed`, `fixed`, `security` and `known-limitations`; the name, in lowercase words joined by

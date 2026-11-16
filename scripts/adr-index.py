@@ -5,7 +5,7 @@ Each ADR's title is its heading; its status in the index is read from the `Statu
 relation between two ADRs, one amending or superseding the other, counts when either one's status
 names it: the oldest ADRs wrote it on one side alone. The check refuses a status that names an ADR
 that does not exist, and, from ADR-0280 on, a supersession that both sides do not name
-(docs/adr/0280-a-changed-decision-written-whole-the-changelog-in-fragments.md).
+(docs/adr/0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md).
 
     scripts/adr-index.py           check that the index is the one the ADRs give
     scripts/adr-index.py --write   write it

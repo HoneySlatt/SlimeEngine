@@ -29,7 +29,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six: done,
     [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window); next,
     [M6d.7a2](stage-6d.md#m6d7a2--wayland-whole-and-the-host-measured).
-  - M6d.10 to M6d.12 run alone.
+  - M6d.10, D1, M6d.11 and M6d.12 run alone, in this order.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: deleting the branches `m6d1b-bench`, `m6d4a-prototype` and
   `m6d5a-prototype`, the last two linked by measurements; the
@@ -54,6 +54,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.9a2b2 to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a2b2--the-servers-game-off-its-lock) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
+| [D1 — The decisions consolidated](stage-6d.md#d1--the-decisions-consolidated) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
 
