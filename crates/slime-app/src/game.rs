@@ -32,6 +32,10 @@ use crate::host::{Context, SimulationContext};
 /// Each method receives the world, which it changes, and a [`SimulationContext`]: the input, both
 /// times, and the run's stop.
 ///
+/// A simulation reads time from its context alone, never a clock, and no randomness of the system:
+/// so that a run can be replayed, as Stage 7 builds
+/// (`docs/adr/0287-the-simulations-contract-designed-at-stage-7-its-questions-written-now.md`).
+///
 /// ```
 /// use slime_app::{AppConfig, Host, Simulation, SimulationContext};
 /// use slime_world::World;

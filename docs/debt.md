@@ -1043,11 +1043,11 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   `Simulation::fixed_step` takes `&mut World`, as do 119 parameters of the engine and its games.
   `World::new_id` draws from `RandomState::new()` (`crates/slime-world/src/scene.rs`); queries walk in no particular order, which changes as components come and go.
   [ADR-0208](adr/0208-the-engines-promises-and-systems.md) promises a simulation that runs in parallel and replays bit for bit, its randomness seeded by the engine.
-  Each system written before these rules is one more to change; a decision for the owner, before Stage 7's systems.
+  Each system written before these rules is one more to change; Stage 7's design session settles them, and meanwhile a simulation reads no clock and no randomness of the system ([ADR-0287](adr/0287-the-simulations-contract-designed-at-stage-7-its-questions-written-now.md)).
 - **`slime-app` always builds the GPU, the window and uwui.**
   Its manifest takes `slime-gfx` with wgpu, `slime-platform`, `uwui` and `uwui-render` in every build.
   A server, or the replay check that ADR-0208 puts in CI, would build them all.
-  Followed at Stage 7's planning.
+  Followed at Stage 7's design session ([ADR-0287](adr/0287-the-simulations-contract-designed-at-stage-7-its-questions-written-now.md)).
 - **The editor's operations are names, and one without a request compiles.**
   Its 60 operations are strings (`crates/slime-editor/src/operation.rs`), matched in six places.
   A name that `Session` cannot answer ends on `unreachable!` at run time (`session.rs`); the test that runs every operation covers those of the selection and the window.

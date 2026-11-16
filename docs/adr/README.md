@@ -366,3 +366,4 @@ the ADR linking to it.
 | [0284](0284-uwuis-text-a-message-or-a-literal-from-its-authoring-api-fluent-later.md) | uwui's text a message or a literal from its authoring API; Fluent later | Accepted |
 | [0285](0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md) | Every pointer named in the host's events; the tree following each with touch | Accepted |
 | [0286](0286-every-document-of-uwui-versioned-as-dock-layouts-are.md) | Every document of uwui versioned, as dock layouts are | Accepted |
+| [0287](0287-the-simulations-contract-designed-at-stage-7-its-questions-written-now.md) | The simulation's contract designed at Stage 7, its questions written now | Accepted |
