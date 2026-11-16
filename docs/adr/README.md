@@ -374,3 +374,4 @@ the ADR linking to it.
 | [0289](0289-a-private-channel-for-vulnerabilities-now-the-rest-when-contributions-open.md) | A private channel for vulnerabilities now, the rest when contributions open | Accepted |
 | [0290](0290-uwuis-crate-names-kept-on-crates-io-once-m6d10-names-them.md) | uwui's crates' names kept on crates.io once M6d.10 names them | Accepted |
 | [0291](0291-a-panic-says-why-no-bare-unwrap-outside-tests.md) | A panic says why: no bare `unwrap` outside tests | Accepted |
+| [0292](0292-a-quick-check-without-nix-when-contributions-open.md) | A quick check without Nix, when contributions open | Accepted |

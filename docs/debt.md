@@ -1072,10 +1072,10 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
 - **An `expect` on what comes from outside is found by review alone** ([ADR-0291](adr/0291-a-panic-says-why-no-bare-unwrap-outside-tests.md)).
   `clippy::unwrap_used` refuses a bare `unwrap()` outside tests; an `expect("…")` names its invariant, and no lint tells an invariant from an input.
   The tests of damaged files catch what review misses ([ADR-0102](adr/0102-a-damaged-file-gives-an-error.md)).
-- **The whole check needs Nix.**
+- **The whole check needs Nix** ([ADR-0292](adr/0292-a-quick-check-without-nix-when-contributions-open.md)).
   `scripts/check.sh` stops without `SLIME_LAVAPIPE_ICD`; images of reference are strict for any adapter named llvmpipe (`examples/common/reference_image.rs`), so another Mesa's lavapipe may fail them (not tried); wgpu is built without Metal, so nothing draws on macOS.
   A contributor without Nix runs cargo's commands by hand, as `CONTRIBUTING.md` says.
-  Not followed yet.
+  A quick check with rustup alone, and images strict for the pinned lavapipe alone, come when contributions open.
 - **Outside contributors have no files of their own** ([ADR-0289](adr/0289-a-private-channel-for-vulnerabilities-now-the-rest-when-contributions-open.md)).
   `SECURITY.md` and a template of pull requests exist; a code of conduct and templates of issues come when contributions open.
   Contributions' terms are decided ([ADR-0214](adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)), without the agreement's text or anything that checks it; source files carry no SPDX line.
