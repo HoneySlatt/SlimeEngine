@@ -362,3 +362,4 @@ the ADR linking to it.
 | [0280](0280-a-changed-decision-written-whole-the-changelog-in-fragments.md) | A changed decision written whole, the changelog in fragments | Superseded by 0281 |
 | [0281](0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md) | Decisions written whole, consolidated before the move; the changelog in fragments | Accepted; supersedes 0280 |
 | [0282](0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md) | Errors, logging, assertions; uwui's public enumerations open to new cases | Accepted; supersedes 0008 and 0019 |
+| [0283](0283-uwuis-widgets-and-a-programs-on-one-public-path.md) | uwui's widgets and a program's on one public path | Accepted |

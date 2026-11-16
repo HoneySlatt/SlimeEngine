@@ -1017,11 +1017,11 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
 - **A case that uwui gains is told to its own crates by no compiler** ([ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md)).
   uwui's public enumerations are `#[non_exhaustive]`: `uwui-render`, `uwui-accesskit`, the engine and the examples match them with a behaviour for the cases they do not know, nothing drawn, a plain container read.
   A case added is followed through them by hand and by their tests; nightly's `non_exhaustive_omitted_patterns` would name the cases that a wildcard hides, and is not stable.
-- **An element of a new kind can be made only inside uwui.**
+- **An element of a new kind can be made only inside uwui** ([ADR-0283](adr/0283-uwuis-widgets-and-a-programs-on-one-public-path.md)).
   `Kind` lists 28 kinds, their behaviour is private (`tree/control.rs`), and uwui's public traits are sealed.
-  `Kind::Surface`, for content drawn by the program, reads as an image to screen readers (`tree/meaning.rs`).
-  An application forks uwui to add a widget; each widget built before a public path has to move onto it.
-  [ADR-0222](adr/0222-what-a-theme-is.md) plans parts, states and slots as API; followed at M6d.10.
+  A surface declares its role and name, but not its actions: a screen reader or an agent cannot use what a program draws in it (`tree/meaning.rs`).
+  An application forks uwui to add a widget; each widget built before the public path has to move onto it.
+  The path is designed with uwui's authoring API, and the surface's actions placed, by M6d.10.
 - **The interface's text has no identity for translation.**
   A label is a `String`; uwui has no catalogue of messages, no plurals and no formatting by locale ([`uwui-needs.md`](uwui-needs.md) asks for Fluent).
   Every label written before them is to be found and keyed again.

@@ -2933,7 +2933,9 @@ The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/02
 - **Delivers.** Put to the owner, then recorded: uwui's first stage, its milestones and their order,
   the trials before the authoring API is built proposed; how its ADRs are numbered; the moved
   crates' names, and those of the facade and the reader of the system's preferences
-  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); the milestone that versions agents' families by major and minor
+  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); the milestone that designs one public path for uwui's widgets and a program's, before its
+  library of components, and the one that lets a surface declare its actions
+  ([ADR-0283](adr/0283-uwuis-widgets-and-a-programs-on-one-public-path.md)); the milestone that versions agents' families by major and minor
   ([ADR-0278](adr/0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md)); the engine's ports among uwui's stages ([ADR-0277](adr/0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md)); which repository holds the
   interface's budgets; what stands for the engine in uwui, its benchmarks and a menu driven by a
   gamepad; how the engine keeps a series of compositors for its platform layer; the measure that
