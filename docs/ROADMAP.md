@@ -151,7 +151,7 @@ Realistic changes and failures, each with what it must leave true and how that i
 
 | Scenario | It must leave true | Checked by | State |
 |---|---|---|---|
-| A new major version of wgpu, winit, parley, taffy or accesskit | the change stays in the crate that wraps it: wgpu in `slime-gfx`, `uwui-render` and `uwui-desktop`, winit in `slime-platform`, the text and layout in `uwui` | `scripts/check.sh`'s `cargo tree` checks for uwui's crates; review for the engine's | contained in the engine; once uwui leaves, wgpu and accesskit move on both sides at once, M6d.10 |
+| A new major version of wgpu, winit, parley, taffy or accesskit | the change stays in the crate that wraps it: wgpu in `slime-gfx`, `uwui-render` and `uwui-desktop`, winit in `slime-platform`, the text and layout in `uwui` | `scripts/check.sh`'s `cargo tree` checks for uwui's crates; review for the engine's | contained in the engine; once uwui leaves, wgpu, accesskit and rmcp move on both sides together ([ADR-0276](adr/0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md)) |
 | The GPU's device lost in the middle of a frame | the run goes on, on a new device, or stops with an error past its bound | the engine's tests of a lost device, on lavapipe; Direct3D 12 by hand | met; that nothing holds the old device is not checked |
 | A crash or a full disk while a file is written | the previous file whole; nothing half written read as good | tests of the writers and of the editor's journal | met for cooked files, levels and *Hunna Wood*'s saves; a save cut at a section's boundary loads in part |
 | A file of an older version: a save, a level, a layout, a cooked file | read, migrated, cooked again, or refused and set aside; never lost | fixtures in CI: *Hunna Wood*'s save, the editor's layouts | levels and layouts read; saves refused, not migrated |
@@ -160,7 +160,7 @@ Realistic changes and failures, each with what it must leave true and how that i
 | A component, an asset kind, a render pass, an interface element or an editor operation added outside its crate | added without editing a central list | review | components are; the others are lists to edit |
 | The simulation run on several threads, or replayed bit for bit | the same world at each step | *A replay*, above, from Stage 7 | its contract is written for one thread |
 | A server, or the replay check, without a window or a GPU | built without wgpu, winit or uwui | a `cargo tree` check, as uwui's | not met: `slime-app` builds them; not checked |
-| uwui released apart, the engine on an older release | the engine builds, and the tools of either release drive it | M6d.10 sets how the engine follows uwui | not decided |
+| uwui released apart, the engine on an older release | the engine builds, and the tools of either release drive it | the engine follows one exact commit of uwui ([ADR-0276](adr/0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md)) | not met: a tool refuses a program that serves another version of its family, M6d.10 |
 
 ### Without a figure
 

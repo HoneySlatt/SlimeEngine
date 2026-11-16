@@ -267,7 +267,7 @@ the ADR linking to it.
 | [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) | Input given in sway, two budgets of a start, and the editor's rate | Accepted; amends 0175 and 0189; amended by 0200 |
 | [0192](0192-the-budget-of-a-cold-start.md) | The budget of a cold start | Accepted; amends 0175 |
 | [0193](0193-first-measures-of-resources.md) | First measures of resources | Accepted; amends 0175 |
-| [0194](0194-stage-6d-uwui-leaving-the-engine.md) | Stage 6d: uwui leaving the engine | Accepted; amends 0170, 0171, 0178, 0181 and 0190; amended by 0198, 0202, 0203 and 0220 |
+| [0194](0194-stage-6d-uwui-leaving-the-engine.md) | Stage 6d: uwui leaving the engine | Accepted; amends 0170, 0171, 0178, 0181 and 0190; amended by 0198, 0202, 0203, 0220 and 0276 |
 | [0195](0195-a-series-of-headless-compositors.md) | A series of headless compositors | Accepted; amends 0185; amended by 0240 |
 | [0196](0196-checks-by-hand-on-macos.md) | Checks by hand on macOS | Accepted; amended by 0213 and 0233 |
 | [0197](0197-uwuis-repository-public-from-now.md) | uwui's repository, public from now | Accepted; amends 0181 and 0190 |
@@ -348,3 +348,4 @@ the ADR linking to it.
 | [0272](0272-the-carriers-families-and-its-connections-state-join-it-at-their-first-reader.md) | A carrier's families served and its connection's state join it at their first reader | Accepted; amends 0269; amended by 0274 |
 | [0274](0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md) | The engine's families typed on the core's way; a family not served refused as it is sent; a tool's name taken twice an error; M6d.9a2b cut in two | Accepted; amends 0269 and 0272 |
 | [0275](0275-a-familys-refusal-gives-the-version-that-the-program-serves.md) | A family's refusal gives the version that the program serves | Accepted; amends 0246 |
+| [0276](0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md) | The engine follows uwui by one exact commit until its 1.0 | Accepted; amends 0194 |

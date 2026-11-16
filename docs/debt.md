@@ -1012,7 +1012,7 @@ The audit did not cover NVIDIA and Intel GPUs, X11, a game outside the workspace
 
 A review of 2026-11-16 read the code against what contributors, a change and a failure ask of it; it built and ran nothing, and its counts come from searches.
 Each item below is costlier the longer it waits: more code written on it, or more files in the wild.
-uwui's boundary with the engine, which the review also weighed, is M6d.10's question ([`PLAN.md`](PLAN.md#ideas-waiting-for-their-milestone)).
+How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md); the rest of uwui's boundary with the engine is M6d.10's ([`PLAN.md`](PLAN.md#ideas-waiting-for-their-milestone)).
 
 - **Most of uwui's enumerations are closed to new cases.**
   7 of uwui's 67 `pub enum`s are `#[non_exhaustive]`; `Kind`, the list of elements' kinds (`crates/uwui/src/tree.rs`), is not.

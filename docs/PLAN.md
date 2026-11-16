@@ -77,10 +77,9 @@ From two outside reviews, kept by the owner on 2026-11-10; each joins its milest
 From the review of the architecture of 2026-11-16, its items in
 [`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10):
 
-- M6d.10: how the engine follows uwui, weighed against the changes that touch both (107 of
-  uwui's 160 commits of the 30 days before touched the engine too), one repository whose crates
-  are published apart among the options; wgpu, accesskit and winit upgraded on both sides at
-  once; agents' families served over a range of versions; one windowing layer or two
+- M6d.10: the rhythm at which the engine moves uwui's commit before uwui's 1.0
+  ([ADR-0276](adr/0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md)); agents' families served over a range of versions; one
+  windowing layer or two
   ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
 - Before Stage 7's systems: an ADR on the simulation's contract, its parallel access, its seeded
   randomness and its order of iteration; a typed copy of the world; a host without window or GPU.

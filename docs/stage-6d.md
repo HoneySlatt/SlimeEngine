@@ -2933,7 +2933,7 @@ The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/02
 - **Delivers.** Put to the owner, then recorded: uwui's first stage, its milestones and their order,
   the trials before the authoring API is built proposed; how its ADRs are numbered; the moved
   crates' names, and those of the facade and the reader of the system's preferences
-  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); how the engine follows uwui after the move; which repository holds the
+  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); the rhythm at which the engine moves uwui's commit before uwui's 1.0 ([ADR-0276](adr/0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md)); which repository holds the
   interface's budgets; what stands for the engine in uwui, its benchmarks and a menu driven by a
   gamepad; how the engine keeps a series of compositors for its platform layer; the measure that
   confirms games' interfaces on uwui's core with a layer of the engine's, or gives them a
@@ -2969,7 +2969,10 @@ The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/02
   ([ADR-0233](adr/0233-uwuis-platforms-apples-chips-ios-and-the-tvs.md)); the editor's look moved into the
   official theme Pro, a crate of its own in uwui's repository, its images of reference in uwui's CI
   ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)); the engine depending on it;
-  uwui's files removed here, every document updated.
+  uwui's files removed here, every document updated. The engine following uwui by one exact commit
+  ([ADR-0276](adr/0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md)): the commit written once and checked, `slime-app`'s re-exports for games,
+  the script for a change of both sides, `deny.toml`'s source, both `AGENTS.md` naming the libraries
+  that move together, and the engine's weekly job against uwui's `main`.
 - **Done when.** Both repositories' CI are green; the editor draws as before on the theme Pro, in
   its image tests; the engine's budgets are unchanged.
 - **Measured.** Both CIs' times; the engine's build time.
