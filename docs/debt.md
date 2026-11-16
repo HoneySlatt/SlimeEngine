@@ -1026,10 +1026,10 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   A label is a `String`; uwui has no catalogue of messages, no plurals and no formatting by locale ([`uwui-needs.md`](uwui-needs.md) asks for Fluent).
   Every label written before them is to be found and keyed again.
   uwui's authoring API carries messages, a locale and a fake language of test from its first stage, Fluent before its 1.0; M6d.10 places them.
-- **uwui's input knows one pointer, without an identity.**
+- **uwui's input knows one pointer, without an identity** ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)).
   `Input`'s pointer events carry no pointer's number: no touch, pen, gestures or scroll inertia (see *Input not reported yet* above).
   A new event is cheap, `Input` being `#[non_exhaustive]`; hover, press and capture kept per pointer are not, since every target's state assumes one.
-  Followed at M6d.10.
+  The identity and the device enter the host's events at track B's next milestone; the state per pointer, gestures and inertia come with touch, which M6d.10 places before uwui's library of components.
 - **uwui's documents carry no version, but dock layouts.**
   Themes, style sheets and shortcuts in KDL have no version field; dock layouts have one, and a migration ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   Once files circulate, a change of their meaning cannot be told from an error.

@@ -81,8 +81,9 @@ From the review of the architecture of 2026-11-16, its items in
 - M6d.10: the milestone that versions agents' families by major and minor
   ([ADR-0278](adr/0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md)).
 - Track B, M6d.7a2's rest: the seam inside uwui's host and the blank window on its layer alone
-  ([ADR-0279](adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md))
-  ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
+  ([ADR-0279](adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md));
+  each pointer's identity and device in the host's events, filled by each layer and the engine's
+  bridge ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)).
 - Before Stage 7's systems: an ADR on the simulation's contract, its parallel access, its seeded
   randomness and its order of iteration; a typed copy of the world; a host without window or GPU.
 - For the owner: the contributors' files and terms, and the names reserved.
