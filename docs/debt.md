@@ -1030,10 +1030,10 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   `Input`'s pointer events carry no pointer's number: no touch, pen, gestures or scroll inertia (see *Input not reported yet* above).
   A new event is cheap, `Input` being `#[non_exhaustive]`; hover, press and capture kept per pointer are not, since every target's state assumes one.
   The identity and the device enter the host's events at track B's next milestone; the state per pointer, gestures and inertia come with touch, which M6d.10 places before uwui's library of components.
-- **uwui's documents carry no version, but dock layouts.**
+- **uwui's documents carry no version, but dock layouts** ([ADR-0286](adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md)).
   Themes, style sheets and shortcuts in KDL have no version field; dock layouts have one, and a migration ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   Once files circulate, a change of their meaning cannot be told from an error.
-  Followed at M6d.10.
+  Settled by V1, on track A before M6d.10.
 - **A save of an older layout is refused, not migrated.**
   `slime_world`'s reader of saves refuses any layout but `LAYOUT_VERSION` (`crates/slime-world/src/document.rs`); scene files accept every layout up to it.
   Nothing is lost: *Hunna Wood* sets the old save aside.

@@ -365,3 +365,4 @@ the ADR linking to it.
 | [0283](0283-uwuis-widgets-and-a-programs-on-one-public-path.md) | uwui's widgets and a program's on one public path | Accepted |
 | [0284](0284-uwuis-text-a-message-or-a-literal-from-its-authoring-api-fluent-later.md) | uwui's text a message or a literal from its authoring API; Fluent later | Accepted |
 | [0285](0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md) | Every pointer named in the host's events; the tree following each with touch | Accepted |
+| [0286](0286-every-document-of-uwui-versioned-as-dock-layouts-are.md) | Every document of uwui versioned, as dock layouts are | Accepted |

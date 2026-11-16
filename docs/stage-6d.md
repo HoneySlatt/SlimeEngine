@@ -2927,6 +2927,21 @@ The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/02
 - **How to test.** `cargo test -p slime-editor`; the MCP server's session tests.
 - **Measured.** The MCP server's start with the editor's actions declared.
 
+### V1 — uwui's documents versioned
+
+Not a milestone of agents': uwui's documents, on track A after M6d.9a2b2
+([ADR-0286](adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md)).
+
+- **Goal.** Every document of uwui carries its format's version, as dock layouts do, before the
+  theme Pro and uwui's first stage write theirs.
+- **Crates.** `uwui`'s readers of themes, style sheets and tables of shortcuts.
+- **Delivers.** `version N` the first node of each; a document without it read as version 1; a
+  later version refused with both versions named, a file that a program writes never written over
+  then; a fixture of each version in the readers' tests; the documents' rustdoc and uwui's README
+  updated.
+- **Done when.** `scripts/check.sh` passes; each reader's tests read version 1 with and without its
+  node, and refuse version 2.
+
 ### M6d.10 — uwui designed as a project
 
 - **Goal.** uwui's repository is ready to receive its code. Builds nothing.
