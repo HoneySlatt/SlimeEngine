@@ -92,6 +92,10 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The `widgets` example, which [ADR-0180](adr/0180-one-canvas-and-the-frameworks-foundations.md) names, moves two progress bars without end and draws 60 frames a second.
   Since M6d.7a1, `uwui-desktop`'s `application` example is checked at rest in Weston, sway, KWin and Mutter, none of its threads waking in 10 s ([`compositors.md`](compositors.md)).
   Its wakes and its processor's time at rest are measured from outside by M6d.7a2's tool; under X11 and Xwayland, from M6d.7b, which brings the host's X11 layer.
+- **uwui's desktop host's test of rest failed once in CI** ([ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)).
+  On 2026-11-16 the example's main thread woke twice in its 10 s of rest under CI's Weston (`crates/uwui-desktop/tests/rest.rs`); the change it ran on touched no code of the host's loop.
+  It passed three times on the owner's machine and on CI's next run: a wake that CI's shared runners cause, or one the host makes now and then, not found.
+  Followed at M6d.7a2, which measures the host's rest.
 - **uwui's desktop host ends on a lost device or surface** ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
   M6d.7a1's host configures a surface outdated or lost once again, then ends with `EXIT_HOST_FAILED`; a device lost ends it at its next frame.
   The engine makes both again within a budget ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)); the host does not yet, and no test loses them.
