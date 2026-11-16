@@ -62,6 +62,7 @@ impl Default for TextStyle {
 /// its left and its right in a text written from left to right, and the reverse in one written
 /// from right to left.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Identifiers)]
+#[non_exhaustive]
 pub enum Alignment {
     /// Lines begin at the start.
     #[default]
@@ -76,6 +77,7 @@ pub enum Alignment {
 
 /// The direction a text is written in.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Identifiers)]
+#[non_exhaustive]
 pub enum Direction {
     /// The direction of the text's first letter that has one: right to left for Arabic or
     /// Hebrew, left to right for Latin.

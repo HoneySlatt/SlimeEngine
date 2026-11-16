@@ -312,7 +312,7 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   above, except for wgpu-hal's details about the GPU, the Vulkan loader's messages, the error
   that winit's client-side decorations log when no desktop portal answers, and the spans of the
   D-Bus library through which screen readers are served on Linux
-  (`docs/adr/0019-default-log-filter.md`). With the `SLIME_TRACE` environment variable
+  (`docs/adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md`). With the `SLIME_TRACE` environment variable
   (`TRACE_ENV_VAR`) naming a file, it also writes there a trace of every span of every thread,
   whatever `SLIME_LOG` keeps, in the Chrome Trace Event format that Perfetto and `chrome://tracing`
   open (`docs/adr/0104-the-build-ci-and-measurements.md`): the phases of each frame and each
@@ -362,7 +362,7 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   only when an update holds it, and `slime-platform`'s events and updates.
 
 Engine code and games log through the `tracing` macros. The conventions for errors, log levels and
-assertions are in `docs/adr/0008-errors-logging-and-assertions.md`; why the engine owns the main
+assertions are in `docs/adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md`; why the engine owns the main
 loop is in `docs/adr/0010-main-loop-ownership.md`. With `SLIME_LOG=slime_app=trace,slime_gfx=trace`,
 each frame's profiling spans are logged with the time spent in them: `frame`, containing
 `fixed_step`, `update`, and with a window `extract`, `acquire` (waiting for the window's image),

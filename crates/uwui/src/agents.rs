@@ -30,6 +30,7 @@ use crate::tree::{ElementAction, ElementId, ElementState, Meaning, Ui};
 
 /// What a host does with a request of the family.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Answer {
     /// It answers with this reply.
     Reply(Reply),
@@ -111,6 +112,13 @@ pub fn answer(
         Request::Style { element } => Reply::Style {
             places: style(ui, element).map_err(refused)?,
         },
+        // A request that `uwui-agent` gained and that this program does not answer yet.
+        _ => {
+            return Err(Fault::new(
+                Fault::NO_METHOD,
+                "the program does not answer this request of the interface's family",
+            ));
+        }
     };
     Ok(Answer::Reply(reply))
 }
@@ -609,6 +617,8 @@ fn act(ui: &mut Ui, path: &str, action: &AgentAction) -> Result<(), String> {
         AgentAction::Accept => ActionKind::Intent(Intent::Accept),
         AgentAction::Cancel => ActionKind::Intent(Intent::Cancel),
         AgentAction::Command { name } => ActionKind::Command(name.clone()),
+        // An action that `uwui-agent` gained and that this program does not do yet.
+        _ => return Err("the program does not do this action".to_owned()),
     };
     if id.is_some() {
         return Err(

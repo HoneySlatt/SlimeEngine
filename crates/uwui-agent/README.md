@@ -144,7 +144,7 @@ The rustdoc holds each item's contract: the codes of a `Fault`, the limits, the 
 
 - `serde` and `serde_json`: the messages, JSON-RPC 2.0, the format that MCP, the web and Android
   carry as they are (ADR-0246).
-- `thiserror`: derives `AgentError`'s `Display` and `Error` implementations (ADR-0008).
+- `thiserror`: derives `AgentError`'s `Display` and `Error` implementations (ADR-0282).
 
 ## Must not
 

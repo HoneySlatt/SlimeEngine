@@ -2954,8 +2954,8 @@ The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/02
   lack, with [ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md) amended for
   the web. Who owns commands, undo and their journal, uwui or the engine, now that the actions are
   declared ([ADR-0218](adr/0218-one-core-for-agents-in-uwui.md)). uwui's rule for its errors:
-  derived with `thiserror` or written by hand, and whether its enumerations are
-  `#[non_exhaustive]` ([`debt.md`](debt.md)). uwui's `AGENTS.md`, roadmap and plan updated.
+  derived with `thiserror` or written by hand ([`debt.md`](debt.md)); whether its public structures
+  are `#[non_exhaustive]`, which forbids a program to build one by its fields. uwui's `AGENTS.md`, roadmap and plan updated.
 - **Done when.** The owner has validated uwui's documents; each decision is recorded in an ADR.
 
 ### D1 — The decisions consolidated

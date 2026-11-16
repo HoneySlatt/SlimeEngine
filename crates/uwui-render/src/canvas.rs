@@ -412,6 +412,8 @@ impl Canvas {
         let kind = match quad.kind {
             ImageKind::Coverage => COVERAGE,
             ImageKind::Color => IMAGE,
+            // A kind of image that uwui gained and that the canvas does not draw yet.
+            _ => return,
         };
         self.push(
             Item {
@@ -569,6 +571,7 @@ pub struct CanvasStats {
 /// bytes, the draws and the CPU's work are the same with both: only the binding and the write
 /// differ.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ItemStore {
     /// A storage buffer, which both stages of a pipeline read: on Vulkan, Direct3D 12 and Metal,
     /// and on GL where its vertex stage reads one.

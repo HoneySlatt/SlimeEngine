@@ -1,6 +1,7 @@
 # 0019. Default log filter
 
-- Status: Accepted
+- Status: Superseded by [0282](0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md) (the rule of errors, logging and
+  assertions stated whole)
 - Date: 2026-10-12
 
 ## Context

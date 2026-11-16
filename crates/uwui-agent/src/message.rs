@@ -14,6 +14,7 @@ pub const MAX_EXACT_INTEGER: u64 = (1 << 53) - 1;
 ///
 /// A method is `family/name`, `play/pause`; the core's own, `hello`, names no family.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Message {
     /// A request, answered by a [`Message::Response`] of the same number.
     Request {

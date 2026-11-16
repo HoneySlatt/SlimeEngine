@@ -79,6 +79,7 @@ pub struct Transition {
 
 /// How a transition goes from its start to its end over its time.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Identifiers)]
+#[non_exhaustive]
 pub enum Easing {
     /// At one speed.
     Linear,
@@ -188,6 +189,7 @@ impl Default for LayoutStyle {
 
 /// How an element's children are laid out.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Identifiers)]
+#[non_exhaustive]
 pub enum Display {
     /// In a line along one axis, CSS's flexbox.
     #[default]
@@ -200,6 +202,7 @@ pub enum Display {
 
 /// The axis along which a flexbox lays its children out.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Identifiers)]
+#[non_exhaustive]
 pub enum FlexDirection {
     /// Along a line, from its start.
     #[default]
@@ -214,6 +217,7 @@ pub enum FlexDirection {
 
 /// How children share the space along the main axis.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Identifiers)]
+#[non_exhaustive]
 pub enum Justify {
     /// Packed at the start.
     #[default]
@@ -232,6 +236,7 @@ pub enum Justify {
 
 /// How a child is placed across the main axis.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Identifiers)]
+#[non_exhaustive]
 pub enum Align {
     /// At the start.
     Start,
@@ -246,6 +251,7 @@ pub enum Align {
 
 /// A size: as its content or its parent makes it, in logical pixels, or a share of its parent's.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub enum Dimension {
     /// As the layout makes it.
     #[default]
@@ -304,6 +310,7 @@ impl From<f32> for Sides {
 
 /// A track of a grid: a column or a row.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Track {
     /// Logical pixels.
     Pixels(f32),

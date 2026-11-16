@@ -181,6 +181,8 @@ impl Atlas {
         let (pixels, color, texel) = match &image.pixels {
             GlyphPixels::Coverage(pixels) => (pixels, false, 1),
             GlyphPixels::Color(pixels) => (pixels, true, 4),
+            // A kind of glyph's pixels that uwui gained and that this atlas does not keep yet.
+            _ => return Ok(None),
         };
         // An empty texel around each image, so that filtering at its edge reads nothing of another.
         let (width, height) = (image.width + 2, image.height + 2);

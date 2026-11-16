@@ -38,7 +38,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **`slime-mcp` writes a capture as PNG on its one thread** ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
   `uwui_mcp::image` encodes the pixels that a capture gives, as `capture` and `capture_element` answer, on the server's runtime, which has one thread: a large capture holds the agent's other calls while it is encoded, as a cancel of theirs.
   Followed at [M6d.9a2b2](stage-6d.md#m6d9a2b2--the-servers-game-off-its-lock), which takes the server's waits off its one thread.
-- **Two helpers write an error and its causes on one line** ([ADR-0008](adr/0008-errors-logging-and-assertions.md)).
+- **Two helpers write an error and its causes on one line** ([ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md)).
   `slime_app::error_chain`, for a program's log, and `slime_channel::why`, for a tool, which `slime-mcp` takes, write the same, the first leaving out a cause whose text the chain holds already.
   The build for shipping links no `slime-channel`, and `slime-channel` lies below `slime-app` and links no logging: neither can take the other's.
   Followed at [M6d.12](stage-6d.md#m6d12--the-audit-of-stage-6d), the stage's audit, which triages every item and weighs here a crate below both that the build for shipping links.
@@ -185,7 +185,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The Windows job does so, and `CONTRIBUTING.md` asks it of contributors on WARP.
 - **Client-side decorations run `dbus-send` twice when the window is created** (winit's sctk-adwaita, on compositors that do not draw decorations).
   Each waits up to 100 ms when the settings portal does not answer.
-  The error they log when no session bus or portal answers is hidden by the default log filter (ADR-0019).
+  The error they log when no session bus or portal answers is hidden by the default log filter (ADR-0282).
 - **Mipmaps of textures made in code are computed on the CPU when they are created** (`Gpu::create_texture`, whose documentation gives the cost).
   The work runs on the calling thread, in proportion to the texture's pixels (ADR-0032): a level of tens of large textures waits seconds.
   A caller with its own levels gives them to `Gpu::create_texture_with_levels` (ADR-0039), as cooked textures do, whose levels the cooker computed (ADR-0071).
@@ -700,7 +700,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   ADR-0245 takes the difference there on the wall time of a loop that the GPU bounds; `render.canvas` and `ui.draw.menu` give what the interface adds only from timestamps, and on OpenGL ES nothing but its passes' count.
   Their frames with and without the interface alternate in blocks of three, the times of a block's second frame kept, rather than frame by frame as ADR-0245 writes: a frame's times come back at the next frame, so that a block reports a frame of its own kind.
   Followed at the web's trial, which measures on devices without timestamps ([`stage-6d.md`](stage-6d.md#stage-6d--uwui-leaves-the-engine)).
-- **uwui writes five of its errors by hand** ([ADR-0008](adr/0008-errors-logging-and-assertions.md)), where `uwui-render` and uwui's others derive them with `thiserror`.
+- **uwui writes five of its errors by hand** ([ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md)), where `uwui-render` and uwui's others derive them with `thiserror`.
   They are `DocumentError` and `DocumentErrors` in `document.rs`, `ReadError` and `WriteError` in `dock/document.rs`, and `TokenError` in `theme/token.rs`.
   Four could be derived; `DocumentErrors` could not, its message walking a list.
   `uwui-kdl` writes its own by hand on purpose: it depends on nothing ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
@@ -1014,10 +1014,9 @@ A review of 2026-11-16 read the code against what contributors, a change and a f
 Each item below is costlier the longer it waits: more code written on it, or more files in the wild.
 How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md); the rest of uwui's boundary with the engine is M6d.10's ([`PLAN.md`](PLAN.md#ideas-waiting-for-their-milestone)).
 
-- **Most of uwui's enumerations are closed to new cases.**
-  7 of uwui's 67 `pub enum`s are `#[non_exhaustive]`; `Kind`, the list of elements' kinds (`crates/uwui/src/tree.rs`), is not.
-  Once others depend on uwui, a case added breaks their `match`; before, the attribute costs nothing.
-  Followed at [M6d.10](stage-6d.md#m6d10--uwui-designed-as-a-project), which sets the rule.
+- **A case that uwui gains is told to its own crates by no compiler** ([ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md)).
+  uwui's public enumerations are `#[non_exhaustive]`: `uwui-render`, `uwui-accesskit`, the engine and the examples match them with a behaviour for the cases they do not know, nothing drawn, a plain container read.
+  A case added is followed through them by hand and by their tests; nightly's `non_exhaustive_omitted_patterns` would name the cases that a wildcard hides, and is not stable.
 - **An element of a new kind can be made only inside uwui.**
   `Kind` lists 28 kinds, their behaviour is private (`tree/control.rs`), and uwui's public traits are sealed.
   `Kind::Surface`, for content drawn by the program, reads as an image to screen readers (`tree/meaning.rs`).
@@ -1072,7 +1071,7 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   `scripts/check.sh` checks uwui's crates and hosts by `cargo tree`; that the engine runs headless (`AGENTS.md`) is checked by review alone.
   Not followed yet; a check like uwui's is cheap.
 - **No lint keeps `unwrap` and `expect` off what reads outside input.**
-  [ADR-0008](adr/0008-errors-logging-and-assertions.md) lets a broken invariant panic, and no lint tells an invariant from an input; the crates' sources hold about 1,540 calls, tests included.
+  [ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md) lets a broken invariant panic, and no lint tells an invariant from an input; the crates' sources hold about 1,540 calls, tests included.
   Every call added makes the lint costlier to adopt.
   Not followed yet.
 - **The whole check needs Nix.**

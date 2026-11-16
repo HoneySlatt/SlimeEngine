@@ -742,6 +742,11 @@ fn answer_interface(
     match uwui::agents::answer(ui, request, page, time_up) {
         Ok(Answer::Reply(reply)) => Reply::Interface { reply },
         Ok(Answer::Capture(_)) => unreachable!("a capture waits for the frame's image"),
+        // An answer that uwui gained and that the engine does not carry yet.
+        Ok(_) => Reply::from(Fault::new(
+            Fault::NO_METHOD,
+            "the engine does not carry this answer of the interface yet",
+        )),
         Err(error) => Reply::from(error),
     }
 }

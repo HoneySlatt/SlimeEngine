@@ -131,6 +131,8 @@ pub(crate) fn cursor_icon(shape: CursorShape) -> winit::window::CursorIcon {
         CursorShape::Text => winit::window::CursorIcon::Text,
         CursorShape::ResizeHorizontal => winit::window::CursorIcon::EwResize,
         CursorShape::ResizeVertical => winit::window::CursorIcon::NsResize,
+        // A shape added to `slime-input` that this layer does not map yet shows the default.
+        _ => winit::window::CursorIcon::Default,
     }
 }
 

@@ -76,6 +76,7 @@ pub struct TargetSize {
 
 /// Why a target's size was refused ([`TargetSize::new`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum TargetSizeError {
     /// A width or a height of zero: a window minimized has no area, and its host gives nothing
     /// while it has none, its target keeping the size it had.
@@ -289,6 +290,7 @@ pub enum Input<'a> {
 /// converts at the boundary, which counts from the text's start (`docs/measurements.md`,
 /// M6d.5c2).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TextUnit {
     /// Bytes of UTF-8, as Wayland's text input and winit count.
     #[default]
@@ -461,6 +463,7 @@ pub struct Outputs {
 
 /// Whether the target takes text through an input method.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[allow(clippy::exhaustive_enums, reason = "an input method is on or off")]
 pub enum InputMethod {
     /// No field holds the focus: the host turns the input method off.
     #[default]

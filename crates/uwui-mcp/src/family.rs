@@ -29,6 +29,7 @@ impl<S> Family<S> {
 
 /// Who gave a server a tool: the server itself, or a family by its name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Owner {
     /// The server's own tools, which send no request of a family.
     Server,

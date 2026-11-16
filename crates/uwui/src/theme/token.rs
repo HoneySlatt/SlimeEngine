@@ -155,6 +155,7 @@ impl sealed::Sealed for Number {
 
 /// The value that a token takes when the themes do not give it.
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub enum Fallback<K: TokenKind> {
     /// A value of its kind; for a color, in linear light.
     Value(K::Value),
@@ -292,6 +293,10 @@ impl std::error::Error for TokenError {}
 /// A literal or a token of the kind `K`, which a setter of an own style takes: `padding_top(12.0)`
 /// or `padding_top(SPACE_M)`.
 #[derive(Clone, Copy, Debug)]
+#[allow(
+    clippy::exhaustive_enums,
+    reason = "a value is written as it is or named by a token"
+)]
 pub enum TokenOr<T, K: TokenKind> {
     /// The value written in code, the author's own.
     Literal(T),

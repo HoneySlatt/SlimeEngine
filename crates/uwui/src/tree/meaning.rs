@@ -19,6 +19,7 @@ pub const RUN_CHARACTERS: usize = 255;
 /// What an element is to whoever reads the interface without seeing it: an agent, or a screen
 /// reader. The roles bear the names of AccessKit's, through which screen readers read them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Role {
     /// A box that only lays others out: left out of what the tree means, while its children that
     /// mean something are in it.
@@ -165,6 +166,7 @@ pub struct ValueRange {
 
 /// What an agent can do to an element, as a person would.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ElementAction {
     /// Press it, as [`ActionKind::Press`](crate::action::ActionKind::Press) does: a check box
     /// toggles, a section opens or folds, a tab is chosen.

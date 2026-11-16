@@ -443,6 +443,8 @@ impl Interface {
                 | ActionKind::Dropped { .. }
                 | ActionKind::Surface(_)
                 | ActionKind::ClipboardText { .. } => {}
+                // An action, or a field's value, that uwui gained, which the example does not take.
+                _ => {}
             }
         }
         stop

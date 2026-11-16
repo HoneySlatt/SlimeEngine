@@ -166,6 +166,7 @@ fn reference(fonts: &Fonts, layout: &TextLayout, origin: [i32; 2]) -> Vec<f32> {
                             let alpha = f32::from(pixels[at * 4 + 3]) / 255.0;
                             (slime_color::srgb8_to_linear(pixels[at * 4]) * alpha, alpha)
                         }
+                        _ => unreachable!("a case that this test does not know"),
                     };
                     let pixel = &mut red[(y as u32 * WIDTH + x as u32) as usize];
                     *pixel = value + *pixel * (1.0 - alpha);
@@ -549,6 +550,7 @@ fn a_tree_of_elements_is_drawn_where_its_layout_places_it_and_mirrored_from_righ
         let expected = match direction {
             LayoutDirection::LeftToRight => 20.0,
             LayoutDirection::RightToLeft => WIDTH as f32 - 20.0 - 80.0,
+            _ => unreachable!("a case that this test does not know"),
         };
         assert_eq!((first.x, first.width), (expected, 80.0), "{direction:?}");
         for (&id, color) in ids.iter().zip(colors) {

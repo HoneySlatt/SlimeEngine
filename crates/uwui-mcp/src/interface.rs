@@ -353,6 +353,8 @@ fn described(reply: Reply, bytes: &[u8]) -> CallToolResult {
                     .join("\n"),
             )
         }
+        // A reply that `uwui-agent` gained after this tool was built.
+        _ => failure("the program gave a reply that this tool does not know: build the tool again"),
     }
 }
 

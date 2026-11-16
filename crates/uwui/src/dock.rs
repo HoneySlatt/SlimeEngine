@@ -51,6 +51,7 @@ pub struct Layout {
 
 /// A part of a [`Layout`]'s docked panels.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Node {
     /// Panels stacked as tabs, by their keys, the chosen one shown.
     Tabs {
@@ -91,6 +92,7 @@ pub struct Floating {
 
 /// An edge of the window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(clippy::exhaustive_enums, reason = "a rectangle has four edges")]
 pub enum Edge {
     /// Its left edge, its start where it is laid out from left to right.
     Left,
@@ -104,6 +106,7 @@ pub enum Edge {
 
 /// Where [`Layout::move_panel`] moves a panel.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Target {
     /// Into the stack of the panel of this key, as its last tab.
     With(String),

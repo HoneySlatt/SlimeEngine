@@ -285,6 +285,7 @@ fn every_theme_of_colors_and_density_styles_every_kind() {
             let expected = match density {
                 Density::Comfortable => 14.0,
                 Density::Compact => 12.0,
+                _ => unreachable!("a case that this test does not know"),
             };
             assert_eq!(size, expected, "{colors:?} {density:?}");
         }

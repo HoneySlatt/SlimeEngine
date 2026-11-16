@@ -566,6 +566,8 @@ impl WidgetsPanel {
                     Colors::Dark => Colors::Light,
                     Colors::Light => Colors::HighContrast,
                     Colors::HighContrast => Colors::Dark,
+                    // A set of colours that uwui gained: the panel goes back to its first.
+                    _ => Colors::Dark,
                 };
                 format!("colors {:?}", self.colors)
             }
@@ -573,6 +575,8 @@ impl WidgetsPanel {
                 self.density = match self.density {
                     Density::Comfortable => Density::Compact,
                     Density::Compact => Density::Comfortable,
+                    // A density that uwui gained: the panel goes back to its first.
+                    _ => Density::Comfortable,
                 };
                 format!("density {:?}", self.density)
             }

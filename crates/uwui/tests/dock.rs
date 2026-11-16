@@ -56,6 +56,7 @@ fn shares(node: &Node) -> Vec<f32> {
     match node {
         Node::Tabs { .. } => Vec::new(),
         Node::Split { children, .. } => children.iter().map(|child| child.share).collect(),
+        _ => unreachable!("a case that this test does not know"),
     }
 }
 
@@ -536,6 +537,7 @@ fn shown_with(layout: &Layout, panel: &str) -> Option<String> {
             Node::Split { children, .. } => {
                 children.iter().find_map(|child| find(&child.node, panel))
             }
+            _ => unreachable!("a case that this test does not know"),
         }
     }
     find(&layout.root, panel)
@@ -758,6 +760,7 @@ fn whole(node: &Node, parent: Option<bool>, closed: &[String], panels: &mut Vec<
                 whole(&child.node, Some(*side_by_side), closed, panels);
             }
         }
+        _ => unreachable!("a case that this test does not know"),
     }
 }
 

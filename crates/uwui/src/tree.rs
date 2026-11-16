@@ -95,6 +95,7 @@ impl ElementId {
 /// as the rows of a list are named by theirs. Keys are unique among siblings; the keys from a root
 /// down to an element are its path, which names it for agents, tests and saved layouts.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Key {
     /// A name.
     Name(Arc<str>),
@@ -137,6 +138,7 @@ impl fmt::Display for Key {
 
 /// What an element is.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Kind {
     /// A box that holds others, laid out as its style says.
     Container,
@@ -459,6 +461,7 @@ pub enum Kind {
 
 /// A part of a color well's picker ([`Kind::ColorPart`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ColorPart {
     /// The square of saturation, along it, and value, up it, in the well's hue.
     Square,
@@ -524,6 +527,7 @@ impl Tooltip {
 /// base unit, which the field shows after it, and what is typed in it may be written in any unit
 /// of the family, `10cm`, converted to the base unit.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Units {
     /// No unit: what is typed holds none.
     #[default]
@@ -538,6 +542,7 @@ pub enum Units {
 
 /// What an item of a menu ([`Kind::MenuItem`]) shows besides its label and its shortcut.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ItemMark {
     /// Nothing: an item that runs its command.
     None,
@@ -1078,6 +1083,7 @@ impl Element {
 
 /// The direction in which a root lays out its lines: its children's start and end.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum LayoutDirection {
     /// The start is at the left.
     #[default]

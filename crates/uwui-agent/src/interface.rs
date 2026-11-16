@@ -25,6 +25,7 @@ pub const EVENTS: &[&str] = &[];
 /// runs without a window, is refused.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "method", content = "params")]
+#[non_exhaustive]
 pub enum Request {
     /// A page of the elements of the interface that mean something, as its last frame left them,
     /// in the order of its tree, its roots in the order that they were added: [`Reply::Elements`],
@@ -97,6 +98,7 @@ pub enum Request {
 /// What a program answers to a [`Request`] of the family, but a refusal, which is a fault.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "reply", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Reply {
     /// The request is done.
     Done,
@@ -128,6 +130,7 @@ pub enum Reply {
 /// What a tool does in an interface ([`Request::Act`]), as a person's input would.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Action {
     /// Presses a button, as a click does.
     Press,

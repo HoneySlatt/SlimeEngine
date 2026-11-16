@@ -287,12 +287,13 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
                 Some(size)
             }
             Err(TargetSizeError::Empty) => None,
-            Err(error @ TargetSizeError::Scale) => {
-                // Once, not at every frame, until a scale is taken again.
+            // A scale refused, or a refusal that uwui gained.
+            Err(error) => {
+                // Once, not at every frame, until a size is taken again.
                 if !std::mem::replace(&mut self.scale_refused, true) {
                     tracing::warn!(
                         scale,
-                        "the window's scale is refused, its interface kept at the last: {error}"
+                        "the window's size or scale is refused, its interface kept at the last: {error}"
                     );
                 }
                 None

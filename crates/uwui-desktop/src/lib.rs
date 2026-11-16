@@ -45,6 +45,9 @@
 //! [`run`] there says that it has none and ends.
 //!
 //! No type of a platform's library appears in its public API.
+// A public enumeration may gain cases without breaking a program; one closed by nature says why
+// it is not marked (ADR-0282).
+#![warn(clippy::exhaustive_enums)]
 
 // The core and the application's side, which only Wayland's layer drives yet: elsewhere they are
 // compiled and tested, and used by no layer.

@@ -15,6 +15,7 @@ const GAP: f32 = 4.0;
 
 /// Where a layer stands.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Place {
     /// Beside `element`, on its `side`, aligned to the `along` edge of it: a popup, a menu, a list
     /// to choose from. It takes the size of its content; where its side lacks room, it stands on
@@ -51,6 +52,7 @@ pub enum Place {
 
 /// The side of an element that a layer stands on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Side {
     /// Below it.
     Below,
@@ -65,6 +67,7 @@ pub enum Side {
 /// The edge of an element's side that a layer lines up with: along a line for a layer above or
 /// below it, from top to bottom for one before its start or after its end.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Along {
     /// Its start: the layer's start on the element's, or its top on the element's top.
     Start,

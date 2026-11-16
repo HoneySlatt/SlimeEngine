@@ -558,6 +558,8 @@ impl Ui {
                 false
             }
             Ime::Enabled => false,
+            // An event of input methods that `slime-input` gained changes no field yet.
+            _ => false,
         });
         true
     }

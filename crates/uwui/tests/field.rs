@@ -144,6 +144,7 @@ fn shown(value: &FieldValue) -> String {
         FieldValue::Checked(checked) => format!("{checked}"),
         FieldValue::Chosen(place) => format!("option {place}"),
         FieldValue::Color(color) => format!("{color:?}"),
+        _ => unreachable!("a case that this test does not know"),
     }
 }
 

@@ -15,7 +15,7 @@ workspace = true
 # hands the updates to its adapter with the crate's own version (ADR-0261).
 accesskit.workspace = true
 # A warning when the interface refuses the window a reader of meaning, and each request of a screen
-# reader at the debug level (ADR-0008).
+# reader at the debug level (ADR-0282).
 tracing.workspace = true
 # The interface, read through its public meaning, its readers and its targets.
 uwui.workspace = true

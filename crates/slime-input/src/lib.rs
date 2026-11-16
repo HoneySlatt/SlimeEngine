@@ -1,7 +1,14 @@
 #![doc = include_str!("../README.md")]
+// A public enumeration may gain cases without breaking a program; one closed by nature says why
+// it is not marked (ADR-0282).
+#![warn(clippy::exhaustive_enums)]
 
 /// Whether a key or a mouse button went down or up.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[allow(
+    clippy::exhaustive_enums,
+    reason = "a button is pressed or released, and has no third state"
+)]
 pub enum ButtonState {
     /// The key or button went down.
     Pressed,
@@ -49,6 +56,7 @@ pub struct KeyEvent {
 
 /// What a key means with the current keyboard layout.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Key {
     /// A key that produces a character: the character with the current layout and the modifiers
     /// that change characters (Shift, AltGr), but not Control. For example `"a"`, `"A"` or `"é"`.
@@ -77,6 +85,7 @@ macro_rules! named_enum {
     ) => {
         $(#[$meta])*
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        #[non_exhaustive]
         pub enum $engine {
             $(
                 #[doc = concat!($doc, "`", stringify!($variant), "`.")]
@@ -212,6 +221,7 @@ pub struct Modifiers {
 
 /// A mouse button.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum MouseButton {
     /// The primary button, usually the left one.
     Left,
@@ -235,6 +245,7 @@ pub enum MouseButton {
 /// between two notches in [`Pixels`](Self::Pixels). X11 and Windows report every device in lines,
 /// touchpads included.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ScrollDelta {
     /// In lines (or rows and columns). A notch of a usual mouse wheel is one line. The value can
     /// be a fraction: on X11 and Windows, a touchpad or a high-resolution wheel reports many small
@@ -257,6 +268,7 @@ pub enum ScrollDelta {
 /// What an input method does while the user composes text through it, as Chinese, Japanese and
 /// Korean are typed: the keys that it reads then give no text of their own.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Ime {
     /// The input method is on for the window: compositions may follow.
     Enabled,
@@ -277,6 +289,7 @@ pub enum Ime {
 
 /// The shape of the pointer over the window.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CursorShape {
     /// The system's arrow.
     #[default]

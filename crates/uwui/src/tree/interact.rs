@@ -463,6 +463,8 @@ impl Ui {
         let [x, y] = match delta {
             ScrollDelta::Lines { x, y } => [x * WHEEL_LINE, y * WHEEL_LINE],
             ScrollDelta::Pixels { x, y } => [x as f32 / scale, y as f32 / scale],
+            // A kind of scrolling that `slime-input` gained scrolls nothing yet.
+            _ => return false,
         };
         // A wheel that moves the content right shows what lies left of it: its start from left to
         // right, its end from right to left, where the offset, counted from the start, grows.

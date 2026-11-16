@@ -24,6 +24,7 @@ pub struct Action {
 
 /// What an action does.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ActionKind {
     /// A button pressed: by the pointer, pressed and let go over it, by the keyboard, accepted
     /// while it held the focus, or by an agent.
@@ -100,6 +101,7 @@ pub enum ActionKind {
 /// What the pointer did on a surface ([`ActionKind::Surface`]), where it was in logical pixels from
 /// the surface's top left corner, which may lie outside it while a button holds the pointer.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum SurfaceInput {
     /// A button went down over the surface, with the modifier keys held then: it holds the pointer
     /// until it is let go.
@@ -138,6 +140,7 @@ pub enum SurfaceInput {
 /// button that toggles' state, a slider's number, the choice of a list or of segments, a color
 /// well's color.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum FieldValue {
     /// A field of text's text.
     Text(String),
@@ -157,6 +160,7 @@ pub enum FieldValue {
 /// that holds the focus, and reaches the program as an intent where none does; `Cancel` reaches the
 /// program, which closes what it opened.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Intent {
     /// The focus to the next element, in the order of the tree: Tab.
     Next,

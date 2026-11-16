@@ -88,7 +88,7 @@ the ADR linking to it.
 | [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted; amended by 0186 |
 | [0006](0006-dependency-policy.md) | Dependency policy | Accepted; amended by 0023, 0031, 0133, 0182, 0214 and 0219 |
 | [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015, 0123 and 0188 |
-| [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted; amended by 0019 and 0085 |
+| [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Superseded by 0282; amended by 0019 and 0085 |
 | [0009](0009-frame-timing.md) | Frame timing | Accepted; amended by 0107 and 0227 |
 | [0010](0010-main-loop-ownership.md) | Main loop ownership and the application API | Accepted; amended by 0020 and 0107 |
 | [0011](0011-windowing-with-winit.md) | Windowing and input with winit, behind `slime-platform` | Accepted; amended by 0020 and 0181 |
@@ -99,7 +99,7 @@ the ADR linking to it.
 | [0016](0016-gpu-layer-with-wgpu.md) | The GPU layer: wgpu behind `slime-gfx` | Accepted; amended by 0022, 0025, 0031, 0036, 0044, 0098, 0114, 0244 and 0247 |
 | [0017](0017-gpu-resource-types.md) | GPU resource types | Accepted; amended by 0026, 0033 and 0044 |
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028 and 0030 |
-| [0019](0019-default-log-filter.md) | Default log filter | Accepted; amends 0008 |
+| [0019](0019-default-log-filter.md) | Default log filter | Superseded by 0282; amends 0008 |
 | [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amends 0010, 0011 and 0013; amended by 0021, 0022, 0025, 0043 and 0107 |
 | [0021](0021-frame-pacing.md) | Frame pacing | Accepted; amends 0020; amended by 0155, 0156, 0185, 0187 and 0271 |
 | [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amends 0016 and 0020; amended by 0025, 0044, 0075 and 0103 |
@@ -361,3 +361,4 @@ the ADR linking to it.
 | [0279](0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md) | One windowing layer: a seam in uwui's host now, the engine moved onto it at a port | Accepted; amends 0181 and 0270 |
 | [0280](0280-a-changed-decision-written-whole-the-changelog-in-fragments.md) | A changed decision written whole, the changelog in fragments | Superseded by 0281 |
 | [0281](0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md) | Decisions written whole, consolidated before the move; the changelog in fragments | Accepted; supersedes 0280 |
+| [0282](0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md) | Errors, logging, assertions; uwui's public enumerations open to new cases | Accepted; supersedes 0008 and 0019 |

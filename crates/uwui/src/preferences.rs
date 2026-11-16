@@ -54,6 +54,7 @@ const RATIOS: std::ops::RangeInclusive<f32> = 0.5..=3.0;
 
 /// Why a size of text was refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum TextSizeError {
     /// A curve with no stop.
     #[error("a curve of the size of text needs one stop at least")]

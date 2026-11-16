@@ -168,6 +168,12 @@ fn gfx_error(error: uwui_render::Error) -> GfxError {
         uwui_render::Error::OutOfMemory { label } => GfxError::OutOfMemory { label },
         uwui_render::Error::Shader { label, message } => GfxError::Shader { label, message },
         uwui_render::Error::Pipeline { label, message } => GfxError::Pipeline { label, message },
+        // An error that `uwui-render` gained: each of its errors is an object that the device
+        // refused, as a pipeline is, its message kept whole.
+        other => GfxError::Pipeline {
+            label: "uwui-render".to_owned(),
+            message: other.to_string(),
+        },
     }
 }
 

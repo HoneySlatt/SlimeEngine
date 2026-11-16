@@ -189,6 +189,7 @@ fn the_arrows_open_a_submenu_and_close_it_the_focus_back_on_its_item() {
         let (forward, backward) = match direction {
             LayoutDirection::LeftToRight => (NamedKey::ArrowRight, NamedKey::ArrowLeft),
             LayoutDirection::RightToLeft => (NamedKey::ArrowLeft, NamedKey::ArrowRight),
+            _ => unreachable!("a case that this test does not know"),
         };
         let mut menu = Menu::open(direction);
         let recent = menu.items[3];

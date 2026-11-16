@@ -148,6 +148,10 @@ pub struct TextPosition {
 
 /// The character that a [`TextPosition`] is attached to.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[allow(
+    clippy::exhaustive_enums,
+    reason = "a caret leans to the text before it or to the text after it"
+)]
 pub enum Affinity {
     /// The character that follows it.
     #[default]

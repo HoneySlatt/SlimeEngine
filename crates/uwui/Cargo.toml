@@ -39,7 +39,7 @@ swash.workspace = true
 # The layout of the tree of elements: flexbox and grid (ADR-0132).
 taffy.workspace = true
 thiserror.workspace = true
-# A warning when a stack names a family that the fonts lack (ADR-0008).
+# A warning when a stack names a family that the fonts lack (ADR-0282).
 tracing.workspace = true
 # The interface's family of uwui's core for agents, answered with the feature `agents` (ADR-0259).
 uwui-agent = { workspace = true, optional = true }

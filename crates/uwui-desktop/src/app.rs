@@ -193,6 +193,10 @@ impl Window {
 
 /// Whether the window closes, when the person or the system asks ([`App::close_requested`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[allow(
+    clippy::exhaustive_enums,
+    reason = "an application keeps its window open or lets it close"
+)]
 pub enum Close {
     /// It closes: the run ends, through [`App::stop`].
     #[default]

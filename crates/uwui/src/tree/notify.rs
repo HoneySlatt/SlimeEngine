@@ -18,6 +18,7 @@ const SHOWN: usize = 5;
 
 /// What a notification tells, which sets how long it stays and how screen readers read it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum NotificationKind {
     /// What went on: 5 seconds, read politely.
     #[default]

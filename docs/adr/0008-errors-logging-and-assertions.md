@@ -1,6 +1,7 @@
 # 0008. Errors, logging and assertions
 
-- Status: Accepted; amended by [0019](0019-default-log-filter.md) (default log filter) and
+- Status: Superseded by [0282](0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md) (uwui's public enumerations open to new
+  cases); amended before by [0019](0019-default-log-filter.md) (default log filter) and
   [0085](0085-reflection.md) (`slime-reflect`'s errors, written without `thiserror`)
 - Date: 2026-10-12
 

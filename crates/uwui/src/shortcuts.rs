@@ -98,6 +98,7 @@ impl Shortcuts {
 /// text field's caret by words, and how a shortcut is written for a person to read
 /// ([`Ui::set_platform`](crate::tree::Ui::set_platform)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Platform {
     /// Linux, and every system but Windows and Apple's: `Primary` is Ctrl, a shortcut written
     /// `Ctrl+Shift+Z`.

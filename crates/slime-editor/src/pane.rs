@@ -173,6 +173,8 @@ impl Pane {
                 ScrollDelta::Lines { y, .. } => f64::from(y),
                 // A touchpad's pixels, a line some 40 of them.
                 ScrollDelta::Pixels { y, .. } => y / 40.0,
+                // A kind of scrolling that `slime-input` gained moves the camera nothing yet.
+                _ => 0.0,
             }),
             // Moves come where the cursor cannot be held; where it is, the raw motion turns it.
             SurfaceInput::Moved { at } => {
@@ -181,6 +183,8 @@ impl Pane {
                 }
                 self.navigation.pointer(at);
             }
+            // A surface's input that uwui gained does nothing in the viewport yet.
+            _ => {}
         }
     }
 

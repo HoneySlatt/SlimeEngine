@@ -172,6 +172,8 @@ impl OrbitCamera {
                 let lines = match delta {
                     ScrollDelta::Lines { y, .. } => *y,
                     ScrollDelta::Pixels { y, .. } => (*y / PIXELS_PER_LINE) as f32,
+                    // A kind of scrolling that `slime-input` gained zooms nothing.
+                    _ => 0.0,
                 };
                 // Kept in a range, from which the wheel can always bring the camera back; `max`
                 // and `min` rather than `clamp`, which panics on the NaN of a degenerate scene.

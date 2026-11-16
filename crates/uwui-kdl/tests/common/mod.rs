@@ -55,6 +55,7 @@ fn entry(entry: &Entry<'_, '_>) -> String {
         },
         Value::Bool(value) => format!("#{value}"),
         Value::Null => "#null".to_owned(),
+        other => panic!("a kind of value that these tests do not write yet: {other:?}"),
     };
     format!("{annotation}{value}")
 }

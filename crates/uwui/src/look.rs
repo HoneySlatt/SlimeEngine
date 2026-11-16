@@ -126,6 +126,7 @@ pub fn style_sheet() -> StyleSheet {
 
 /// The look's themes of colors.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Colors {
     /// Light text on dark surfaces, the look's own.
     #[default]
@@ -138,6 +139,7 @@ pub enum Colors {
 
 /// How much the look lays out on a screen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Density {
     /// The look's own spacing.
     #[default]

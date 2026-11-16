@@ -622,6 +622,7 @@ fn a_sections_header_holds_its_box_at_its_end_whose_presses_do_not_fold_it() {
                 assert_eq!(button.x + button.width, box_.x + box_.width - 4.0);
             }
             LayoutDirection::RightToLeft => assert_eq!(button.x, box_.x + 4.0),
+            _ => unreachable!("a case that this test does not know"),
         }
         // A press on the header box's button reaches the program, and leaves the section open.
         click(&mut ui, reset);
@@ -732,6 +733,7 @@ fn a_sections_title_keeps_beside_its_mark_and_leaves_the_room_of_its_headers_box
                     beside_box.1 > rect.x + rect.width - 30.0 && beside_box.0 > button.x + 60.0
                 );
             }
+            _ => unreachable!("a case that this test does not know"),
         }
     }
 }

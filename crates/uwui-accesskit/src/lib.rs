@@ -40,6 +40,9 @@
 //! let update = tree.update(Some(&mut ui), false, window).expect("an update");
 //! assert!(update.nodes.is_empty());
 //! ```
+// A public enumeration may gain cases without breaking a program; one closed by nature says why
+// it is not marked (ADR-0282).
+#![warn(clippy::exhaustive_enums)]
 
 pub use accesskit;
 
@@ -446,6 +449,8 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
                 element.add_action(AccessAction::SetValue);
                 element.add_action(AccessAction::SetTextSelection);
             }
+            // An action that uwui gained and that this adapter does not offer screen readers yet.
+            _ => {}
         }
     }
     let mut children: Vec<NodeId> = Vec::new();
@@ -567,6 +572,8 @@ fn role(role: Role) -> AccessRole {
         Role::Alert => AccessRole::Alert,
         Role::ListBoxOption => AccessRole::ListBoxOption,
         Role::ColorWell => AccessRole::ColorWell,
+        // A role that uwui gained reads as a plain container until it is mapped here.
+        _ => AccessRole::GenericContainer,
     }
 }
 
@@ -623,6 +630,8 @@ fn scroll_by(ui: &mut Ui, id: ElementId, action: AccessAction, page: bool) {
     let towards_start = match settings.direction {
         LayoutDirection::LeftToRight => AccessAction::ScrollLeft,
         LayoutDirection::RightToLeft => AccessAction::ScrollRight,
+        // A direction that uwui gained scrolls as text from left to right does until it is mapped.
+        _ => AccessAction::ScrollLeft,
     };
     let offset = match action {
         AccessAction::ScrollUp => [at_x, at_y - step(shown.height)],

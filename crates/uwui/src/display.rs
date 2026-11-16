@@ -90,6 +90,7 @@ pub struct DisplayItem {
 
 /// What an item draws.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub enum Primitive {
     /// A box.
     Box(BoxPrimitive),
@@ -255,6 +256,7 @@ pub struct ImageKey(pub u64);
 
 /// How an image's texels are drawn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ImageKind {
     /// Each texel is how much of it a shape covers, drawn in the item's color: an icon of one
     /// color.

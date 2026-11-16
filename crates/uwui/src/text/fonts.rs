@@ -62,6 +62,7 @@ pub(crate) struct Face {
 
 /// Why a font cannot be registered.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum FontError {
     /// The bytes hold no font that the engine reads: an OpenType or TrueType font, or a collection
     /// of them.

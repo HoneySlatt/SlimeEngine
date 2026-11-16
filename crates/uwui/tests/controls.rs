@@ -80,6 +80,7 @@ fn values(ui: &mut Ui) -> Vec<String> {
                 FieldValue::Text(text) => format!("{what} {text:?}"),
                 FieldValue::Chosen(place) => format!("{what} option {place}"),
                 FieldValue::Color(color) => format!("{what} {color:?}"),
+                _ => unreachable!("a case that this test does not know"),
             })
         })
         .collect()
@@ -692,6 +693,7 @@ fn a_check_box_s_label_and_a_section_s_title_lie_beside_their_box_from_either_si
             let gap = match direction {
                 LayoutDirection::LeftToRight => start - (boxed.x + boxed.width),
                 LayoutDirection::RightToLeft => boxed.x - end,
+                _ => unreachable!("a case that this test does not know"),
             };
             assert!((gap - 8.0).abs() < 0.5, "{direction:?}: {gap}");
         }

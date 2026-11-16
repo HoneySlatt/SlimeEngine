@@ -14,6 +14,7 @@ pub const SUBPIXEL_POSITIONS: u8 = 4;
 
 /// What a glyph's image holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Representation {
     /// How much of each pixel the glyph covers, one byte per pixel, drawn in the text's color.
     Coverage,
@@ -109,6 +110,7 @@ pub struct GlyphImage {
 
 /// The pixels of a glyph's image.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum GlyphPixels {
     /// A byte of coverage per pixel, 0 for none to 255 for whole.
     Coverage(Vec<u8>),

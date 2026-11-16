@@ -221,6 +221,7 @@ fn interface(
             (written(&reply), pixels)
         }
         Err(fault) => (Err(fault), Vec::new()),
+        _ => unreachable!("a case that this test does not know"),
     }
 }
 

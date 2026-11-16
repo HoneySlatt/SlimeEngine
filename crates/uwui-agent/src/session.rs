@@ -207,6 +207,7 @@ pub struct ProgramSession {
 
 /// What the program's end makes of a message from the tool.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum FromTool {
     /// The hello, welcomed: who connected, and the answer to send.
     Welcomed {
@@ -712,6 +713,7 @@ pub struct ToolSession {
 
 /// What the tool's end makes of a message from the program.
 #[derive(Debug, PartialEq)]
+#[non_exhaustive]
 pub enum FromProgram {
     /// The hello welcomed.
     Welcomed(Welcome),

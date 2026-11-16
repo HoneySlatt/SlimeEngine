@@ -27,10 +27,12 @@ pub struct DrawContext<'a> {
 /// on a lost device every creation seems to succeed and draws nothing; the host, which knows of
 /// the loss, reports it.
 ///
-/// The enumeration is closed, not `#[non_exhaustive]`: a host matches each case to an error of
-/// its own, as the engine's bridge does (`gfx_error` in `slime-app`'s `drawing.rs`), and a new
-/// case must break that match where it is compiled. Adding one costs a minor version before 1.0.
+/// The enumeration is `#[non_exhaustive]`, as every public one of uwui's that may gain cases
+/// (`docs/adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md`): a host matches the cases that
+/// it knows to errors of its own, as the engine's bridge does (`gfx_error` in `slime-app`'s
+/// `drawing.rs`), and maps the others to its nearest.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     /// The GPU's memory cannot hold an object being created, a buffer or a texture: nothing was
     /// created, the device goes on, and the same draw can succeed once memory is freed.

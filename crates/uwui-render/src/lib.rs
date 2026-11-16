@@ -1,4 +1,7 @@
 #![doc = include_str!("../README.md")]
+// A public enumeration may gain cases without breaking a program; one closed by nature says why
+// it is not marked (ADR-0282).
+#![warn(clippy::exhaustive_enums)]
 
 mod atlas;
 pub mod canvas;
@@ -237,6 +240,8 @@ impl UiRenderer {
                         clip,
                     });
                 }
+                // A primitive that uwui gained and that this renderer does not draw yet.
+                _ => {}
             }
         }
         let canvas_stats = self.canvas.draw(context, &canvas, &canvas_images, target)?;

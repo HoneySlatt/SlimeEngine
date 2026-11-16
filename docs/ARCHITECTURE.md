@@ -392,7 +392,7 @@ from a person's input to the present of the image after it
 `development` feature and started with a token, the subscriber also keeps the last lines that the
 log writes, which the [development channel](#the-development-channel) gives the tools. Source:
 [`crates/slime-app/src/diagnostics.rs`](../crates/slime-app/src/diagnostics.rs); conventions:
-[ADR-0008](adr/0008-errors-logging-and-assertions.md).
+[ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md).
 
 ### Running a game
 

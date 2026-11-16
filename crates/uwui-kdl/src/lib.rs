@@ -29,6 +29,9 @@
 //! [`Document::normal_form`] writes a document in the normal form of KDL's official tests, which
 //! the tests compare: comments and spaces gone, properties in alphabetical order, the last of a
 //! name kept, strings quoted only where they must be, numbers in decimal.
+// A public enumeration may gain cases without breaking a program; one closed by nature says why
+// it is not marked (ADR-0282).
+#![warn(clippy::exhaustive_enums)]
 
 use std::borrow::Cow;
 use std::fmt;
@@ -416,6 +419,7 @@ impl<'d, 't> Entry<'d, 't> {
 
 /// A value of an entry.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub enum Value<'d, 't> {
     /// A string, an identifier or quoted.
     String(Str<'d, 't>),

@@ -140,6 +140,8 @@ fn blend(image: &mut Image, x: i32, y: i32, width: u32, pixels: &GlyphPixels) {
     let (bytes, channels) = match pixels {
         GlyphPixels::Coverage(bytes) => (bytes, 1),
         GlyphPixels::Color(bytes) => (bytes, 4),
+        // A kind of glyph's pixels that uwui gained, which this example does not blend.
+        _ => return,
     };
     for (index, pixel) in bytes.chunks(channels).enumerate() {
         let (column, row) = (index as u32 % width, index as u32 / width);

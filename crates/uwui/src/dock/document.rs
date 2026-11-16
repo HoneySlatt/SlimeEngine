@@ -14,6 +14,7 @@ pub const VERSION: i64 = 1;
 
 /// How strictly [`read`] takes what a document holds that it does not know.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Reading {
     /// What it does not know, a node, a property or an argument, is left out with a warning: a
     /// layout that a program saved, which a later program of the same version may have written.
@@ -38,6 +39,7 @@ pub struct Read {
 
 /// Why a document gives no layout.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum ReadError {
     /// It writes a later version of the format than [`VERSION`]: it is not read, so that what a
     /// later program wrote is neither misread nor lost.
@@ -66,6 +68,7 @@ impl std::error::Error for ReadError {}
 
 /// Why a layout cannot be written as a document.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum WriteError {
     /// Its splits lie within each other deeper than a document is read
     /// ([`Limits::DEFAULT`]), some 31 levels.
