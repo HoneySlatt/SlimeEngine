@@ -254,7 +254,7 @@ the ADR linking to it.
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180, 0181, 0194 and 0203 |
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
 | [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
-| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225, 0226, 0227, 0233, 0236, 0241, 0243, 0244, 0248 and 0270 |
+| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225, 0226, 0227, 0233, 0236, 0241, 0243, 0244, 0248, 0270 and 0279 |
 | [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Superseded by 0214 for the engine; amends 0006 and 0181 |
 | [0183](0183-uwuis-logo.md) | uwui's logo | Accepted |
 | [0184](0184-the-engines-logo.md) | The engine's logo | Accepted |
@@ -343,7 +343,7 @@ the ADR linking to it.
 | [0267](0267-a-page-of-the-journal-apart-from-the-one-handler-a-cut-journals-start-refused-a-floor-of-4-kib.md) | A page of the journal apart from the editor's one handler; a cut journal's start refused; a page's floor of 4 KiB | Accepted; amends 0156 and 0265 |
 | [0268](0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md) | Each target its size from its host; a root fills it; stacked roots take where they act | Accepted; amends 0140, 0142, 0249, 0251, 0256 and 0258 |
 | [0269](0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md) | uwui's MCP library reaches a program through its host's carrier; faults as tools' errors; changes followed by requests that wait; M6d.9a2 cut in three | Accepted; amends 0209, 0246, 0260, 0261 and 0265; amended by 0272 and 0274 |
-| [0270](0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md) | uwui's desktop host on a windowing layer of its own, its application's side, its crashes; M6d.7 cut in six | Accepted; amends 0181, 0227 and 0249 |
+| [0270](0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md) | uwui's desktop host on a windowing layer of its own, its application's side, its crashes; M6d.7 cut in six | Accepted; amends 0181, 0227 and 0249; amended by 0279 |
 | [0271](0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md) | Frames on the platform's signal, drawn just in time, none at rest | Accepted; amends 0021, 0187 and 0227 |
 | [0272](0272-the-carriers-families-and-its-connections-state-join-it-at-their-first-reader.md) | A carrier's families served and its connection's state join it at their first reader | Accepted; amends 0269; amended by 0274 |
 | [0274](0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md) | The engine's families typed on the core's way; a family not served refused as it is sent; a tool's name taken twice an error; M6d.9a2b cut in two | Accepted; amends 0269 and 0272 |
@@ -351,3 +351,4 @@ the ADR linking to it.
 | [0276](0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md) | The engine follows uwui by one exact commit until its 1.0 | Accepted; amends 0194; amended by 0277 |
 | [0277](0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md) | The engine ported to uwui at the end of each of uwui's stages | Accepted; amends 0276 |
 | [0278](0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md) | Families versioned by major and minor, tools speaking several majors | Accepted; amends 0246 and 0275 |
+| [0279](0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md) | One windowing layer: a seam in uwui's host now, the engine moved onto it at a port | Accepted; amends 0181 and 0270 |

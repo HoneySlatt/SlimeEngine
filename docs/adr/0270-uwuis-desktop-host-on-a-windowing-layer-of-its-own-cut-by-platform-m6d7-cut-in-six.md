@@ -4,7 +4,9 @@
   of its own, not winit), [0227](0227-the-time-that-motion-reads.md) (the desktop host reads each
   event's time from its platform; no pull request to winit for uwui) and
   [0249](0249-the-hosts-api-its-items-and-their-table.md) (the desktop host reads what its table
-  names under each platform, not winit's column)
+  names under each platform, not winit's column); amended by
+  [0279](0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md) (one windowing layer: a seam in the host now, the engine
+  moved onto it at a port)
 - Date: 2026-11-15
 
 ## Context

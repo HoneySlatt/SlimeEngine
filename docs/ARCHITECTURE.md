@@ -2398,8 +2398,9 @@ The rules every change keeps; each links to where it is enforced or told whole.
 The changes known to cost most today, each an item of
 [`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10): the simulation's contract,
 written for one thread; the lists that a new asset kind, render pass, interface element or editor
-operation must be added to; `slime-app`, which always builds a window, the GPU and uwui; and
-uwui's boundary with the engine, followed by one exact commit after the move
+operation must be added to; `slime-app`, which always builds a window, the GPU and uwui;
+two windowing layers until the engine moves onto uwui's
+([ADR-0279](adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md)); and uwui's boundary with the engine, followed by one exact commit after the move
 ([ADR-0276](adr/0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md)), its other questions M6d.10's. The scenarios that check these, and where
 each stands, are in the quality bar
 ([`ROADMAP.md`](ROADMAP.md#architecture-and-stability)).
