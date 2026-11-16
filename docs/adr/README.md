@@ -371,3 +371,4 @@ the ADR linking to it.
 | [0286](0286-every-document-of-uwui-versioned-as-dock-layouts-are.md) | Every document of uwui versioned, as dock layouts are | Accepted |
 | [0287](0287-the-simulations-contract-designed-at-stage-7-its-questions-written-now.md) | The simulation's contract designed at Stage 7, its questions written now | Accepted |
 | [0288](0288-saves-migrated-from-their-layout-5-on.md) | Saves migrated from their layout 5 on | Accepted; supersedes in part 0207 |
+| [0289](0289-a-private-channel-for-vulnerabilities-now-the-rest-when-contributions-open.md) | A private channel for vulnerabilities now, the rest when contributions open | Accepted |

@@ -1077,8 +1077,8 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   `scripts/check.sh` stops without `SLIME_LAVAPIPE_ICD`; images of reference are strict for any adapter named llvmpipe (`examples/common/reference_image.rs`), so another Mesa's lavapipe may fail them (not tried); wgpu is built without Metal, so nothing draws on macOS.
   A contributor without Nix runs cargo's commands by hand, as `CONTRIBUTING.md` says.
   Not followed yet.
-- **Outside contributors have no files of their own.**
-  No code of conduct, `SECURITY.md`, templates of issues or pull requests, nor CODEOWNERS.
+- **Outside contributors have no files of their own** ([ADR-0289](adr/0289-a-private-channel-for-vulnerabilities-now-the-rest-when-contributions-open.md)).
+  `SECURITY.md` and a template of pull requests exist; a code of conduct and templates of issues come when contributions open.
   Contributions' terms are decided ([ADR-0214](adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)), without the agreement's text or anything that checks it; source files carry no SPDX line.
   No crate's name is reserved on crates.io, and the names' policy that ADR-0207 promises before 0.14 is not written.
   Decisions for the owner; the agreement waits for the lawyer.
