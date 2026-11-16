@@ -577,9 +577,10 @@ it in its cache, keyed on what makes its bytes.
 [ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) and
 [ADR-0015](docs/adr/0015-platforms-and-ci.md) explain the setup.
 
-The lints they enforce are set once for the whole workspace in [`Cargo.toml`](Cargo.toml);
-[ADR-0005](docs/adr/0005-lints-and-unsafe-policy.md) explains them and the rules for `unsafe`
-code.
+The lints they enforce are set once for the whole workspace in [`Cargo.toml`](Cargo.toml), and
+clippy's settings in [`clippy.toml`](clippy.toml); [ADR-0005](docs/adr/0005-lints-and-unsafe-policy.md)
+explains them and the rules for `unsafe` code, [ADR-0291](docs/adr/0291-a-panic-says-why-no-bare-unwrap-outside-tests.md)
+why a panic outside tests is an `expect` that says why.
 
 ## Releasing
 

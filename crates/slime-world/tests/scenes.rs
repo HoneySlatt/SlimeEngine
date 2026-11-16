@@ -1880,7 +1880,7 @@ fn run(scenes: &mut SceneLibrary) -> World {
     run.set_property(
         entity(&run, "created/1/light"),
         "test::Glow",
-        &"intensity".parse().unwrap(),
+        &"intensity".parse().expect("a path"),
         Value::F32(5.0),
     )
     .expect("in range");

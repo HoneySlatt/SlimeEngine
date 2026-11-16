@@ -1,0 +1,2 @@
+# Tests may unwrap: a test that fails on `None` or an error says so by failing (ADR-0291).
+allow-unwrap-in-tests = true

@@ -1069,10 +1069,9 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
 - **Nothing checks that the engine's core stays off the GPU and the window.**
   `scripts/check.sh` checks uwui's crates and hosts by `cargo tree`; that the engine runs headless (`AGENTS.md`) is checked by review alone.
   Not followed yet; a check like uwui's is cheap.
-- **No lint keeps `unwrap` and `expect` off what reads outside input.**
-  [ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md) lets a broken invariant panic, and no lint tells an invariant from an input; the crates' sources hold about 1,540 calls, tests included.
-  Every call added makes the lint costlier to adopt.
-  Not followed yet.
+- **An `expect` on what comes from outside is found by review alone** ([ADR-0291](adr/0291-a-panic-says-why-no-bare-unwrap-outside-tests.md)).
+  `clippy::unwrap_used` refuses a bare `unwrap()` outside tests; an `expect("…")` names its invariant, and no lint tells an invariant from an input.
+  The tests of damaged files catch what review misses ([ADR-0102](adr/0102-a-damaged-file-gives-an-error.md)).
 - **The whole check needs Nix.**
   `scripts/check.sh` stops without `SLIME_LAVAPIPE_ICD`; images of reference are strict for any adapter named llvmpipe (`examples/common/reference_image.rs`), so another Mesa's lavapipe may fail them (not tried); wgpu is built without Metal, so nothing draws on macOS.
   A contributor without Nix runs cargo's commands by hand, as `CONTRIBUTING.md` says.

@@ -1216,7 +1216,7 @@ pub fn list(context: &mut Context) -> Result<Vec<Row>, String> {
                 }
             }));
         });
-        list.unwrap()
+        list.expect("the build adds the list")
     };
     let list = build(&mut ui);
     ui.frame(TargetId::MAIN);

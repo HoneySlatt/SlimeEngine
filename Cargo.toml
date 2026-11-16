@@ -207,3 +207,6 @@ allow_attributes_without_reason = "warn"
 missing_errors_doc = "warn"
 missing_panics_doc = "warn"
 undocumented_unsafe_blocks = "warn"
+# A panic says why: `expect("…")`, the form of a broken invariant, never a bare `unwrap()`
+# outside tests (clippy.toml), nor on what comes from outside the program (ADR-0291).
+unwrap_used = "warn"
