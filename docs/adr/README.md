@@ -372,3 +372,4 @@ the ADR linking to it.
 | [0287](0287-the-simulations-contract-designed-at-stage-7-its-questions-written-now.md) | The simulation's contract designed at Stage 7, its questions written now | Accepted |
 | [0288](0288-saves-migrated-from-their-layout-5-on.md) | Saves migrated from their layout 5 on | Accepted; supersedes in part 0207 |
 | [0289](0289-a-private-channel-for-vulnerabilities-now-the-rest-when-contributions-open.md) | A private channel for vulnerabilities now, the rest when contributions open | Accepted |
+| [0290](0290-uwuis-crate-names-kept-on-crates-io-once-m6d10-names-them.md) | uwui's crates' names kept on crates.io once M6d.10 names them | Accepted |

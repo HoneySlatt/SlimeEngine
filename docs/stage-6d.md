@@ -2961,7 +2961,8 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
 - **Goal.** uwui's repository is ready to receive its code. Builds nothing.
 - **Delivers.** Put to the owner, then recorded: uwui's first stage, its milestones and their order,
   the trials before the authoring API is built proposed; how its ADRs are numbered; the moved
-  crates' names, and those of the facade and the reader of the system's preferences
+  crates' names, each then kept on crates.io by a version 0.0.0 at the owner's go
+  ([ADR-0290](adr/0290-uwuis-crate-names-kept-on-crates-io-once-m6d10-names-them.md)), and those of the facade and the reader of the system's preferences
   ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); hover, press and capture kept for each pointer, gestures and inertia, with touch, before the
   library of components ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)); the model of text in uwui's authoring API, a message or a literal, a locale and a fake language
   of test ([ADR-0284](adr/0284-uwuis-text-a-message-or-a-literal-from-its-authoring-api-fluent-later.md)); the milestone that designs one public path for uwui's widgets and a program's, before its
