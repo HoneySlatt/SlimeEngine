@@ -7,7 +7,7 @@
 use std::hint::black_box;
 use std::time::Instant;
 
-use slime_input::{ButtonState, Ime, Key, KeyCode, KeyEvent, NamedKey};
+use slime_input::{ButtonState, Ime, Key, KeyCode, KeyEvent, NamedKey, Pointer};
 use uwui::Rect;
 use uwui::host::TargetSize;
 use uwui::host::{Answer, Event, Input, RangeBox, TargetId, TextAround, TextQuery, TextUnit};
@@ -586,10 +586,12 @@ fn a_press_in_a_field_while_an_input_method_composes_keeps_what_it_composed() {
     // A press at the field's start, then a drag over its text: the composition is kept as typed,
     // and the field's input starts again, which the host is told.
     let at = |x: f32| Input::PointerMoved {
+        pointer: Pointer::MOUSE,
         x,
         y: field.y + field.height / 2.0,
     };
     let button = |state| Input::PointerButton {
+        pointer: Pointer::MOUSE,
         button: slime_input::MouseButton::Left,
         state,
     };

@@ -9,6 +9,7 @@ use std::task::{Wake, Waker};
 use std::time::Duration;
 
 use slime_color::LinearColor;
+use slime_input::Pointer;
 use uwui::display::{DisplayList, Primitive};
 use uwui::host::TargetSize;
 use uwui::host::{Event, Input, Person, TargetId};
@@ -581,7 +582,13 @@ fn an_event_earlier_than_the_interfaces_time_moves_nothing_back() {
     let at = Instant::from_nanos(9_000_000_000);
     ui.set_frame_shown(TargetId::MAIN, FrameShown::simulated(at));
     let early = EventTime::received(Instant::from_nanos(1));
-    let _ = ui.event(Event::new(TargetId::MAIN, early, Input::PointerLeft));
+    let _ = ui.event(Event::new(
+        TargetId::MAIN,
+        early,
+        Input::PointerLeft {
+            pointer: Pointer::MOUSE,
+        },
+    ));
     ui.notify(Notification {
         kind: NotificationKind::Information,
         text: "Saved".to_owned(),

@@ -47,7 +47,9 @@
 
 use std::ops::Range;
 
-use slime_input::{ButtonState, CursorShape, Ime, KeyEvent, Modifiers, MouseButton, ScrollDelta};
+use slime_input::{
+    ButtonState, CursorShape, Ime, KeyEvent, Modifiers, MouseButton, Pointer, ScrollDelta,
+};
 
 use crate::Rect;
 use crate::time::EventTime;
@@ -160,6 +162,12 @@ impl<'a> Event<'a> {
 /// A host gives the pointer's moves gathered: the moves of a frame as one, the last, given before
 /// any other event that follows them and before the frame, as the web's and Android's coalesced
 /// events are; each move given makes uwui find what lies under the pointer.
+///
+/// Each event of a pointer names its [`Pointer`], the mouse or a finger or a stylus. The interface
+/// follows one pointer of each kind at a time on a target: the mouse, and the *primary* finger or
+/// stylus, the first to come while no other is followed, until it leaves. The events of another
+/// are not taken and change nothing, so a second finger on a screen does nothing yet
+/// (`docs/adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md`).
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub enum Input<'a> {
@@ -168,13 +176,18 @@ pub enum Input<'a> {
     /// the pointer follows it, a field selecting or dragging its number, a slider, a splitter, a
     /// scroll bar's thumb, a floating panel, a drag. Never taken: a game follows the pointer too.
     PointerMoved {
+        /// Which pointer.
+        pointer: Pointer,
         /// Across, from the target's left.
         x: f32,
         /// Down, from the target's top.
         y: f32,
     },
-    /// The pointer left the target: nothing is hovered any more. Never taken.
-    PointerLeft,
+    /// The pointer left the target, or a finger lifted: nothing is hovered any more. Never taken.
+    PointerLeft {
+        /// Which pointer.
+        pointer: Pointer,
+    },
     /// A button of the mouse went down or up. The primary button pressed over a button presses
     /// it, which then holds the pointer: let go over it, it gives an
     /// [`ActionKind::Press`](crate::action::ActionKind::Press); let go elsewhere, nothing. A
@@ -187,6 +200,8 @@ pub enum Input<'a> {
     /// field, and every press while a modal root is open; and the release of a press that it
     /// took.
     PointerButton {
+        /// Which pointer: a finger or a stylus touching presses [`MouseButton::Left`].
+        pointer: Pointer,
         /// Which button.
         button: MouseButton,
         /// Down or up.

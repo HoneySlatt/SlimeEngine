@@ -6,7 +6,8 @@
 
 use std::time::Duration;
 
-use slime_input::{ButtonState, CursorShape, MouseButton};
+use slime_input::{ButtonState, CursorShape, MouseButton, Pointer, PointerId};
+use uwui::action::ActionKind;
 use uwui::host::TargetSize;
 use uwui::host::{Answer, Event, Input, InputMethod, Outputs, Person, TargetId};
 use uwui::style::{Dimension, FlexDirection, StyleBuilder};
@@ -67,6 +68,7 @@ fn given(ui: &mut Ui, target: TargetId, time: Instant, input: Input<'_>) -> Answ
 
 /// A press of the primary button.
 const PRESS: Input<'static> = Input::PointerButton {
+    pointer: Pointer::MOUSE,
     button: MouseButton::Left,
     state: ButtonState::Pressed,
 };
@@ -81,12 +83,20 @@ fn an_event_answers_at_once_whether_the_interface_took_it() {
         &mut ui,
         main,
         time,
-        Input::PointerMoved { x: 300.0, y: 280.0 },
+        Input::PointerMoved {
+            pointer: Pointer::MOUSE,
+            x: 300.0,
+            y: 280.0,
+        },
     );
     assert_eq!(moved, Answer::NotTaken);
     assert_eq!(given(&mut ui, main, time, PRESS), Answer::NotTaken);
     // Over the button: taken.
-    let moved = Input::PointerMoved { x: 10.0, y: 130.0 };
+    let moved = Input::PointerMoved {
+        pointer: Pointer::MOUSE,
+        x: 10.0,
+        y: 130.0,
+    };
     assert!(!given(&mut ui, main, time, moved).taken());
     assert!(ui.state(button).is_some_and(|state| state.hovered));
     assert!(given(&mut ui, main, time, PRESS).taken());
@@ -98,7 +108,11 @@ fn an_event_for_a_target_that_no_root_draws_on_changes_nothing_but_the_time() {
     let (mut ui, [field, ..]) = interface();
     let other = TargetId(7);
     let at = Instant::ZERO + Duration::from_secs(3);
-    let moved = Input::PointerMoved { x: 10.0, y: 10.0 };
+    let moved = Input::PointerMoved {
+        pointer: Pointer::MOUSE,
+        x: 10.0,
+        y: 10.0,
+    };
     assert_eq!(given(&mut ui, other, at, moved), Answer::NotTaken);
     assert_eq!(given(&mut ui, other, at, PRESS), Answer::NotTaken);
     assert!(ui.state(field).is_some_and(|state| !state.hovered));
@@ -117,7 +131,11 @@ fn an_event_for_a_target_that_no_root_draws_on_changes_nothing_but_the_time() {
         ui.next_frame_due(TargetId::MAIN),
         Some(at + Duration::from_secs(5))
     );
-    let moved = Input::PointerMoved { x: 10.0, y: 10.0 };
+    let moved = Input::PointerMoved {
+        pointer: Pointer::MOUSE,
+        x: 10.0,
+        y: 10.0,
+    };
     let _ = given(&mut ui, TargetId::MAIN, Instant::ZERO, moved);
     assert!(
         ui.state(field).is_some_and(|state| state.hovered),
@@ -202,4 +220,86 @@ fn typed(text: &str) -> slime_input::KeyEvent {
         state: ButtonState::Pressed,
         repeat: false,
     }
+}
+
+/// A finger's touch at `x` and `y` and its press.
+fn touch(ui: &mut Ui, finger: Pointer, x: f32, y: f32) -> Answer {
+    let _ = given(
+        ui,
+        TargetId::MAIN,
+        Instant::ZERO,
+        Input::PointerMoved {
+            pointer: finger,
+            x,
+            y,
+        },
+    );
+    given(
+        ui,
+        TargetId::MAIN,
+        Instant::ZERO,
+        Input::PointerButton {
+            pointer: finger,
+            button: MouseButton::Left,
+            state: ButtonState::Pressed,
+        },
+    )
+}
+
+#[test]
+fn a_second_finger_is_not_followed_while_the_first_touches() {
+    let (mut ui, [field, .., button]) = interface();
+    let main = TargetId::MAIN;
+    let first = Pointer::finger(PointerId(1));
+    let second = Pointer::finger(PointerId(2));
+    assert!(touch(&mut ui, first, 10.0, 130.0).taken());
+    // The second, over the field, neither hovers nor presses it.
+    assert_eq!(touch(&mut ui, second, 10.0, 10.0), Answer::NotTaken);
+    assert_eq!(ui.focus(), Some(button), "the first's press");
+    assert!(ui.state(field).is_some_and(|state| !state.hovered));
+    assert!(ui.state(button).is_some_and(|state| state.hovered));
+    let lifted = given(
+        &mut ui,
+        main,
+        Instant::ZERO,
+        Input::PointerLeft { pointer: second },
+    );
+    assert_eq!(lifted, Answer::NotTaken);
+    assert!(ui.state(button).is_some_and(|state| state.hovered));
+    // The first lifts over the button, which it pressed.
+    let released = Input::PointerButton {
+        pointer: first,
+        button: MouseButton::Left,
+        state: ButtonState::Released,
+    };
+    assert!(given(&mut ui, main, Instant::ZERO, released).taken());
+    let _ = given(
+        &mut ui,
+        main,
+        Instant::ZERO,
+        Input::PointerLeft { pointer: first },
+    );
+    let actions: Vec<_> = ui
+        .take_actions()
+        .into_iter()
+        .map(|action| (action.element, action.kind))
+        .collect();
+    assert_eq!(actions, [(Some(button), ActionKind::Press)]);
+    // Once none is followed, the next finger is.
+    assert!(touch(&mut ui, Pointer::finger(PointerId(3)), 10.0, 10.0).taken());
+    assert_eq!(ui.focus(), Some(field));
+}
+
+#[test]
+fn the_mouse_is_followed_while_a_finger_touches() {
+    let (mut ui, [field, ..]) = interface();
+    assert!(touch(&mut ui, Pointer::finger(PointerId(1)), 300.0, 280.0) == Answer::NotTaken);
+    let moved = Input::PointerMoved {
+        pointer: Pointer::MOUSE,
+        x: 10.0,
+        y: 10.0,
+    };
+    let _ = given(&mut ui, TargetId::MAIN, Instant::ZERO, moved);
+    assert!(given(&mut ui, TargetId::MAIN, Instant::ZERO, PRESS).taken());
+    assert_eq!(ui.focus(), Some(field));
 }

@@ -866,6 +866,7 @@ mod tests {
         assert!(at(&mut ui, Some(7)).is_empty(), "a target without roots");
         // A button let go on target 2 makes it the active target.
         let release = Input::PointerButton {
+            pointer: slime_input::Pointer::MOUSE,
             button: MouseButton::Left,
             state: ButtonState::Released,
         };

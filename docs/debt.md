@@ -1050,10 +1050,9 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   A label is a `String`; uwui has no catalogue of messages, no plurals and no formatting by locale ([`uwui-needs.md`](uwui-needs.md) asks for Fluent).
   Every label written before them is to be found and keyed again.
   uwui's authoring API carries messages, a locale and a fake language of test from its first stage, Fluent before its 1.0; M6d.10b places them.
-- **uwui's input knows one pointer, without an identity** ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)).
-  `Input`'s pointer events carry no pointer's number: no touch, pen, gestures or scroll inertia (see *Input not reported yet* above).
-  A new event is cheap, `Input` being `#[non_exhaustive]`; hover, press and capture kept per pointer are not, since every target's state assumes one.
-  The identity and the device enter the host's events at track B's next milestone; the state per pointer, gestures and inertia come with touch, which M6d.10b places before uwui's library of components.
+- **uwui's input follows one pointer of each kind** ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)).
+  Since M6d.7a2b1, `Input`'s pointer events name their `Pointer`, the mouse, a finger or a stylus; each target follows the mouse and one finger or stylus, and a second finger on a screen does nothing (`crates/uwui/src/tree/interact.rs`).
+  Hover, press and capture kept per pointer, gestures, scroll inertia and a stylus translated by the desktop host's layers come with touch, which M6d.10b places before uwui's library of components ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)).
 - **A save of an older layout is refused, not migrated** ([ADR-0288](adr/0288-saves-migrated-from-their-layout-5-on.md)).
   `slime_world`'s reader of saves refuses any layout but `LAYOUT_VERSION` (`crates/slime-world/src/document.rs`); scene files accept every layout up to it.
   Nothing is lost: *Hunna Wood* sets the old save aside.

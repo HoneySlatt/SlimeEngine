@@ -726,6 +726,7 @@ fn side(pixels: u32) -> i32 {
 
 #[cfg(test)]
 mod tests {
+    use slime_input::Pointer;
     use uwui::time::Instant;
 
     use super::*;
@@ -733,7 +734,11 @@ mod tests {
     fn moved(at: u64, x: f32) -> (EventTime, Kept) {
         (
             EventTime::received(Instant::from_nanos(at)),
-            Kept::Other(Input::PointerMoved { x, y: 0.0 }),
+            Kept::Other(Input::PointerMoved {
+                pointer: Pointer::MOUSE,
+                x,
+                y: 0.0,
+            }),
         )
     }
 
@@ -751,21 +756,31 @@ mod tests {
     fn the_pointers_moves_are_gathered_and_the_last_held_while_a_frame_waits() {
         let left = (
             EventTime::received(Instant::from_nanos(3)),
-            Kept::Other(Input::PointerLeft),
+            Kept::Other(Input::PointerLeft {
+                pointer: Pointer::MOUSE,
+            }),
         );
         let mut held = None;
         // Two moves then the pointer leaving: the last move before it, the first dropped.
         let given = gather(vec![moved(1, 1.0), moved(2, 2.0), left], &mut held, true);
         assert_eq!(
             told(&given),
-            ["2 PointerMoved { x: 2.0, y: 0.0 }", "3 PointerLeft"]
+            [
+                "2 PointerMoved { pointer: Pointer { id: PointerId(0), device: Mouse }, x: 2.0, y: 0.0 }",
+                "3 PointerLeft { pointer: Pointer { id: PointerId(0), device: Mouse } }"
+            ]
         );
         // While a frame waits, the last move is held, then replaced by a later one.
         assert!(gather(vec![moved(4, 4.0)], &mut held, true).is_empty());
         assert!(gather(vec![moved(5, 5.0)], &mut held, true).is_empty());
         // Once nothing waits, the held move is given.
         let given = gather(Vec::new(), &mut held, false);
-        assert_eq!(told(&given), ["5 PointerMoved { x: 5.0, y: 0.0 }"]);
+        assert_eq!(
+            told(&given),
+            [
+                "5 PointerMoved { pointer: Pointer { id: PointerId(0), device: Mouse }, x: 5.0, y: 0.0 }"
+            ]
+        );
         assert!(held.is_none());
     }
 

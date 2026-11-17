@@ -237,6 +237,90 @@ pub enum MouseButton {
     Other(u16),
 }
 
+/// Which pointer an event of the pointer comes from, and what device it is
+/// (`docs/adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md`).
+///
+/// The mouse is [`Pointer::MOUSE`], pointer 0, the only one that a platform without touch gives. A
+/// finger on a touch screen is a pointer of its own from the moment it touches until it lifts: its
+/// moves, then a press of [`MouseButton::Left`], then its release and its leaving. A platform names
+/// each contact anew, never 0, and never reuses a name while the contact lasts.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Pointer {
+    /// Its name, 0 for the mouse.
+    pub id: PointerId,
+    /// The device that moves it.
+    pub device: PointerDevice,
+}
+
+impl Pointer {
+    /// The mouse, or the touchpad that moves the same arrow.
+    pub const MOUSE: Self = Self {
+        id: PointerId::MOUSE,
+        device: PointerDevice::Mouse,
+    };
+
+    /// The finger named `id`, which is not [`PointerId::MOUSE`].
+    pub const fn finger(id: PointerId) -> Self {
+        Self {
+            id,
+            device: PointerDevice::Finger,
+        }
+    }
+
+    /// A stylus named `id`, which is not [`PointerId::MOUSE`], as it is now.
+    pub const fn stylus(id: PointerId, stylus: Stylus) -> Self {
+        Self {
+            id,
+            device: PointerDevice::Stylus(stylus),
+        }
+    }
+}
+
+/// A pointer's name, unique among the pointers that are down or near the window at once.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PointerId(pub u32);
+
+impl PointerId {
+    /// The mouse's.
+    pub const MOUSE: Self = Self(0);
+}
+
+/// The device that moves a pointer.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum PointerDevice {
+    /// A mouse, or a touchpad that moves the arrow.
+    Mouse,
+    /// A finger on a touch screen.
+    Finger,
+    /// A stylus on a tablet or a screen, with its pressure and tilt at the event.
+    Stylus(Stylus),
+}
+
+/// A stylus's state at an event of its pointer.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct Stylus {
+    /// How hard it presses, from 0, lifted, to 1, the device's most.
+    pub pressure: f32,
+    /// Its tilt from the perpendicular, in degrees, across then down, each from -90 to 90.
+    pub tilt: [f32; 2],
+    /// Whether its eraser's end touches rather than its tip.
+    pub eraser: bool,
+}
+
+impl Stylus {
+    /// A stylus pressing with `pressure`, tilted by `tilt`, its eraser's end touching if `eraser`.
+    pub const fn new(pressure: f32, tilt: [f32; 2], eraser: bool) -> Self {
+        Self {
+            pressure,
+            tilt,
+            eraser,
+        }
+    }
+}
+
 /// How far a mouse wheel or a touchpad scrolled. Positive `y` scrolls up (content moves down),
 /// positive `x` scrolls left.
 ///

@@ -8,7 +8,9 @@
 
 use std::time::Duration;
 
-use slime_input::{ButtonState, CursorShape, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
+use slime_input::{
+    ButtonState, CursorShape, Key, KeyCode, KeyEvent, MouseButton, NamedKey, Pointer,
+};
 use uwui::action::{Action, ActionKind};
 use uwui::display::DisplayList;
 use uwui::host::{Answer, Event, Input, InputMethod, TargetId, TargetSize, TextQuery, TextUnit};
@@ -107,6 +109,7 @@ fn give(ui: &mut Ui, target: TargetId, input: Input<'_>) -> Answer {
 /// The primary button, `state`.
 fn primary(state: ButtonState) -> Input<'static> {
     Input::PointerButton {
+        pointer: Pointer::MOUSE,
         button: MouseButton::Left,
         state,
     }
@@ -115,7 +118,15 @@ fn primary(state: ButtonState) -> Input<'static> {
 /// A press then a release of the primary button at `x` and `y` of `target`: whether the
 /// interface took both.
 fn click(ui: &mut Ui, target: TargetId, x: f32, y: f32) -> bool {
-    let _ = give(ui, target, Input::PointerMoved { x, y });
+    let _ = give(
+        ui,
+        target,
+        Input::PointerMoved {
+            pointer: Pointer::MOUSE,
+            x,
+            y,
+        },
+    );
     let pressed = give(ui, target, primary(ButtonState::Pressed)).taken();
     let released = give(ui, target, primary(ButtonState::Released)).taken();
     pressed && released
@@ -313,7 +324,15 @@ fn the_outputs_are_each_targets_own() {
     let _ = ui.outputs(A);
     let _ = ui.outputs(B);
     // Over `b`'s field: `b` shows the I-beam, `a` its arrow.
-    let _ = give(&mut ui, B, Input::PointerMoved { x: 50.0, y: 60.0 });
+    let _ = give(
+        &mut ui,
+        B,
+        Input::PointerMoved {
+            pointer: Pointer::MOUSE,
+            x: 50.0,
+            y: 60.0,
+        },
+    );
     assert_eq!(ui.outputs(B).cursor, Some(CursorShape::Text));
     assert_eq!(ui.outputs(A).cursor, None);
     // `b`'s field takes the focus: `b`'s input method turns on, `a`'s stays off.
@@ -328,7 +347,15 @@ fn the_outputs_are_each_targets_own() {
     assert_eq!(ui.outputs(B).input_method, None);
     // A target that the interface does not know has none, and takes nothing.
     assert_eq!(
-        give(&mut ui, TargetId(9), Input::PointerMoved { x: 1.0, y: 1.0 }),
+        give(
+            &mut ui,
+            TargetId(9),
+            Input::PointerMoved {
+                pointer: Pointer::MOUSE,
+                x: 1.0,
+                y: 1.0
+            }
+        ),
         Answer::NotTaken
     );
     assert_eq!(ui.outputs(TargetId(9)).cursor, None);
@@ -401,7 +428,15 @@ fn a_root_moved_to_another_target_lets_go_of_what_the_old_one_held() {
         fields,
     } = two_targets();
     // `b`'s button pressed and held.
-    let _ = give(&mut ui, B, Input::PointerMoved { x: 50.0, y: 20.0 });
+    let _ = give(
+        &mut ui,
+        B,
+        Input::PointerMoved {
+            pointer: Pointer::MOUSE,
+            x: 50.0,
+            y: 20.0,
+        },
+    );
     assert!(give(&mut ui, B, primary(ButtonState::Pressed)).taken());
     assert!(ui.state(buttons[1]).expect("b").pressed);
     // `b`'s root goes to the main target.
@@ -629,7 +664,15 @@ fn a_slider_held_commits_as_its_root_moves() {
     });
     frame_each(&mut ui);
     let slider = slider.expect("built");
-    let _ = give(&mut ui, B, Input::PointerMoved { x: 108.0, y: 10.0 });
+    let _ = give(
+        &mut ui,
+        B,
+        Input::PointerMoved {
+            pointer: Pointer::MOUSE,
+            x: 108.0,
+            y: 10.0,
+        },
+    );
     assert!(give(&mut ui, B, primary(ButtonState::Pressed)).taken());
     let _ = ui.take_actions();
     ui.set_root(root, settings(A));
@@ -687,7 +730,15 @@ fn a_known_target_without_roots_takes_a_release_whose_press_it_took_and_its_shor
         "scope global {\n    F2 rename\n}\n",
     )])
     .expect("a table");
-    let _ = give(&mut ui, B, Input::PointerMoved { x: 50.0, y: 20.0 });
+    let _ = give(
+        &mut ui,
+        B,
+        Input::PointerMoved {
+            pointer: Pointer::MOUSE,
+            x: 50.0,
+            y: 20.0,
+        },
+    );
     assert!(give(&mut ui, B, primary(ButtonState::Pressed)).taken());
     ui.remove(roots[1]);
     assert!(ui.state(buttons[1]).is_none());
@@ -803,7 +854,11 @@ fn hover_b(ui: &mut Ui, at: u64) {
     let _ = ui.event(Event::new(
         B,
         EventTime::simulated(ms(at)),
-        Input::PointerMoved { x: 50.0, y: 20.0 },
+        Input::PointerMoved {
+            pointer: Pointer::MOUSE,
+            x: 50.0,
+            y: 20.0,
+        },
     ));
 }
 
@@ -908,7 +963,15 @@ fn a_panel_raised_on_a_target_asks_for_its_frame() {
     panel(&mut ui, [250.0, 150.0]);
     frame_each(&mut ui);
     // A press on the first panel's box, which holds no state, raises it over the second.
-    let _ = give(&mut ui, B, Input::PointerMoved { x: 210.0, y: 110.0 });
+    let _ = give(
+        &mut ui,
+        B,
+        Input::PointerMoved {
+            pointer: Pointer::MOUSE,
+            x: 210.0,
+            y: 110.0,
+        },
+    );
     frame_each(&mut ui);
     let _ = give(&mut ui, B, primary(ButtonState::Pressed));
     assert!(ui.needs_frame(B));
@@ -1148,7 +1211,15 @@ fn the_windows_focus_makes_its_target_active_and_its_loss_keeps_the_focus_and_th
     assert_eq!(ui.active_target(), A);
     assert_eq!(ui.focus(), Some(fields[0]));
     // The pointer over `a`'s button, the focus lost and given back, then a press with no move.
-    let _ = give(&mut ui, A, Input::PointerMoved { x: 50.0, y: 20.0 });
+    let _ = give(
+        &mut ui,
+        A,
+        Input::PointerMoved {
+            pointer: Pointer::MOUSE,
+            x: 50.0,
+            y: 20.0,
+        },
+    );
     let _ = ui.take_actions();
     let _ = give(&mut ui, A, Input::Focus(false));
     let _ = give(&mut ui, A, Input::Focus(true));

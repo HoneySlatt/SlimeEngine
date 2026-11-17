@@ -13,6 +13,8 @@ the window's platform layer (`slime-platform`), which translates winit's events 
   a `NamedKey` or holds a character, the text it produces, and whether it repeats.
 - `Modifiers`, `MouseButton`, `ButtonState` and `ScrollDelta`: the modifier keys held, a mouse
   button, whether a key or a button went down or up, and how far the wheel scrolled.
+- `Pointer`: which pointer an event of the pointer comes from, the mouse, a finger or a stylus,
+  by its `PointerId`, the mouse's 0, and its `PointerDevice`, a stylus with its pressure and tilt.
 - `Ime`: what an input method does while the user composes text through it, the text being
   composed, then the text committed. `CursorShape`: the pointer's shapes, which the interface asks
   for and the window shows.

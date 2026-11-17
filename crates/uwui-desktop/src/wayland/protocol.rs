@@ -6,7 +6,9 @@
 use std::collections::HashMap;
 use std::os::fd::OwnedFd;
 
-use slime_input::{ButtonState, CursorShape, KeyEvent, Modifiers, MouseButton, ScrollDelta};
+use slime_input::{
+    ButtonState, CursorShape, KeyEvent, Modifiers, MouseButton, Pointer, ScrollDelta,
+};
 use uwui::host::Input;
 use uwui::time::{EventTime, Instant};
 use wayland_client::backend::ObjectId;
@@ -217,6 +219,7 @@ impl Told {
     /// A position of the surface, in logical pixels, in the window's physical pixels.
     fn physical(&self, x: f64, y: f64) -> Input<'static> {
         Input::PointerMoved {
+            pointer: Pointer::MOUSE,
             x: (x * self.scale) as f32,
             y: (y * self.scale) as f32,
         }
@@ -252,6 +255,7 @@ impl Told {
                 self.push(
                     time,
                     Input::PointerButton {
+                        pointer: Pointer::MOUSE,
                         button: mouse_button(button),
                         state,
                     },
@@ -687,7 +691,12 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Told {
             }
             wl_pointer::Event::Leave { .. } => {
                 told.cursor.entered = None;
-                told.push(EventTime::received(clock::now()), Input::PointerLeft);
+                told.push(
+                    EventTime::received(clock::now()),
+                    Input::PointerLeft {
+                        pointer: Pointer::MOUSE,
+                    },
+                );
             }
             event => told.pointer(event, clock::now()),
         }
@@ -987,7 +996,7 @@ mod tests {
         assert_eq!(
             inputs(&mut told),
             [
-                "6000 Anchored PointerMoved { x: 15.0, y: 30.0 }",
+                "6000 Anchored PointerMoved { pointer: Pointer { id: PointerId(0), device: Mouse }, x: 15.0, y: 30.0 }",
                 "6001 Anchored Wheel(Pixels { x: -0.0, y: -6.0 })",
             ]
         );
@@ -1026,9 +1035,9 @@ mod tests {
         assert_eq!(
             inputs(&mut told),
             [
-                "6002 Anchored PointerMoved { x: 10.5, y: 20.0 }",
-                "6009 Anchored PointerMoved { x: 11.0, y: 21.0 }",
-                "6011 Anchored PointerButton { button: Left, state: Pressed }",
+                "6002 Anchored PointerMoved { pointer: Pointer { id: PointerId(0), device: Mouse }, x: 10.5, y: 20.0 }",
+                "6009 Anchored PointerMoved { pointer: Pointer { id: PointerId(0), device: Mouse }, x: 11.0, y: 21.0 }",
+                "6011 Anchored PointerButton { pointer: Pointer { id: PointerId(0), device: Mouse }, button: Left, state: Pressed }",
             ]
         );
     }

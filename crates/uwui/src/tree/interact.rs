@@ -4,7 +4,10 @@
 
 use std::sync::LazyLock;
 
-use slime_input::{ButtonState, Key, KeyEvent, Modifiers, MouseButton, NamedKey, ScrollDelta};
+use slime_input::{
+    ButtonState, Key, KeyEvent, Modifiers, MouseButton, NamedKey, Pointer, PointerDevice,
+    PointerId, ScrollDelta,
+};
 
 use super::field::DRAG_THRESHOLD;
 use super::{ElementId, ElementState, Kind, LayoutDirection, Node, Place, Ui};
@@ -151,6 +154,33 @@ pub(super) struct TargetInput {
     surface_at: [f32; 2],
     /// What the host was last told of the target's outputs ([`Ui::outputs`]).
     pub(super) told: super::host::Told,
+    /// The finger or stylus that the interface follows beside the mouse, until it leaves.
+    contact: Option<PointerId>,
+}
+
+impl TargetInput {
+    /// Whether the interface follows `pointer`'s event, which `leaves` the target or not: the
+    /// mouse always; a finger or a stylus if it is the one followed, or if none is, when it becomes
+    /// the one followed; leaving, it is followed no more.
+    pub(super) fn follows(&mut self, pointer: Pointer, leaves: bool) -> bool {
+        if matches!(pointer.device, PointerDevice::Mouse) {
+            return true;
+        }
+        match self.contact {
+            Some(followed) if followed == pointer.id => {
+                if leaves {
+                    self.contact = None;
+                }
+                true
+            }
+            Some(_) => false,
+            None if leaves => false,
+            None => {
+                self.contact = Some(pointer.id);
+                true
+            }
+        }
+    }
 }
 
 impl Ui {

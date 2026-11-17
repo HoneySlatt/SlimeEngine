@@ -6,7 +6,7 @@
 
 use slime_input::CursorShape;
 #[cfg(feature = "test-input")]
-use slime_input::{ButtonState, Ime, KeyEvent, Modifiers, MouseButton, ScrollDelta};
+use slime_input::{ButtonState, Ime, KeyEvent, Modifiers, MouseButton, Pointer, ScrollDelta};
 
 use super::{ElementId, Ui};
 use crate::Rect;
@@ -60,19 +60,33 @@ impl Ui {
         if !self.interaction.knows(t) {
             return Answer::NotTaken;
         }
+        let pointer = match event.input {
+            Input::PointerMoved { pointer, .. } | Input::PointerButton { pointer, .. } => {
+                Some((pointer, false))
+            }
+            Input::PointerLeft { pointer } => Some((pointer, true)),
+            _ => None,
+        };
+        if let Some((pointer, leaves)) = pointer
+            && !self.interaction.of_mut(t).follows(pointer, leaves)
+        {
+            return Answer::NotTaken;
+        }
         if matches!(event.input, Input::Key(_) | Input::PointerButton { .. }) {
             self.interaction.active = t;
         }
         let taken = match event.input {
-            Input::PointerMoved { x, y } => {
+            Input::PointerMoved { x, y, .. } => {
                 self.pointer_moved_input(t, x, y);
                 false
             }
-            Input::PointerLeft => {
+            Input::PointerLeft { .. } => {
                 self.pointer_left_input(t);
                 false
             }
-            Input::PointerButton { button, state } => self.pointer_button_input(t, button, state),
+            Input::PointerButton { button, state, .. } => {
+                self.pointer_button_input(t, button, state)
+            }
             Input::Wheel(delta) => self.wheel_input(t, delta),
             Input::Modifiers(modifiers) => {
                 self.interaction.of_mut(t).modifiers = modifiers;
@@ -158,15 +172,26 @@ impl Ui {
 #[cfg(feature = "test-input")]
 impl Person for Ui {
     fn pointer_moved(&mut self, x: f32, y: f32) {
-        let _ = self.person(Input::PointerMoved { x, y });
+        let _ = self.person(Input::PointerMoved {
+            pointer: Pointer::MOUSE,
+            x,
+            y,
+        });
     }
 
     fn pointer_left(&mut self) {
-        let _ = self.person(Input::PointerLeft);
+        let _ = self.person(Input::PointerLeft {
+            pointer: Pointer::MOUSE,
+        });
     }
 
     fn pointer_button(&mut self, button: MouseButton, state: ButtonState) -> bool {
-        self.person(Input::PointerButton { button, state }).taken()
+        self.person(Input::PointerButton {
+            pointer: Pointer::MOUSE,
+            button,
+            state,
+        })
+        .taken()
     }
 
     fn wheel(&mut self, delta: ScrollDelta) -> bool {

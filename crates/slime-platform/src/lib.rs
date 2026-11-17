@@ -21,7 +21,7 @@ pub use event_loop::{EventHandler, LoopControl, Waker, run_event_loop};
 pub use held::{Buttons, Input};
 pub use slime_input::{
     ButtonState, CursorShape, Ime, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey,
-    ScrollDelta,
+    Pointer, ScrollDelta,
 };
 pub use window::{ColorScheme, PhysicalSize, Window, WindowConfig};
 

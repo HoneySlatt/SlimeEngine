@@ -3,7 +3,7 @@
 //! pointer's shape and the input method, and the system's clipboard to write and read
 //! (`docs/adr/0145-text-edited.md`, `docs/adr/0249-the-hosts-api-its-items-and-their-table.md`).
 
-use slime_platform::{Clipboard, CursorShape, Event, Window};
+use slime_platform::{Clipboard, CursorShape, Event, Pointer, Window};
 use uwui::host::{self, Input, InputMethod, ReadId, TargetId};
 use uwui::time::EventTime;
 use uwui::tree::Ui;
@@ -36,8 +36,11 @@ impl WindowInput {
                 self.moved = Some((*x as f32, *y as f32, time));
                 return false;
             }
-            Event::CursorLeft => Input::PointerLeft,
+            Event::CursorLeft => Input::PointerLeft {
+                pointer: Pointer::MOUSE,
+            },
             Event::MouseButton { button, state } => Input::PointerButton {
+                pointer: Pointer::MOUSE,
                 button: *button,
                 state: *state,
             },
@@ -57,7 +60,11 @@ impl WindowInput {
     /// frame starts, so that the frame shows what it hovers.
     pub(crate) fn give_moved(&mut self, ui: &mut Ui) {
         if let Some((x, y, time)) = self.moved.take() {
-            let moved = Input::PointerMoved { x, y };
+            let moved = Input::PointerMoved {
+                pointer: Pointer::MOUSE,
+                x,
+                y,
+            };
             let _ = ui.event(host::Event::new(TargetId::MAIN, time, moved));
         }
     }
@@ -307,7 +314,11 @@ mod tests {
         assert!(hovered(&ui, button));
         input.give_moved(&mut ui);
         assert!(hovered(&ui, field) && !hovered(&ui, button));
-        let away = host::Input::PointerMoved { x: 300.0, y: 280.0 };
+        let away = host::Input::PointerMoved {
+            pointer: Pointer::MOUSE,
+            x: 300.0,
+            y: 280.0,
+        };
         let _ = ui.event(host::Event::new(TargetId::MAIN, at(7), away));
         input.give_moved(&mut ui);
         assert!(!hovered(&ui, field), "given once");
