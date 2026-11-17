@@ -1089,3 +1089,32 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   About 645,000 words of Markdown; `ARCHITECTURE.md` near 28,000.
   From [ADR-0281](adr/0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md) on, a changed decision supersedes the old one whole, and the changelog is written in fragments; the ADRs amended before stay chains until D1 consolidates them, before the move.
   `docs/PLAN.md` still changes at nearly every commit, so two changes made at once conflict there.
+
+A review of uwui's architecture of 2026-11-17, read-only too, added these:
+
+- **A field removed loses what the person typed.**
+  A field that a builder removes, or makes another kind under its key, while it holds what the person typed, is freed without a commit (`crates/uwui/src/tree.rs`, `Children::finish` and `Children::place`); a kept field that the program gives another text drops its composition and its undo (`crates/uwui/src/tree/field.rs`, `Field::give`).
+  A list's rows are keyed by their number: a row that reorders moves the typing onto another item, and the editor's hierarchy keeps a rename on its row (`crates/slime-editor/src/hierarchy.rs`).
+  The commit and the editor's rename by entity are [M6d.9a3a](stage-6d.md#m6d9a3a--attaching-and-the-persons-consent)'s, whose agents change a program under a person's hands; items keyed by what they show are [E1](stage-6d.md#e1--the-elements-contract)'s.
+- **uwui has no secret text.**
+  Every field gives its text to readers of meaning and to agents (`crates/uwui/src/tree/meaning.rs`); no field is drawn masked.
+  Followed at [M6d.9a3a](stage-6d.md#m6d9a3a--attaching-and-the-persons-consent) ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)).
+- **An agent's command is any name.**
+  `interface/act` passes a command's name on unchecked (`crates/uwui/src/agents.rs`), and no right guards it.
+  Followed at [M6d.9a3b](stage-6d.md#m6d9a3b--rights-and-previews-before-applying), then refused unless declared at M6d.9b ([ADR-0293](adr/0293-actions-declared-once-in-uwuis-core-undo-and-the-journal-the-programs.md)).
+- **No family's messages are described, and nothing holds a family to its version.**
+  A message changed under the same version reads differently at each end, without an error.
+  Followed at [M6d.9a2c](stage-6d.md#m6d9a2c--waiting) ([ADR-0295](adr/0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md)).
+- **uwui's desktop host presents an image drawn in part, then rests.**
+  A draw that fails is warned of and its image presented (`crates/uwui-desktop/src/wayland/mod.rs`); the frame's changes are spent, so the window stays as drawn until something else changes: black, after the GPU's memory ran out.
+  Followed at M6d.7a2b, track B's: the image not presented, the frame asked again after a delay.
+- **A termination asked twice does not end uwui's desktop host.**
+  A signal only asks the application to close (`crates/uwui-desktop/src/wake.rs`): an application that keeps its window, or hangs in `step`, ends only when killed; the engine ends at a second signal (`crates/slime-app/src/signal.rs`).
+  Followed at M6d.7a2b.
+- **What a panic of an application leaves is not said.**
+  A panic in `App::step` ends the run without `App::stop`, which `App`'s rustdoc does not say (`crates/uwui-desktop/src/app.rs`); calling `stop` on the state that panicked could write it over good data.
+  Since Rust 1.81, a panic that leaves an `extern "C"` function aborts the process: Win32's and AppKit's callbacks are such functions.
+  Followed at M6d.7a2b, which says what follows a panic beside its crash report; the policy at the platforms' callbacks, caught there or the process aborted, decided before M6d.7c.
+- **The images that a program gives are not made again after a lost device.**
+  uwui holds their keys alone, the program their textures (`crates/uwui-render/src/lib.rs`); uwui's desktop host gives none yet, and its `App` hears nothing of a loss.
+  Followed at M6d.7a2b, which makes a lost device again: who makes the images again, uwui or the program, is said there.

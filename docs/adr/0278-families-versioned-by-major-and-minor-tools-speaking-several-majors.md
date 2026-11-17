@@ -4,7 +4,9 @@
   [0246](0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md) (the versions
   of the core and of each family) and
   [0275](0275-a-familys-refusal-gives-the-version-that-the-program-serves.md) (the version that a
-  refusal gives)
+  refusal gives); superseded in part by
+  [0295](0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md) (when each
+  family's description and its test are built)
 - Date: 2026-11-16
 
 ## Context

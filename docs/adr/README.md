@@ -360,7 +360,7 @@ the ADR linking to it.
 | [0275](0275-a-familys-refusal-gives-the-version-that-the-program-serves.md) | A family's refusal gives the version that the program serves | Accepted; amends 0246; amended by 0278 |
 | [0276](0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md) | The engine follows uwui by one exact commit until its 1.0 | Accepted; amends 0194; amended by 0277 |
 | [0277](0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md) | The engine ported to uwui at the end of each of uwui's stages | Accepted; amends 0276 |
-| [0278](0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md) | Families versioned by major and minor, tools speaking several majors | Accepted; amends 0246 and 0275 |
+| [0278](0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md) | Families versioned by major and minor, tools speaking several majors | Accepted; superseded in part by 0295; amends 0246 and 0275 |
 | [0279](0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md) | One windowing layer: a seam in uwui's host now, the engine moved onto it at a port | Accepted; amends 0181 and 0270 |
 | [0280](0280-a-changed-decision-written-whole-the-changelog-in-fragments.md) | A changed decision written whole, the changelog in fragments | Superseded by 0281 |
 | [0281](0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md) | Decisions written whole, consolidated before the move; the changelog in fragments | Accepted; supersedes 0280 |
@@ -377,3 +377,4 @@ the ADR linking to it.
 | [0292](0292-a-quick-check-without-nix-when-contributions-open.md) | A quick check without Nix, when contributions open | Accepted |
 | [0293](0293-actions-declared-once-in-uwuis-core-undo-and-the-journal-the-programs.md) | Actions declared once in uwui's core; undo and the journal the program's | Accepted; supersedes in part 0218 |
 | [0294](0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md) | The element's contract designed by E1, before M6d.10, on a prototype thrown away | Accepted; supersedes in part 0283 |
+| [0295](0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md) | Each family's messages described and held to its version, from M6d.9a2c | Accepted; supersedes in part 0278 |

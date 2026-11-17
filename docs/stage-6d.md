@@ -2885,30 +2885,44 @@ The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/02
 - **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `slime-editor`, `uwui-mcp`,
   `slime-mcp`; its parts in `uwui` and `slime-app` timed against M6d.7.
 - **Delivers.** `interface/wait` and the journal's `wait` and `end`; `interface` 4 and `editing`
-  3; the tools that wait, each under 60 s, giving `after`.
+  3; the tools that wait, each under 60 s, giving `after`. First, each family's messages described
+  in a file kept with its code, and the test that holds it to its version
+  ([ADR-0295](adr/0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md)).
 - **Debt settled.** An agent that follows the editor's steps by reading its journal again
   ([`debt.md`](debt.md)).
 - **Done when.** A tool waits for a dialog to close and for the next step, each seen once; a
-  frame with no wait in flight costs as before; CI is green.
+  frame with no wait in flight costs as before; the test of each family fails on a copy whose
+  message gains a field without its version raised; CI is green.
 - **Measured.** From a change to the waiting tool's answer; a still frame's counters.
 
 ### M6d.9a3a — Attaching, and the person's consent
 
 - **Goal.** An agent attaches to a program already running, as the person consents.
-- **Crates.** `uwui-agent`, uwui's MCP library, `slime-channel`, `slime-app`, `slime-mcp`.
+- **Crates.** `uwui-agent`, uwui's MCP library, `uwui`, `slime-channel`, `slime-app`,
+  `slime-editor`, `slime-mcp`.
 - **Delivers.** A program that listens as the person allows, found by the tools; the person's
-  consent agent by agent; the agent named in what it changes.
+  consent agent by agent; the agent named in what it changes. Secrets never shown to an agent
+  ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)): a
+  field of text marked secret, drawn masked, its text given to no reader of meaning, no agent's
+  summary and no clipboard. What a person types kept as the program changes the interface under it:
+  a field removed, or made another kind under its key, while it holds what the person typed, gives
+  the program that text as committed; the editor's hierarchy keeps a rename on its entity, not on
+  its row's number.
 - **Done when.** A named agent attaches to the example already running in a headless Weston and
-  drives it, and one without consent is refused; CI is green.
+  drives it, and one without consent is refused; an agent reads no secret field's text, nor sees it
+  in a capture; an entity added above a row being renamed loses nothing typed; CI is green.
 
 ### M6d.9a3b — Rights, and previews before applying
 
 - **Goal.** Each agent's rights, and a change seen before it is applied.
 - **Crates.** `uwui-agent`, uwui's MCP library, `slime-channel`, `slime-editor`, `slime-mcp`.
 - **Delivers.** Rights for each agent, by family, checked by the program; a preview before
-  applying, the editor's steps first.
+  applying, the editor's steps first. An agent's command by name, which no declaration checks until
+  M6d.9b ([ADR-0293](adr/0293-actions-declared-once-in-uwuis-core-undo-and-the-journal-the-programs.md)),
+  asks the widest right.
 - **Done when.** A request outside an agent's rights is refused, and one asked with a preview
-  changes nothing until applied; CI is green, closing M6d.9a.
+  changes nothing until applied; an agent without the widest right sends no command by name; CI is
+  green, closing M6d.9a.
 
 ### M6d.9b — Actions declared once
 
