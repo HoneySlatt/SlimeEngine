@@ -28,11 +28,12 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     [M6d.9a2b2](stage-6d.md#m6d9a2b2--the-servers-game-off-its-lock), then
     [V1](stage-6d.md#v1--uwuis-documents-versioned) and [S1](stage-6d.md#s1--saves-migrated-from-layout-5);
     after M6d.9b, [E1](stage-6d.md#e1--the-elements-contract), the element's contract designed
-    before M6d.10 ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
+    before M6d.10a ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six: done,
     [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window); next,
     [M6d.7a2](stage-6d.md#m6d7a2--wayland-whole-and-the-host-measured).
-  - M6d.10, D1, M6d.11 and M6d.12 run alone, in this order.
+  - M6d.10a, D1, M6d.11, M6d.10b and M6d.12 run alone, in this order
+    ([ADR-0300](adr/0300-m6d10-cut-in-two-what-the-move-needs-before-it-uwuis-first-stage-planned-after.md)).
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: deleting the branches `m6d1b-bench`, `m6d4a-prototype` and
   `m6d5a-prototype`, the last two linked by measurements; the
@@ -59,9 +60,10 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [V1 — uwui's documents versioned](stage-6d.md#v1--uwuis-documents-versioned) | Planned |
 | [S1 — Saves migrated from layout 5](stage-6d.md#s1--saves-migrated-from-layout-5) | Planned |
 | [E1 — The element's contract](stage-6d.md#e1--the-elements-contract) | Planned |
-| [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
+| [M6d.10a — What the move needs](stage-6d.md#m6d10a--what-the-move-needs) | Planned |
 | [D1 — The decisions consolidated](stage-6d.md#d1--the-decisions-consolidated) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
+| [M6d.10b — uwui's first stage planned](stage-6d.md#m6d10b--uwuis-first-stage-planned) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
 
 ## Ideas waiting for their milestone
@@ -84,7 +86,7 @@ From two outside reviews, kept by the owner on 2026-11-10; each joins its milest
 From the review of the architecture of 2026-11-16, its items in
 [`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10):
 
-- M6d.10: the milestone that versions agents' families by major and minor
+- M6d.10b: the milestone that versions agents' families by major and minor
   ([ADR-0278](adr/0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md)).
 - Track B, M6d.7a2's rest: the seam inside uwui's host and the blank window on its layer alone
   ([ADR-0279](adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md));

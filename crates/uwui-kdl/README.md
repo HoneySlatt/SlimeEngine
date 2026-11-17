@@ -5,7 +5,7 @@ and rules, shortcuts, docks' layouts and settings
 ([ADR-0241](../../docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md),
 [ADR-0225](../../docs/adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)).
 
-Its name is provisional: the names of uwui's crates are settled at M6d.10
+Its name is provisional: the names of uwui's crates are settled at M6d.10a
 ([ADR-0226](../../docs/adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
 
 ## Role

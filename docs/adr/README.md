@@ -382,3 +382,4 @@ the ADR linking to it.
 | [0297](0297-one-crate-of-safe-files-and-the-editors-journal-versioned-built-by-s1.md) | One crate of safe files, and the editor's journal versioned, built by S1 | Accepted |
 | [0298](0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md) | A panic ends a run without `stop`: the same rule in both hosts | Accepted |
 | [0299](0299-what-an-agent-reads-before-a-crate-the-crates-status-in-its-readme-alone.md) | What an agent reads before a crate; a crate's status in its README alone | Accepted |
+| [0300](0300-m6d10-cut-in-two-what-the-move-needs-before-it-uwuis-first-stage-planned-after.md) | M6d.10 cut in two: what the move needs before it, uwui's first stage planned after | Accepted |

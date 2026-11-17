@@ -5,7 +5,7 @@ platform's signal and none at rest
 ([ADR-0270](../../docs/adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md),
 [ADR-0271](../../docs/adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)).
 It speaks each platform itself, not through winit: Wayland alone yet, through `wayland-client`.
-Its name is provisional, until M6d.10 names uwui's crates; it leaves with uwui at M6d.11, under
+Its name is provisional, until M6d.10a names uwui's crates; it leaves with uwui at M6d.11, under
 MIT OR Apache-2.0.
 
 ## Role

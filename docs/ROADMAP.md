@@ -213,7 +213,7 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier. uwu
 | Scripting language | Lua, C#, dedicated VM, WebAssembly, other; one sandboxed runtime for scripts and mods; *one language, two targets*, a game's Rust compiled to WebAssembly while developed and natively to ship (ADR-0208) | Stage 8 |
 | Shader language beyond WGSL | Slang, generated WGSL, with the native backends of Stage 9c in view | Stage 9b |
 | Network transport | To evaluate | Stage 10b |
-| Games' interfaces | uwui's core with a layer of the engine's, confirmed by a measure; a framework of their own if it fails (ADR-0209) | M6d.10 |
+| Games' interfaces | uwui's core with a layer of the engine's, confirmed by a measure; a framework of their own if it fails (ADR-0209) | M6d.10b |
 | The merge tool of levels | the stage that builds it (ADR-0208) | Stage 6c's resumption |
 | The light of each tier | one architecture of dynamic light; on each tier, the way of tracing whose image is closest to the reference path tracer at equal GPU time: rays traced by the hardware, tracing in software, probes updated over frames, probes cooked; ray tracing never required (ADR-0216) | Stage 9a, by measure on each tier |
 | When rays start | wgpu's experimental ray queries, measured on RADV, the Steam Deck and Direct3D 12, against a native Vulkan path (ADR-0216) | Stage 9a |

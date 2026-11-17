@@ -5,7 +5,7 @@ program on uwui, and the engine's development channel speaks
 ([ADR-0218](../../docs/adr/0218-one-core-for-agents-in-uwui.md),
 [ADR-0246](../../docs/adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)).
 
-Its name is provisional: the names of uwui's crates are settled at M6d.10
+Its name is provisional: the names of uwui's crates are settled at M6d.10a
 ([ADR-0226](../../docs/adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
 
 ## Status

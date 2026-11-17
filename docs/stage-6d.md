@@ -790,7 +790,7 @@ The first half of M6d.2, cut in two at its start, on 2026-11-10
 
 - **Goal.** uwui's styles cascade as typed declarations; reflection stays only to read the
   documents, until M6d.3.
-- **Crates.** `uwui`, a new proc-macro crate of uwui's, its name settled at M6d.10;
+- **Crates.** `uwui`, a new proc-macro crate of uwui's, its name settled at M6d.10a;
   `slime-benches`. The editor's and the game's checks run unchanged.
 - **Delivers.**
   - A derive that generates, from `Style` and its nested types, nested enums of declarations; a
@@ -1222,7 +1222,7 @@ rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
 
 - **Goal.** uwui reads KDL 2.0 with a reader of its own, bounded, conformant to KDL's official
   tests, its errors at their line and column.
-- **Crates.** A new crate of uwui's, below `uwui` and `uwui-macros`, its name settled at M6d.10.
+- **Crates.** A new crate of uwui's, below `uwui` and `uwui-macros`, its name settled at M6d.10a.
   Nothing else changes behaviour.
 - **Delivers.**
   - A reader of KDL 2.0 into a flat tree: nodes and entries in arrays, a node's children a range,
@@ -2990,11 +2990,11 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
 
 ### E1 — The element's contract
 
-Not a milestone of agents': uwui's core, on track A after M6d.9b and before M6d.10, while track B
+Not a milestone of agents': uwui's core, on track A after M6d.9b and before M6d.10a, while track B
 goes on ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
 
 - **Goal.** One contract for what an element of uwui is, designed whole and tried on a prototype
-  thrown away, so that M6d.10 cuts uwui's first stage on figures. Builds nothing kept.
+  thrown away, so that M6d.10b cuts uwui's first stage on figures. Builds nothing kept.
 - **Crates.** None kept. The prototype on a branch of its own, from the signals of `m6d1c-bench`,
   thrown away once E1 ends.
 - **Delivers.**
@@ -3019,50 +3019,76 @@ goes on ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-o
   and composed in a row follows its item through a reorder; the moving indicator draws one element
   again, and the items sent to the GPU are bounded by a number written in the ADR; the canvas's
   actions are reached through a screen reader's tree and an agent's request; ADR-0283's cost is
-  weighed in figures for M6d.10.
+  weighed in figures for M6d.10b.
 - **Measured.** The profile; each case's frame, elements drawn, items sent and allocations, on the
   high tier; in uwui's [`measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md).
 
 ### M6d.10 — uwui designed as a project
 
+Cut in two ([ADR-0300](adr/0300-m6d10-cut-in-two-what-the-move-needs-before-it-uwuis-first-stage-planned-after.md)): M6d.10a before D1, what the move needs; M6d.10b
+after M6d.11, uwui's first stage planned in uwui's repository. What changes which crates leave,
+their names or uwui's CI is M6d.10a's; the rest is M6d.10b's, and a decision of M6d.10b that would
+change what left goes back to the owner first.
+
+### M6d.10a — What the move needs
+
 - **Goal.** uwui's repository is ready to receive its code. Builds nothing.
-- **Delivers.** Put to the owner, then recorded: uwui's first stage, its milestones and their order,
-  the trials before the authoring API is built proposed; how its ADRs are numbered; the moved
-  crates' names, each then kept on crates.io by a version 0.0.0 at the owner's go
-  ([ADR-0290](adr/0290-uwuis-crate-names-kept-on-crates-io-once-m6d10-names-them.md)), and those of the facade and the reader of the system's preferences
+- **Delivers.** Put to the owner, then recorded: how uwui's ADRs are numbered; the moved crates'
+  names, each then kept on crates.io by a version 0.0.0 at the owner's go
+  ([ADR-0290](adr/0290-uwuis-crate-names-kept-on-crates-io-once-m6d10-names-them.md)), and those of
+  the facade and the reader of the system's preferences
   ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); uwui's own
-  colour, its type and first meaning, which M6d.11 builds ([ADR-0296](adr/0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md)); hover, press and capture kept for each pointer, gestures and inertia, with touch, before the
-  library of components ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)); the model of text in uwui's authoring API, a message or a literal, a locale and a fake language
-  of test ([ADR-0284](adr/0284-uwuis-text-a-message-or-a-literal-from-its-authoring-api-fluent-later.md)); the milestones that build [E1](#e1--the-elements-contract)'s contract, before its
-  library of components, the first stage cut on E1's figures
-  ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)), and the one that lets a surface declare its actions
-  ([ADR-0283](adr/0283-uwuis-widgets-and-a-programs-on-one-public-path.md)); the milestone that versions agents' families by major and minor
-  ([ADR-0278](adr/0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md)); the engine's ports among uwui's stages ([ADR-0277](adr/0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md)); which repository holds the
-  interface's budgets; what stands for the engine in uwui, its benchmarks and a menu driven by a
-  gamepad; how the engine keeps a series of compositors for its platform layer; the measure that
-  confirms games' interfaces on uwui's core with a layer of the engine's, or gives them a
-  framework of their own if it fails
-  ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)), as the engine's
-  [`uwui-needs.md`](uwui-needs.md#for-m6d10) proposes it. What the engine, Opium, Pluto's client,
-  Slatty, Magnolia and Aerith ask of uwui weighed for its first stage, each list's general needs apart;
-  the colour model, the Android trial's milestone on a television box and the trial of content
-  from outside placed among its milestones
+  colour, its type and first meaning, which M6d.11 builds
+  ([ADR-0296](adr/0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md));
+  a matrix of uwui's platforms and functions, each available, experimental, planned or not checked
+  ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)), which its CI follows;
+  which repository holds the interface's budgets; how the engine keeps a series of compositors for
+  its platform layer; the least of uwui's `AGENTS.md` and roadmap that its first session needs.
+- **Done when.** The owner has validated these decisions; each is recorded in an ADR.
+
+### M6d.10b — uwui's first stage planned
+
+In uwui's repository, after M6d.11 and before M6d.12, its ADRs written there.
+
+- **Goal.** uwui's first stage is planned, Stage 6d's exit. Builds nothing.
+- **Delivers.** Put to the owner, then recorded: uwui's first stage, its milestones and their order,
+  the trials before the authoring API is built proposed; hover, press and capture kept for each
+  pointer, gestures and inertia, with touch, before the library of components
+  ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md));
+  the model of text in uwui's authoring API, a message or a literal, a locale and a fake language
+  of test ([ADR-0284](adr/0284-uwuis-text-a-message-or-a-literal-from-its-authoring-api-fluent-later.md));
+  the milestones that build [E1](#e1--the-elements-contract)'s contract, before its library of
+  components, the first stage cut on E1's figures
+  ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)),
+  and the one that lets a surface declare its actions
+  ([ADR-0283](adr/0283-uwuis-widgets-and-a-programs-on-one-public-path.md)); the milestone that
+  versions agents' families by major and minor
+  ([ADR-0278](adr/0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md)); the
+  engine's ports among uwui's stages
+  ([ADR-0277](adr/0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md)); what
+  stands for the engine in uwui, its benchmarks and a menu driven by a gamepad; the measure that
+  confirms games' interfaces on uwui's core with a layer of the engine's, or gives them a framework
+  of their own if it fails ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)), as the
+  engine's [`uwui-needs.md`](uwui-needs.md#for-m6d10b) proposes it. What the engine, Opium, Pluto's
+  client, Slatty, Magnolia and Aerith ask of uwui weighed for its first stage, each list's general
+  needs apart; the colour model, the Android trial's milestone on a television box and the trial of
+  content from outside placed among its milestones
   ([ADR-0233](adr/0233-uwuis-platforms-apples-chips-ios-and-the-tvs.md) to
-  [ADR-0236](adr/0236-one-trial-of-content-from-outside-for-aerith-and-magnolia.md)). MyGo read for its contracts with the platforms and its
-  delivery. A matrix of uwui's platforms and functions, each available, experimental, planned or
-  not checked ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)). Every
-  decision of [ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md) to
+  [ADR-0236](adr/0236-one-trial-of-content-from-outside-for-aerith-and-magnolia.md)). MyGo read for
+  its contracts with the platforms and its delivery. Every decision of
+  [ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md) to
   [ADR-0219](adr/0219-test-games-in-place-of-hunna-wood.md) weighed for uwui's first stage; among
   them, the services of files, settings, the network and long work that the web and the phones
   lack, with [ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md) amended for
-  the web. uwui's rule for its errors:
-  derived with `thiserror` or written by hand ([`debt.md`](debt.md)); whether its public structures
-  are `#[non_exhaustive]`, which forbids a program to build one by its fields. uwui's `AGENTS.md`, roadmap and plan updated.
-- **Done when.** The owner has validated uwui's documents; each decision is recorded in an ADR.
+  the web. uwui's rule for its errors: derived with `thiserror` or written by hand
+  ([`debt.md`](debt.md)); whether its public structures are `#[non_exhaustive]`, which forbids a
+  program to build one by its fields. uwui's roadmap and plan updated.
+- **Done when.** The owner has validated uwui's documents; each decision is recorded in an ADR of
+  uwui's repository.
 
 ### D1 — The decisions consolidated
 
-Not a milestone of uwui's alone: every ADR of the repository, between M6d.10 and M6d.11
+Not a milestone of uwui's alone: every ADR of the repository, between M6d.10a and M6d.11
 ([ADR-0281](adr/0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md)).
 
 - **Goal.** One ADR read for each topic: every rule spread across amendments stated whole, before
@@ -3082,7 +3108,7 @@ Not a milestone of uwui's alone: every ADR of the repository, between M6d.10 and
 - **Delivers.** The history of uwui's files filtered from a clone by `git filter-repo`, following
   their former paths, and merged into uwui's repository, checked for personal data, authored by
   the owner's identity alone, its links to the engine's ADRs made absolute; the crates that leave
-  with it, as M6d.10 decides, under MIT OR Apache-2.0 and free of the engine's crates
+  with it, as M6d.10a decides, under MIT OR Apache-2.0 and free of the engine's crates
   ([ADR-0214](adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)): `slime-input`
   among them, `slime-color` staying in the engine, uwui's own colour built first and the engine
   converting at its bridge ([ADR-0296](adr/0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md)); its CI on Linux,

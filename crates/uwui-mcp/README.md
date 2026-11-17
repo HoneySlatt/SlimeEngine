@@ -8,7 +8,7 @@ them, call the tools of other programs
 It turns MCP's tools into requests of uwui's core for agents (`uwui-agent`), which a program
 answers.
 
-Its name is provisional: the names of uwui's crates are settled at M6d.10
+Its name is provisional: the names of uwui's crates are settled at M6d.10a
 ([ADR-0226](../../docs/adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
 
 ## Status

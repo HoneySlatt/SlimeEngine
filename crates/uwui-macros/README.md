@@ -11,7 +11,7 @@ for the cascade's mask order, and says which lay out, which a hover or a press w
 not set. It lists a style's colors, which transitions move, and their paths, which uwui's tests
 read. `Identifiers` lists an enum's variants by their names and reads one from its name.
 
-Its name is provisional: the names of uwui's crates are settled at M6d.10
+Its name is provisional: the names of uwui's crates are settled at M6d.10a
 ([ADR-0226](../../docs/adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
 
 ## Role

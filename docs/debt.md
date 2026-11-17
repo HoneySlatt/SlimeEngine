@@ -713,7 +713,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   They are `DocumentError` and `DocumentErrors` in `document.rs`, `ReadError` and `WriteError` in `dock/document.rs`, and `TokenError` in `theme/token.rs`.
   Four could be derived; `DocumentErrors` could not, its message walking a list.
   `uwui-kdl` writes its own by hand on purpose: it depends on nothing ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
-  Followed at [M6d.10](stage-6d.md#m6d10--uwui-designed-as-a-project), which sets uwui's rule for errors.
+  Followed at [M6d.10b](stage-6d.md#m6d10b--uwuis-first-stage-planned), which sets uwui's rule for errors.
 - **The interface's images are textures that the program gives** for the keys of its display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
   Cooked images that the asset cache holds come with their first user, M6c.7's asset browser.
   A draw that asks for more glyphs than the atlas's budget holds leaves some out; a glyph larger than a page is never drawn.
@@ -1021,7 +1021,7 @@ The audit did not cover NVIDIA and Intel GPUs, X11, a game outside the workspace
 
 A review of 2026-11-16 read the code against what contributors, a change and a failure ask of it; it built and ran nothing, and its counts come from searches.
 Each item below is costlier the longer it waits: more code written on it, or more files in the wild.
-How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md); the rest of uwui's boundary with the engine is M6d.10's ([`PLAN.md`](PLAN.md#ideas-waiting-for-their-milestone)).
+How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md); the rest of uwui's boundary with the engine is M6d.10a's and M6d.10b's ([`PLAN.md`](PLAN.md#ideas-waiting-for-their-milestone)).
 
 - **A case that uwui gains is told to its own crates by no compiler** ([ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md)).
   uwui's public enumerations are `#[non_exhaustive]`: `uwui-render`, `uwui-accesskit`, the engine and the examples match them with a behaviour for the cases they do not know, nothing drawn, a plain container read.
@@ -1030,19 +1030,19 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   `Kind` lists 28 kinds, their behaviour is private (`tree/control.rs`), and uwui's public traits are sealed.
   A surface declares its role and name, but not its actions: a screen reader or an agent cannot use what a program draws in it (`tree/meaning.rs`).
   An application forks uwui to add a widget; each widget built before the public path has to move onto it.
-  The path is designed by [E1](stage-6d.md#e1--the-elements-contract), with the rest of the element's contract, before M6d.10, which places the surface's actions ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
+  The path is designed by [E1](stage-6d.md#e1--the-elements-contract), with the rest of the element's contract, before M6d.10a; M6d.10b places the surface's actions ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
 - **The interface's text has no identity for translation** ([ADR-0284](adr/0284-uwuis-text-a-message-or-a-literal-from-its-authoring-api-fluent-later.md)).
   A label is a `String`; uwui has no catalogue of messages, no plurals and no formatting by locale ([`uwui-needs.md`](uwui-needs.md) asks for Fluent).
   Every label written before them is to be found and keyed again.
-  uwui's authoring API carries messages, a locale and a fake language of test from its first stage, Fluent before its 1.0; M6d.10 places them.
+  uwui's authoring API carries messages, a locale and a fake language of test from its first stage, Fluent before its 1.0; M6d.10b places them.
 - **uwui's input knows one pointer, without an identity** ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)).
   `Input`'s pointer events carry no pointer's number: no touch, pen, gestures or scroll inertia (see *Input not reported yet* above).
   A new event is cheap, `Input` being `#[non_exhaustive]`; hover, press and capture kept per pointer are not, since every target's state assumes one.
-  The identity and the device enter the host's events at track B's next milestone; the state per pointer, gestures and inertia come with touch, which M6d.10 places before uwui's library of components.
+  The identity and the device enter the host's events at track B's next milestone; the state per pointer, gestures and inertia come with touch, which M6d.10b places before uwui's library of components.
 - **uwui's documents carry no version, but dock layouts** ([ADR-0286](adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md)).
   Themes, style sheets and shortcuts in KDL have no version field; dock layouts have one, and a migration ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   Once files circulate, a change of their meaning cannot be told from an error.
-  Settled by V1, on track A before M6d.10.
+  Settled by V1, on track A before M6d.10a.
 - **A save of an older layout is refused, not migrated** ([ADR-0288](adr/0288-saves-migrated-from-their-layout-5-on.md)).
   `slime_world`'s reader of saves refuses any layout but `LAYOUT_VERSION` (`crates/slime-world/src/document.rs`); scene files accept every layout up to it.
   Nothing is lost: *Hunna Wood* sets the old save aside.
@@ -1088,7 +1088,7 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
 - **Outside contributors have no files of their own** ([ADR-0289](adr/0289-a-private-channel-for-vulnerabilities-now-the-rest-when-contributions-open.md)).
   `SECURITY.md` and a template of pull requests exist; a code of conduct and templates of issues come when contributions open.
   Contributions' terms are decided ([ADR-0214](adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)), without the agreement's text or anything that checks it; source files carry no SPDX line.
-  Of uwui's crates, `uwui` alone is kept on crates.io; the others are kept once M6d.10 names them ([ADR-0290](adr/0290-uwuis-crate-names-kept-on-crates-io-once-m6d10-names-them.md)); the names' policy that ADR-0207 promises before 0.14 is not written.
+  Of uwui's crates, `uwui` alone is kept on crates.io; the others are kept once M6d.10a names them ([ADR-0290](adr/0290-uwuis-crate-names-kept-on-crates-io-once-m6d10-names-them.md)); the names' policy that ADR-0207 promises before 0.14 is not written.
   Decisions for the owner; the agreement waits for the lawyer.
 - **The documentation is long, and older rules spread across amendments.**
   About 645,000 words of Markdown; `ARCHITECTURE.md` near 28,000.

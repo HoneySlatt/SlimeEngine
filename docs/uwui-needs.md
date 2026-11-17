@@ -19,10 +19,10 @@ It comes from two sources:
   ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md) to
   [ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
 
-It serves the question that [M6d.10](stage-6d.md#m6d10--uwui-designed-as-a-project) weighs: whether
+It serves the question that [M6d.10b](stage-6d.md#m6d10b--uwuis-first-stage-planned) weighs: whether
 games' interfaces take uwui whole, its core with a layer of their own, or a framework of their own.
 ADR-0209 chose the core with a layer of the engine's, to be confirmed by a measure; [its section
-below](#for-m6d10) says what the measure needs. Nothing here is measured yet.
+below](#for-m6d10b) says what the measure needs. Nothing here is measured yet.
 
 ## How to read it
 
@@ -121,7 +121,7 @@ The editor and games change their interfaces in two ways that applications rarel
 |---|---|---|---|
 | The core built and run with fonts, files, the clipboard and threads all given by the host, none taken from the system; checked by a build that uses none | Consoles one day, through private layers ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)) | Wished: before consoles | New |
 | Linux and Windows first, the Steam Deck as a platform of the first rank | Every game | Indispensable: Stage 7 | Yes |
-| Services of files, settings, the network and long work, the same on every platform, the web and the phones included | The editor's and the tools' files and settings, and their long work, written once for every platform, as uwui's budget of porting asks ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)) | Indispensable: uwui's 1.0 | Yes: weighed at M6d.10 |
+| Services of files, settings, the network and long work, the same on every platform, the web and the phones included | The editor's and the tools' files and settings, and their long work, written once for every platform, as uwui's budget of porting asks ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)) | Indispensable: uwui's 1.0 | Yes: weighed at M6d.10b |
 | Semantic versioning kept strictly after uwui's 1.0 | The engine's façade, stable after its own 1.0 ([ADR-0207](adr/0207-what-slimeengine-is-to-become.md)) | Indispensable: the engine's 1.0 | Yes |
 
 ### What the owner's shell and compositor ask
@@ -187,10 +187,10 @@ These stay in the engine. They ask uwui only for the general needs above.
 - **What an interface keeps in a game's save**, and its state rewound with the game
   ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)).
 
-## For M6d.10
+## For M6d.10b
 
 ADR-0209 confirms games' interfaces on uwui's core with a layer of the engine's, once a measure
-shows it holds. The engine proposes what the measure is, for M6d.10 to decide with the owner:
+shows it holds. The engine proposes what the measure is, for M6d.10b to decide with the owner:
 
 - **What is drawn**: a HUD of `games/open-world`'s
   ([ADR-0219](adr/0219-test-games-in-place-of-hunna-wood.md)) whose values change at each frame,
@@ -200,7 +200,7 @@ shows it holds. The engine proposes what the measure is, for M6d.10 to decide wi
 - **Where**: the owner's machine at 3840 × 2160 at 240 frames a second, and the Steam Deck at 1280 ×
   800.
 - **Criteria**: the interface's GPU time within its budget of each tier; its CPU time at each frame
-  within a share of the main thread that M6d.10 sets; no allocation at a frame once steady; nothing
+  within a share of the main thread that M6d.10b sets; no allocation at a frame once steady; nothing
   drawn while the game is paused and hidden; uwui's core built without the system's services.
 - **If it fails**, and uwui cannot take the fix as a general need, games' interfaces get a framework
   of their own, built on the lowest crates of text, layout and accessibility (ADR-0209).
