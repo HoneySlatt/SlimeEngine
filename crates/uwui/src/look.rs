@@ -47,7 +47,7 @@
 //! // A project's accent, which the hovers, the soft fills and the focus follow.
 //! themes.push(Theme::from_text(
 //!     "project.theme.kdl",
-//!     "color { accent \"#2BB673\" }\n",
+//!     "version 1\ncolor { accent \"#2BB673\" }\n",
 //! ));
 //! ui.set_style(&[look::style_sheet()], &themes)
 //!     .expect("the look's documents are valid");

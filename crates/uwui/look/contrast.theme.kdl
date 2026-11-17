@@ -1,6 +1,8 @@
 // The high-contrast theme of the editor's look: black surfaces, white text, borders that every
 // surface keeps, and a lighter accent (docs/adr/0149-the-looks-foundations.md).
 
+version 1
+
 color {
     ground "#000000"
     neutral_1 "#000000"

@@ -1,6 +1,8 @@
 // The editor's shortcuts: each chord, and the name of the operation that it runs
 // (`crates/slime-editor/src/operation.rs`, `docs/adr/0156-the-editors-window-and-its-operations.md`).
 
+version 1
+
 scope global {
     Primary+O file.choose
     Primary+S file.save

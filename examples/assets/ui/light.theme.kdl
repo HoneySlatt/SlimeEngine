@@ -1,5 +1,7 @@
 // The light theme of the `interface` example: the same names as the dark one's, other values.
 
+version 1
+
 color {
     background "#F1F3F5"
     bar "#E3E7EB"

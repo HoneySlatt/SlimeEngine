@@ -2,12 +2,17 @@
 //! (`docs/adr/0142-input-and-focus.md`,
 //! `docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
 //!
-//! A table of shortcuts holds a node `scope` for each scope: `global`, or the class of an element,
+//! A table of shortcuts starts with the version of its format, `version 1`, which a table of
+//! before the versions lacks and reads as version 1; a table of a later version than
+//! [`Shortcuts::VERSION`] is refused whole, and a program that writes a person's own table never
+//! writes over it then (`docs/adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md`).
+//! Then it holds a node `scope` for each scope: `global`, or the class of an element,
 //! whose shortcuts hold while the focus lies inside it. Each child of a scope is a *chord*,
 //! modifiers and a key joined by `+`, and its one argument the name of the command that it gives
 //! the program ([`ActionKind::Command`](crate::action::ActionKind::Command)):
 //!
 //! ```kdl
+//! version 1
 //! scope global {
 //!     Primary+Z edit.undo
 //!     Primary+Shift+Z edit.redo
@@ -64,7 +69,7 @@ use std::collections::HashMap;
 use slime_input::{Key, KeyEvent, Modifiers, MouseButton, NamedKey};
 use uwui_kdl::{Node, Value};
 
-use crate::document::{DocumentError, DocumentErrors};
+use crate::document::{DocumentError, DocumentErrors, Format};
 use crate::theme::values::shown as entry_text;
 
 #[cfg(test)]
@@ -79,6 +84,18 @@ pub struct Shortcuts {
 }
 
 impl Shortcuts {
+    /// The version of the format of tables of shortcuts that this crate reads, and writes; a
+    /// table of a later one is refused, and a program that writes a person's own table never
+    /// writes over it then ([`DocumentError::later`](crate::DocumentError::later),
+    /// `docs/adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md`).
+    pub const VERSION: i64 = 1;
+
+    /// The format of tables of shortcuts, as their reader names it.
+    pub(crate) const FORMAT: Format = Format {
+        what: "the table of shortcuts",
+        version: Self::VERSION,
+    };
+
     /// The table that `text`, a document of KDL, holds, named `name` in its errors: its file,
     /// usually. A cooked table is its text too, its syntax checked by the cooker.
     pub fn from_text(name: impl Into<String>, text: impl Into<String>) -> Self {
@@ -473,7 +490,8 @@ pub(crate) fn position_letter(event: &KeyEvent) -> Option<String> {
 ///
 /// # Errors
 ///
-/// Each error found, up to [`DocumentErrors::MOST`], at its line: a text that is not KDL; a node
+/// Each error found, up to [`DocumentErrors::MOST`], at its line: a text that is not KDL; a table
+/// of a later version than [`Shortcuts::VERSION`], or whose version is written wrongly; a node
 /// that is not a scope, or a scope given twice in a table; a chord that names no key or modifier,
 /// or two chords of a scope that are the same keys on some platform; a command that is not one
 /// name; an annotation, a property or a child where none goes; a name that starts with `$`.
@@ -484,12 +502,13 @@ pub(crate) fn bindings(tables: &[Shortcuts]) -> Result<Vec<Binding>, DocumentErr
         let document = match uwui_kdl::read(&table.text) {
             Ok(document) => document,
             Err(error) => {
-                errors.push(DocumentError {
-                    document: table.name.clone(),
-                    error,
-                });
+                errors.push(DocumentError::unreadable(&table.name, error));
                 continue;
             }
+        };
+        let Some(nodes) = Shortcuts::FORMAT.nodes(&document, &table.name, &table.text, &mut errors)
+        else {
+            continue;
         };
         let mut fail = |offset: usize, message: String| {
             errors.push_with(|| DocumentError::at(&table.name, &table.text, offset, message));
@@ -500,7 +519,7 @@ pub(crate) fn bindings(tables: &[Shortcuts]) -> Result<Vec<Binding>, DocumentErr
         let mut scopes: HashMap<String, u32> = HashMap::new();
         let mut lines = Lines::default();
         let mut given: HashMap<(Platform, ChordKey, Held), u32> = HashMap::new();
-        for node in document.nodes() {
+        for node in nodes {
             let Some(scope) = scope_name(&node, &mut fail) else {
                 continue;
             };

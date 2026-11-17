@@ -1,6 +1,8 @@
 // The compact theme of the editor's look, stacked after a theme of colors: smaller text, controls
 // and padding, for more on a screen (docs/adr/0149-the-looks-foundations.md).
 
+version 1
+
 length {
     text_s 11
     text_m 12

@@ -9,6 +9,8 @@
 // so that the focus moves nothing; a field shows it whatever gave it, as browsers do; the handle
 // between two panels shows it by its fill.
 
+version 1
+
 everything {
     select
     text color=$text selection=$selection { style size=$text_m { fonts Geist; features tnum } }

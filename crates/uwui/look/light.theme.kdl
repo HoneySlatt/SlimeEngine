@@ -1,6 +1,8 @@
 // The light theme of the editor's look: the colors of `dark.theme.kdl`, light, the accent darkened
 // where it stands on a light ground (docs/adr/0149-the-looks-foundations.md).
 
+version 1
+
 color {
     ground "#ECEDF0"
     neutral_1 "#F3F4F6"

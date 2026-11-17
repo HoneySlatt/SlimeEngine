@@ -5,6 +5,8 @@
 // is selected, as the numeric pad's does where it types a period, Shift+D duplicates, X deletes and
 // Shift+A creates an entity.
 
+version 1
+
 scope global {
     Alt+A edit.select_none
     F3 view.palette

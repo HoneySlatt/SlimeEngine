@@ -1,5 +1,7 @@
 // The dark theme of the `interface` example: the values that its style sheet names, colors in sRGB.
 
+version 1
+
 color {
     background "#1B1C1F"
     bar "#2B2D31"

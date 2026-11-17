@@ -1647,7 +1647,11 @@ impl Ui {
     /// # Errors
     ///
     /// [`DocumentErrors`], each error at its line, the errors of every document gathered: if a
-    /// theme is not a document of KDL, gives a value outside its groups or not of its group's
+    /// theme or a style sheet is of a later version of its format than this crate reads
+    /// ([`Theme::VERSION`](crate::theme::Theme::VERSION),
+    /// [`StyleSheet::VERSION`](crate::theme::StyleSheet::VERSION)), which the error keeps
+    /// ([`DocumentError::later`](crate::DocumentError::later)), or writes its version wrongly; if
+    /// a theme is not a document of KDL, gives a value outside its groups or not of its group's
     /// kind, gives a name twice, or in another group than a theme below it gave it, writes
     /// `#null`, a duration without its unit or negative, a unit on a name, a number that is not
     /// finite or past an `f32`, names a value that no theme gives or of another kind, a chain of

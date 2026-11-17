@@ -24,6 +24,8 @@ pub mod time;
 pub mod tree;
 #[cfg(test)]
 mod verdicts_tests;
+#[cfg(test)]
+mod versions_tests;
 
 pub use document::{DocumentError, DocumentErrors};
 pub use rect::Rect;

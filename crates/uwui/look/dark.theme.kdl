@@ -3,6 +3,8 @@
 // and `alpha` work in OKLCH. A theme stacked after it that gives `accent` changes every color that
 // follows the accent.
 
+version 1
+
 color {
     // The palette: neutrals from the ground up, the accent, and the colors of states.
     ground "#141518"

@@ -147,6 +147,14 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   `Ui::button_command`, as the editor reads which button orbits its viewport
   (`docs/adr/0160-two-viewports-and-blenders-way.md`). Its errors, as the style sheets' and
   themes', are `DocumentErrors`.
+- Each document, a theme, a style sheet, a table of shortcuts or a dock's layout, starts with the
+  version of its format, `version 1` (`theme::Theme::VERSION`, `theme::StyleSheet::VERSION`,
+  `shortcuts::Shortcuts::VERSION`, `dock::VERSION`). A theme, a sheet or a table without it reads
+  as version 1, the format of before the versions; one of a later version is refused whole, its
+  error naming both versions and keeping the later (`DocumentError::later`), so that a program
+  never writes over what a later program wrote. A change of a format's meaning is a new version,
+  migrated as it is read; each version's fixture, in `tests/versions`, stays read by every later
+  reader (`docs/adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md`).
 - A field (`Element::text_field`, `Element::text_area`, `Element::number_field`) keeps what the
   user types, selects with the keys and the pointer, undoes, copies and pastes through the host's
   clipboard, which the program writes and reads too (`Ui::write_clipboard`, `Ui::read_clipboard`,

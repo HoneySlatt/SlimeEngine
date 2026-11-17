@@ -247,15 +247,8 @@ fn write_pair(text: &mut String, pair: [f32; 2]) {
 /// to [`DocumentErrors::MOST`], at its line, for a text that is not KDL or not a layout's document
 /// of this version.
 pub fn read(name: &str, text: &str, reading: Reading) -> Result<Read, ReadError> {
-    let document = uwui_kdl::read(text).map_err(|error| {
-        ReadError::Unreadable(
-            DocumentError {
-                document: name.to_owned(),
-                error,
-            }
-            .into(),
-        )
-    })?;
+    let document = uwui_kdl::read(text)
+        .map_err(|error| ReadError::Unreadable(DocumentError::unreadable(name, error).into()))?;
     let mut reader = Reader {
         name,
         text,

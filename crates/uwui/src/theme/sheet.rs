@@ -13,7 +13,7 @@ use uwui_kdl::{Entry, Node, Value as Kdl};
 
 pub(crate) use super::values::Refusal;
 use super::values::{self, Group, ThemeValue, Values, number, shown, theme_name};
-use super::{Ancestor, KindName, Rule, Selector, StateName, reads};
+use super::{Ancestor, KindName, Rule, Selector, StateName, StyleSheet, reads};
 use crate::document::{DocumentError, DocumentErrors};
 use crate::style::{Dimension, Shadow, Style, Track};
 
@@ -106,7 +106,8 @@ pub(crate) trait Field: Sized {
 }
 
 /// Reads the rules of the style sheet `text`, named `name` in its errors, the themes' values that
-/// they name from `values`, each error kept in `errors`.
+/// they name from `values`, each error kept in `errors`; none from a sheet of a later version than
+/// [`StyleSheet::VERSION`].
 pub(crate) fn read(
     name: &str,
     text: &str,
@@ -116,12 +117,12 @@ pub(crate) fn read(
     let document = match uwui_kdl::read(text) {
         Ok(document) => document,
         Err(error) => {
-            errors.push(DocumentError {
-                document: name.to_owned(),
-                error,
-            });
+            errors.push(DocumentError::unreadable(name, error));
             return Vec::new();
         }
+    };
+    let Some(nodes) = StyleSheet::FORMAT.nodes(&document, name, text, errors) else {
+        return Vec::new();
     };
     let mut reading = Reading {
         values,
@@ -132,7 +133,7 @@ pub(crate) fn read(
     let mut rules = Vec::new();
     // Each rule's name, borrowed from the text where it holds no escape, and where it starts.
     let mut names: HashMap<Cow<'_, str>, usize> = HashMap::new();
-    for node in document.nodes() {
+    for node in nodes {
         let rule = node.name().text();
         let start = node.span().start;
         if let Some(&first) = names.get(&rule) {

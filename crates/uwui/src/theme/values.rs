@@ -13,7 +13,7 @@ use std::ops::Range;
 use slime_color::LinearColor;
 use uwui_kdl::{Entry, Node, Value as Kdl};
 
-use super::{call, lighten, mix, srgb};
+use super::{Theme, call, lighten, mix, srgb};
 use crate::document::{DocumentError, DocumentErrors};
 
 /// The most names that a chain of names follows, each naming the next, before it is refused.
@@ -154,7 +154,8 @@ impl Values {
 ///
 /// # Errors
 ///
-/// Each error found, up to its cap, at its line: a text that is not KDL; a node that is not a
+/// Each error found, up to its cap, at its line: a text that is not KDL; a theme of a later
+/// version than [`Theme::VERSION`], or whose version is written wrongly; a node that is not a
 /// group, or a value that is not one argument of its group's kind; a name given twice in a theme,
 /// or given by a later theme in another group than the first; `#null`; a duration without its
 /// unit, negative or too long, a unit on a name or of another kind; a number that is not finite;
@@ -176,17 +177,18 @@ pub(crate) fn read(themes: &[(&str, &str)]) -> Result<Values, DocumentErrors> {
             Ok(document) => document,
             Err(error) => {
                 unreadable = true;
-                errors.push(DocumentError {
-                    document: name.to_owned(),
-                    error,
-                });
+                errors.push(DocumentError::unreadable(name, error));
                 continue;
             }
+        };
+        let Some(nodes) = Theme::FORMAT.nodes(&document, name, text, &mut errors) else {
+            unreadable = true;
+            continue;
         };
         let fault = |offset: usize, message: String| DocumentError::at(name, text, offset, message);
         let mut in_this: HashMap<String, usize> = HashMap::new();
         let mut groups: Vec<(Group, usize)> = Vec::new();
-        for group_node in document.nodes() {
+        for group_node in nodes {
             let group_name = group_node.name().text();
             let Some(group) = Group::ALL.into_iter().find(|g| g.name() == group_name) else {
                 errors.push_with(|| {

@@ -27,6 +27,13 @@
 //!
 //! A rule, a group or a field given twice is refused.
 //!
+//! A style sheet and a theme each start with the version of its format, `version 1`, which a
+//! document of before the versions lacks and reads as version 1; one of a later version than
+//! [`StyleSheet::VERSION`] or [`Theme::VERSION`] is refused whole, the error keeping its version
+//! ([`DocumentError::later`](crate::DocumentError::later),
+//! `docs/adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md`). So no rule is named
+//! `version`.
+//!
 //! A *theme* is a document of KDL that holds named values in groups, each the kind of its values,
 //! as the design tokens of the W3C's community group give a group its type: `color`, `length` in
 //! logical pixels, bare or `(px)`, `duration`, `(ms)120` or `(s)0.12`, never negative, `number`,
@@ -72,6 +79,7 @@
 //!
 //! ```kdl
 //! // A style sheet.
+//! version 1
 //! panel {
 //!     select { classes panel; }
 //!     paint background=$surface {
@@ -90,6 +98,7 @@
 //!
 //! ```kdl
 //! // A theme.
+//! version 1
 //! color {
 //!     surface "#26282C"
 //!     accent "#4C6EF5"
@@ -106,6 +115,7 @@
 //!
 //! ```kdl
 //! // A theme stacked after it: the accent changes, and its hover and soft fill with it.
+//! version 1
 //! color {
 //!     accent "#2BB673"
 //! }
@@ -116,7 +126,7 @@ use std::collections::HashMap;
 use slime_color::{LinearColor, Oklch};
 use uwui_macros::Identifiers;
 
-use crate::document::{DocumentError, DocumentErrors};
+use crate::document::{DocumentError, DocumentErrors, Format};
 use crate::style::{Style, StyleDeclaration};
 
 /// A style sheet: rules that select elements and set a part of their style, in the order they are
@@ -135,6 +145,16 @@ pub struct Theme {
 }
 
 impl StyleSheet {
+    /// The version of the format of style sheets that this crate reads, and writes; a sheet of a
+    /// later one is refused (`docs/adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md`).
+    pub const VERSION: i64 = 1;
+
+    /// The format of style sheets, as their reader names it.
+    pub(crate) const FORMAT: Format = Format {
+        what: "the style sheet",
+        version: Self::VERSION,
+    };
+
     /// The style sheet that `text` holds, named `name` in its errors: its file, usually. A cooked
     /// style sheet is its text too, checked by the cooker
     /// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
@@ -152,6 +172,16 @@ impl StyleSheet {
 }
 
 impl Theme {
+    /// The version of the format of themes that this crate reads, and writes; a theme of a later
+    /// one is refused (`docs/adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md`).
+    pub const VERSION: i64 = 1;
+
+    /// The format of themes, as their reader names it.
+    pub(crate) const FORMAT: Format = Format {
+        what: "the theme",
+        version: Self::VERSION,
+    };
+
     /// The theme that `text` holds, named `name` in its errors: its file, usually. A cooked theme
     /// is its text too, checked by the cooker
     /// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).

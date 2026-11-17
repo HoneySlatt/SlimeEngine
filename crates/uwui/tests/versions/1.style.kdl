@@ -1,0 +1,36 @@
+// A style sheet of version 1 of its format, kept as it is: every later reader reads it, migrated.
+// It names the values of `1.theme.kdl`, and sets a field of each group of a style.
+version 1
+
+panel {
+    select { classes panel }
+    paint background=$surface border_width=1 border=$border {
+        radii $radius $radius $radius $radius
+        shadow color=$shade blur=18 spread=0 { offset 0 4 }
+    }
+    layout direction=Column {
+        gap $gap $gap
+        padding start=$space end=$space top=4 bottom=4
+    }
+}
+
+label {
+    select kind=Label { inside class=panel }
+    text color="#E0E0E0" { style size=13 weight=$weight { fonts "Noto Sans" } }
+}
+
+button-pressed {
+    select kind=Button { states Pressed }
+    paint background=$accent_pressed
+    transition duration=$fast
+}
+
+check {
+    select kind=CheckBox
+    icons tick=$tick
+}
+
+empty-shadow {
+    select key=3
+    paint { shadow #null; }
+}

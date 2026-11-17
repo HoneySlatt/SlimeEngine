@@ -1,0 +1,30 @@
+// A theme of version 1 of its format, kept as it is: every later reader reads it, migrated.
+// It gives a value of each group, names between them, and each color function.
+version 1
+
+color {
+    surface "#26282C"
+    accent "#4C6EF5"
+    shade "#00000080"
+    accent_hover "lighten($accent, 0.06)"
+    accent_pressed "darken($accent, 0.08)"
+    accent_soft "alpha($accent, 20%)"
+    border "mix($surface, $accent, $blend)"
+}
+length {
+    space 6
+    radius (px)8
+    gap $space
+}
+duration {
+    fast (ms)120
+    slow (s)0.3
+}
+number {
+    weight 600
+    blend 0.25
+}
+text {
+    tick "\u{E06C}"
+    price "$$5"
+}

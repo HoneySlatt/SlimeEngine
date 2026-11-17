@@ -3,6 +3,8 @@
 // gives, and the icons that controls draw. A theme of colors, `dark.theme.kdl`, `light.theme.kdl`
 // or `contrast.theme.kdl`, stacks on it, and `compact.theme.kdl` on them for a denser layout.
 
+version 1
+
 length {
     // Spacings, on a grid of 4 pixels, and half a step below it.
     space_xs 2

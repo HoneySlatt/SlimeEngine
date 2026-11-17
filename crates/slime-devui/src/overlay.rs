@@ -148,7 +148,7 @@ impl Overlay {
             waiting: false,
             place: None,
         });
-        let mut table = String::from("scope global {\n");
+        let mut table = format!("version {}\nscope global {{\n", Shortcuts::VERSION);
         for panel in &self.panels {
             table.push_str(&format!(
                 "    {:?} {:?}\n",

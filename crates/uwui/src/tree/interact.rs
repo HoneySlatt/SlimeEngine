@@ -1123,7 +1123,10 @@ impl Ui {
     ///
     /// # Errors
     ///
-    /// [`DocumentErrors`] if a table is not a document of scopes, of chords and the names of
+    /// [`DocumentErrors`] if a table is of a later version of its format than this crate reads
+    /// ([`Shortcuts::VERSION`]), which the error keeps
+    /// ([`DocumentError::later`](crate::DocumentError::later)), or writes its version wrongly; if
+    /// it is not a document of scopes, of chords and the names of
     /// commands, a chord names no key or modifier, or two chords of a scope are the same keys on
     /// some platform ([`Shortcuts`]): the interface keeps the shortcuts it had.
     pub fn set_shortcuts(&mut self, tables: &[Shortcuts]) -> Result<(), DocumentErrors> {

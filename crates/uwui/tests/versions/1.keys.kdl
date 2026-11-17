@@ -1,0 +1,14 @@
+// A table of shortcuts of version 1 of its format, kept as it is: every later reader reads it,
+// migrated. It binds keys, a named key, a key written in quotes and a button of the mouse.
+version 1
+
+scope global {
+    Primary+Z edit.undo
+    Primary+Shift+Z edit.redo
+    F2 rename
+    "Primary+=" zoom.in
+}
+scope viewport {
+    MiddleButton orbit
+    Shift+MiddleButton pan
+}
