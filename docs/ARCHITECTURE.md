@@ -38,9 +38,11 @@ the editor changes a level by commands, kept in a journal, and writes the scene 
 reaches a program through the development channel, by families of requests that the program
 serves.
 
-The rules that every change keeps are under
-[Invariants and ownership](#invariants-and-ownership); where to start reading,
-[at the end](#where-to-start-reading).
+Before changing a crate, read its README, this page, the
+[dependency rules](#dependency-rules), [invariants and ownership](#invariants-and-ownership),
+[limits and recovery](#limits-and-recovery) and the [flow](#main-flows) that the change touches;
+the rest is reference ([ADR-0299](adr/0299-what-an-agent-reads-before-a-crate-the-crates-status-in-its-readme-alone.md)).
+Where to start reading: [at the end](#where-to-start-reading).
 
 ## Repository layout
 

@@ -3090,7 +3090,9 @@ Not a milestone of uwui's alone: every ADR of the repository, between M6d.10 and
   ([ADR-0233](adr/0233-uwuis-platforms-apples-chips-ios-and-the-tvs.md)); the editor's look moved into the
   official theme Pro, a crate of its own in uwui's repository, its images of reference in uwui's CI
   ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)); the engine depending on it;
-  uwui's files removed here, every document updated. The engine following uwui by one exact commit
+  uwui's files removed here, every document updated, and the *Status* column of
+  `docs/ARCHITECTURE.md`'s table of crates removed, each crate's status in its README alone
+  ([ADR-0299](adr/0299-what-an-agent-reads-before-a-crate-the-crates-status-in-its-readme-alone.md)). The engine following uwui by one exact commit
   ([ADR-0276](adr/0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md)): the commit written once and checked, `slime-app`'s re-exports for games,
   the script for a change of both sides, `deny.toml`'s source, both `AGENTS.md` naming the libraries
   that move together, and the engine's weekly job against uwui's `main`.

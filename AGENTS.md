@@ -13,7 +13,7 @@ Others use it and contribute: documentation is part of every deliverable, held t
 You remember no past session: the repository must hold what the next session needs.
 
 - Each session: `docs/PLAN.md`'s "Current" and the current milestone.
-- Before a crate: its `README.md` and `docs/ARCHITECTURE.md`.
+- Before a crate: its `README.md`, then `docs/ARCHITECTURE.md` as its first page says.
 - Only to plan, or when a task touches a decision: `docs/ROADMAP.md`, `docs/stage-6d.md`, `docs/adr/`.
 
 ## Scope
@@ -21,7 +21,7 @@ You remember no past session: the repository must hold what the next session nee
 - Work on `docs/PLAN.md`'s current milestone, or on what the owner asks.
 - Do not start later stages, nor abstractions for them.
 - If a task needs something out of scope, stop and say so.
-- The roadmap sets direction and order, not what is built: build what the milestone needs; stages may change or be dropped.
+- The roadmap sets direction and order, not what is built; stages may change or be dropped.
 - When experience contradicts the roadmap, propose a change; once accepted, record it in an ADR.
 
 ## Environment and commands
