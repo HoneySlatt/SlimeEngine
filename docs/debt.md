@@ -27,6 +27,11 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The values of events waiting to be written are not counted in the bytes unwritten: one of each event subscribed to, on each connection ([ADR-0254](adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).
   An event waits behind the message being written on its connection, which may be an image of 1 GiB.
   Followed at uwui's first stage, whose carrier of `uwui dev` is the second to keep the bounds, and which moves them into the core.
+- **A test of `slime-channel`'s subscriptions fails on Windows now and then** ([ADR-0254](adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).
+  `a_subscription_cancelled_before_its_answer_is_answered_so_and_starts_nothing` failed twice in a row on `feeb792`, then passed on `e3ba654`, the same binary passing on `b1bd343`: the cancel of a subscription was not seen in ten seconds.
+  The test sees the cancel only while the connection's writer, blocked by an answer of 32 MiB that the tool does not read, has not taken the subscription; if the system lets the writer write it whole, the writer takes the subscription at once, and the cancel is gone before the test looks. Not confirmed.
+  Its failure now says the bytes unwritten, the items to write and the cancels: 0 bytes unwritten confirms it, and the test then needs a writer held otherwise than by the system's buffers.
+  Followed at the next failure, by track A, whose milestone in progress takes it.
 - **`slime-mcp`'s connections to a program cannot be cancelled while they wait for its welcome** ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)).
   `slime_channel::Client::connect` waits up to 600 s for the program's welcome, its answers' time, and nothing cancels it; three of the server's connects take it: `start_game`'s, `drive_played_game`'s, and the one that replaces a connection broken.
   A start given up while it connects kills its program only once the welcome came: a program that said where it listens and then never welcomes runs on that long once `stop_game`, or the call's cancel, gave its start up; the server's other calls answer meanwhile, and a new start runs.

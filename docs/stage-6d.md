@@ -149,8 +149,10 @@ in git.
   done, [M6d.9a2a](#m6d9a2a--the-library), on 2026-11-15; then
   [M6d.9a2b](#m6d9a2b--the-engine-on-the-library), cut in two on 2026-11-15
   ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)):
-  done, [M6d.9a2b1](#m6d9a2b1--the-engines-families-on-the-library), on the same day; then
-  [M6d.9a2b2](#m6d9a2b2--the-servers-game-off-its-lock); then [M6d.9a2c](#m6d9a2c--waiting),
+  done, [M6d.9a2b1](#m6d9a2b1--the-engines-families-on-the-library), on the same day, and
+  [M6d.9a2b2](#m6d9a2b2--the-servers-game-off-its-lock), on 2026-11-17, M6d.9a2b whole; then
+  [V1](#v1--uwuis-documents-versioned) and [S1](#s1--saves-migrated-from-layout-5); then
+  [M6d.9a2c](#m6d9a2c--waiting),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
@@ -2961,6 +2963,36 @@ The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/02
   well within 120 s, the game ending on its own; a start cancelled leaves no game; a start after a
   stop runs; CI is green.
 - **Measured.** CI's jobs that run the server's tests, each within 20 minutes.
+- **Result.** Done on 2026-11-17, on `feeb792`, CI green on `e3ba654` but for uwui's host's test of
+  rest, which fails now and then ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)):
+  - `slime-mcp`'s game in one state, starting, running or stopping, numbered by each start, behind
+    a lock that no tool holds across a wait or a connection; the other tools answer at once that
+    the game starts or stops.
+  - `start_game` given up by its call's cancel, even as it answers, or by `stop_game`, killing the
+    program that it started; `stop_game` by closing the game's standard input, killed after 120 s;
+    the last call of `drive_played_game` winning; the server's end the same way; a request that a
+    stopped game breaks told so, never connected again; one request at a time connecting again to
+    a game whose connection broke.
+  - `uwui_mcp::image` async, a capture encoded as PNG on a thread that may block.
+  - Tested by `slime-mcp`'s `tests/game.rs`, on the tests' own programs, on Windows too: the other
+    calls answered while a start waits, a second start refused; a start cancelled, then one given
+    up by `stop_game`, each leaving no program; `stop_game` ending a game whose sixteen places a
+    request to run steps holds, a seventeenth waiting, in well under a second, the game ending on its
+    own; a start after it; two calls of `drive_played_game` against a later one. Each of these tests
+    hangs past 300 s against the server before.
+  - The closing review found the test of a program left behind unable to fail, a cancel crossing
+    the start's answer leaving the game running, a burst of connections once one broke, and texts
+    that said a program stopped before it was; all fixed. 11 mutations of the new code, 9 fail a
+    test; of the two left, one changes a message alone, and one needs a race that no test can
+    time, a request of a stopped game failing once a new one started. A start given up after its
+    program said where it listens is untested ([`debt.md`](debt.md)).
+  - Measured ([`measurements.md`](measurements.md#m6d9a2b2-the-servers-game-off-its-lock)): CI's
+    jobs each within 20 minutes.
+  - `rmcp`'s chrono, declared unmaintained on the same day, ignored by `deny.toml` with its
+    reason, the owner's choice.
+  - Left for later ([`debt.md`](debt.md)): connections that cannot be cancelled while they wait for
+    a welcome, a capture's answer written on the server's thread (M6d.12); a test of
+    `slime-channel`'s subscriptions that failed twice on Windows, its failure now telling why.
 
 ### M6d.9a2c — Waiting
 

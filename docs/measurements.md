@@ -4447,3 +4447,31 @@ of margin. The runners' own spread is larger than what the host adds: the same s
 19 min 47 s under X11 before, where the host does not run, and 12 min 25 s now. What this part adds
 in each compositor's job: the host's second test, run once on the output at another scale, some
 2 s, and in sway, KWin and Mutter the field typed into, some 10 s more of the first test's rest.
+
+## M6d.9a2b2, the server's game off its lock
+
+How long CI's jobs took, on GitHub's hosted runners, on 2026-11-17. The CI workflow on `e3ba654`,
+which holds the milestone's `feeb792` and a diagnostic of a test of `slime-channel`; the
+compositors' workflow on `feeb792`, the last commit that it runs on.
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 54 s |
+| `check (headless)` | 13 min 17 s |
+| `check (windowed)` | 7 min 53 s, failed on uwui's host's test of rest |
+| `check (game)` | 9 min 31 s |
+| `check (gles)` | 3 min 19 s |
+| `windows (tests)` | 13 min 4 s |
+| `windows (render)` | 5 min 1 s |
+| `windows (game)` | 6 min 47 s |
+| `windows-release` | 13 min 52 s |
+| `compositors (weston)` | 12 min 47 s |
+| `compositors (sway)` | 13 min 31 s |
+| `compositors (kwin)` | 16 min 17 s |
+| `compositors (mutter)` | 16 min 24 s |
+| `compositors (x11)` | 12 min 4 s |
+
+Every job stays within its limit of 20 minutes; `compositors (mutter)`, the longest, has 3 min 36 s
+of margin. On `feeb792`, `check (headless)` took 17 min 47 s, with 2 min 13 s of margin: the jobs'
+times vary by minutes from one run to the next. `slime-mcp`'s tests of the server's game, which
+`cargo test` runs in each job of tests, take some 0.4 s on the owner's AMD Ryzen 7 5800X.
