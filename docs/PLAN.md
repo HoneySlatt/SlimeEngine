@@ -27,11 +27,11 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     [S1a](stage-6d.md#s1a--safe-files) in progress; after S1c, [R1](stage-6d.md#r1--rust-1100);
     after M6d.9b, [E1](stage-6d.md#e1--the-elements-contract), the element's contract designed
     before M6d.10a ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
-  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six: done,
-    [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window); M6d.7a2 cut in three
-    ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): done,
-    [M6d.7a2a](stage-6d.md#m6d7a2a--waylands-input-and-window); next,
-    [M6d.7a2b](stage-6d.md#m6d7a2b--the-host-made-robust).
+  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six, M6d.7a2 in three, M6d.7a2b
+    in three ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)):
+    done, [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) and
+    [M6d.7a2a](stage-6d.md#m6d7a2a--waylands-input-and-window); in progress,
+    [M6d.7a2b1](stage-6d.md#m6d7a2b1--the-seam-and-the-pointers).
   - M6d.10a, D1, M6d.11, M6d.10b and M6d.12 run alone, in this order
     ([ADR-0300](adr/0300-m6d10-cut-in-two-what-the-move-needs-before-it-uwuis-first-stage-planned-after.md)).
   - Timed measures run one track at a time; shared files are edited by one session at a time.
@@ -46,12 +46,10 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | Milestone | Status |
 |---|---|
 | [M6d.0a to M6d.3c3, and C1](stage-6d.md#where-it-stands) | Done |
-| [M6d.4a to M6d.4b2 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
-| [M6d.5a to M6d.5e2 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Done |
-| [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
-| [M6d.7a1 — The host's core and its Wayland window](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) | Done |
-| [M6d.7a2a — Wayland's input and window](stage-6d.md#m6d7a2a--waylands-input-and-window) | Done |
-| [M6d.7a2b to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7a2b--the-host-made-robust) | Planned |
+| [M6d.4, M6d.5, M6d.6 — The canvas, the host's API, the compositors](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
+| [M6d.7a1 to M6d.7a2a — The host's core, Wayland's window and input](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) | Done |
+| [M6d.7a2b1 — The seam and the pointers](stage-6d.md#m6d7a2b1--the-seam-and-the-pointers) | In progress |
+| [M6d.7a2b2 to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7a2b2--a-lost-device-and-a-lost-surface) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a2a — The library](stage-6d.md#m6d9a2a--the-library) | Done |

@@ -191,8 +191,9 @@ in git.
   desktop host's window and frames, cut in six on 2026-11-15 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)): done,
   [M6d.7a1](#m6d7a1--the-hosts-core-and-its-wayland-window), on 2026-11-15; then
   [M6d.7a2](#m6d7a2--wayland-whole-and-the-host-measured), cut in three on 2026-11-15 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): done,
-  [M6d.7a2a](#m6d7a2a--waylands-input-and-window), on 2026-11-17; next,
-  [M6d.7a2b](#m6d7a2b--the-host-made-robust).
+  [M6d.7a2a](#m6d7a2a--waylands-input-and-window), on 2026-11-17; then
+  [M6d.7a2b](#m6d7a2b--the-host-made-robust), cut in three on 2026-11-17 ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)): in progress,
+  [M6d.7a2b1](#m6d7a2b1--the-seam-and-the-pointers).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2448,6 +2449,60 @@ The second part of M6d.7a2 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-key
   to crash, run headless with its own `XDG_STATE_HOME`, leaves its report, and the next start finds
   its marker; a program made to panic ends in error, `stop` not called; the layer's check fails on
   a copy made to pull `uwui` or wgpu; CI is green.
+
+- **Cut in three** on 2026-11-17, the owner's choice ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)): the seam and the pointers
+  first, so that the code that makes the host robust is written once in its place; then a lost
+  device and surface; then crashes and panics. The platform layer runs the loop and calls the host;
+  Wayland's layer translates the mouse and touch. The "Done when" above is met at M6d.7a2b3.
+
+### M6d.7a2b1 — The seam and the pointers
+
+The first part of M6d.7a2b ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The host stands on a platform layer that X11, Win32 and AppKit can follow, and names
+  each pointer.
+- **Crates.** `uwui-desktop`; a crate of the platform layer; a crate of `uwui::time`; `uwui`;
+  `slime-app`'s bridge.
+- **Delivers.** The platform layer in a crate of its own, which runs the loop and calls the host,
+  gives events and takes requests, and knows neither uwui's interface nor wgpu
+  ([ADR-0279](adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md));
+  `uwui::time` in a crate below both, given again by `uwui` at the same path; a check of
+  `cargo tree` that keeps `uwui`, `uwui-render` and wgpu out of the layer. Each pointer event of
+  the host's API with its pointer and device, the mouse pointer 0; the tree following the primary
+  pointer; Wayland's layer filling the mouse and `wl_touch`'s fingers, the engine's bridge the
+  mouse ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)).
+- **Done when.** The layer's check fails on a copy made to pull `uwui` or wgpu; the example rests,
+  takes its click and its text in the series as before; a second finger is not followed, in a test;
+  the engine's sessions unchanged; CI is green.
+
+### M6d.7a2b2 — A lost device and a lost surface
+
+The second part of M6d.7a2b ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The host draws again after its device or its surface is lost.
+- **Crates.** `uwui-desktop`.
+- **Delivers.** A lost device and a lost surface made again within
+  [ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)'s
+  budget, each lost on purpose by a door of the tests; an image drawn in part not presented, its
+  frame asked again after a delay; who makes a program's images again after a lost device, said
+  ([`debt.md`](debt.md)).
+- **Done when.** A device and a surface lost on purpose drawn again in the series; CI is green.
+
+### M6d.7a2b3 — Crashes and panics
+
+The third part of M6d.7a2b ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The host tells what it could not survive, and never hands back a state that panicked.
+- **Crates.** `uwui-desktop`.
+- **Delivers.** The crash report and the session's marker
+  ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md));
+  ADR-0298's rule of panics; a termination asked twice ending the host ([`debt.md`](debt.md)).
+- **Done when.** A program made to crash, run headless with its own `XDG_STATE_HOME`, leaves its
+  report, and the next start finds its marker; a program made to panic ends in error, `stop` not
+  called; CI is green.
 
 ### M6d.7a2c — Frames and the host measured
 
