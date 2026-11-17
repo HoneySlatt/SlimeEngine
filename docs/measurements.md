@@ -4475,3 +4475,27 @@ Every job stays within its limit of 20 minutes; `compositors (mutter)`, the long
 of margin. On `feeb792`, `check (headless)` took 17 min 47 s, with 2 min 13 s of margin: the jobs'
 times vary by minutes from one run to the next. `slime-mcp`'s tests of the server's game, which
 `cargo test` runs in each job of tests, take some 0.4 s on the owner's AMD Ryzen 7 5800X.
+
+## V1, uwui's documents versioned
+
+How long CI's jobs took, on GitHub's hosted runners, on 2026-11-17, on `e1667667`, which holds
+the milestone. The compositors' workflow did not run: V1 changes none of the files that it
+watches.
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 58 s |
+| `check (headless)` | 12 min 36 s |
+| `check (windowed)` | 10 min 4 s |
+| `check (game)` | 9 min 37 s |
+| `check (gles)` | 4 min 16 s |
+| `windows (tests)` | 16 min 50 s |
+| `windows (render)` | 7 min 23 s |
+| `windows (game)` | 5 min 51 s |
+| `windows-release` | 16 min 30 s |
+
+Every job stays within its limit of 20 minutes; `windows (tests)`, the longest, has 3 min 10 s of
+margin. Reading the editor's default layout allocates once fewer, 49 times
+([`benches/counters.txt`](../benches/counters.txt)): its node `version` is read without a list
+of its entries. The look's documents and the editor's tables of shortcuts, each now starting with
+`version 1`, allocate as before.

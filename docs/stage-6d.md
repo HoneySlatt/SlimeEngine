@@ -3077,7 +3077,7 @@ Not a milestone of agents': uwui's documents, on track A after M6d.9a2b2
   updated.
 - **Done when.** `scripts/check.sh` passes; each reader's tests read version 1 with and without its
   node, and refuse version 2.
-- **Result.** Done on 2026-11-17
+- **Result.** Done on 2026-11-17, CI green on `e1667667`
   ([ADR-0286](adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md), made precise):
   - Themes, style sheets and tables of shortcuts start with `version 1`; without it, a document
     reads as version 1. `Theme::VERSION`, `StyleSheet::VERSION` and `Shortcuts::VERSION` give the
@@ -3096,6 +3096,8 @@ Not a milestone of agents': uwui's documents, on track A after M6d.9a2b2
   - The closing review found a later version missed when its node held more than its number, two
     readers of the node, fixtures that recorded no meaning and a group of a style missing from one,
     and the rule named `version` decided without the owner; all settled.
+  - Measured ([`measurements.md`](measurements.md#v1-uwuis-documents-versioned)): CI's jobs each
+    within 20 minutes; reading the editor's default layout allocates once fewer.
   - Left for later ([`debt.md`](debt.md)): a later version told two ways, `ReadError::Later` for a
     layout and `DocumentError::later` for the others, settled with uwui's rule for errors.
 
