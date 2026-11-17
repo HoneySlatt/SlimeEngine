@@ -94,8 +94,8 @@ From the review of the architecture of 2026-11-16, its items in
   bridge ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)).
 - Stage 7's design session: the simulation's contract, its questions in Stage 7's entry
   ([ADR-0287](adr/0287-the-simulations-contract-designed-at-stage-7-its-questions-written-now.md)).
-- For the owner: the contributor licence agreement, with the lawyer; private vulnerability reporting
-  turned on in both repositories' settings ([ADR-0289](adr/0289-a-private-channel-for-vulnerabilities-now-the-rest-when-contributions-open.md)).
+- For the owner: the contributor licence agreement, with the lawyer
+  ([ADR-0289](adr/0289-a-private-channel-for-vulnerabilities-now-the-rest-when-contributions-open.md)).
 
 ## Checks by hand waiting for the owner
 
