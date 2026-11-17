@@ -31,6 +31,10 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   So that one game at a time runs, they hold it while the game builds and starts, up to 600 s, and for their own requests; the agent's other calls wait meanwhile, and a cancel does not stop a start.
   With every place in flight held by long steps, `stop_game` waits for one, and `resume`, which would free them, waits for the lock.
   Followed at [M6d.9a2b2](stage-6d.md#m6d9a2b2--the-servers-game-off-its-lock), which takes the server's game off its lock ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)).
+- **`deny.toml` ignores the advisory that chrono is unmaintained** (RUSTSEC-2026-0543, [ADR-0006](adr/0006-dependency-policy.md)).
+  rmcp 3.9.0, on which `slime-mcp` and `uwui-mcp` stand, depends on chrono with no feature to leave it out, and so does the schemars that it turns on; no release of chrono replaces it.
+  The MCP servers alone link them, never a game; the advisory names no vulnerability.
+  Followed at each update of rmcp: the ignore goes once a release no longer depends on chrono; [M6d.12](stage-6d.md#m6d12--the-audit-of-stage-6d), the stage's audit, checks it.
 - **The budget of a frame's start for the tools' requests is not measured from input to present** ([ADR-0252](adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md)).
   It is measured by a headless run's frames with agents at the channel's bounds; `scripts/input-to-present.sh` starts its programs without a channel, and gives no agent.
   A frame's start takes one request of each connection whatever the budget; a page of a list takes its share of it past a floor of visits, so that seven agents listing make frames of about 1.7 ms, 1 ms of it the measure's rest ([`measurements.md`](measurements.md#m6d9a1b3b1-lists)), where they made frames of about 4 ms before; a request of another kind that costs much, as a capture, still takes what it costs.

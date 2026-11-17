@@ -23,6 +23,11 @@ ignore = [
     { id = "RUSTSEC-2026-0370", reason = "zvariant, merged into zbus 6; only AccessKit's adapter on Linux uses it, through zbus 5" },
     { id = "RUSTSEC-2026-0371", reason = "zbus_names, merged into zbus 6; only AccessKit's adapter on Linux uses it, through zbus 5" },
     { id = "RUSTSEC-2026-0372", reason = "zvariant_derive, merged into zbus 6; only AccessKit's adapter on Linux uses it, through zbus 5" },
+    # chrono is unmaintained, and no release replaces it. rmcp 3.9.0, the official MCP library, on
+    # which slime-mcp and uwui-mcp stand, depends on it with no feature to leave it out, and its
+    # schemars with it; no game links them. Not a vulnerability. Remove this once a release of
+    # rmcp no longer depends on chrono (docs/debt.md).
+    { id = "RUSTSEC-2026-0543", reason = "chrono, unmaintained; only rmcp, the MCP servers' library, brings it, with no feature to leave it out" },
 ]
 
 [licenses]
