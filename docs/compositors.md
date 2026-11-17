@@ -72,7 +72,7 @@ The rows:
 - **Agents' sessions and rest**: slime-mcp's `edit_window` and `drive`, which find the editor and
   the game at rest ([ADR-0185](adr/0185-rest-checked-in-ci.md)).
 - **uwui's host at rest** and **uwui's host's bar**: `uwui-desktop`'s `application` example, on
-  uwui's own Wayland layer
+  uwui's own Wayland layer, `uwui-windowing`
   ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)):
   an image presented and at rest after its start; where the compositor takes input, the pointer
   put on its button *Add*, whose hover draws frames, and at rest again; then ended by SIGTERM

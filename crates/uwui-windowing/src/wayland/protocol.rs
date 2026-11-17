@@ -6,11 +6,8 @@
 use std::collections::HashMap;
 use std::os::fd::OwnedFd;
 
-use slime_input::{
-    ButtonState, CursorShape, KeyEvent, Modifiers, MouseButton, Pointer, ScrollDelta,
-};
-use uwui::host::Input;
-use uwui::time::{EventTime, Instant};
+use slime_input::{ButtonState, CursorShape, Modifiers, MouseButton, Pointer, ScrollDelta};
+use uwui_time::{EventTime, Instant};
 use wayland_client::backend::ObjectId;
 use wayland_client::globals::GlobalListContents;
 use wayland_client::protocol::{
@@ -32,6 +29,7 @@ use wayland_protocols::xdg::decoration::zv1::client::{
 use wayland_protocols::xdg::shell::client::{xdg_surface, xdg_toplevel, xdg_wm_base};
 
 use super::repeat::Repeat;
+use crate::Input;
 use crate::anchor::Anchor;
 use crate::clock;
 use crate::xkb::{self, Keyboard};
@@ -54,16 +52,6 @@ pub(super) struct Configure {
     pub(super) fullscreen: bool,
 }
 
-/// A person's input as the host keeps it until it gives it to the interface, which takes a key by
-/// reference.
-#[derive(Debug)]
-pub(super) enum Kept {
-    /// A key went down, up or repeated.
-    Key(KeyEvent),
-    /// Any other input.
-    Other(Input<'static>),
-}
-
 /// The wheel's motion within one of the pointer's frames.
 #[derive(Clone, Copy, Debug, Default)]
 struct Axis {
@@ -84,7 +72,7 @@ pub(super) struct Told {
     /// When the last frame callback came, if one did.
     pub(super) signal: Option<Instant>,
     /// The person's input, in order, with its times.
-    pub(super) inputs: Vec<(EventTime, Kept)>,
+    pub(super) inputs: Vec<(EventTime, Input)>,
     axis: Axis,
     anchor: Anchor,
     /// Whether the compositor draws the window's bar, once it said.
@@ -212,14 +200,20 @@ impl Told {
         for (code, at) in keys.repeat.due(now) {
             let event = xkb.key(code, ButtonState::Pressed, true);
             self.inputs
-                .push((EventTime::received(at), Kept::Key(event)));
+                .push((EventTime::received(at), Input::Key(event)));
         }
     }
 
     /// A position of the surface, in logical pixels, in the window's physical pixels.
-    fn physical(&self, x: f64, y: f64) -> Input<'static> {
+    fn physical(&self, x: f64, y: f64) -> Input {
+        self.moved(Pointer::MOUSE, x, y)
+    }
+
+    /// `pointer` moved to a position of the surface, in logical pixels: in the window's physical
+    /// pixels.
+    fn moved(&self, pointer: Pointer, x: f64, y: f64) -> Input {
         Input::PointerMoved {
-            pointer: Pointer::MOUSE,
+            pointer,
             x: (x * self.scale) as f32,
             y: (y * self.scale) as f32,
         }
@@ -346,7 +340,7 @@ impl Told {
                 } else {
                     self.keys.repeat.released(key);
                 }
-                self.inputs.push((time, Kept::Key(event)));
+                self.inputs.push((time, Input::Key(event)));
             }
             wl_keyboard::Event::Modifiers {
                 mods_depressed,
@@ -398,8 +392,8 @@ impl Told {
         }
     }
 
-    fn push(&mut self, time: EventTime, input: Input<'static>) {
-        self.inputs.push((time, Kept::Other(input)));
+    fn push(&mut self, time: EventTime, input: Input) {
+        self.inputs.push((time, input));
     }
 }
 
@@ -773,8 +767,7 @@ mod tests {
             .drain(..)
             .map(|(time, input)| {
                 let input = match input {
-                    Kept::Other(input) => format!("{input:?}"),
-                    Kept::Key(key) => format!(
+                    Input::Key(key) => format!(
                         "Key {:?} {:?} {:?} {:?}{}",
                         key.physical,
                         key.logical,
@@ -782,6 +775,7 @@ mod tests {
                         key.state,
                         if key.repeat { " repeat" } else { "" }
                     ),
+                    input => format!("{input:?}"),
                 };
                 format!(
                     "{} {:?} {input}",

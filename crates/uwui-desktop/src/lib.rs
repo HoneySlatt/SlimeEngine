@@ -37,55 +37,24 @@
 //! uwui_desktop::run(look, WindowSettings::new("Hello", "org.example.Hello"), Hello);
 //! ```
 //!
-//! The host is a *core*, which knows no platform and is tested without a window, under a layer for
-//! each platform. The core holds the pacing of frames and the rest, the clock given to it
-//! (`pacing`), the anchor of the events' times (`anchor`), the wakes of other threads and the
-//! termination signals (`wake`), and the application's run (`session`). Wayland's layer
-//! (`wayland`) is the only one: X11, Windows and macOS have theirs at M6d.7's next parts, and
-//! [`run`] there says that it has none and ends. The keyboard's code of libxkbcommon (`xkb`) is
-//! Linux's, which X11's layer will share.
+//! The host stands on a platform layer, `uwui-windowing`, which runs the platform's loop and calls
+//! it back at each turn, and knows neither the interface nor the GPU
+//! (`docs/adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md`).
+//! Above it, its *core* knows no platform and is tested without a window, on every platform: the
+//! pacing of frames and the rest, the clock given to it (`pacing`), and the application's run
+//! (`session`); `host` drives them at each turn, and `gpu` draws each frame into the window's image.
+//! The layer gives Wayland's window alone yet: elsewhere [`run`] says that it has none and ends.
 //!
 //! No type of a platform's library appears in its public API.
 // A public enumeration may gain cases without breaking a program; one closed by nature says why
 // it is not marked (ADR-0282).
 #![warn(clippy::exhaustive_enums)]
 
-// The core and the application's side, which only Wayland's layer drives yet: elsewhere they are
-// compiled and tested, and used by no layer.
-#[cfg_attr(
-    not(target_os = "linux"),
-    allow(dead_code, reason = "no windowing layer drives the core here yet")
-)]
-mod anchor;
-#[cfg_attr(
-    not(target_os = "linux"),
-    allow(dead_code, reason = "no windowing layer drives the core here yet")
-)]
 mod app;
-#[cfg_attr(
-    not(target_os = "linux"),
-    allow(dead_code, reason = "no windowing layer drives the core here yet")
-)]
-mod pacing;
-#[cfg_attr(
-    not(target_os = "linux"),
-    allow(dead_code, reason = "no windowing layer drives the core here yet")
-)]
-mod session;
-#[cfg_attr(
-    not(target_os = "linux"),
-    allow(dead_code, reason = "no windowing layer drives the core here yet")
-)]
-mod wake;
-
-#[cfg(target_os = "linux")]
-mod clock;
-#[cfg(target_os = "linux")]
 mod gpu;
-#[cfg(target_os = "linux")]
-mod wayland;
-#[cfg(target_os = "linux")]
-mod xkb;
+mod host;
+mod pacing;
+mod session;
 
 pub use app::{App, Close, Look, Window, WindowSettings};
 
@@ -109,13 +78,5 @@ pub const EXIT_START_FAILED: i32 = 2;
 /// On Linux, it needs a Wayland compositor, which `WAYLAND_DISPLAY` names, and a GPU with Vulkan;
 /// elsewhere, it has no windowing layer yet, and ends with [`EXIT_HOST_FAILED`].
 pub fn run(look: Look, window: WindowSettings, app: impl App) -> ! {
-    #[cfg(target_os = "linux")]
-    let status = wayland::run(look, window, app);
-    #[cfg(not(target_os = "linux"))]
-    let status = {
-        drop((look, window, app));
-        eprintln!("uwui's desktop host has no windowing layer for this system yet");
-        EXIT_HOST_FAILED
-    };
-    std::process::exit(status)
+    std::process::exit(host::run(look, window, app))
 }

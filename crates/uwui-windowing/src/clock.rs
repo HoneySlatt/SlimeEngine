@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 use rustix::time::{ClockId, Timespec, clock_gettime};
-use uwui::time::Instant;
+use uwui_time::Instant;
 
 /// The time that the machine spends suspended, measured between two readings of both clocks.
 #[derive(Debug)]

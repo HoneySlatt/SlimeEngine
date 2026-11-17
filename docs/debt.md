@@ -106,7 +106,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **uwui's desktop host ends on a lost device or surface** ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
   M6d.7a1's host configures a surface outdated or lost once again, then ends with `EXIT_HOST_FAILED`; a device lost ends it at its next frame.
   The engine makes both again within a budget ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)); the host does not yet, and no test loses them.
-  Followed at [M6d.7a2b](stage-6d.md#m6d7a2b--the-host-made-robust), the owner's choice of 2026-11-15.
+  Followed at [M6d.7a2b2](stage-6d.md#m6d7a2b2--a-lost-device-and-a-lost-surface), the owner's choice of 2026-11-15.
 - **uwui's desktop host measures the display's period rather than reading it** ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
   The time on the grid adds whole periods to the last frame callback; the period is the median of the callbacks' gaps while frames follow each other, and before any is measured the frame's start is given.
   ADR-0227 asks for the display's rate first: the outputs are bound for their scale alone, and a program whose frames all miss one refresh measures twice the period.
@@ -118,7 +118,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A seat added later gives no pointer or keyboard, and an output plugged later is not bound: where the compositor prefers no scale for the surface, as Weston, a window moved onto it keeps the scale of the outputs known at its start.
   Followed at M6d.7e, whose several windows follow the outputs and the seats.
 - **uwui's desktop host's keyboard tests read the developer's own compose files** ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
-  libxkbcommon reads `XCOMPOSEFILE` or `~/.XCompose` before the locale's table, and `xkbcommon-dl` 0.4.2 gives no way to load a table from a file of the test's own: a person whose own sequence redefines `^` then `e` sees `crates/uwui-desktop/src/xkb.rs`'s tests of dead keys fail; CI has neither.
+  libxkbcommon reads `XCOMPOSEFILE` or `~/.XCompose` before the locale's table, and `xkbcommon-dl` 0.4.2 gives no way to load a table from a file of the test's own: a person whose own sequence redefines `^` then `e` sees `crates/uwui-windowing/src/xkb.rs`'s tests of dead keys fail; CI has neither.
   Followed when the host's keyboard is shared with X11's layer, at M6d.7b.
 - **`scripts/input-to-present.sh` loses part of its inputs** ([ADR-0200](adr/0200-applications-measured-from-outside.md)).
   It runs `wlrctl` once an input; each run makes a virtual pointer or keyboard and destroys it at once.
@@ -1123,22 +1123,22 @@ A review of uwui's architecture of 2026-11-17, read-only too, added these:
   A message changed under the same version reads differently at each end, without an error.
   Followed at [M6d.9a2c](stage-6d.md#m6d9a2c--waiting) ([ADR-0295](adr/0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md)).
 - **uwui's desktop host presents an image drawn in part, then rests.**
-  A draw that fails is warned of and its image presented (`crates/uwui-desktop/src/wayland/mod.rs`); the frame's changes are spent, so the window stays as drawn until something else changes: black, after the GPU's memory ran out.
-  Followed at M6d.7a2b, track B's: the image not presented, the frame asked again after a delay.
+  A draw that fails is warned of and its image presented (`crates/uwui-desktop/src/host.rs`); the frame's changes are spent, so the window stays as drawn until something else changes: black, after the GPU's memory ran out.
+  Followed at M6d.7a2b2, track B's: the image not presented, the frame asked again after a delay.
 - **A termination asked twice does not end uwui's desktop host.**
-  A signal only asks the application to close (`crates/uwui-desktop/src/wake.rs`): an application that keeps its window, or hangs in `step`, ends only when killed; the engine ends at a second signal (`crates/slime-app/src/signal.rs`).
-  Followed at M6d.7a2b.
+  A signal only asks the application to close (`crates/uwui-windowing/src/wake.rs`, `crates/uwui-desktop/src/host.rs`): an application that keeps its window, or hangs in `step`, ends only when killed; the engine ends at a second signal (`crates/slime-app/src/signal.rs`).
+  Followed at M6d.7a2b3.
 - **What a panic of an application leaves is not said.**
   A panic in `App::step` ends the run without `App::stop`, which `App`'s rustdoc does not say (`crates/uwui-desktop/src/app.rs`); calling `stop` on the state that panicked could write it over good data.
   Since Rust 1.81, a panic that leaves an `extern "C"` function aborts the process: Win32's and AppKit's callbacks are such functions.
   The rule is [ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md): no `stop` after a panic, the run ending with its error, a panic caught in a platform's callback.
-  Followed at M6d.7a2b, which builds it with its test; Win32's and AppKit's callbacks catch theirs as M6d.7c and M6d.7d write them.
+  Followed at M6d.7a2b3, which builds it with its test; Win32's and AppKit's callbacks catch theirs as M6d.7c and M6d.7d write them.
 - **A panic in a game's run skips its `stop` without a word** ([ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)).
   `slime-app` catches no panic (`crates/slime-app/src/app.rs`): one in `fixed_step`, `update` or `apply` leaves `run`, and neither `Simulation::stop` nor its rustdoc says what follows.
   Followed at [S1c](stage-6d.md#s1c--saves-migrated-and-a-panics-end), which writes ADR-0298's rule in `slime-app` with its test.
 - **The images that a program gives are not made again after a lost device.**
   uwui holds their keys alone, the program their textures (`crates/uwui-render/src/lib.rs`); uwui's desktop host gives none yet, and its `App` hears nothing of a loss.
-  Followed at M6d.7a2b, which makes a lost device again: who makes the images again, uwui or the program, is said there.
+  Followed at M6d.7a2b2, which makes a lost device again: who makes the images again, uwui or the program, is said there.
 
 A review of the engine's architecture of 2026-11-17, read-only too, added these:
 

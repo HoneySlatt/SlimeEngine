@@ -1300,6 +1300,11 @@ states shown by their shape, and no radius, shadow, tint, blur, motion or accent
 window*, the program measured. Decided, built in uwui's first stage
 ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
 
+**Platform layer.** The lower half of uwui's desktop host, `uwui-windowing`: it runs the
+platform's loop, gives the host above it a window, a person's input with its times and the
+platform's signal of frames, and takes its requests, knowing neither uwui's interface nor the GPU
+([ADR-0279](adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md)).
+
 **Play (editor).** The editor running the game's program on the level as the editor holds it,
 steps not written included, as private copies of the scenes that the game reads in place of their
 cooked files, the user's files left alone; paused, stepped and stopped from a toolbar, its log in a
@@ -1318,6 +1323,12 @@ of the origins of the outermost entities selected, those without an ancestor in 
 **Placement.** A *prefab* placed in a scene, under an ID of that scene, with its *overrides*, or
 while a world runs, under `created/<number>`; the entities of a placement are named through it, as
 `zone/lantern 3/light`. Not an *instance (render)* ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
+
+**Pointer (input).** What moves over a window and presses in it: the mouse, pointer 0, or a finger
+or a stylus, each named from its touch until it leaves (`slime_input::Pointer`). An interface
+follows the mouse and one *primary* finger or stylus on each target, the first to come while none
+is followed
+([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)).
 
 **Pose (skeleton).** Where each bone of a skeleton is at a moment: one component of flat arrays,
 never saved, rather than an entity per bone

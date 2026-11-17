@@ -193,7 +193,7 @@ if runs lint; then
         exit 1
     fi
 
-    step "uwui's desktop host and the engine pull nothing of each other; uwui no windowing library nor wgpu (ADR-0226, ADR-0270)"
+    step "uwui's desktop host and the engine pull nothing of each other; uwui no windowing library nor wgpu; the host's layer neither uwui nor wgpu (ADR-0226, ADR-0270, ADR-0279)"
     # Every edge, on every platform and with every feature, at any depth. The trees are read first,
     # so that a failure of cargo stops the check rather than passing it.
     host_dependencies=$(cargo tree --locked -p uwui-desktop -e normal,build,dev --target all \
@@ -206,6 +206,20 @@ if runs lint; then
         -e normal,build,dev --target all --all-features --prefix none)
     if grep '^uwui-desktop ' <<< "$engine_dependencies"; then
         echo "a crate of the workspace depends on uwui-desktop: the engine's programs build none of uwui's hosts"
+        exit 1
+    fi
+    # The host's platform layer knows neither uwui's interface nor the GPU, and is public nowhere but
+    # to the host above it (ADR-0279).
+    layer_dependencies=$(cargo tree --locked -p uwui-windowing -e normal,build,dev --target all \
+        --all-features --prefix none)
+    if grep -E '^(uwui|uwui-render|wgpu|wgpu-core|wgpu-hal|wgpu-types) ' <<< "$layer_dependencies"; then
+        echo "uwui-windowing depends on uwui's interface or the GPU above: only the host above it may"
+        exit 1
+    fi
+    layer_users=$(cargo tree --locked --workspace --exclude uwui-desktop --exclude uwui-windowing \
+        -e normal,build,dev --target all --all-features --prefix none)
+    if grep '^uwui-windowing ' <<< "$layer_users"; then
+        echo "a crate of the workspace but uwui-desktop depends on uwui-windowing, which is public nowhere"
         exit 1
     fi
     if grep -E '^(winit|wgpu|wgpu-core|wgpu-hal|wgpu-types|naga|ash|raw-window-handle|wayland-client|wayland-backend|wayland-protocols|wayland-sys|xkbcommon-dl|x11rb|x11-dl|smithay-client-toolkit|objc2-app-kit) ' \

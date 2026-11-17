@@ -11,7 +11,7 @@ use rustix::time::{
     Itimerspec, TimerfdClockId, TimerfdFlags, TimerfdTimerFlags, Timespec, timerfd_create,
     timerfd_settime,
 };
-use uwui::time::Instant;
+use uwui_time::Instant;
 
 /// The eventfd that wakes the loop, and its timer.
 pub(super) struct Waits {

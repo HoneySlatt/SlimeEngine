@@ -265,13 +265,13 @@ mod tests {
         window.bring_to_front();
         assert_eq!(
             window.take_requests().activation,
-            Some(crate::app::Activation::Front)
+            Some(uwui_windowing::Activation::Front)
         );
         assert_eq!(window.take_requests().activation, None);
         window.request_attention();
         assert_eq!(
             window.take_requests().activation,
-            Some(crate::app::Activation::Attention)
+            Some(uwui_windowing::Activation::Attention)
         );
     }
 

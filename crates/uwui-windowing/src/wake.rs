@@ -1,6 +1,6 @@
-//! What other threads ask of the host's loop, its wakes and its end: part of the host's core.
+//! What other threads ask of the layer's loop, its wakes and its end: part of the layer's core.
 //!
-//! The interface's waker ([`Ui::set_waker`](uwui::tree::Ui::set_waker)) and the handler of the
+//! The waker that the host gives its interface ([`crate::Window::waker`]) and the handler of the
 //! termination signals, SIGTERM, SIGINT and SIGHUP (`ctrlc`), set a flag and *notify* the loop
 //! once, the platform's way: an eventfd written on Linux. Wakes that come before the loop takes
 //! them notify it once, so that a thread that wakes it a thousand times while it draws costs one

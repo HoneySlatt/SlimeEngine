@@ -11,37 +11,24 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-# Its end on SIGTERM, SIGINT and SIGHUP, asked of the application as a closing (ADR-0270).
-ctrlc.workspace = true
 # Waits for wgpu's requests, which are futures: the adapter and the device it opens.
 pollster.workspace = true
-# The pointers of Wayland's display and surface given to wgpu, which makes the window's surface
-# on them (ADR-0270).
+# The window's raw handles, which the platform layer gives and wgpu makes the surface on
+# (ADR-0270).
 raw-window-handle.workspace = true
-# The keys, modifiers, buttons and wheel that a person's input arrives as, and the cursor's shapes
-# (ADR-0142).
+# The keys, modifiers, pointers, buttons and wheel that the layer gives, and the cursor's shapes
+# (ADR-0142, ADR-0285).
 slime-input.workspace = true
-# Warnings of what the host leaves aside: a protocol that the compositor lacks, a frame not drawn.
+# Warnings of what the host leaves aside: a frame not drawn.
 tracing.workspace = true
 uwui.workspace = true
 # Draws each frame's display list into the window's image.
 uwui-render.workspace = true
+# The platform layer below the host: the window, its input and its frames' signal, which knows
+# neither the interface nor the GPU (ADR-0279).
+uwui-windowing.workspace = true
 # The device that the host opens and the window's surface (ADR-0244).
 wgpu.workspace = true
-
-[target.'cfg(target_os = "linux")'.dependencies]
-# The loop's poll, its eventfd that a wake writes, and its timerfd on CLOCK_BOOTTIME for deadlines;
-# the host's clock (ADR-0251, ADR-0270).
-rustix = { workspace = true, features = ["event"] }
-# Wayland spoken by the host itself, on libwayland's display that Vulkan's driver shares
-# (ADR-0270).
-wayland-client.workspace = true
-# xdg-shell's window and xdg-decoration's choice of who draws its bar; the cursor's shapes, the
-# fractional scale and its viewport, activation (ADR-0273).
-wayland-protocols.workspace = true
-# The keyboard's keymaps, its state and its compose tables, from libxkbcommon loaded at run time
-# (ADR-0270, ADR-0273).
-xkbcommon-dl.workspace = true
 
 [dev-dependencies]
 # The example draws in the editor's look, the only look that uwui has yet.

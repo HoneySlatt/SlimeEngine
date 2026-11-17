@@ -1,0 +1,38 @@
+[package]
+name = "uwui-windowing"
+description = "The platform layer of uwui's desktop host: a window, a person's input with its times and the platform's signal of frames, knowing neither uwui's interface nor the GPU."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT OR Apache-2.0"
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Its end on SIGTERM, SIGINT and SIGHUP, told to the host as a turn's (ADR-0270).
+ctrlc.workspace = true
+# The window's raw handles, given to the host, which makes its surface on them (ADR-0270).
+raw-window-handle.workspace = true
+# The keys, modifiers, buttons, pointers and wheel that a person's input arrives as, and the
+# cursor's shapes (ADR-0142, ADR-0285).
+slime-input.workspace = true
+# Warnings of what the layer leaves aside: a protocol that the compositor lacks.
+tracing.workspace = true
+# The times of its events and of the platform's signal, on the host's clock (ADR-0279).
+uwui-time.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# The loop's poll, its eventfd that a wake writes, and its timerfd on CLOCK_BOOTTIME for deadlines;
+# the host's clock (ADR-0251, ADR-0270).
+rustix = { workspace = true, features = ["event"] }
+# Wayland spoken by the layer itself, on libwayland's display that Vulkan's driver shares
+# (ADR-0270).
+wayland-client.workspace = true
+# xdg-shell's window and xdg-decoration's choice of who draws its bar; the cursor's shapes, the
+# fractional scale and its viewport, activation (ADR-0273).
+wayland-protocols.workspace = true
+# The keyboard's keymaps, its state and its compose tables, from libxkbcommon loaded at run time
+# (ADR-0270, ADR-0273).
+xkbcommon-dl.workspace = true

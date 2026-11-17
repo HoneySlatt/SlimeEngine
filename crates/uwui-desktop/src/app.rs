@@ -6,6 +6,7 @@ use std::error::Error;
 use uwui::text::Fonts;
 use uwui::theme::{StyleSheet, Theme};
 use uwui::tree::Ui;
+use uwui_windowing::Activation;
 
 /// What an application draws in (`docs/adr/0226-an-application-started-in-one-call-each-root-given-its-look.md`):
 /// its fonts, then its style sheets and its themes, in their order, which the host gives the
@@ -97,15 +98,6 @@ pub(crate) struct Requests {
     /// The application asked the window to be brought to the front, or to ask for attention: the
     /// last request made.
     pub(crate) activation: Option<Activation>,
-}
-
-/// What the application asks of the system for its window.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Activation {
-    /// Brought to the front, given the focus.
-    Front,
-    /// Shown as asking for the person's attention, its focus left where it is.
-    Attention,
 }
 
 impl Window {

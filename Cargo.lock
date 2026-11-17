@@ -3807,18 +3807,14 @@ dependencies = [
 name = "uwui-desktop"
 version = "0.6.0"
 dependencies = [
- "ctrlc",
  "pollster 1.0.1",
  "raw-window-handle",
- "rustix 1.1.6",
  "slime-input",
  "tracing",
  "uwui",
  "uwui-render",
- "wayland-client",
- "wayland-protocols",
+ "uwui-windowing",
  "wgpu",
- "xkbcommon-dl",
 ]
 
 [[package]]
@@ -3863,6 +3859,21 @@ dependencies = [
 [[package]]
 name = "uwui-time"
 version = "0.6.0"
+
+[[package]]
+name = "uwui-windowing"
+version = "0.6.0"
+dependencies = [
+ "ctrlc",
+ "raw-window-handle",
+ "rustix 1.1.6",
+ "slime-input",
+ "tracing",
+ "uwui-time",
+ "wayland-client",
+ "wayland-protocols",
+ "xkbcommon-dl",
+]
 
 [[package]]
 name = "valuable"

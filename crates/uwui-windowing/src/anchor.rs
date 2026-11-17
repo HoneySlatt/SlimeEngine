@@ -11,7 +11,7 @@
 use std::collections::VecDeque;
 use std::time::Duration;
 
-use uwui::time::Instant;
+use uwui_time::Instant;
 
 /// How long a reception counts for the anchor.
 const WINDOW: Duration = Duration::from_secs(10);

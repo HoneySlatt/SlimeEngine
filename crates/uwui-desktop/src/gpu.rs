@@ -7,13 +7,10 @@
 //! GPU's times of its passes. The adapter is the one that uses the least power, an integrated GPU
 //! where there is one, unless `WGPU_POWER_PREF` names another.
 
-use std::ptr::NonNull;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use raw_window_handle::{
-    RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
-};
+use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use uwui::display::DisplayList;
 use uwui::text::Fonts;
 use uwui_render::{DrawContext, UiRenderer};
@@ -54,17 +51,17 @@ pub(crate) struct Gpu {
 pub(crate) struct Drawn(wgpu::SurfaceTexture);
 
 impl Gpu {
-    /// Opens a device that can draw into the Wayland surface `surface` of the display `display`,
-    /// and configures its surface at `size`, in physical pixels.
+    /// Opens a device that can draw into the window of the raw handles `display` and `window`, and
+    /// configures its surface at `size`, in physical pixels.
     ///
     /// # Safety
     ///
-    /// `display` and `surface` are a live `wl_display` and `wl_surface` of it, which outlive the
-    /// returned value.
+    /// `display` and `window` are a live display and a window of it, which outlive the returned
+    /// value.
     #[expect(unsafe_code, reason = "its caller keeps the raw handles live")]
-    pub(crate) unsafe fn on_wayland(
-        display: NonNull<std::ffi::c_void>,
-        surface: NonNull<std::ffi::c_void>,
+    pub(crate) unsafe fn new(
+        display: RawDisplayHandle,
+        window: RawWindowHandle,
         size: [u32; 2],
     ) -> Result<Self, GpuError> {
         let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
@@ -72,16 +69,14 @@ impl Gpu {
         descriptor.flags = wgpu::InstanceFlags::from_build_config().with_env();
         let instance = wgpu::Instance::new(descriptor);
         let target = wgpu::SurfaceTargetUnsafe::RawHandle {
-            raw_display_handle: Some(RawDisplayHandle::Wayland(WaylandDisplayHandle::new(
-                display,
-            ))),
-            raw_window_handle: RawWindowHandle::Wayland(WaylandWindowHandle::new(surface)),
+            raw_display_handle: Some(display),
+            raw_window_handle: window,
         };
         #[expect(
             unsafe_code,
             reason = "wgpu makes a surface on the platform's raw handles"
         )]
-        // SAFETY: the caller keeps the display and the surface live until the value returned is
+        // SAFETY: the caller keeps the display and the window live until the value returned is
         // dropped, which drops this surface first.
         let window = unsafe { instance.create_surface_unsafe(target) }
             .map_err(|cause| error("the window's surface cannot be made", cause))?;

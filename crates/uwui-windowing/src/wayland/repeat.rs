@@ -6,7 +6,7 @@
 
 use std::time::Duration;
 
-use uwui::time::Instant;
+use uwui_time::Instant;
 
 /// The rate and the delay that a compositor gives before it says, as the protocol's own example.
 const DEFAULT: (u32, u32) = (25, 600);
