@@ -114,18 +114,41 @@ fn settled(pid: u32) -> Result<Threads, String> {
     }
 }
 
-/// Waits until `pid` settles, then watches it for `REST`: what woke, if anything did.
-fn at_rest(pid: u32) -> Result<(), String> {
+/// Waits until `example` settles, then watches it for `REST`: what woke, if anything did. A wake
+/// is told with the threads that woke, by name, and the lines that its protocol's log gained
+/// meanwhile, the compositor's messages among them, so that a failure in CI shows its cause.
+fn at_rest(example: &Example) -> Result<(), String> {
+    let pid = example.pid();
     let before = settled(pid)?;
+    let logged = example.read_log().len();
     std::thread::sleep(REST);
     let after = threads(pid)?;
     if after == before {
-        Ok(())
-    } else {
-        Err(format!(
-            "it woke in {REST:?}: before {before:?}, after {after:?}"
-        ))
+        return Ok(());
     }
+    let woke: Vec<String> = after
+        .iter()
+        .filter(|(tid, counts)| before.get(tid) != Some(counts))
+        .map(|(tid, (switches, ticks))| {
+            let name = std::fs::read_to_string(format!("/proc/{pid}/task/{tid}/comm"))
+                .map_or_else(|_| "?".to_owned(), |name| name.trim().to_owned());
+            let (was_switches, was_ticks) = before.get(tid).copied().unwrap_or_default();
+            format!(
+                "{tid} {name:?}: {} switches, {} ticks",
+                switches.saturating_sub(was_switches),
+                ticks.saturating_sub(was_ticks)
+            )
+        })
+        .collect();
+    let gone: Vec<&u32> = before
+        .keys()
+        .filter(|tid| !after.contains_key(tid))
+        .collect();
+    let log = example.read_log();
+    let gained = log.get(logged..).unwrap_or("");
+    Err(format!(
+        "it woke in {REST:?}: {woke:?}, threads ended {gone:?}; its protocol meanwhile:\n{gained}"
+    ))
 }
 
 /// The example, built beside this test.
@@ -360,9 +383,8 @@ impl Drop for Example {
 #[test]
 fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
     let example = Example::start("rest-application.log", "");
-    let pid = example.pid();
     let shown = example.log.display().to_string();
-    if let Err(error) = at_rest(pid) {
+    if let Err(error) = at_rest(&example) {
         panic!("the example is not at rest after its start: {error}");
     }
     assert!(
@@ -391,7 +413,7 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
             );
             std::thread::sleep(Duration::from_millis(50));
         }
-        if let Err(error) = at_rest(pid) {
+        if let Err(error) = at_rest(&example) {
             panic!("the example is not at rest after the pointer hovered its button: {error}");
         }
 
@@ -409,7 +431,7 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
             .unwrap_or_else(|_| panic!("the click on Add added no row: {shown}"));
         assert_eq!(added, "added sa", "the field did not take the keys typed");
         println!("keys: typed");
-        if let Err(error) = at_rest(pid) {
+        if let Err(error) = at_rest(&example) {
             panic!("the example is not at rest after the keys typed: {error}");
         }
     }
