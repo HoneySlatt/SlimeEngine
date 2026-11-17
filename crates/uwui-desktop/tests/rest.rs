@@ -96,8 +96,12 @@ fn threads(pid: u32) -> Result<Threads, String> {
     Ok(threads)
 }
 
-/// Waits until `pid` stays still for a second, for at most `SETTLE`: its threads as they are then.
-fn settled(pid: u32) -> Result<Threads, String> {
+/// Waits until `example` stays still for a second, every frame callback that it asked answered by
+/// the compositor, for at most `SETTLE`: its threads as they are then. A compositor that answers
+/// late, as Weston on a loaded runner, would otherwise wake it in the window of rest, by a message
+/// that it asked for.
+fn settled(example: &Example) -> Result<Threads, String> {
+    let pid = example.pid();
     let deadline = Instant::now() + SETTLE;
     let mut before = threads(pid)?;
     loop {
@@ -105,13 +109,32 @@ fn settled(pid: u32) -> Result<Threads, String> {
         let after = threads(pid)?;
         let still = after == before;
         before = after;
-        if still {
+        let awaited = awaited_callbacks(&example.read_log());
+        if still && awaited.is_empty() {
             return Ok(before);
         }
         if Instant::now() >= deadline {
-            return Err(format!("never still for {STILL:?} within {SETTLE:?}"));
+            return Err(format!(
+                "never still for {STILL:?} within {SETTLE:?}, its callbacks {awaited:?} awaited"
+            ));
         }
     }
+}
+
+/// The frame callbacks that the log asked and the compositor has not answered yet, by their
+/// object's number, which the protocol reuses once one is answered.
+fn awaited_callbacks(log: &str) -> Vec<String> {
+    let mut awaited = Vec::new();
+    for line in log.lines() {
+        if let Some((_, asked)) = line.split_once(".frame(new id wl_callback#") {
+            awaited.push(asked.trim_end_matches(')').to_owned());
+        } else if let Some((before, _)) = line.split_once(".done(")
+            && let Some((_, id)) = before.rsplit_once("wl_callback#")
+        {
+            awaited.retain(|asked| asked != id);
+        }
+    }
+    awaited
 }
 
 /// Waits until `example` settles, then watches it for `REST`: what woke, if anything did. A wake
@@ -119,7 +142,7 @@ fn settled(pid: u32) -> Result<Threads, String> {
 /// meanwhile, the compositor's messages among them, so that a failure in CI shows its cause.
 fn at_rest(example: &Example) -> Result<(), String> {
     let pid = example.pid();
-    let before = settled(pid)?;
+    let before = settled(example)?;
     let logged = example.read_log().len();
     std::thread::sleep(REST);
     let after = threads(pid)?;
@@ -496,7 +519,7 @@ const TOKEN: &str = "uwui-desktop-test-token";
 fn the_window_draws_at_the_scale_that_the_compositor_prefers() {
     let example = Example::start("scale-application.log", TOKEN);
     // Settled, the window has its last scale: the compositor tells it once the window shows.
-    if let Err(error) = settled(example.pid()) {
+    if let Err(error) = settled(&example) {
         panic!("the example never settled: {error}");
     }
     let log = example.read_log();
@@ -527,4 +550,23 @@ fn the_window_draws_at_the_scale_that_the_compositor_prefers() {
         );
     }
     assert_eq!(example.end_on_sigterm(), ["closing asked", "stopped"]);
+}
+
+#[test]
+fn a_frame_callback_awaits_its_done() {
+    // As CI's Weston logged them: two frames asked, then their callbacks answered late, the
+    // object numbers reused.
+    let asked = "[17:42:13.1] -> wl_surface#7.frame(new id wl_callback#53)
+[17:42:13.2] {mesa vk display queue}  -> wl_surface#7.commit()
+[17:42:13.4] -> wl_surface#7.frame(new id wl_callback#55)";
+    assert_eq!(awaited_callbacks(asked), ["53", "55"]);
+    let answered = format!(
+        "{asked}
+[17:42:15.2] {{Display Queue}} wl_display#1.delete_id(53)
+[17:42:15.2] wl_callback#53.done(495841)
+[17:42:15.2] wl_callback#55.done(495841)
+[17:42:15.3] -> wl_surface#7.frame(new id wl_callback#53)"
+    );
+    assert_eq!(awaited_callbacks(&answered), ["53"]);
+    assert!(awaited_callbacks("").is_empty());
 }
