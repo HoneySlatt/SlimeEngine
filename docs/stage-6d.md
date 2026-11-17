@@ -2970,12 +2970,20 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
 
 - **Goal.** A save of a layout from 5 up to the reader's own reads, each layout upgraded to the
   next in turn.
-- **Crates.** `slime-world`'s reader of saves; *Hunna Wood*'s fixtures.
+- **Crates.** `slime-world`'s reader of saves; *Hunna Wood*'s fixtures; `slime-files`, new, and
+  its callers, `slime-cook`, `slime-app`, `slime-editor` and *Hunna Wood*
+  ([ADR-0297](adr/0297-one-crate-of-safe-files-and-the-editors-journal-versioned-built-by-s1.md)).
 - **Delivers.** The reader of layouts from 5 on, as scene files read theirs; a fixture of layout 5
   loaded in CI; the rule that a change of the layout comes with its upgrade, in the reader's
-  rustdoc; layouts 1 to 4 set aside as today.
+  rustdoc; layouts 1 to 4 set aside as today. `slime-files`, on the standard library alone: the
+  writer of a file whole or not at all, its directory synced where the system allows it, what
+  Windows gives written in its rustdoc; `HeldFile`, `set_aside` and the data and state directories,
+  out of `slime-app`; the cooker, the editor and *Hunna Wood* writing through it, their copies and
+  the editor's plain write of its keys gone. The editor's journal opened by `# journal 1`, a later
+  version refused with both named and left as it is, a journal without the line read as version 1.
 - **Done when.** `scripts/check.sh` passes; a test reads layout 5's fixture through the reader of a
-  layout 6 made for the test, then thrown away.
+  layout 6 made for the test, then thrown away; no file of a user's is written but through
+  `slime-files`; the journal's tests read version 1 with and without its line, and refuse version 2.
 
 ### E1 — The element's contract
 

@@ -417,6 +417,11 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **A save cut short may load in part** (ADR-0087).
   A save is a document of sections: one cut at a section's boundary is still a document, and loads what it holds without an error.
   *Hunna Wood* writes its saves whole or not at all (ADR-0088), as every game that writes saves must.
+  A layout of saves that ends with a marker would refuse it; left out of S1 by the owner ([ADR-0297](adr/0297-one-crate-of-safe-files-and-the-editors-journal-versioned-built-by-s1.md)), for the next layout of saves.
+- **A load that warned drops what it did not know, if the game then saves** ([ADR-0297](adr/0297-one-crate-of-safe-files-and-the-editors-journal-versioned-built-by-s1.md)).
+  `World::load` leaves out a component or a field it does not know with a warning (`crates/slime-world/src/document.rs`); scene files refuse them.
+  *Hunna Wood* refuses to resume such a save and sets it aside; a game that saves after a load that warned loses that data without a word.
+  Refusing by default was left out of S1 by the owner; for the next milestone that changes the saves.
 - **A save is text, of limited size** (ADR-0087, ADR-0102).
   Saving refuses a save larger, or of more values, than what `slime-serialize` reads: about 22 000 entities that have a name and a transform.
   A value is counted for each `=`, `,`, `[`, `{` and `.` of the text, a float's point included.
