@@ -1,5 +1,8 @@
 //! The times that a host gives uwui (`docs/adr/0227-the-time-that-motion-reads.md`): when each frame
-//! shows, when each input event came, and each root's clock.
+//! shows, when each input event came, and each root's clock. uwui gives them again as `uwui::time`;
+//! they stand below it so that its desktop host's platform layer, which knows nothing of uwui's
+//! interface, gives its events' times in them
+//! (`docs/adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md`).
 //!
 //! Two types of time, in whole nanoseconds, that cannot be mixed:
 //!
@@ -13,7 +16,7 @@
 //!
 //! ```
 //! use std::time::Duration;
-//! use uwui::time::{Instant, RootTime};
+//! use uwui_time::{Instant, RootTime};
 //!
 //! let shown = Instant::from_nanos(1_000_000_000);
 //! let later = shown + Duration::from_millis(16);
@@ -26,7 +29,7 @@
 //! ```
 //!
 //! ```compile_fail
-//! use uwui::time::{Instant, RootTime};
+//! use uwui_time::{Instant, RootTime};
 //!
 //! let _ = Instant::from_nanos(10) - RootTime::from_nanos(5);
 //! ```
@@ -109,9 +112,8 @@ time_of_a_clock! {
 }
 
 /// The time at which a frame shows, and where that time comes from: given before each target's
-/// [`Ui::frame`](crate::tree::Ui::frame) by
-/// [`Ui::set_frame_shown`](crate::tree::Ui::set_frame_shown). Each target, a window, has its own,
-/// which every root drawn on it reads.
+/// frame by `uwui::tree::Ui::set_frame_shown`. Each target, a window, has its own, which every root
+/// drawn on it reads.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FrameShown {
     /// When the frame shows, on the host's clock.
@@ -156,7 +158,7 @@ pub enum FrameSource {
 }
 
 /// The time at which an input event came, and where that time comes from: given with each event
-/// ([`Event::time`](crate::host::Event::time)).
+/// (`uwui::host::Event::time`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EventTime {
     /// When the event came, on the host's clock.
@@ -208,13 +210,12 @@ pub enum EventSource {
     /// sliding window, never after its reception
     /// (`docs/adr/0227-the-time-that-motion-reads.md`).
     Anchored,
-    /// The time that a test or a headless run gives, as `host::Person` gives it.
+    /// The time that a test or a headless run gives, as `uwui::host::Person` gives it.
     Simulated,
 }
 
-/// A root's clock at a frame, as its host gives it
-/// ([`Ui::set_root_clock`](crate::tree::Ui::set_root_clock)): its time, and its *speed*, 1 for the
-/// host's pace, 0 for a pause, less to slow it, more to hasten it.
+/// A root's clock at a frame, as its host gives it (`uwui::tree::Ui::set_root_clock`): its time,
+/// and its *speed*, 1 for the host's pace, 0 for a pause, less to slow it, more to hasten it.
 ///
 /// A root that is never given its clock follows the host's at speed 1, read at its target's
 /// frame's time. A game gives the game time

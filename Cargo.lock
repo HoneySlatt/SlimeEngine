@@ -3780,6 +3780,7 @@ dependencies = [
  "uwui-agent",
  "uwui-kdl",
  "uwui-macros",
+ "uwui-time",
 ]
 
 [[package]]
@@ -3858,6 +3859,10 @@ dependencies = [
  "uwui",
  "wgpu",
 ]
+
+[[package]]
+name = "uwui-time"
+version = "0.6.0"
 
 [[package]]
 name = "valuable"

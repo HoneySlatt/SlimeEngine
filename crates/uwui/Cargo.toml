@@ -47,6 +47,9 @@ uwui-agent = { workspace = true, optional = true }
 uwui-kdl.workspace = true
 # The declarations of the styles, which the cascade applies (ADR-0229).
 uwui-macros.workspace = true
+# The times that a host gives: its clock, each event's and frame's, each root's clock; given
+# again as `uwui::time` (ADR-0279).
+uwui-time.workspace = true
 
 [dev-dependencies]
 # uwui's own tests give a person's input through `host::Person`, and test the answers to agents.

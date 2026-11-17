@@ -86,7 +86,7 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   display list places boxes, images and clips on whole pixels of the screen; a text's style names
   OpenType features (`TextStyle::features`); an element focused by the keyboard, an agent or the
   program is in the state `FocusVisible`, one that the pointer focused is not.
-- The host gives `Ui` its times (`time`, `docs/adr/0227-the-time-that-motion-reads.md`), in whole
+- The host gives `Ui` its times (`time`, held by `uwui-time`, `docs/adr/0227-the-time-that-motion-reads.md`), in whole
   nanoseconds: `Instant`, a time of the host's clock, which counts a suspend, and `RootTime`, a
   time of a root's clock, which cannot be mixed. Before each frame of each target, when it shows
   and where that time comes from (`Ui::set_frame_shown`), which that target's motions read: the
@@ -317,7 +317,8 @@ icu_properties, for the writing system of a character; `slime-color`, the colors
 the display list; `uwui-kdl`, the reader of its documents in KDL, its themes, style sheets,
 tables of shortcuts and docks' layouts, and the writer of their values; `uwui-macros`, the
 derives of the styles' declarations and of their readers
-(`docs/adr/0229-styles-typed-as-declarations.md`); `slime-input`, the input it takes; thiserror and
+(`docs/adr/0229-styles-typed-as-declarations.md`); `slime-input`, the input it takes; `uwui-time`,
+the times that a host gives, which it gives again as `uwui::time`; thiserror and
 tracing; with the feature `agents`, `uwui-agent`, the messages of the interface's family. No other
 engine crate: text is laid out and rasterized on the CPU, `uwui-render` draws the display list, a
 program reads the cooked documents, and the window's input reaches the interface through the

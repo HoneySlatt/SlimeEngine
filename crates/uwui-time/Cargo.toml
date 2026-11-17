@@ -1,0 +1,11 @@
+[package]
+name = "uwui-time"
+description = "uwui's times: the host's clock, each event's and frame's time, each root's clock; below uwui and its desktop host's platform layer."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT OR Apache-2.0"
+publish.workspace = true
+
+[lints]
+workspace = true

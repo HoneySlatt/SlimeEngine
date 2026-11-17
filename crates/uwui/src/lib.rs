@@ -20,7 +20,9 @@ pub mod shortcuts;
 pub mod style;
 pub mod text;
 pub mod theme;
-pub mod time;
+/// The times that a host gives uwui, which the crate `uwui-time` holds, below uwui and its desktop
+/// host's platform layer.
+pub use uwui_time as time;
 pub mod tree;
 #[cfg(test)]
 mod verdicts_tests;
