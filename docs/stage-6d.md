@@ -2912,18 +2912,24 @@ The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/02
 
 ### M6d.9b — Actions declared once
 
-- **Goal.** An application declares its actions once for agents, and the editor's operations are
-  the declaration's first client.
-- **Crates.** uwui's core for agents; `slime-editor`.
-- **Delivers.** Actions declared once: a name, typed parameters, a description, a permission and a
-  family. The declaration checked on paper against Android's AppFunctions, Apple's App Intents and
-  Windows' registry of agents, so that an adapter never changes it
-  ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md),
-  [ADR-0218](adr/0218-one-core-for-agents-in-uwui.md)). The editor's operations declared: what each
-  changes becomes its permission and family, its parameters typed, each runnable without a window.
+- **Goal.** An application declares its actions once, in uwui's core, for its shortcuts, palette,
+  menus and agents, and the editor's operations are the declaration's first client
+  ([ADR-0293](adr/0293-actions-declared-once-in-uwuis-core-undo-and-the-journal-the-programs.md)).
+- **Crates.** `uwui`; uwui's core for agents; `slime-editor`.
+- **Delivers.** Actions declared once in `uwui`, in every build: a name, typed parameters, a
+  description, a permission, a family, and whether it can be undone. Shortcuts' tables, the palette
+  of commands, menus and agents read it; `ActionKind::Command(String)` and `PaletteCommand` give way
+  to it; a command that names no declared action refused. The program runs each action, told who ran
+  it; uwui's interface of undo, which the program fills, the editor's journal behind it. The
+  declaration checked on paper against Android's AppFunctions, Apple's App Intents and Windows'
+  registry of agents, so that an adapter never changes it
+  ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)). The editor's operations
+  declared: what each changes becomes its permission and family, its parameters typed, each runnable
+  without a window.
 - **Done when.** The comparison with the three systems is written in the declaration's ADR; every
-  operation of the editor is declared, and an agent runs each one without a window through the
-  MCP server; CI is green.
+  operation of the editor is declared, reached by its shortcuts and palette through the
+  declaration, and an agent runs each one without a window through the MCP server, and undoes it as
+  a person would; an agent's command that names no declared action is refused; CI is green.
 - **How to test.** `cargo test -p slime-editor`; the MCP server's session tests.
 - **Measured.** The MCP server's start with the editor's actions declared.
 
@@ -2986,8 +2992,7 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
   [ADR-0219](adr/0219-test-games-in-place-of-hunna-wood.md) weighed for uwui's first stage; among
   them, the services of files, settings, the network and long work that the web and the phones
   lack, with [ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md) amended for
-  the web. Who owns commands, undo and their journal, uwui or the engine, now that the actions are
-  declared ([ADR-0218](adr/0218-one-core-for-agents-in-uwui.md)). uwui's rule for its errors:
+  the web. uwui's rule for its errors:
   derived with `thiserror` or written by hand ([`debt.md`](debt.md)); whether its public structures
   are `#[non_exhaustive]`, which forbids a program to build one by its fields. uwui's `AGENTS.md`, roadmap and plan updated.
 - **Done when.** The owner has validated uwui's documents; each decision is recorded in an ADR.

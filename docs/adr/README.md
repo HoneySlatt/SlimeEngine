@@ -301,7 +301,7 @@ the ADR linking to it.
 | [0215](0215-the-engine-measured-against-the-market.md) | The engine measured against the market | Accepted; amends 0098, 0114, 0175, 0176, 0189, 0207, 0208, 0209 and 0213; amended by 0226 |
 | [0216](0216-light-geometry-and-the-gpus-floor.md) | Light, geometry and the GPU's floor | Accepted; amends 0034, 0035, 0098, 0114, 0115 and 0208 |
 | [0217](0217-worlds-by-density-generated-and-destroyed.md) | Worlds by density, generated and destroyed | Accepted; amends 0098, 0107, 0109, 0112 and 0208; amended by 0239 |
-| [0218](0218-one-core-for-agents-in-uwui.md) | One core for agents, in uwui | Accepted; amends 0099, 0122, 0190, 0209 and 0213; amended by 0246 |
+| [0218](0218-one-core-for-agents-in-uwui.md) | One core for agents, in uwui | Accepted; superseded in part by 0293; amends 0099, 0122, 0190, 0209 and 0213; amended by 0246 |
 | [0219](0219-test-games-in-place-of-hunna-wood.md) | Test games in place of Hunna Wood | Accepted; amends 0006, 0067, 0207 and 0214 |
 | [0220](0220-the-roadmap-reshaped-by-the-market.md) | The roadmap reshaped by the market | Accepted; amends 0098, 0190, 0194 and 0207; amended by 0221, 0222, 0225, 0226, 0229, 0241 and 0242 |
 | [0221](0221-compiling-within-its-budgets.md) | Compiling within its budgets | Accepted; amends 0104 and 0220 |
@@ -375,3 +375,4 @@ the ADR linking to it.
 | [0290](0290-uwuis-crate-names-kept-on-crates-io-once-m6d10-names-them.md) | uwui's crates' names kept on crates.io once M6d.10 names them | Accepted |
 | [0291](0291-a-panic-says-why-no-bare-unwrap-outside-tests.md) | A panic says why: no bare `unwrap` outside tests | Accepted |
 | [0292](0292-a-quick-check-without-nix-when-contributions-open.md) | A quick check without Nix, when contributions open | Accepted |
+| [0293](0293-actions-declared-once-in-uwuis-core-undo-and-the-journal-the-programs.md) | Actions declared once in uwui's core; undo and the journal the program's | Accepted; supersedes in part 0218 |
