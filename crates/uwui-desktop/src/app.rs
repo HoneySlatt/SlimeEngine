@@ -175,8 +175,8 @@ impl Window {
     /// Asks the system to bring the window to the front and give it the focus. The system chooses:
     /// it may refuse a window that the person is not using, so that it does not take the keys from
     /// another program, and show it as asking for attention instead. On Wayland, the request names
-    /// the person's last press of a key or a button in the window, or the keyboard's focus given
-    /// to it, and does nothing where the compositor gives no `xdg_activation_v1`, as Weston.
+    /// the person's last press of a key or a button in the window, a touch, or the keyboard's
+    /// focus given to it, and does nothing where the compositor gives no `xdg_activation_v1`, as Weston.
     pub fn bring_to_front(&mut self) {
         self.requests.activation = Some(Activation::Front);
     }

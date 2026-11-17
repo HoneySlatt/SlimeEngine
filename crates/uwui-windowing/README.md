@@ -63,8 +63,9 @@ timerfd, the clocks and the keymap's read.
 
 ## Must not
 
-- Depend on `uwui`, `uwui-render` or wgpu, nor be depended on by a crate but `uwui-desktop`:
-  `scripts/check.sh` checks both.
+- Depend on `uwui`, `uwui-render`, wgpu or its GPU's libraries, nor on an engine crate but
+  `slime-input`, nor be depended on by a crate but `uwui-desktop`: `scripts/check.sh` checks all
+  three.
 - Show a type of a platform's library in its API.
 - Run, poll or wake while nothing happens.
 - Use `unsafe` but where it calls libxkbcommon, each with its `// SAFETY:`.

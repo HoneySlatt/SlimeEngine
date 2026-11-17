@@ -20,6 +20,8 @@ on:
       - "crates/slime-platform/**"
       - "crates/slime-app/**"
       - "crates/uwui-desktop/**"
+      - "crates/uwui-windowing/**"
+      - "crates/uwui-time/**"
       - "crates/slime-mcp/Cargo.toml"
       - "crates/slime-mcp/src/**"
       - "crates/slime-mcp/tests/common/**"

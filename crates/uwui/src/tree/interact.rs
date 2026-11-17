@@ -154,32 +154,69 @@ pub(super) struct TargetInput {
     surface_at: [f32; 2],
     /// What the host was last told of the target's outputs ([`Ui::outputs`]).
     pub(super) told: super::host::Told,
-    /// The finger or stylus that the interface follows beside the mouse, until it leaves.
+    /// The finger or stylus that the interface follows in place of the mouse, until it leaves.
     contact: Option<PointerId>,
+    /// Where the mouse was last, while a finger or a stylus is followed: where the pointer is again
+    /// once it leaves.
+    mouse_at: Option<[f32; 2]>,
+}
+
+/// Whether the interface follows an event of a pointer, which one pointer at a time reaches
+/// (`docs/adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Follows {
+    /// The event reaches the interface.
+    Yes,
+    /// The followed finger or stylus leaves: the event reaches the interface, then the mouse is
+    /// followed again.
+    Leaving,
+    /// Another pointer's: not taken, changes nothing.
+    No,
 }
 
 impl TargetInput {
-    /// Whether the interface follows `pointer`'s event, which `leaves` the target or not: the
-    /// mouse always; a finger or a stylus if it is the one followed, or if none is, when it becomes
-    /// the one followed; leaving, it is followed no more.
-    pub(super) fn follows(&mut self, pointer: Pointer, leaves: bool) -> bool {
+    /// Whether the interface follows `pointer`'s event, a move to `at`, or one that `leaves` the
+    /// target: the first finger or stylus to come while none is followed, until it leaves; the
+    /// mouse while none is, its place kept meanwhile.
+    pub(super) fn follows(
+        &mut self,
+        pointer: Pointer,
+        at: Option<[f32; 2]>,
+        leaves: bool,
+    ) -> Follows {
         if matches!(pointer.device, PointerDevice::Mouse) {
-            return true;
+            if self.contact.is_none() {
+                return Follows::Yes;
+            }
+            if leaves {
+                self.mouse_at = None;
+            } else if at.is_some() {
+                self.mouse_at = at;
+            }
+            return Follows::No;
         }
         match self.contact {
             Some(followed) if followed == pointer.id => {
                 if leaves {
                     self.contact = None;
+                    Follows::Leaving
+                } else {
+                    Follows::Yes
                 }
-                true
             }
-            Some(_) => false,
-            None if leaves => false,
+            Some(_) => Follows::No,
+            None if leaves => Follows::No,
             None => {
                 self.contact = Some(pointer.id);
-                true
+                self.mouse_at = self.pointer;
+                Follows::Yes
             }
         }
+    }
+
+    /// Where the mouse is, once the finger or stylus followed in its place left.
+    pub(super) fn take_mouse_at(&mut self) -> Option<[f32; 2]> {
+        self.mouse_at.take()
     }
 }
 
@@ -248,6 +285,22 @@ impl Ui {
         self.interaction.of_mut(t).pointer = None;
         self.hover(t);
         self.rest_on(t, None);
+    }
+
+    /// A finger or a stylus left while its press was held, as a touch that the platform cancels:
+    /// lets go of what the press held, without an action.
+    pub(super) fn press_given_up(&mut self, t: TargetId) {
+        let input = self.interaction.of_mut(t);
+        input.drag = None;
+        input.splitting = None;
+        input.bar = None;
+        input.panel = None;
+        input.surface = None;
+        input.held.clear();
+        if let Some(before) = input.captured.take() {
+            self.change_state(before, |state| state.pressed = false);
+            self.field_press_lost(before);
+        }
     }
 
     /// What [`Input::Focus`](crate::host::Input::Focus) does when the target loses the system's

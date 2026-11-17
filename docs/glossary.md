@@ -1326,8 +1326,8 @@ while a world runs, under `created/<number>`; the entities of a placement are na
 
 **Pointer (input).** What moves over a window and presses in it: the mouse, pointer 0, or a finger
 or a stylus, each named from its touch until it leaves (`slime_input::Pointer`). An interface
-follows the mouse and one *primary* finger or stylus on each target, the first to come while none
-is followed
+follows one pointer at a time on each target: the *primary* finger or stylus, the first to come
+while none is followed, else the mouse
 ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)).
 
 **Pose (skeleton).** Where each bone of a skeleton is at a moment: one component of flat arrays,

@@ -75,14 +75,14 @@ pulls neither `uwui`, `uwui-render` nor wgpu, and serves no other crate.
 
 `uwui`, the interface it hosts; `uwui-windowing`, the platform layer below it; `uwui-render` and
 wgpu, which draw it; `raw-window-handle`, the window's pointers given to wgpu; `pollster`, which
-waits for wgpu's requests; `slime-input`, the keys, modifiers, pointers, buttons, wheel and
-cursor's shapes; `tracing`.
+waits for wgpu's requests; `tracing`; its tests, `slime-input`'s pointers.
 
 ## Must not
 
 - Depend on an engine crate besides `slime-color` and `slime-input`, which leave with uwui, nor be
   depended on by one; `scripts/check.sh` checks both.
-- Speak a platform itself: its layer does, below it.
+- Speak a platform itself: its layer does, below it. `scripts/check.sh` checks that it names none
+  of the platforms' libraries.
 - Show a type of a platform's library in its public API.
 - Run, poll or draw while nothing happens.
 - Use `unsafe` but where it gives wgpu the window's raw handles, with its `// SAFETY:`.

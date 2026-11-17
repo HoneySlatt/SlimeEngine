@@ -515,11 +515,14 @@ impl Platform {
         self.objects.toplevel.set_title(title.to_owned());
     }
 
-    pub(crate) fn set_min_size(&mut self, size: Option<[u32; 2]>) {
+    /// The minimum size is the surface's state, which the next commit applies: an image must
+    /// follow.
+    pub(crate) fn set_min_size(&mut self, size: Option<[u32; 2]>) -> bool {
         let [width, height] = size.unwrap_or([0, 0]);
         self.objects
             .toplevel
             .set_min_size(side(width), side(height));
+        true
     }
 
     pub(crate) fn set_fullscreen(&mut self, fullscreen: bool) {

@@ -73,7 +73,7 @@ pub(crate) fn run<A: App>(look: Look, settings: WindowSettings, app: A) -> i32 {
             pixels: [1, 1],
             scale: 1.0,
         },
-        held_move: None,
+        held_moves: Vec::new(),
         failure: None,
     };
     let (host, ran) = uwui_windowing::run(opening, host);
@@ -141,8 +141,8 @@ struct Host<A> {
     pacing: Pacing,
     /// How the window's images are drawn now.
     drawn: Drawn,
-    /// The pointer's last move, given to the interface before the next event or frame.
-    held_move: Option<(EventTime, uwui_windowing::Input)>,
+    /// Each pointer's last move, given to the interface before the next event or frame.
+    held_moves: Vec<(EventTime, uwui_windowing::Input)>,
     failure: Option<Failure>,
 }
 
@@ -244,7 +244,7 @@ impl<A: App> Host<A> {
             self.pacing.host_changed();
         }
         let now = platform.now();
-        for input in gather(inputs, &mut self.held_move, self.pacing.awaiting()) {
+        for input in gather(inputs, &mut self.held_moves, self.pacing.awaiting()) {
             give(session, platform, now, input);
         }
         session.step();
@@ -294,7 +294,7 @@ impl<A: App> Host<A> {
             self.pacing.missed(now);
             return Ok(());
         };
-        if let Some(held) = self.held_move.take() {
+        for held in std::mem::take(&mut self.held_moves) {
             give(session, platform, now, held);
         }
         let ui = &mut session.ui;
@@ -318,14 +318,16 @@ impl<A: App> Host<A> {
     }
 }
 
-/// Makes the requests of the window that the application made: whether a commit must carry one.
+/// Makes the requests of the window that the application made: whether an image must follow to
+/// apply one, as the platform says.
 fn make_requests(window: &mut Window, platform: &mut Platform<'_>) -> bool {
     let requests = window.take_requests();
+    let mut image = false;
     if requests.title {
         platform.set_title(window.title());
     }
     if requests.min_size {
-        platform.set_min_size(window.min_size());
+        image |= platform.set_min_size(window.min_size());
     }
     if let Some(fullscreen) = requests.fullscreen {
         platform.set_fullscreen(fullscreen);
@@ -333,37 +335,45 @@ fn make_requests(window: &mut Window, platform: &mut Platform<'_>) -> bool {
     if let Some(activation) = requests.activation {
         platform.activate(activation);
     }
-    // The minimum size is the surface's state, which the next commit applies.
-    requests.min_size
+    image
 }
 
-/// The person's input in the order that the interface takes it: the pointer's moves gathered,
-/// each move given only before the event that follows it, and the last one held in `held` while
-/// the frame `awaits` its signal, to be given before the next event or frame.
+/// The person's input in the order that the interface takes it: the pointers' moves gathered,
+/// each pointer's last move held in `held`, in the order that the pointers first moved, and given
+/// only before the event that follows them; held while the frame `awaits` its signal, to be given
+/// before the next event or frame.
 fn gather(
     inputs: Vec<(EventTime, uwui_windowing::Input)>,
-    held: &mut Option<(EventTime, uwui_windowing::Input)>,
+    held: &mut Vec<(EventTime, uwui_windowing::Input)>,
     awaits: bool,
 ) -> Vec<(EventTime, uwui_windowing::Input)> {
-    let mut given = Vec::with_capacity(inputs.len() + 1);
+    let mut given = Vec::with_capacity(inputs.len() + held.len());
     for (time, input) in inputs {
-        if let uwui_windowing::Input::PointerMoved { .. } = input {
-            *held = Some((time, input));
+        if let uwui_windowing::Input::PointerMoved { pointer, .. } = input {
+            let same = held.iter_mut().find(|(_, before)| {
+                matches!(before, uwui_windowing::Input::PointerMoved { pointer: other, .. }
+                    if other.id == pointer.id)
+            });
+            match same {
+                Some(before) => *before = (time, input),
+                None => held.push((time, input)),
+            }
             continue;
         }
-        given.extend(held.take());
+        given.append(held);
         given.push((time, input));
     }
     if !awaits {
-        given.extend(held.take());
+        given.append(held);
     }
     given
 }
 
-/// The interface's event for the layer's `input`.
-fn translated(input: &uwui_windowing::Input) -> Input<'_> {
+/// The interface's event for the layer's `input`; none for an input that the host does not know
+/// yet, which it leaves.
+fn translated(input: &uwui_windowing::Input) -> Option<Input<'_>> {
     use uwui_windowing::Input as Given;
-    match input {
+    Some(match input {
         &Given::PointerMoved { pointer, x, y } => Input::PointerMoved { pointer, x, y },
         &Given::PointerLeft { pointer } => Input::PointerLeft { pointer },
         &Given::PointerButton {
@@ -379,7 +389,8 @@ fn translated(input: &uwui_windowing::Input) -> Input<'_> {
         Given::Key(key) => Input::Key(key),
         &Given::Modifiers(modifiers) => Input::Modifiers(modifiers),
         &Given::Focus(given) => Input::Focus(given),
-    }
+        _ => return None,
+    })
 }
 
 /// Gives the interface one event on the window, then, if it took it, serves what it asks; `now`
@@ -390,8 +401,11 @@ fn give<A: App>(
     now: Instant,
     (time, input): (EventTime, uwui_windowing::Input),
 ) {
+    let Some(translated) = translated(&input) else {
+        return;
+    };
     let ui = &mut session.ui;
-    let answer = ui.event(Event::new(TargetId::MAIN, time, translated(&input)));
+    let answer = ui.event(Event::new(TargetId::MAIN, time, translated));
     if answer.taken() {
         serve_outputs(ui, platform, now);
     }
@@ -432,7 +446,7 @@ mod tests {
     fn told(inputs: &[(EventTime, Given)]) -> Vec<String> {
         inputs
             .iter()
-            .map(|(time, input)| format!("{} {:?}", time.at.as_nanos(), translated(input)))
+            .map(|(time, input)| format!("{} {:?}", time.at.as_nanos(), translated(input).unwrap()))
             .collect()
     }
 
@@ -444,7 +458,7 @@ mod tests {
                 pointer: Pointer::MOUSE,
             },
         );
-        let mut held = None;
+        let mut held = Vec::new();
         // Two moves then the pointer leaving: the last move before it, the first dropped.
         let given = gather(vec![moved(1, 1.0), moved(2, 2.0), left], &mut held, true);
         assert_eq!(
@@ -465,6 +479,43 @@ mod tests {
                 "5 PointerMoved { pointer: Pointer { id: PointerId(0), device: Mouse }, x: 5.0, y: 0.0 }"
             ]
         );
-        assert!(held.is_none());
+        assert!(held.is_empty());
+    }
+
+    #[test]
+    fn each_pointers_last_move_is_held_apart() {
+        let finger = |id, at: u64, x| {
+            (
+                EventTime::received(Instant::from_nanos(at)),
+                Given::PointerMoved {
+                    pointer: Pointer::finger(slime_input::PointerId(id)),
+                    x,
+                    y: 0.0,
+                },
+            )
+        };
+        let mut held = Vec::new();
+        // One frame of touch: both fingers move, then the mouse; each keeps its last move.
+        let given = gather(
+            vec![
+                finger(1, 1, 1.0),
+                finger(2, 2, 50.0),
+                finger(1, 3, 2.0),
+                moved(4, 9.0),
+            ],
+            &mut held,
+            true,
+        );
+        assert!(given.is_empty());
+        let given = gather(Vec::new(), &mut held, false);
+        assert_eq!(
+            told(&given),
+            [
+                "3 PointerMoved { pointer: Pointer { id: PointerId(1), device: Finger }, x: 2.0, y: 0.0 }",
+                "2 PointerMoved { pointer: Pointer { id: PointerId(2), device: Finger }, x: 50.0, y: 0.0 }",
+                "4 PointerMoved { pointer: Pointer { id: PointerId(0), device: Mouse }, x: 9.0, y: 0.0 }",
+            ]
+        );
+        assert!(held.is_empty());
     }
 }

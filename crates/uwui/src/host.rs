@@ -164,9 +164,11 @@ impl<'a> Event<'a> {
 /// events are; each move given makes uwui find what lies under the pointer.
 ///
 /// Each event of a pointer names its [`Pointer`], the mouse or a finger or a stylus. The interface
-/// follows one pointer of each kind at a time on a target: the mouse, and the *primary* finger or
-/// stylus, the first to come while no other is followed, until it leaves. The events of another
-/// are not taken and change nothing, so a second finger on a screen does nothing yet
+/// follows one pointer at a time on a target: the *primary* finger or stylus, the first to come
+/// while none is followed, until it leaves; else the mouse, which is where it last moved once the
+/// finger leaves. The events of another are not taken and change nothing, so a second finger on a
+/// screen does nothing yet. A finger or a stylus that leaves while its press is held, as a touch
+/// that the platform cancels, lets go of what it pressed without an action
 /// (`docs/adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md`).
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]

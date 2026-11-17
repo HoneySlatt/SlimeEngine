@@ -8,6 +8,7 @@ use slime_input::CursorShape;
 #[cfg(feature = "test-input")]
 use slime_input::{ButtonState, Ime, KeyEvent, Modifiers, MouseButton, Pointer, ScrollDelta};
 
+use super::interact::Follows;
 use super::{ElementId, Ui};
 use crate::Rect;
 #[cfg(feature = "test-input")]
@@ -60,16 +61,29 @@ impl Ui {
         if !self.interaction.knows(t) {
             return Answer::NotTaken;
         }
-        let pointer = match event.input {
-            Input::PointerMoved { pointer, .. } | Input::PointerButton { pointer, .. } => {
-                Some((pointer, false))
+        let follows = match event.input {
+            Input::PointerMoved { pointer, x, y } => {
+                self.interaction
+                    .of_mut(t)
+                    .follows(pointer, Some([x, y]), false)
             }
-            Input::PointerLeft { pointer } => Some((pointer, true)),
-            _ => None,
+            Input::PointerButton { pointer, .. } => {
+                self.interaction.of_mut(t).follows(pointer, None, false)
+            }
+            Input::PointerLeft { pointer } => {
+                self.interaction.of_mut(t).follows(pointer, None, true)
+            }
+            _ => Follows::Yes,
         };
-        if let Some((pointer, leaves)) = pointer
-            && !self.interaction.of_mut(t).follows(pointer, leaves)
-        {
+        if follows == Follows::No {
+            return Answer::NotTaken;
+        }
+        if follows == Follows::Leaving {
+            self.pointer_left_input(t);
+            self.press_given_up(t);
+            if let Some([x, y]) = self.interaction.of_mut(t).take_mouse_at() {
+                self.pointer_moved_input(t, x, y);
+            }
             return Answer::NotTaken;
         }
         if matches!(event.input, Input::Key(_) | Input::PointerButton { .. }) {

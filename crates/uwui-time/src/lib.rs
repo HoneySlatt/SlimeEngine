@@ -34,6 +34,9 @@
 //! let _ = Instant::from_nanos(10) - RootTime::from_nanos(5);
 //! ```
 
+// A public enumeration may gain cases without breaking a program (ADR-0282).
+#![warn(clippy::exhaustive_enums)]
+
 use std::ops::{Add, AddAssign, Sub};
 use std::time::Duration;
 

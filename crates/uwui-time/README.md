@@ -28,4 +28,5 @@ Nothing but the standard library.
 
 ## Must not
 
-- Depend on another crate: `uwui`, the desktop host's platform layer and every host read it.
+- Depend on another crate, its tests' included: `uwui`, the desktop host's platform layer and every
+  host read it. `scripts/check.sh` checks it.

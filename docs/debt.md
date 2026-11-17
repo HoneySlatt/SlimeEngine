@@ -115,8 +115,11 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The interface's shapes, the I-beam over a field and the arrows over a splitter, show only through that protocol, which sway, KWin and Mutter give; elsewhere the cursor is whatever the compositor last showed.
   Drawing a theme's images needs `wayland-cursor`, a dependency put to the owner once a compositor of the field lacks the protocol.
 - **uwui's desktop host follows no global that comes during its run** ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
-  A seat added later gives no pointer or keyboard, and an output plugged later is not bound: where the compositor prefers no scale for the surface, as Weston, a window moved onto it keeps the scale of the outputs known at its start.
+  A seat added later gives no pointer, touch or keyboard, and an output plugged later is not bound: where the compositor prefers no scale for the surface, as Weston, a window moved onto it keeps the scale of the outputs known at its start.
   Followed at M6d.7e, whose several windows follow the outputs and the seats.
+- **The order in which uwui's desktop host lets go of its window is checked by review alone** ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)).
+  wgpu's surface stands on the layer's raw handles: the layer drops its handler before its window, by the order of `Running`'s fields (`crates/uwui-windowing/src/wayland/mod.rs`), and the host drops its device in `Handler::closing`; no test fails if either changes, since the layer's window is Wayland's alone.
+  Followed at M6d.7b, whose second layer may let the run be driven by a fake platform.
 - **uwui's desktop host's keyboard tests read the developer's own compose files** ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
   libxkbcommon reads `XCOMPOSEFILE` or `~/.XCompose` before the locale's table, and `xkbcommon-dl` 0.4.2 gives no way to load a table from a file of the test's own: a person whose own sequence redefines `^` then `e` sees `crates/uwui-windowing/src/xkb.rs`'s tests of dead keys fail; CI has neither.
   Followed when the host's keyboard is shared with X11's layer, at M6d.7b.
@@ -729,6 +732,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   They are `DocumentError` and `DocumentErrors` in `document.rs`, `ReadError` and `WriteError` in `dock/document.rs`, and `TokenError` in `theme/token.rs`.
   Four could be derived; `DocumentErrors` could not, its message walking a list.
   A document of a later version is told two ways: a dock's layout by `ReadError::Later`, a theme, a style sheet or a table of shortcuts by `DocumentError::later`, a field of a struct not `#[non_exhaustive]` ([ADR-0286](adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md)).
+  uwui's desktop host and its platform layer write theirs by hand too, each over a `String`: `HostError` and `GpuError` in `uwui-desktop`, `Error` in `uwui-windowing`.
   `uwui-kdl` writes its own by hand on purpose: it depends on nothing ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   Followed at [M6d.10b](stage-6d.md#m6d10b--uwuis-first-stage-planned), which sets uwui's rule for errors.
 - **The interface's images are textures that the program gives** for the keys of its display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
@@ -1050,10 +1054,10 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   A label is a `String`; uwui has no catalogue of messages, no plurals and no formatting by locale ([`uwui-needs.md`](uwui-needs.md) asks for Fluent).
   Every label written before them is to be found and keyed again.
   uwui's authoring API carries messages, a locale and a fake language of test from its first stage, Fluent before its 1.0; M6d.10b places them.
-- **uwui's input follows one pointer of each kind** ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)).
-  Since M6d.7a2b1, `Input`'s pointer events name their `Pointer`, the mouse, a finger or a stylus; each target follows the mouse and one finger or stylus, and a second finger on a screen does nothing (`crates/uwui/src/tree/interact.rs`).
-  A touch that the compositor cancels, for a gesture of its own, leaves without lifting: what it pressed stays drawn pressed, and gives no action, until the next press; touch is checked by unit tests alone, no compositor of the series injecting it.
-  Hover, press and capture kept per pointer, a cancel of its own, gestures, scroll inertia and a stylus translated by the desktop host's layers come with touch, which M6d.10b places before uwui's library of components ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)).
+- **uwui's input follows one pointer at a time** ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)).
+  Since M6d.7a2b1, `Input`'s pointer events name their `Pointer`, the mouse, a finger or a stylus; each target follows the first finger or stylus down, else the mouse, and a second finger on a screen does nothing (`crates/uwui/src/tree/interact.rs`).
+  A touch that the compositor cancels, for a gesture of its own, leaves without lifting, and lets go of what it pressed without an action; touch is checked by unit tests alone, no compositor of the series injecting it.
+  Hover, press and capture kept per pointer, gestures, scroll inertia and a stylus translated by the desktop host's layers come with touch, which M6d.10b places before uwui's library of components ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)).
 - **A save of an older layout is refused, not migrated** ([ADR-0288](adr/0288-saves-migrated-from-their-layout-5-on.md)).
   `slime_world`'s reader of saves refuses any layout but `LAYOUT_VERSION` (`crates/slime-world/src/document.rs`); scene files accept every layout up to it.
   Nothing is lost: *Hunna Wood* sets the old save aside.

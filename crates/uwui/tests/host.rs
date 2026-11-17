@@ -291,15 +291,84 @@ fn a_second_finger_is_not_followed_while_the_first_touches() {
 }
 
 #[test]
-fn the_mouse_is_followed_while_a_finger_touches() {
-    let (mut ui, [field, ..]) = interface();
-    assert!(touch(&mut ui, Pointer::finger(PointerId(1)), 300.0, 280.0) == Answer::NotTaken);
+fn the_mouse_waits_while_a_finger_touches_and_comes_back_where_it_rests() {
+    let (mut ui, [.., button]) = interface();
+    let main = TargetId::MAIN;
+    let mouse_at = |x, y| Input::PointerMoved {
+        pointer: Pointer::MOUSE,
+        x,
+        y,
+    };
+    let release = |pointer| Input::PointerButton {
+        pointer,
+        button: MouseButton::Left,
+        state: ButtonState::Released,
+    };
+    // The mouse rests over the button.
+    let _ = given(&mut ui, main, Instant::ZERO, mouse_at(10.0, 130.0));
+    assert!(ui.state(button).is_some_and(|state| state.hovered));
+    // A finger touches elsewhere: the interface follows it alone, the mouse's press not taken.
+    let finger = Pointer::finger(PointerId(1));
+    assert_eq!(touch(&mut ui, finger, 300.0, 280.0), Answer::NotTaken);
+    assert_eq!(given(&mut ui, main, Instant::ZERO, PRESS), Answer::NotTaken);
+    let _ = given(&mut ui, main, Instant::ZERO, release(Pointer::MOUSE));
+    let _ = given(&mut ui, main, Instant::ZERO, release(finger));
+    let _ = given(
+        &mut ui,
+        main,
+        Instant::ZERO,
+        Input::PointerLeft { pointer: finger },
+    );
+    assert!(ui.take_actions().is_empty());
+    // Once it lifts, the mouse is where it rested: its click, without a move, presses the button.
+    assert!(ui.state(button).is_some_and(|state| state.hovered));
+    assert!(given(&mut ui, main, Instant::ZERO, PRESS).taken());
+    assert!(given(&mut ui, main, Instant::ZERO, release(Pointer::MOUSE)).taken());
+    let actions: Vec<_> = ui
+        .take_actions()
+        .into_iter()
+        .map(|action| (action.element, action.kind))
+        .collect();
+    assert_eq!(actions, [(Some(button), ActionKind::Press)]);
+}
+
+#[test]
+fn a_finger_that_leaves_without_lifting_lets_go_of_its_press_without_an_action() {
+    let (mut ui, [.., number, _]) = interface();
+    let main = TargetId::MAIN;
+    // A finger presses the field of numbers, then the platform cancels its touch.
+    let finger = Pointer::finger(PointerId(1));
+    assert!(touch(&mut ui, finger, 10.0, 100.0).taken());
+    let _ = given(
+        &mut ui,
+        main,
+        Instant::ZERO,
+        Input::PointerLeft { pointer: finger },
+    );
+    assert!(ui.state(number).is_some_and(|state| !state.pressed));
+    // The mouse's move drags nothing.
+    let moved = Input::PointerMoved {
+        pointer: Pointer::MOUSE,
+        x: 120.0,
+        y: 100.0,
+    };
+    let _ = given(&mut ui, main, Instant::ZERO, moved);
+    assert!(ui.take_actions().is_empty());
+}
+
+#[test]
+fn a_finger_that_leaves_before_it_came_changes_nothing() {
+    let (mut ui, [.., button]) = interface();
+    let main = TargetId::MAIN;
     let moved = Input::PointerMoved {
         pointer: Pointer::MOUSE,
         x: 10.0,
-        y: 10.0,
+        y: 130.0,
     };
-    let _ = given(&mut ui, TargetId::MAIN, Instant::ZERO, moved);
-    assert!(given(&mut ui, TargetId::MAIN, Instant::ZERO, PRESS).taken());
-    assert_eq!(ui.focus(), Some(field));
+    let _ = given(&mut ui, main, Instant::ZERO, moved);
+    let stray = Input::PointerLeft {
+        pointer: Pointer::finger(PointerId(4)),
+    };
+    assert_eq!(given(&mut ui, main, Instant::ZERO, stray), Answer::NotTaken);
+    assert!(ui.state(button).is_some_and(|state| state.hovered));
 }

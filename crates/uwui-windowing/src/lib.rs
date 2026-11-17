@@ -24,7 +24,11 @@
 //! Its name is provisional, until M6d.10a names uwui's crates. It is public nowhere but to
 //! `uwui-desktop`, which `scripts/check.sh` checks, with its other rule: it depends on neither
 //! `uwui`, `uwui-render` nor wgpu. No type of a platform's library appears in its API. Its
-//! enumerations are closed: the host translates every case that it gives.
+//! enumerations are open to new cases, as uwui's are
+//! (`docs/adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md`).
+
+// A public enumeration may gain cases without breaking its host (ADR-0282).
+#![warn(clippy::exhaustive_enums)]
 
 // The core, which only Wayland's layer drives yet: elsewhere it is compiled and tested, and used by
 // no layer.
@@ -72,10 +76,7 @@ pub struct Opening {
 
 /// A person's input, in the window's physical pixels.
 #[derive(Clone, Debug, PartialEq)]
-#[allow(
-    clippy::exhaustive_enums,
-    reason = "the host above translates every case; the crate is public nowhere"
-)]
+#[non_exhaustive]
 pub enum Input {
     /// A pointer moved to `x` and `y`, from the window's top left.
     PointerMoved {
@@ -151,10 +152,7 @@ pub struct Happened {
 
 /// What the layer does after a turn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(
-    clippy::exhaustive_enums,
-    reason = "a turn waits or ends the run, and the crate is public nowhere"
-)]
+#[non_exhaustive]
 pub enum Control {
     /// Waits for the platform, a wake, or the time given, then turns again.
     Wait(Option<Instant>),
@@ -164,10 +162,7 @@ pub enum Control {
 
 /// What the application asks of the system for its window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(
-    clippy::exhaustive_enums,
-    reason = "the two requests of activation, and the crate is public nowhere"
-)]
+#[non_exhaustive]
 pub enum Activation {
     /// Brought to the front, given the focus.
     Front,
@@ -252,10 +247,11 @@ impl Window<'_> {
     }
 
     /// Sets the smallest that the person may make the window, in logical pixels; none for no
-    /// bound. The next image's commit applies it.
-    pub fn set_min_size(&mut self, size: Option<[u32; 2]>) {
+    /// bound. Whether an image must follow to apply it: on Wayland, the next image's commit does.
+    #[must_use = "an image must follow where it says so"]
+    pub fn set_min_size(&mut self, size: Option<[u32; 2]>) -> bool {
         #[cfg(target_os = "linux")]
-        self.platform.set_min_size(size);
+        return self.platform.set_min_size(size);
         #[cfg(not(target_os = "linux"))]
         {
             let _ = size;
@@ -347,9 +343,7 @@ pub fn run<H: Handler>(opening: Opening, handler: H) -> (H, Result<(), Error>) {
         drop(opening);
         (
             handler,
-            Err(Error(
-                "uwui's desktop host has no windowing layer for this system yet".to_owned(),
-            )),
+            Err(Error("no windowing layer for this system yet".to_owned())),
         )
     }
 }

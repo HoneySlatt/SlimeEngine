@@ -16,9 +16,6 @@ pollster.workspace = true
 # The window's raw handles, which the platform layer gives and wgpu makes the surface on
 # (ADR-0270).
 raw-window-handle.workspace = true
-# The keys, modifiers, pointers, buttons and wheel that the layer gives, and the cursor's shapes
-# (ADR-0142, ADR-0285).
-slime-input.workspace = true
 # Warnings of what the host leaves aside: a frame not drawn.
 tracing.workspace = true
 uwui.workspace = true
@@ -31,6 +28,8 @@ uwui-windowing.workspace = true
 wgpu.workspace = true
 
 [dev-dependencies]
+# The pointers that the host's tests give.
+slime-input.workspace = true
 # The example draws in the editor's look, the only look that uwui has yet.
 uwui = { workspace = true, features = ["editor-look"] }
 

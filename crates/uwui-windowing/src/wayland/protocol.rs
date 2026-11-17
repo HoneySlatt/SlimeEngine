@@ -97,8 +97,8 @@ pub(super) struct Told {
     entered: Vec<ObjectId>,
     /// The tokens of activation that the compositor gave, to be used on the window.
     pub(super) tokens: Vec<String>,
-    /// The serial of the person's last press of a key or a button, or of the keyboard's focus
-    /// given, which a request to bring the window to the front names, as `xdg_activation_v1`
+    /// The serial of the person's last press of a key or a button, of a touch, or of the keyboard's
+    /// focus given, which a request to bring the window to the front names, as `xdg_activation_v1`
     /// allows.
     pub(super) serial: Option<u32>,
     pub(super) cursor: Cursor,
@@ -241,7 +241,16 @@ impl Told {
         let finger = Pointer::finger(PointerId(self.next_finger));
         // Never the mouse's 0, as the count turns over.
         self.next_finger = self.next_finger.checked_add(1).unwrap_or(1);
-        self.fingers.insert(id, finger.id);
+        // A number still down that the compositor gives again, against the protocol: the finger
+        // before leaves, so that the interface does not follow it for ever.
+        if let Some(before) = self.fingers.insert(id, finger.id) {
+            self.push(
+                EventTime::received(received),
+                Input::PointerLeft {
+                    pointer: Pointer::finger(before),
+                },
+            );
+        }
         self.serial = Some(serial);
         let time = self.time(millis, received);
         let moved = self.moved(finger, x, y);
@@ -299,6 +308,14 @@ impl Told {
                 }
             }
             _ => {}
+        }
+    }
+
+    /// The seat lost its touch screen, at `received`: the fingers on the window leave with it.
+    fn touch_gone(&mut self, received: Instant) {
+        self.touch(wl_touch::Event::Cancel, received);
+        if let Some(touch) = self.touch.take() {
+            touch.release();
         }
     }
 
@@ -737,13 +754,7 @@ impl Dispatch<wl_seat::WlSeat, ()> for Told {
         let has = capabilities.contains(wl_seat::Capability::Touch);
         match (&told.touch, has) {
             (None, true) => told.touch = Some(seat.get_touch(queue, ())),
-            (Some(_), false) => {
-                // The fingers on the window go with it.
-                told.touch(wl_touch::Event::Cancel, clock::now());
-                if let Some(touch) = told.touch.take() {
-                    touch.release();
-                }
-            }
+            (Some(_), false) => told.touch_gone(clock::now()),
             _ => {}
         }
         let has = capabilities.contains(wl_seat::Capability::Keyboard);
@@ -1209,6 +1220,33 @@ mod tests {
             at(6_011),
         );
         assert!(inputs(&mut told).is_empty());
+    }
+
+    #[test]
+    fn a_touch_for_a_number_still_down_leaves_the_finger_before() {
+        let mut told = Told::new();
+        told.touch_down(1, 1_000, 7, [1.0, 1.0], at(6_000));
+        // The compositor gives number 7 again without its lift: the first finger leaves first.
+        told.touch_down(2, 1_001, 7, [2.0, 2.0], at(6_001));
+        let inputs = inputs(&mut told);
+        assert_eq!(
+            inputs[2],
+            "6001 Received PointerLeft { pointer: Pointer { id: PointerId(1), device: Finger } }"
+        );
+        assert_eq!(inputs.len(), 5, "{inputs:?}");
+        assert_eq!(told.serial, Some(2), "a touch's serial, for activation");
+    }
+
+    #[test]
+    fn a_seat_that_loses_touch_lets_its_fingers_leave() {
+        let mut told = Told::new();
+        told.touch_down(1, 1_000, 3, [1.0, 1.0], at(6_000));
+        let _ = inputs(&mut told);
+        told.touch_gone(at(6_005));
+        assert_eq!(
+            inputs(&mut told),
+            ["6005 Received PointerLeft { pointer: Pointer { id: PointerId(1), device: Finger } }"]
+        );
     }
 
     #[test]

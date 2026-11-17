@@ -212,8 +212,26 @@ if runs lint; then
     # to the host above it (ADR-0279).
     layer_dependencies=$(cargo tree --locked -p uwui-windowing -e normal,build,dev --target all \
         --all-features --prefix none)
-    if grep -E '^(uwui|uwui-render|wgpu|wgpu-core|wgpu-hal|wgpu-types) ' <<< "$layer_dependencies"; then
+    if grep -E '^(uwui|uwui-render|wgpu|wgpu-core|wgpu-hal|wgpu-types|naga|ash) ' <<< "$layer_dependencies"; then
         echo "uwui-windowing depends on uwui's interface or the GPU above: only the host above it may"
+        exit 1
+    fi
+    if grep -E '^slime-' <<< "$layer_dependencies" | grep -v '^slime-input '; then
+        echo "uwui-windowing depends on the engine crates above"
+        exit 1
+    fi
+    # uwui's times depend on nothing, its tests' included.
+    time_dependencies=$(cargo tree --locked -p uwui-time -e normal,build,dev --target all \
+        --all-features --prefix none)
+    if grep -v '^uwui-time ' <<< "$time_dependencies" | grep -E '^[a-z]'; then
+        echo "uwui-time depends on the crates above"
+        exit 1
+    fi
+    # The host speaks no platform itself: its layer does.
+    host_direct=$(cargo tree --locked -p uwui-desktop -e normal --target all --depth 1 --prefix none)
+    if grep -E '^(wayland-client|wayland-backend|wayland-protocols|wayland-sys|xkbcommon-dl|rustix|ctrlc|x11rb|windows-sys|objc2|objc2-app-kit) ' \
+        <<< "$host_direct"; then
+        echo "uwui-desktop speaks a platform through the crates above: only its layer may"
         exit 1
     fi
     layer_users=$(cargo tree --locked --workspace --exclude uwui-desktop --exclude uwui-windowing \
