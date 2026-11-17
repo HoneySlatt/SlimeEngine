@@ -299,7 +299,7 @@ async fn answered<C: Carrier>(
         Ok(Answer {
             outcome: Ok(reply),
             bytes,
-        }) => described(reply, &bytes),
+        }) => described(reply, bytes).await,
         Ok(Answer {
             outcome: Err(refused),
             ..
@@ -309,14 +309,14 @@ async fn answered<C: Carrier>(
 }
 
 /// What the interface's `reply` says, with `bytes`, those that followed it.
-fn described(reply: Reply, bytes: &[u8]) -> CallToolResult {
+async fn described(reply: Reply, bytes: Vec<u8>) -> CallToolResult {
     match reply {
         Reply::Done => text("done"),
         Reply::Elements {
             elements: found,
             next,
         } => elements(found, next.as_deref()),
-        Reply::Image { width, height } => image(width, height, bytes),
+        Reply::Image { width, height } => image(width, height, bytes).await,
         Reply::Style { places } => {
             if places.is_empty() {
                 return text(
@@ -401,8 +401,21 @@ fn elements(found: Vec<ElementSummary>, next: Option<&str>) -> CallToolResult {
     text(lines.join("\n"))
 }
 
-/// The result that shows `pixels`, `width` × `height` of four bytes each, as a PNG image.
-pub fn image(width: u32, height: u32, pixels: &[u8]) -> CallToolResult {
+/// The result that shows `pixels`, `width` × `height` of four bytes each, as a PNG image, encoded
+/// on a thread that may block: a server's runtime may have one thread, which a large image would
+/// hold from its other calls.
+///
+/// # Panics
+///
+/// Outside a Tokio runtime, which [`ask`](crate::ask) needs too.
+pub async fn image(width: u32, height: u32, pixels: Vec<u8>) -> CallToolResult {
+    tokio::task::spawn_blocking(move || encoded(width, height, &pixels))
+        .await
+        .unwrap_or_else(|error| failure(format!("the image's thread failed: {error}")))
+}
+
+/// What [`image`] gives, encoded on the calling thread.
+fn encoded(width: u32, height: u32, pixels: &[u8]) -> CallToolResult {
     match png(width, height, pixels) {
         Ok(bytes) => CallToolResult::success(vec![
             ContentBlock::text(format!("{width} × {height} pixels")),

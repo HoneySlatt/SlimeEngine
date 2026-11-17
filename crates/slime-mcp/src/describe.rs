@@ -4,8 +4,9 @@ use rmcp::model::CallToolResult;
 use slime_channel::{Fault, Reply};
 use uwui_mcp::{failure, fault, image, text};
 
-/// The result that tells `reply`, with `payload`, an image's pixels, after it.
-pub(crate) fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
+/// The result that tells `reply`, with `payload`, an image's pixels, after it, which are encoded
+/// off the server's one thread.
+pub(crate) async fn describe(reply: Reply, payload: Vec<u8>) -> CallToolResult {
     match reply {
         Reply::Done => text("done"),
         Reply::Failed { code, message } => fault(Fault::new(code, message)),
@@ -82,7 +83,7 @@ pub(crate) fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
         } else {
             format!("{} ({})", entity.identity, entity.name)
         }),
-        Reply::Image { width, height } => image(width, height, payload),
+        Reply::Image { width, height } => image(width, height, payload).await,
         Reply::History { history } => {
             let list = |labels: &[String]| {
                 if labels.is_empty() {

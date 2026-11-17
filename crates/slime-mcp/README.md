@@ -38,11 +38,16 @@ in scripted input yet: an interface is used through its elements' actions.
   given once. The server is the library's carrier: it sends each family's request to the program
   that serves it now, an editor's to the editor and the others to the game that it plays while the
   game's tools drive it. A call that its agent cancels cancels its request in the program, which
-  then does not do it if it had changed nothing yet; `start_game`, `stop_game`,
-  `drive_played_game`, `cook` and `run_tests` run on to their end. A program's refusal, and a
-  cursor that no longer holds, reach the agent as a tool's error, which says what to do; a family
-  that the program serves at another version than the server is refused in the server's words,
-  which say what to build again.
+  then does not do it if it had changed nothing yet; one of `start_game` gives the start up, and
+  one of `drive_played_game` leaves the routing as it was; `stop_game`, `cook` and `run_tests` run
+  on to their end.
+- Holds its game in one state, starting, running or stopping, numbered by each start, behind a
+  lock that no tool holds while it waits: a game that starts, stops or is driven never holds the
+  agent's other calls, which answer at once that the game starts or stops. A request that a game
+  stopped breaks is told so, and the server does not connect to that game again.
+- Gives a program's refusal, and a cursor that no longer holds, to the agent as a tool's error,
+  which says what to do; a family that the program serves at another version than the server is
+  refused in the server's words, which say what to build again.
 - Runs the engine's cooker and `cargo test` in the directory where it runs: run it from the
   repository's root.
 
@@ -89,8 +94,14 @@ The tools, each described to the agent by the server itself, with its parameters
   to it, waiting long enough for `cargo run` to build it first, or `timeout_seconds`. Give a game a
   save of its own: `["cargo", "run", "-p", "hunnawood", "--", "--new", "--save",
   "/tmp/agent-run.toml"]`. It answers with the process that it started: cargo's when `cargo run`
-  starts the game. `stop_game` asks it to stop, as closing its window would, and kills it if it does
-  not. A game that ended on its own is told at the next tool that asks it, and forgotten.
+  starts the game. Meanwhile the other tools answer that the game starts; a call cancelled, even
+  as it answers, or `stop_game`, gives the start up and kills the program started, once it
+  welcomed the server if it had said where it listens ([`docs/debt.md`](../../docs/debt.md)).
+  `stop_game` closes the game's standard input, which ends it as a termination signal would, even
+  while long requests hold every place in flight, and kills it if it does not end in the time that
+  its description gives: a game that a wrapper runs behind a terminal of its own reads no end of
+  its input there, and is killed. A game that ended on its own is told at the next tool that asks
+  it, and forgotten.
 - `game_state`, `pause`, `resume`, `step` and `set_speed`: the host's controls of game time, and the
   views that the game's last frame drew, with their settings; a step answers once its steps have
   run.
@@ -173,7 +184,8 @@ The tools, each described to the agent by the server itself, with its parameters
   at that game, `played: true`, connecting to it with the address and the token that the editor
   gives, which the agent never sees, or back at the editor, `played: false`; the editor's tools
   reach the editor all along, and a played game that no longer answers points the game's tools
-  back at the editor. A step that the editor makes reaches the game a moment after the editor
+  back at the editor. The last call wins: one still under way when a later one came changes
+  nothing. A step that the editor makes reaches the game a moment after the editor
   answers. `stop_game` stops the editor, which ends the game that it plays, and `play.stop` that
   game alone (`docs/adr/0164-play.md`, `docs/adr/0165-editing-while-playing.md`).
 - `cook`: cooks a directory of source assets, which a game started with `--watch` loads again.
@@ -218,9 +230,13 @@ plays the yard there, and reaches the played game's interface with the interface
 the game's tools drive it. `tests/cancel.rs` starts a program of its own, its test binary on the
 development channel's listener, which holds an edit while a key is held, as an editor does while a
 person drags: a call that its agent cancels meanwhile reaches the program as the core's cancel,
-and is never applied, MCP answering no cancelled call; and, while `start_game` waits for a program
-that never says where it listens, the server answers its other calls; it needs nothing else, and
-runs with `cargo test`, on Windows too. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
+and is never applied, MCP answering no cancelled call; it needs nothing else, and runs with
+`cargo test`, on Windows too. `tests/game.rs` starts the same program, and one that never says
+where it listens: while `start_game` waits for the second, the server answers its other calls; the
+start's cancel, and `stop_game`, give it up, killing the program; `stop_game` ends the first while
+requests to run steps, which it never runs, hold every place in flight, and a start after it runs;
+of two calls of `drive_played_game`, the later wins while the test's program holds the first; it
+runs with `cargo test` too, on Windows too. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
 of *Hunna Wood*'s zone, changes one of the game's components, creates an entity that holds
 another, undoes, redoes and writes the zone; it needs the zone cooked, and `scripts/check.sh` runs
 it with the tests that read the zone. `tests/compositor.rs` starts the `editor` example on a copy of the yard in a compositor of the
@@ -236,8 +252,8 @@ does (`docs/adr/0193-first-measures-of-resources.md`).
 
 - `rmcp`: the official Rust implementation of MCP, its server and its transport on the standard
   input and output; `schemars`, which describes the tools' parameters, comes through it.
-- `tokio`: the runtime that `rmcp` runs on, one thread; the requests to the game wait on threads of
-  its own.
+- `tokio`: the runtime that `rmcp` runs on, one thread; what may block runs on threads of its
+  own: the requests to the game, a game's start and stop, a connection, a capture's encoding.
 - `serde`: reads the tools' parameters.
 - `uwui-mcp`: uwui's MCP library: its families of tools, the interface's among them, a request
   of a family's type, a list's pages, a program's faults as tools' errors, and the captures written

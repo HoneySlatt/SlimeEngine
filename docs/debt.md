@@ -27,10 +27,15 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The values of events waiting to be written are not counted in the bytes unwritten: one of each event subscribed to, on each connection ([ADR-0254](adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md)).
   An event waits behind the message being written on its connection, which may be an image of 1 GiB.
   Followed at uwui's first stage, whose carrier of `uwui dev` is the second to keep the bounds, and which moves them into the core.
-- **`slime-mcp`'s `start_game`, `stop_game` and `drive_played_game` hold the server's lock while they wait** ([ADR-0250](adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md)).
-  So that one game at a time runs, they hold it while the game builds and starts, up to 600 s, and for their own requests; the agent's other calls wait meanwhile, and a cancel does not stop a start.
-  With every place in flight held by long steps, `stop_game` waits for one, and `resume`, which would free them, waits for the lock.
-  Followed at [M6d.9a2b2](stage-6d.md#m6d9a2b2--the-servers-game-off-its-lock), which takes the server's game off its lock ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)).
+- **`slime-mcp`'s connections to a program cannot be cancelled while they wait for its welcome** ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)).
+  `slime_channel::Client::connect` waits up to 600 s for the program's welcome, its answers' time, and nothing cancels it; three of the server's connects take it: `start_game`'s, `drive_played_game`'s, and the one that replaces a connection broken.
+  A start given up while it connects kills its program only once the welcome came: a program that said where it listens and then never welcomes runs on that long once `stop_game`, or the call's cancel, gave its start up; the server's other calls answer meanwhile, and a new start runs.
+  The server's end waits for these threads too, as its runtime ends.
+  No test gives a start up after its program said where it listens: that needs a program that welcomes late, which the channel's listener cannot be.
+  Followed at [M6d.12](stage-6d.md#m6d12--the-audit-of-stage-6d), the stage's audit, which weighs a welcome bounded by a shorter time, for every tool of the channel.
+- **`slime-mcp` writes a capture's answer on its one thread**.
+  `uwui_mcp::image` encodes a capture as PNG, and in base64, on a thread that may block; rmcp then writes the answer, the base64 text with it, on the server's runtime, which has one thread: some tens of MB for an image of 4K, which hold the agent's other calls meanwhile. Not measured.
+  Followed at [M6d.12](stage-6d.md#m6d12--the-audit-of-stage-6d), the stage's audit, which measures it before weighing a fix.
 - **`deny.toml` ignores the advisory that chrono is unmaintained** (RUSTSEC-2026-0543, [ADR-0006](adr/0006-dependency-policy.md)).
   rmcp 3.9.0, on which `slime-mcp` and `uwui-mcp` stand, depends on chrono with no feature to leave it out, and so does the schemars that it turns on; no release of chrono replaces it.
   The MCP servers alone link them, never a game; the advisory names no vulnerability.
@@ -39,9 +44,6 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   It is measured by a headless run's frames with agents at the channel's bounds; `scripts/input-to-present.sh` starts its programs without a channel, and gives no agent.
   A frame's start takes one request of each connection whatever the budget; a page of a list takes its share of it past a floor of visits, so that seven agents listing make frames of about 1.7 ms, 1 ms of it the measure's rest ([`measurements.md`](measurements.md#m6d9a1b3b1-lists)), where they made frames of about 4 ms before; a request of another kind that costs much, as a capture, still takes what it costs.
   Followed at uwui's first stage, whose measures of input to present run on uwui's own host, with its agents.
-- **`slime-mcp` writes a capture as PNG on its one thread** ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
-  `uwui_mcp::image` encodes the pixels that a capture gives, as `capture` and `capture_element` answer, on the server's runtime, which has one thread: a large capture holds the agent's other calls while it is encoded, as a cancel of theirs.
-  Followed at [M6d.9a2b2](stage-6d.md#m6d9a2b2--the-servers-game-off-its-lock), which takes the server's waits off its one thread.
 - **Two helpers write an error and its causes on one line** ([ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md)).
   `slime_app::error_chain`, for a program's log, and `slime_channel::why`, for a tool, which `slime-mcp` takes, write the same, the first leaving out a cause whose text the chain holds already.
   The build for shipping links no `slime-channel`, and `slime-channel` lies below `slime-app` and links no logging: neither can take the other's.

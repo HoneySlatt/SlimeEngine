@@ -275,7 +275,7 @@ impl Server {
         }
         // Every page asked of the program that the routing reaches now, whose number binds the
         // cursors given and taken, whatever the routing does meanwhile.
-        let pinned = match self.pinned(PLAY).await {
+        let pinned = match self.pinned(PLAY) {
             Ok(pinned) => pinned,
             Err(why) => return Ok(failure(why)),
         };

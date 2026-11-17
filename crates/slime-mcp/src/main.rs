@@ -24,7 +24,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use rmcp::handler::server::wrapper::Parameters;
@@ -36,7 +36,7 @@ use rmcp::{
 };
 use serde::{Deserialize, Serialize};
 use slime_channel::{
-    ChannelError, Client, EDITING, Edit, Named, Refusal, Reply, Request, Token, launch, why,
+    ChannelError, Client, EDITING, Edit, Named, Refusal, Reply, Token, launch_unless, why,
 };
 use uwui_mcp::{
     Answer, Carrier, Sent, Taken, Tools, Value, agent_of, failure, fault, interface_family, text,
@@ -46,9 +46,9 @@ use describe::describe;
 
 /// How long a game is given to say where it listens, by default: `cargo run` may build it first.
 const START_TIMEOUT: Duration = Duration::from_secs(600);
-/// How long a game is given to end once asked to stop, before it is killed: it ends once the frame
-/// that took the request is drawn, which takes tens of seconds for *Hunna Wood*'s zone on a CPU
-/// driver such as CI's lavapipe.
+/// How long a game is given to end once its standard input closed, before it is killed: it ends
+/// at its next frame, which takes tens of seconds for *Hunna Wood*'s zone on a CPU driver such as
+/// CI's lavapipe.
 const STOP_TIMEOUT: Duration = Duration::from_secs(120);
 /// How many bytes of the end of a game's log, or of a command's output, a failure shows.
 const TAIL: u64 = 4096;
@@ -66,8 +66,8 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine, or its editor,
      answers. `stop_game` ends the editor, and the game that it plays with it; `play.stop` ends \
      that game alone. `cook` and `run_tests` run in the repository's root, where the server runs.";
 
-/// The numbers that the server gives each program that it connects to, as its tools name it: an
-/// agent's cursor of a log names the program whose log it read.
+/// The numbers that the server gives each start of a game and each program that it connects to, as
+/// its tools name them: an agent's cursor of a log names the program whose log it read.
 static PROGRAMS: AtomicU64 = AtomicU64::new(1);
 
 /// A new number of a program, never given before.
@@ -75,12 +75,63 @@ fn numbered() -> u64 {
     PROGRAMS.fetch_add(1, Ordering::Relaxed)
 }
 
-/// The game that the server drives, if one runs. Its connections are shared, so that an agent's
-/// calls go side by side: a tool that asks the game holds the server's lock to choose one, or to
-/// replace one lost, never while its request waits for its answer. `start_game` holds it while
-/// the game starts, `stop_game` and `drive_played_game` for their own requests, so that one game at
-/// a time runs, and they wait for a place in flight like the others (`docs/debt.md`, until
-/// M6d.9a2b2).
+/// The server's game, in one state, behind the server's lock, which no tool holds while it waits:
+/// for a game to start, to stop or to answer, nor for a connection. One game at a time: a start
+/// takes the state from [`GameState::Absent`], and a tool that finds it in another state says so
+/// at once (`docs/adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md`).
+enum GameState {
+    /// No game runs.
+    Absent,
+    /// `start_game` starts the game numbered `number` ([`numbered`]), off the lock. The start is
+    /// given up once the state is no longer this one, as `stop_game` and the call's cancel leave
+    /// it: the program that it started is then killed.
+    Starting { number: u64 },
+    /// The game runs, boxed: the other states are a number.
+    Running(Box<Game>),
+    /// `stop_game`, or the server's end, stops the game numbered `number`, off the lock.
+    Stopping { number: u64 },
+}
+
+/// The server's lock on its game's state, a moment at a time.
+fn locked(game: &Mutex<GameState>) -> MutexGuard<'_, GameState> {
+    game.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Whether `state` is the start numbered `number`, not yet given up.
+fn starting(state: &GameState, number: u64) -> bool {
+    matches!(state, GameState::Starting { number: now } if *now == number)
+}
+
+/// Forgets a game that ended on its own, and says how it ended, with the end of its log.
+fn forget_ended(state: &mut GameState) -> Option<String> {
+    let GameState::Running(running) = state else {
+        return None;
+    };
+    let ended = running.ended()?;
+    *state = GameState::Absent;
+    Some(ended)
+}
+
+/// The game that runs, a game that ended forgotten; or why none runs, which the agent reads.
+fn running(state: &mut GameState) -> Result<&mut Game, String> {
+    if let Some(ended) = forget_ended(state) {
+        return Err(ended);
+    }
+    match state {
+        GameState::Running(running) => Ok(running),
+        GameState::Absent => Err("no game runs: start one with `start_game`".to_owned()),
+        GameState::Starting { .. } => {
+            Err("the game starts: call this again once `start_game` answered".to_owned())
+        }
+        GameState::Stopping { .. } => {
+            Err("the game stops (`stop_game`): start another once it answered".to_owned())
+        }
+    }
+}
+
+/// The game that the server drives. Its connections are shared, so that an agent's calls go side
+/// by side: a tool that asks the game takes the server's lock to choose one, never while its
+/// request waits for its answer.
 struct Game {
     child: Child,
     client: Arc<Client>,
@@ -92,11 +143,17 @@ struct Game {
     agent: Named,
     /// The file that holds the game's standard error, its log.
     log: PathBuf,
-    /// Its number ([`numbered`]), which a new connection to it keeps.
+    /// Its number, its start's ([`numbered`]), which a new connection to it keeps.
     program: u64,
     /// The game that the program, an editor, plays, while the game's tools drive it
     /// (`drive_played_game`, `docs/adr/0165-editing-while-playing.md`).
     played: Option<Played>,
+    /// How many calls of `drive_played_game` came for it: the last one wins, the one whose count
+    /// this still is once it connected.
+    drives: u64,
+    /// Whether a request whose connection broke connects to it again, off the lock
+    /// ([`recovered`]): the other requests that the break failed then do not connect too.
+    reconnecting: bool,
 }
 
 /// The game that an editor plays, while the game's tools drive it.
@@ -111,12 +168,12 @@ fn server() -> Named {
     Named::new(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
 }
 
-/// The server: at most one game at a time. It is the carrier of uwui's MCP library, which takes
+/// The server: at most one game at a time ([`GameState`]). It is the carrier of uwui's MCP library, which takes
 /// every family's requests to the game, and of its tools, the families' and its own
 /// (`docs/adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md`).
 #[derive(Clone)]
 struct Server {
-    game: Arc<Mutex<Option<Game>>>,
+    game: Arc<Mutex<GameState>>,
     /// Its tools and its instructions, shared by its clones, one for each request.
     tools: Arc<Tools<Self>>,
 }
@@ -134,7 +191,7 @@ impl Server {
             .with(editing::family())?
             .with(interface_family())?;
         Ok(Self {
-            game: Arc::default(),
+            game: Arc::new(Mutex::new(GameState::Absent)),
             tools: Arc::new(tools),
         })
     }
@@ -151,7 +208,7 @@ impl Server {
             Ok(Answer {
                 outcome: Ok(reply),
                 bytes,
-            }) => describe(reply, &bytes),
+            }) => describe(reply, bytes).await,
             Ok(Answer {
                 outcome: Err(refused),
                 ..
@@ -241,6 +298,140 @@ impl Game {
     }
 }
 
+/// What `start_game` answers once its start was given up.
+const GIVEN_UP: &str = "the game's start was given up, by `stop_game` or by the call's cancel: the \
+                        program that it started is being stopped";
+
+/// Starts the game numbered `number` as `command` runs it, at most `timeout`, connecting to it as
+/// `agent`, off the server's lock, and makes it the server's game, or says why not. A start given
+/// up meanwhile ([`GameState::Starting`]) kills the program that it started.
+fn start(
+    game: &Mutex<GameState>,
+    number: u64,
+    command: &[String],
+    timeout: Duration,
+    agent: Named,
+) -> Result<String, String> {
+    let log = std::env::temp_dir().join(format!(
+        "slime-mcp-{}-{}.log",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |since| since.as_nanos())
+    ));
+    // Every failure goes on to the state's change below, which ends the start.
+    let started = command
+        .split_first()
+        .ok_or_else(|| "the command is empty: give a program".to_owned())
+        .and_then(|(program, arguments)| {
+            let log_file = File::create(&log).map_err(|error| error.to_string())?;
+            launch_unless(
+                Command::new(program).args(arguments).stderr(log_file),
+                timeout,
+                || !starting(&locked(game), number),
+            )
+            .map_err(|error| format!("{}\n{}", why(&error), tail(&log)))
+        })
+        .and_then(|mut launched| {
+            match Client::connect(launched.address, &launched.token, &agent, &server()) {
+                Ok(client) => Ok((launched, client)),
+                Err(error) => {
+                    killed(&mut launched.child);
+                    Err(why(&error))
+                }
+            }
+        });
+    let mut state = locked(game);
+    if !starting(&state, number) {
+        drop(state);
+        if let Ok((mut launched, _)) = started {
+            killed(&mut launched.child);
+        }
+        return Err(GIVEN_UP.to_owned());
+    }
+    let (launched, client) = match started {
+        Ok(started) => started,
+        Err(why) => {
+            *state = GameState::Absent;
+            return Err(why);
+        }
+    };
+    let said = format!(
+        "{} runs as process {}, its development channel at {}; its log in {}",
+        client.program(),
+        launched.child.id(),
+        launched.address,
+        log.display()
+    );
+    *state = GameState::Running(Box::new(Game {
+        child: launched.child,
+        client: Arc::new(client),
+        address: launched.address,
+        token: launched.token,
+        agent,
+        log,
+        program: number,
+        played: None,
+        drives: 0,
+        reconnecting: false,
+    }));
+    Ok(said)
+}
+
+/// Gives up the start numbered `number`: while the state is still that start, its thread then kills
+/// the program that it started; once the game that it started runs, it is the game, which the state
+/// holds as stopping, for the caller to stop ([`stop_off_thread`]).
+fn give_up(game: &Mutex<GameState>, number: u64) -> Option<Box<Game>> {
+    let mut state = locked(game);
+    match std::mem::replace(&mut *state, GameState::Absent) {
+        GameState::Starting { number: now } if now == number => None,
+        GameState::Running(running) if running.program == number => {
+            *state = GameState::Stopping { number };
+            Some(running)
+        }
+        other => {
+            *state = other;
+            None
+        }
+    }
+}
+
+/// Stops `running`, which the state holds as stopping, on a thread that may block, and ends that
+/// state, even when the stop's thread failed, so that a start may follow.
+async fn stop_off_thread(game: &Mutex<GameState>, running: Box<Game>) -> Result<String, String> {
+    let number = running.program;
+    let said = tokio::task::spawn_blocking(move || stopped(*running)).await;
+    let mut state = locked(game);
+    if matches!(*state, GameState::Stopping { number: now } if now == number) {
+        *state = GameState::Absent;
+    }
+    said.map_err(|error| format!("the stop's thread failed: {error}"))
+}
+
+/// Stops `running` by closing its standard input, which it reads to its end
+/// (`slime_channel::launch`): it ends as at a termination signal, needing no place in flight, which
+/// long requests may all hold. Killed if it did not end within [`STOP_TIMEOUT`]. An editor ends
+/// with the game that it plays.
+fn stopped(mut running: Game) -> String {
+    drop(running.child.stdin.take());
+    match wait(&mut running.child, STOP_TIMEOUT) {
+        Some(status) => format!("the game ended: {status}"),
+        None => {
+            killed(&mut running.child);
+            format!(
+                "the game did not end within {STOP_TIMEOUT:?}, and was killed\n{}",
+                tail(&running.log)
+            )
+        }
+    }
+}
+
+/// Kills `child`, and waits for its end, so that it leaves no process behind.
+fn killed(child: &mut Child) {
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
 /// Waits for `child` to end, at most `timeout`.
 fn wait(child: &mut Child, timeout: Duration) -> Option<ExitStatus> {
     let until = Instant::now() + timeout;
@@ -272,21 +463,16 @@ impl Carrier for Server {
 /// meanwhile, so that a cursor that names its program names the one that answered.
 #[derive(Clone)]
 pub(crate) struct Pinned {
-    game: Arc<Mutex<Option<Game>>>,
+    game: Arc<Mutex<GameState>>,
     route: Route,
 }
 
 impl Server {
-    /// The carrier held to the route that a request of `family` takes now, chosen on a thread
-    /// that may block, as the server's lock may be held a while by a game that starts.
-    pub(crate) async fn pinned(&self, family: &'static str) -> Result<Pinned, String> {
-        let game = Arc::clone(&self.game);
-        let route = tokio::task::spawn_blocking(move || connection(&game, family))
-            .await
-            .map_err(|error| format!("the request's thread failed: {error}"))??;
+    /// The carrier held to the route that a request of `family` takes now.
+    pub(crate) fn pinned(&self, family: &'static str) -> Result<Pinned, String> {
         Ok(Pinned {
             game: Arc::clone(&self.game),
-            route,
+            route: connection(&self.game, family)?,
         })
     }
 }
@@ -313,15 +499,14 @@ fn family_of(method: &str) -> &str {
 /// Sends `method` with `params` on `route`, as [`Carrier::send`] says: a failure as the server
 /// recovers from it, a family not served in the server's words.
 fn send_on(
-    game: &Arc<Mutex<Option<Game>>>,
+    game: &Arc<Mutex<GameState>>,
     route: &Route,
     method: &str,
     params: Value,
 ) -> Result<Sent, String> {
-    let Route {
-        client, to_played, ..
-    } = route.clone();
+    let route = route.clone();
     let game = Arc::clone(game);
+    let client = &route.client;
     let pending = client.send_call(method, params).map_err(|error| {
         not_served(
             &error,
@@ -329,13 +514,13 @@ fn send_on(
             client.refused(),
             family_of(method),
         )
-        .unwrap_or_else(|| recovered(&game, &client, to_played, &why(&error)))
+        .unwrap_or_else(|| recovered(&game, &route, &why(&error)))
     })?;
     let canceller = pending.canceller();
     Ok(Sent::new(
         move || match pending.wait_outcome() {
             Ok((outcome, bytes)) => Ok(Answer { outcome, bytes }),
-            Err(error) => Err(recovered(&game, &client, to_played, &why(&error))),
+            Err(error) => Err(recovered(&game, &route, &why(&error))),
         },
         move || canceller.cancel(),
     ))
@@ -349,32 +534,38 @@ struct Route {
     to_played: bool,
     /// The number of the program that it reaches.
     program: u64,
+    /// The number of the game that the server started, whose state [`recovered`] reads: the
+    /// editor's when it reaches the game that the editor plays.
+    game: u64,
+}
+
+impl Route {
+    /// The route to the program that the server started, `running`.
+    fn to(running: &Game) -> Self {
+        Self {
+            client: Arc::clone(&running.client),
+            to_played: false,
+            program: running.program,
+            game: running.program,
+        }
+    }
 }
 
 /// The connection that a request of `family` goes to, chosen under the server's lock, which the
 /// request does not hold while it waits for its answer: what is not an editor's request reaches
 /// the game that an editor plays while the game's tools drive it. A game that ended is forgotten,
-/// its end told.
-fn connection(game: &Mutex<Option<Game>>, family: &str) -> Result<Route, String> {
-    let mut slot = game.lock().unwrap_or_else(PoisonError::into_inner);
-    let Some(running) = slot.as_mut() else {
-        return Err("no game runs: start one with `start_game`".to_owned());
-    };
-    if let Some(ended) = running.ended() {
-        *slot = None;
-        return Err(ended);
-    }
+/// its end told; a game that starts or stops is told so.
+fn connection(game: &Mutex<GameState>, family: &str) -> Result<Route, String> {
+    let mut state = locked(game);
+    let running = running(&mut state)?;
     Ok(match &running.played {
         Some(played) if family != EDITING => Route {
             client: Arc::clone(&played.client),
             to_played: true,
             program: played.program,
+            game: running.program,
         },
-        _ => Route {
-            client: Arc::clone(&running.client),
-            to_played: false,
-            program: running.program,
-        },
+        _ => Route::to(running),
     })
 }
 
@@ -423,51 +614,82 @@ fn refusal_words(program: &str, refused: &[Refusal], family: &str) -> Option<Str
     })
 }
 
-/// What a request that failed with `error` on `client` says, once what that failure needs is done:
+/// What a request that failed with `error` on `route` says, once what that failure needs is done:
 /// a request that failed on a connection that still serves, as one that timed out, leaves it as it
-/// is; once the connection to the program is lost, a new one replaces it; once the one to the
-/// game that an editor plays is, `to_played`, the game's tools drive the editor again.
-fn recovered(
-    game: &Mutex<Option<Game>>,
-    client: &Arc<Client>,
-    to_played: bool,
-    error: &str,
-) -> String {
-    let error = error.to_owned();
-    if !client.is_broken() {
-        return error;
+/// is; once the connection to the program is lost, a new one replaces it, connected off the lock;
+/// once the one to the game that an editor plays is, the game's tools drive the editor again. A
+/// game that stops, was stopped or ended is told so, and not connected to again.
+fn recovered(game: &Mutex<GameState>, route: &Route, error: &str) -> String {
+    if !route.client.is_broken() {
+        return error.to_owned();
     }
-    let mut slot = game.lock().unwrap_or_else(PoisonError::into_inner);
-    let Some(running) = slot.as_mut() else {
-        return error;
-    };
-    if to_played {
-        let replaced = !running
-            .played
-            .as_ref()
-            .is_some_and(|played| Arc::ptr_eq(&played.client, client));
-        if replaced {
+    let (address, token, agent) = {
+        let mut state = locked(game);
+        let running = match &mut *state {
+            GameState::Running(running) if running.program == route.game => running,
+            GameState::Stopping { number } if *number == route.game => {
+                return format!(
+                    "{error}: the game stops (`stop_game`), and is not connected to again"
+                );
+            }
+            _ => {
+                return format!(
+                    "{error}: the game that it asked was stopped or ended, and is not connected to \
+                     again"
+                );
+            }
+        };
+        if let Some(ended) = running.ended() {
+            *state = GameState::Absent;
+            return format!("{error}\n{ended}");
+        }
+        if route.to_played {
+            let replaced = !running
+                .played
+                .as_ref()
+                .is_some_and(|played| Arc::ptr_eq(&played.client, &route.client));
+            if replaced {
+                return format!(
+                    "the game that the editor plays does not answer ({error}); the game's tools \
+                     drive another game meanwhile"
+                );
+            }
+            running.played = None;
             return format!(
-                "the game that the editor plays does not answer ({error}); the game's tools drive \
-                 another game meanwhile"
+                "the game that the editor plays does not answer ({error}): the game's tools drive \
+                 the editor again"
             );
         }
-        running.played = None;
-        return format!(
-            "the game that the editor plays does not answer ({error}): the game's tools drive the \
-             editor again"
-        );
+        if !Arc::ptr_eq(&running.client, &route.client) {
+            return format!(
+                "{error}; the server connected to the game again meanwhile: the request may have run"
+            );
+        }
+        if running.reconnecting {
+            return format!(
+                "{error}; the server connects to the game again: the request may have run"
+            );
+        }
+        running.reconnecting = true;
+        (
+            running.address,
+            running.token.clone(),
+            running.agent.clone(),
+        )
+    };
+    // Off the lock: a game may take a while to welcome a connection. Only this request connects:
+    // the state says so to the others until it is done.
+    let connected = Client::connect(address, &token, &agent, &server());
+    // Declared after `connected`, the lock is let go before a connection not kept closes.
+    let mut state = locked(game);
+    let GameState::Running(running) = &mut *state else {
+        return format!("{error}: the game was stopped meanwhile, and is not connected to again");
+    };
+    if running.program != route.game {
+        return format!("{error}: the game was stopped meanwhile, and is not connected to again");
     }
-    if let Some(ended) = running.ended() {
-        *slot = None;
-        return format!("{error}\n{ended}");
-    }
-    if !Arc::ptr_eq(&running.client, client) {
-        return format!(
-            "{error}; the server connected to the game again meanwhile: the request may have run"
-        );
-    }
-    match Client::connect(running.address, &running.token, &running.agent, &server()) {
+    running.reconnecting = false;
+    match connected {
         Ok(client) => {
             running.client = Arc::new(client);
             format!("{error}; the server connected to the game again: the request may have run")
@@ -486,7 +708,8 @@ impl Server {
                        token, and connects to its development channel. One game at a time; give it \
                        a save of its own (`--new --save /tmp/agent-run.toml` for Hunna Wood), and \
                        an editor a copy of a level and a journal of its own (`--level`, \
-                       `--journal`)."
+                       `--journal`). A call cancelled, or `stop_game` meanwhile, gives the start \
+                       up, and stops the program that it started."
     )]
     async fn start_game(
         &self,
@@ -496,146 +719,170 @@ impl Server {
         }): Parameters<StartGame>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let game = Arc::clone(&self.game);
-        let agent = agent_of(&context);
-        let started = tokio::task::spawn_blocking(move || -> Result<String, String> {
-            let mut game = game.lock().unwrap_or_else(PoisonError::into_inner);
+        let number = numbered();
+        {
+            let mut state = locked(&self.game);
             // A game that ended since is forgotten.
-            if game
-                .as_mut()
-                .is_some_and(|running| running.ended().is_none())
-            {
-                return Err("a game runs already: stop it with `stop_game`".to_owned());
-            }
-            let (program, arguments) = command
-                .split_first()
-                .ok_or("the command is empty: give a program")?;
-            let log = std::env::temp_dir().join(format!(
-                "slime-mcp-{}-{}.log",
-                std::process::id(),
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map_or(0, |since| since.as_nanos())
-            ));
-            let log_file = File::create(&log).map_err(|error| error.to_string())?;
-            let timeout = timeout_seconds.map_or(START_TIMEOUT, Duration::from_secs);
-            let mut launched = launch(
-                Command::new(program).args(arguments).stderr(log_file),
-                timeout,
-            )
-            .map_err(|error| format!("{}\n{}", why(&error), tail(&log)))?;
-            let client = match Client::connect(launched.address, &launched.token, &agent, &server())
-            {
-                Ok(client) => client,
-                Err(error) => {
-                    let _ = launched.child.kill();
-                    let _ = launched.child.wait();
-                    return Err(why(&error));
+            let _ = forget_ended(&mut state);
+            let refused = match &*state {
+                GameState::Absent => None,
+                GameState::Starting { .. } => Some(
+                    "a game starts already: wait for its `start_game`, or give it up with \
+                     `stop_game`",
+                ),
+                GameState::Running(_) => Some("a game runs already: stop it with `stop_game`"),
+                GameState::Stopping { .. } => {
+                    Some("a game stops: start another once its `stop_game` answered")
                 }
             };
-            let said = format!(
-                "{} runs as process {}, its development channel at {}; its log in {}",
-                client.program(),
-                launched.child.id(),
-                launched.address,
-                log.display()
-            );
-            *game = Some(Game {
-                child: launched.child,
-                client: Arc::new(client),
-                address: launched.address,
-                token: launched.token,
-                agent,
-                log,
-                program: numbered(),
-                played: None,
-            });
-            Ok(said)
-        })
-        .await
-        .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+            if let Some(refused) = refused {
+                return Ok(failure(refused));
+            }
+            *state = GameState::Starting { number };
+        }
+        let game = Arc::clone(&self.game);
+        let agent = agent_of(&context);
+        let timeout = timeout_seconds.map_or(START_TIMEOUT, Duration::from_secs);
+        let mut starting =
+            tokio::task::spawn_blocking(move || start(&game, number, &command, timeout, agent));
+        let started = tokio::select! {
+            started = &mut starting => started
+                .unwrap_or_else(|error| Err(format!("the start's thread failed: {error}"))),
+            () = context.ct.cancelled() => Err(GIVEN_UP.to_owned()),
+        };
+        if context.ct.is_cancelled() || started.is_err() {
+            // A start cancelled, even as it answered, or failed, is given up: its thread kills
+            // what it started, and a game that it made run is stopped. MCP answers no cancelled
+            // call.
+            if let Some(running) = give_up(&self.game, number) {
+                let _ = stop_off_thread(&self.game, running).await;
+            }
+        }
         Ok(started.map_or_else(failure, text))
     }
 
     #[tool(
-        description = "Asks the game that `start_game` started to stop, as closing its window \
-                       would, and waits for it: an editor ends with the game that it plays."
+        description = "Stops the game that `start_game` started, as a termination signal would, \
+                       and waits for its end: an editor ends with the game that it plays. A game \
+                       that does not end within 120 s is killed. A start still under way is \
+                       given up, and the program that it started stopped after this answer."
     )]
     async fn stop_game(&self) -> Result<CallToolResult, McpError> {
-        let game = Arc::clone(&self.game);
-        let stopped = tokio::task::spawn_blocking(move || -> Result<String, String> {
-            let mut game = game.lock().unwrap_or_else(PoisonError::into_inner);
-            let mut running = game.take().ok_or("no game runs")?;
-            let _ = running.client.request(&Request::Stop);
-            Ok(match wait(&mut running.child, STOP_TIMEOUT) {
-                Some(status) => format!("the game ended: {status}"),
-                None => {
-                    let _ = running.child.kill();
-                    let _ = running.child.wait();
-                    format!(
-                        "the game did not end within {STOP_TIMEOUT:?}, and was killed\n{}",
-                        tail(&running.log)
-                    )
+        let running = {
+            let mut state = locked(&self.game);
+            match std::mem::replace(&mut *state, GameState::Absent) {
+                GameState::Absent => return Ok(failure("no game runs")),
+                GameState::Starting { .. } => {
+                    return Ok(text(
+                        "the game's start is given up: the program that it started is being \
+                         stopped",
+                    ));
                 }
-            })
-        })
-        .await
-        .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-        Ok(stopped.map_or_else(failure, text))
+                GameState::Stopping { number } => {
+                    *state = GameState::Stopping { number };
+                    return Ok(failure(
+                        "the game stops already: another `stop_game` answers once it ended",
+                    ));
+                }
+                GameState::Running(running) => {
+                    *state = GameState::Stopping {
+                        number: running.program,
+                    };
+                    running
+                }
+            }
+        };
+        Ok(stop_off_thread(&self.game, running)
+            .await
+            .map_or_else(failure, text))
     }
 
     #[tool(
         description = "In an editor that plays its level (`play.start`, once the game runs), points \
                        the game's tools, those of the world and of the interface with them, at \
                        the game that it plays, `played: true`, or back at the editor, \
-                       `played: false`; the editor's tools always reach the editor, and \
-                       `stop_game` stops the editor, `play.stop` the game. A step that the editor \
-                       makes reaches the game a moment after the editor answers. The server \
-                       connects to the game with what the editor gives of it."
+                       `played: false`; the last call wins. The editor's tools always reach the \
+                       editor, and `stop_game` stops the editor, `play.stop` the game. A step that \
+                       the editor makes reaches the game a moment after the editor answers. The \
+                       server connects to the game with what the editor gives of it."
     )]
     async fn drive_played_game(
         &self,
         Parameters(DrivePlayed { played }): Parameters<DrivePlayed>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let game = Arc::clone(&self.game);
-        let answer = tokio::task::spawn_blocking(move || {
-            let mut slot = game.lock().unwrap_or_else(PoisonError::into_inner);
-            let Some(running) = slot.as_mut() else {
-                return Err("no program runs: start an editor with `start_game`".to_owned());
+        let (editor, agent, drive) = {
+            let mut state = locked(&self.game);
+            let running = match running(&mut state) {
+                Ok(running) => running,
+                Err(why) => return Ok(failure(why)),
             };
+            running.drives += 1;
             if !played {
                 running.played = None;
-                return Ok("the game's tools drive the editor again".to_owned());
+                return Ok(text("the game's tools drive the editor again"));
             }
-            let edit = Request::Edit { edit: Edit::Played };
-            let (address, token) = match running.client.request(&edit) {
-                Ok((Reply::Played { address, token }, _)) => (address, token),
-                Ok((Reply::Failed { message, .. }, _)) => return Err(message),
-                Ok(_) => return Err("the program gave no game that it plays".to_owned()),
-                Err(error) => return Err(why(&error)),
+            let editor = Pinned {
+                game: Arc::clone(&self.game),
+                route: Route::to(running),
             };
-            let address: SocketAddr = address
-                .parse()
-                .map_err(|error| format!("the editor gave no address: {error}"))?;
-            let token: Token = token
-                .parse()
-                .map_err(|error| format!("the editor gave no token: {error}"))?;
-            let client = Client::connect(address, &token, &running.agent, &server())
-                .map_err(|error| why(&error))?;
-            running.played = Some(Played {
-                client: Arc::new(client),
-                program: numbered(),
-            });
-            Ok(format!(
-                "the game's tools drive the game that the editor plays, which listens at {address}"
-            ))
+            (editor, running.agent.clone(), running.drives)
+        };
+        let (address, token) =
+            match uwui_mcp::request::<Pinned, Reply>(&editor, &Edit::Played, &context).await {
+                Ok(Answer {
+                    outcome: Ok(Reply::Played { address, token }),
+                    ..
+                }) => (address, token),
+                Ok(Answer {
+                    outcome: Ok(Reply::Failed { message, .. }),
+                    ..
+                }) => return Ok(failure(message)),
+                Ok(Answer { outcome: Ok(_), .. }) => {
+                    return Ok(failure("the program gave no game that it plays"));
+                }
+                Ok(Answer {
+                    outcome: Err(refused),
+                    ..
+                }) => return Ok(fault(refused)),
+                Err(why) => return Ok(failure(why)),
+            };
+        let address: SocketAddr = match address.parse() {
+            Ok(address) => address,
+            Err(error) => return Ok(failure(format!("the editor gave no address: {error}"))),
+        };
+        let token: Token = match token.parse() {
+            Ok(token) => token,
+            Err(error) => return Ok(failure(format!("the editor gave no token: {error}"))),
+        };
+        let connected = tokio::task::spawn_blocking(move || {
+            Client::connect(address, &token, &agent, &server())
         })
         .await
         .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-        Ok(match answer {
-            Ok(said) => text(said),
-            Err(why) => failure(why),
-        })
+        let client = match connected {
+            Ok(client) => Arc::new(client),
+            Err(error) => return Ok(failure(why(&error))),
+        };
+        let mut state = locked(&self.game);
+        let GameState::Running(running) = &mut *state else {
+            return Ok(failure("the editor was stopped meanwhile"));
+        };
+        if running.program != editor.program() {
+            return Ok(failure("the editor was stopped meanwhile"));
+        }
+        if running.drives != drive || context.ct.is_cancelled() {
+            return Ok(failure(
+                "a later call of `drive_played_game`, or this call's cancel, took this one's place",
+            ));
+        }
+        running.played = Some(Played {
+            client,
+            program: numbered(),
+        });
+        Ok(text(format!(
+            "the game's tools drive the game that the editor plays, which listens at {address}"
+        )))
     }
 
     #[tool(
@@ -694,14 +941,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let service = server.clone().serve(rmcp::transport::stdio()).await?;
     let served = service.waiting().await;
-    // The agent is gone, or the service failed: a game still running goes with it.
-    let mut game = server.game.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Some(mut running) = game.take() {
-        let _ = running.client.request(&Request::Stop);
-        if wait(&mut running.child, STOP_TIMEOUT).is_none() {
-            let _ = running.child.kill();
-            let _ = running.child.wait();
-        }
+    // The agent is gone, or the service failed: a game still running goes with it, stopped as
+    // `stop_game` stops it; a start under way is given up, and its thread kills what it started; a
+    // game that stops already is waited for, as the runtime waits for its thread.
+    let left = std::mem::replace(&mut *locked(&server.game), GameState::Absent);
+    if let GameState::Running(running) = left {
+        let _ = stopped(*running);
     }
     served?;
     Ok(())
@@ -725,6 +970,23 @@ mod tests {
             "its own, then play, world, editing, interface"
         );
         assert!(paragraphs[0].starts_with("Drives a game built with SlimeEngine"));
+    }
+
+    /// `stop_game`'s description, which no constant can reach, gives the time after which it
+    /// kills a game.
+    #[test]
+    fn stop_game_s_description_gives_its_time() {
+        let server = Server::new().expect("no name taken twice");
+        let stop = server
+            .tools
+            .router()
+            .list_all()
+            .into_iter()
+            .find(|tool| tool.name == "stop_game")
+            .expect("stop_game");
+        let description = stop.description.expect("a description");
+        let within = format!("within {} s", STOP_TIMEOUT.as_secs());
+        assert!(description.contains(&within), "{description}");
     }
 
     /// A family that the program serves at another version is refused in words that give both

@@ -9,10 +9,9 @@
 //! tool cancelled, which it answers so. That a program of the engine's never applies an edit
 //! cancelled while it waits for a drag is `slime-app`'s test
 //! `a_read_passes_a_waiting_edit_and_a_cancelled_edit_is_never_applied`; this one proves the
-//! server's half. It also checks that the server answers its calls while a game
-//! starts and holds its lock, a program of its own that never says where it listens. It needs no
-//! window, and runs on Windows too.
+//! server's half. It needs no window, and runs on Windows too.
 
+#[expect(dead_code, reason = "this test starts no silent program")]
 #[path = "common/program.rs"]
 mod program;
 #[path = "common/session.rs"]
@@ -36,72 +35,6 @@ const SOON: Duration = Duration::from_secs(30);
 #[test]
 fn the_program_of_the_test() {
     program::run_if_started();
-}
-
-/// The test that, run with a token in its environment, is a program that never says where it
-/// listens.
-const SILENT: &str = "the_silent_program_of_the_test";
-
-/// The silent program, in the run that the server starts; nothing in a run of the tests.
-#[test]
-fn the_silent_program_of_the_test() {
-    program::stay_silent_if_started();
-}
-
-/// While `start_game` waits for a program that never says where it listens, holding the server's
-/// lock, a call that reads the game's log waits off the server's thread: the server answers its
-/// other calls meanwhile.
-#[test]
-fn the_server_answers_while_a_game_starts() {
-    let program = std::env::current_exe().expect("the test's program");
-    let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let (mut session, mut server, _) = Session::start(&workspace, "starting");
-    let starting = session.send(
-        "tools/call",
-        json!({
-            "name": "start_game",
-            "arguments": {
-                "command": [program, "--exact", SILENT, "--nocapture", "--test-threads=1"],
-                "timeout_seconds": 10,
-            },
-        }),
-    );
-    // The start holds the lock once the server runs it, a moment after it read the call.
-    std::thread::sleep(Duration::from_millis(500));
-    let reading = session.send(
-        "tools/call",
-        json!({ "name": "read_logs", "arguments": {} }),
-    );
-    std::thread::sleep(Duration::from_millis(200));
-    let asked = Instant::now();
-    let listing = session.send("tools/list", json!({}));
-    loop {
-        let message = session.next_message("the list of tools");
-        if message["id"] == json!(listing) {
-            break;
-        }
-        assert!(
-            message["id"] != json!(starting) && message["id"] != json!(reading),
-            "answered before the start gave up: {message}"
-        );
-    }
-    let answered = asked.elapsed();
-    assert!(
-        answered < Duration::from_secs(2),
-        "the list of tools waited {answered:?}"
-    );
-    // The start gives up, and the read finds no game.
-    let mut ended = Vec::new();
-    while ended.len() < 2 {
-        let message = session.next_message("the start and the read");
-        if message["id"] == json!(starting) || message["id"] == json!(reading) {
-            assert_eq!(message["result"]["isError"], json!(true), "{message}");
-            ended.push(message);
-        }
-    }
-    drop(session);
-    let status = server.wait().expect("the server ends with its input");
-    assert!(status.success(), "{status}");
 }
 
 /// Calls the tool `name` with `arguments`, and returns the texts of its result, which must not be

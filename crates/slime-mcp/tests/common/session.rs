@@ -36,9 +36,9 @@ impl Session {
     /// Starts `server`, a build of the server, as [`Session::start`] starts this one's: what a
     /// measure times against another commit's build.
     pub fn start_with(server: &Path, workspace: &Path, client: &str) -> (Self, Child, Value) {
-        let user = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("slime-mcp-user-{client}"));
+        let user = user(client);
         let _ = std::fs::remove_dir_all(&user);
-        let (data, state) = (user.join("data"), user.join("state"));
+        let (data, state) = (data(client), user.join("state"));
         let mut child = Command::new(server)
             .current_dir(workspace)
             .env("XDG_DATA_HOME", &data)
@@ -143,6 +143,17 @@ impl Session {
             .collect::<Vec<_>>();
         (texts, result)
     }
+}
+
+/// The directory of the session of an agent named `client`, where it keeps the user's files.
+fn user(client: &str) -> PathBuf {
+    Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("slime-mcp-user-{client}"))
+}
+
+/// The data directory that the session of an agent named `client` gives the server and the
+/// programs that it starts.
+pub fn data(client: &str) -> PathBuf {
+    user(client).join("data")
 }
 
 /// The server's program, which cargo builds for the tests.
