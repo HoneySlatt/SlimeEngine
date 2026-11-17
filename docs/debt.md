@@ -1119,7 +1119,11 @@ A review of uwui's architecture of 2026-11-17, read-only too, added these:
 - **What a panic of an application leaves is not said.**
   A panic in `App::step` ends the run without `App::stop`, which `App`'s rustdoc does not say (`crates/uwui-desktop/src/app.rs`); calling `stop` on the state that panicked could write it over good data.
   Since Rust 1.81, a panic that leaves an `extern "C"` function aborts the process: Win32's and AppKit's callbacks are such functions.
-  Followed at M6d.7a2b, which says what follows a panic beside its crash report; the policy at the platforms' callbacks, caught there or the process aborted, decided before M6d.7c.
+  The rule is [ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md): no `stop` after a panic, the run ending with its error, a panic caught in a platform's callback.
+  Followed at M6d.7a2b, which builds it with its test; Win32's and AppKit's callbacks catch theirs as M6d.7c and M6d.7d write them.
+- **A panic in a game's run skips its `stop` without a word** ([ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)).
+  `slime-app` catches no panic (`crates/slime-app/src/app.rs`): one in `fixed_step`, `update` or `apply` leaves `run`, and neither `Simulation::stop` nor its rustdoc says what follows.
+  Followed at [S1](stage-6d.md#s1--saves-migrated-from-layout-5), which writes ADR-0298's rule in `slime-app` with its test.
 - **The images that a program gives are not made again after a lost device.**
   uwui holds their keys alone, the program their textures (`crates/uwui-render/src/lib.rs`); uwui's desktop host gives none yet, and its `App` hears nothing of a loss.
   Followed at M6d.7a2b, which makes a lost device again: who makes the images again, uwui or the program, is said there.

@@ -2981,9 +2981,12 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
   out of `slime-app`; the cooker, the editor and *Hunna Wood* writing through it, their copies and
   the editor's plain write of its keys gone. The editor's journal opened by `# journal 1`, a later
   version refused with both named and left as it is, a journal without the line read as version 1.
+  `slime-app`'s half of [ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md): a panic in a
+  game's code ends the run with its error, without `stop`, as `run`'s and `stop`'s rustdoc say.
 - **Done when.** `scripts/check.sh` passes; a test reads layout 5's fixture through the reader of a
   layout 6 made for the test, then thrown away; no file of a user's is written but through
-  `slime-files`; the journal's tests read version 1 with and without its line, and refuse version 2.
+  `slime-files`; the journal's tests read version 1 with and without its line, and refuse version 2;
+  a test's simulation that panics ends `run` with its error, its `stop` not called.
 
 ### E1 — The element's contract
 
