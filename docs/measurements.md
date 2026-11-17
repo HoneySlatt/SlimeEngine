@@ -4413,3 +4413,37 @@ GitHub's hosted runners, on 2026-11-15, each run green, on `2a9eaf2`:
 
 Every job stays within its limit of 20 minutes; `check (headless)`, the longest, has 5 min 21 s of
 margin.
+
+## M6d.7a2a, Wayland's input and window in uwui's desktop host
+
+uwui's desktop host is checked, not timed, at this part: its own cost above the blank window is
+M6d.7a2c's measure. In the series' job, its example takes the keys typed into its field in sway,
+KWin and Mutter, sets its cursor by shape, draws at 1.5 on an output at 1.5 (at 2 in Weston), and
+rests ([`compositors.md`](compositors.md)).
+
+GitHub's hosted runners, on 2026-11-17, each run green, on `b1bd343`, against the runs before it:
+CI's on `beb5dedc`, the series' on `0718fff7`:
+
+| Job | Time | Before |
+|---|---|---|
+| `check (lint)` | 11 min 11 s | 8 min 40 s |
+| `check (headless)` | 13 min 6 s | 13 min 12 s |
+| `check (windowed)` | 8 min 39 s | 10 min 3 s |
+| `check (game)` | 9 min 14 s | 10 min 29 s |
+| `check (gles)` | 3 min 26 s | 3 min 33 s |
+| `windows (tests)` | 13 min 13 s | 11 min 20 s |
+| `windows (render)` | 6 min 21 s | 6 min 27 s |
+| `windows (game)` | 6 min 57 s | 6 min 5 s |
+| `windows-release` | 9 min 41 s | 11 min 59 s |
+| `compositors (weston)` | 16 min 24 s | 13 min 49 s |
+| `compositors (sway)` | 14 min 42 s | 14 min 59 s |
+| `compositors (kwin)` | 12 min 14 s | 19 min 12 s |
+| `compositors (mutter)` | 16 min 4 s | 14 min 48 s |
+| `compositors (x11)` | 12 min 25 s | 19 min 47 s |
+| Docs' `links` | 20 s | 21 s |
+
+Every job stays within its limit of 20 minutes; `compositors (weston)`, the longest, has 3 min 36 s
+of margin. The runners' own spread is larger than what the host adds: the same series took
+19 min 47 s under X11 before, where the host does not run, and 12 min 25 s now. What this part adds
+in each compositor's job: the host's second test, run once on the output at another scale, some
+2 s, and in sway, KWin and Mutter the field typed into, some 10 s more of the first test's rest.

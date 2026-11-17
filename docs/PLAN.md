@@ -31,8 +31,9 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     before M6d.10a ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six: done,
     [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window); M6d.7a2 cut in three
-    ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): in progress,
-    [M6d.7a2a](#m6d7a2a--waylands-input-and-window).
+    ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): done,
+    [M6d.7a2a](stage-6d.md#m6d7a2a--waylands-input-and-window); next,
+    [M6d.7a2b](stage-6d.md#m6d7a2b--the-host-made-robust).
   - M6d.10a, D1, M6d.11, M6d.10b and M6d.12 run alone, in this order
     ([ADR-0300](adr/0300-m6d10-cut-in-two-what-the-move-needs-before-it-uwuis-first-stage-planned-after.md)).
   - Timed measures run one track at a time; shared files are edited by one session at a time.
@@ -51,7 +52,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.5a to M6d.5e2 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Done |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7a1 — The host's core and its Wayland window](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) | Done |
-| [M6d.7a2a — Wayland's input and window](#m6d7a2a--waylands-input-and-window) | In progress |
+| [M6d.7a2a — Wayland's input and window](stage-6d.md#m6d7a2a--waylands-input-and-window) | Done |
 | [M6d.7a2b to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7a2b--the-host-made-robust) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
@@ -67,15 +68,6 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.10b — uwui's first stage planned](stage-6d.md#m6d10b--uwuis-first-stage-planned) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.7a2a — Wayland's input and window
-
-Started on 2026-11-15 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
-
-- **Goal.** An application on uwui's desktop host takes the keyboard, and shows its cursor and
-  scale, on Wayland.
-- **Crates.** `uwui-desktop`; `scripts/compositor-input.py`.
-- **Delivers, done when, measured:** [its card](stage-6d.md#m6d7a2a--waylands-input-and-window).
 
 ## Ideas waiting for their milestone
 
@@ -193,6 +185,9 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
 - **An application on uwui's desktop host** (M6d.7a1): `cargo run -p uwui-desktop --example
   application` on the owner's desktop: its window, its bar or none, the pointer on its buttons,
   list and dialog, then at rest; closed by its window's button, then by Ctrl+C in its terminal.
+- **Typing in an application on uwui's desktop host** (M6d.7a2a): its example on the owner's
+  desktop, with the owner's own layout: dead keys and Compose, a key held repeating, the I-beam
+  over its field, the window sharp on displays of two scales.
 - **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
   left by Alt and Tab, Alt held or mid-drag: no bar in focus, nothing dropped; *Hunna Wood*'s
   button that loses the surface, on Direct3D 12: drawn again.

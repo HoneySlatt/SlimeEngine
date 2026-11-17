@@ -183,8 +183,9 @@ in git.
 - In progress on track B: [M6d.7](#m6d7--the-desktop-host-its-window-and-its-frames), the
   desktop host's window and frames, cut in six on 2026-11-15 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)): done,
   [M6d.7a1](#m6d7a1--the-hosts-core-and-its-wayland-window), on 2026-11-15; then
-  [M6d.7a2](#m6d7a2--wayland-whole-and-the-host-measured), cut in three on 2026-11-15 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): in progress,
-  [M6d.7a2a](PLAN.md#m6d7a2a--waylands-input-and-window).
+  [M6d.7a2](#m6d7a2--wayland-whole-and-the-host-measured), cut in three on 2026-11-15 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): done,
+  [M6d.7a2a](#m6d7a2a--waylands-input-and-window), on 2026-11-17; next,
+  [M6d.7a2b](#m6d7a2b--the-host-made-robust).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2386,7 +2387,7 @@ The second part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-
 
 ### M6d.7a2a — Wayland's input and window
 
-The first part of M6d.7a2 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)), in progress. It follows the rules of
+The first part of M6d.7a2 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)). It follows the rules of
 [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
 
 - **Goal.** An application on uwui's desktop host takes the keyboard, and shows its cursor and
@@ -2399,6 +2400,23 @@ The first part of M6d.7a2 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyb
   it and finds the text in the row that *Add* makes; the window drawn at the output's scale; CI is
   green.
 - **Measured.** CI's jobs that build the host, each within 20 minutes.
+- **Result.** Done on 2026-11-17, CI green:
+  - The keyboard through libxkbcommon (`xkbcommon-dl`): the compositor's keymap, the compose
+    tables of the person's locale, each key as `slime-input`'s `KeyEvent` says, compared with the
+    engine's winit layer; the repeat, which Wayland leaves to the host, from a deadline of its
+    loop; the focus and the modifiers. The cursor's shapes through `wp_cursor_shape_v1`. The scale:
+    fractional through a viewport, else the surface's integer one, else its outputs', as Weston 16
+    gives it. Activation: the start's token, `Window::bring_to_front` and `request_attention`.
+  - The series' input clicks; the example's field takes `sa` in sway, KWin and Mutter, its cursor
+    the I-beam; it draws at 1.5, at 2 in Weston; the series runs when the host changes.
+  - Every job of CI within its 20 minutes
+    ([`measurements.md`](measurements.md#m6d7a2a-waylands-input-and-window-in-uwuis-desktop-host)).
+  - The closing review found a scale test and a cursor observation that could not fail, a composed
+    text cut past 63 bytes, a repeat rate that spun the loop, and smaller defects; each fixed,
+    under a test that failed first.
+  - The rest test that failed now and then in CI, found on `main` meanwhile: its failure, which
+    now tells its threads and the compositor's messages, showed frame callbacks answered late by
+    Weston; the test now watches once every callback is answered. The host was at rest.
 
 ### M6d.7a2b — The host made robust
 
