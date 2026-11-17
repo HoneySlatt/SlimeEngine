@@ -2485,7 +2485,8 @@ The sixth part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-l
 - **Delivers.** A bar, its title, buttons and edges drawn by uwui under Weston and Mutter, through
   [ADR-0255](adr/0255-the-clipboard-through-the-outputs-and-the-hosts-questions.md)'s kinds of a
   point; Windows' and macOS's bars given a place in uwui's layout; several windows, a target
-  removed, a layer's own target.
+  removed, a layer's own target; the outputs and seats that come during the run followed
+  ([`debt.md`](debt.md)).
 - **Done when.** A window under Weston and Mutter moves, resizes, minimizes, maximizes and closes
   by its bar; CI is green.
 

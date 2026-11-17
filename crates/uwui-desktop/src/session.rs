@@ -258,6 +258,24 @@ mod tests {
     }
 
     #[test]
+    fn the_windows_activation_is_asked_once_its_last_request_kept() {
+        let mut window = Window::new(WindowSettings::new("a window", "org.example.Test"));
+        assert_eq!(window.take_requests().activation, None);
+        window.request_attention();
+        window.bring_to_front();
+        assert_eq!(
+            window.take_requests().activation,
+            Some(crate::app::Activation::Front)
+        );
+        assert_eq!(window.take_requests().activation, None);
+        window.request_attention();
+        assert_eq!(
+            window.take_requests().activation,
+            Some(crate::app::Activation::Attention)
+        );
+    }
+
+    #[test]
     fn the_interface_has_the_hosts_time_before_the_application_starts() {
         let mut app = Told::default();
         let mut session = start(&mut app).expect("it starts");

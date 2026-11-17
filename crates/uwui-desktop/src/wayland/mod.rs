@@ -18,7 +18,8 @@
 //!   pointer's; their repeat, the host's own (`repeat`); the focus and the modifiers.
 //! - *The scale*: `wp_fractional_scale_v1` with `wp_viewporter`, the image
 //!   `round(logical × scale)` pixels and the viewport the window's logical size; else the surface's
-//!   preferred integer scale; else 1.
+//!   preferred integer scale; else the largest integer scale of the outputs that it lies on;
+//!   else 1.
 //! - *Activation*: the start's `XDG_ACTIVATION_TOKEN`, and the application's requests, through
 //!   `xdg_activation_v1`.
 //!
@@ -559,9 +560,13 @@ impl Host {
     /// attention names none.
     fn ask_activation(&self, activation: Activation, app_id: &str) {
         let Some(manager) = &self.objects.activation else {
-            tracing::info!(
-                "the compositor gives no xdg_activation_v1: the window's request does nothing"
-            );
+            // Told once: the next requests do nothing as well.
+            static TOLD: std::sync::Once = std::sync::Once::new();
+            TOLD.call_once(|| {
+                tracing::info!(
+                    "the compositor gives no xdg_activation_v1: the window's requests do nothing"
+                );
+            });
             return;
         };
         let token = manager.get_activation_token(&self.handle, ());

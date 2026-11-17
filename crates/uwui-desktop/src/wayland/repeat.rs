@@ -11,6 +11,9 @@ use uwui::time::Instant;
 /// The rate and the delay that a compositor gives before it says, as the protocol's own example.
 const DEFAULT: (u32, u32) = (25, 600);
 
+/// The shortest gap between two repeats.
+const SHORTEST_GAP: Duration = Duration::from_millis(1);
+
 /// The most repeats given at once, when the loop comes late to its deadline: a machine that
 /// stalls never floods the interface.
 const MOST_AT_ONCE: usize = 2;
@@ -40,9 +43,11 @@ impl Repeat {
     /// The compositor's `repeat_info`: `rate` repeats a second, the first after `delay`
     /// milliseconds; a rate of zero turns repeating off.
     pub(super) fn set_info(&mut self, rate: u32, delay: u32) {
+        // A gap of a millisecond at least: a rate past a thousand a second, which the protocol
+        // can carry, would otherwise give a gap of zero and a loop that never waits.
         self.pace = (rate > 0).then(|| {
             (
-                Duration::from_secs(1) / rate,
+                (Duration::from_secs(1) / rate).max(SHORTEST_GAP),
                 Duration::from_millis(u64::from(delay)),
             )
         });
@@ -153,6 +158,12 @@ mod tests {
         assert_eq!(repeat.deadline(), None);
         repeat.pressed(30, at(10), true);
         assert_eq!(repeat.deadline(), None);
+        // A rate that the protocol carries but no keyboard has: a gap of a millisecond.
+        let mut repeat = Repeat::default();
+        repeat.set_info(u32::MAX, 0);
+        repeat.pressed(30, at(0), true);
+        assert_eq!(repeat.due(at(0)), [(30, at(0))]);
+        assert_eq!(repeat.deadline(), Some(at(1)));
         // The compositor's default, before it says.
         let repeat = Repeat::default();
         assert_eq!(

@@ -101,8 +101,9 @@ pub(super) struct Told {
     entered: Vec<ObjectId>,
     /// The tokens of activation that the compositor gave, to be used on the window.
     pub(super) tokens: Vec<String>,
-    /// The serial of the person's last press, of a key or a button, which a request to bring the
-    /// window to the front names.
+    /// The serial of the person's last press of a key or a button, or of the keyboard's focus
+    /// given, which a request to bring the window to the front names, as `xdg_activation_v1`
+    /// allows.
     pub(super) serial: Option<u32>,
     pub(super) cursor: Cursor,
     pub(super) keys: Keys,
@@ -141,6 +142,8 @@ pub(super) struct Keys {
     pub(super) keyboard: Option<wl_keyboard::WlKeyboard>,
     pub(super) repeat: Repeat,
     modifiers: Modifiers,
+    /// Whether the window holds the keyboard's focus.
+    focused: bool,
 }
 
 impl Told {
@@ -171,6 +174,7 @@ impl Told {
                 keyboard: None,
                 repeat: Repeat::default(),
                 modifiers: Modifiers::default(),
+                focused: false,
             },
         }
     }
@@ -368,10 +372,26 @@ impl Told {
     /// The window took the keyboard's focus, or lost it, at `received`: told before what follows,
     /// as uwui asks; a key held repeats no more.
     fn focus(&mut self, given: bool, received: Instant) {
+        self.keys.focused = given;
         if !given {
             self.keys.repeat.stop();
+            if let Some(xkb) = &mut self.keys.xkb {
+                xkb.forget_sequence();
+            }
         }
         self.push(EventTime::received(received), Input::Focus(given));
+    }
+
+    /// The seat lost its keyboard, at `received`: a focus that it held is lost with it, though the
+    /// compositor need not say so.
+    fn keyboard_gone(&mut self, received: Instant) {
+        if self.keys.focused {
+            self.focus(false, received);
+        }
+        self.keys.repeat.stop();
+        if let Some(keyboard) = self.keys.keyboard.take() {
+            keyboard.release();
+        }
     }
 
     fn push(&mut self, time: EventTime, input: Input<'static>) {
@@ -636,12 +656,7 @@ impl Dispatch<wl_seat::WlSeat, ()> for Told {
         let has = capabilities.contains(wl_seat::Capability::Keyboard);
         match (&told.keys.keyboard, has) {
             (None, true) => told.keys.keyboard = Some(seat.get_keyboard(queue, ())),
-            (Some(_), false) => {
-                told.keys.repeat.stop();
-                if let Some(keyboard) = told.keys.keyboard.take() {
-                    keyboard.release();
-                }
-            }
+            (Some(_), false) => told.keyboard_gone(clock::now()),
             _ => {}
         }
     }
@@ -853,6 +868,62 @@ mod tests {
         assert_eq!(
             inputs(&mut told).last().map(String::as_str),
             Some("5030 Received Focus(false)")
+        );
+    }
+
+    #[test]
+    fn a_new_keymap_or_a_keyboard_gone_ends_the_repeat_and_the_focus() {
+        let mut told = Told::new();
+        let (fd, size) = keymap();
+        told.keyboard(
+            wl_keyboard::Event::Keymap {
+                format: WEnum::Value(wl_keyboard::KeymapFormat::XkbV1),
+                fd,
+                size,
+            },
+            at(5_000),
+        );
+        told.focus(true, at(5_000));
+        told.keyboard(key(1_000, 30, true), at(5_000));
+        assert!(told.keys.repeat.deadline().is_some());
+        // A new keymap: the key held no longer means what it did.
+        let (fd, size) = keymap();
+        told.keyboard(
+            wl_keyboard::Event::Keymap {
+                format: WEnum::Value(wl_keyboard::KeymapFormat::XkbV1),
+                fd,
+                size,
+            },
+            at(5_100),
+        );
+        assert!(told.keys.repeat.deadline().is_none());
+        // The seat loses its keyboard while the window holds its focus: the focus goes with it.
+        told.keyboard(key(1_200, 30, true), at(5_200));
+        told.inputs.clear();
+        told.keyboard_gone(at(5_300));
+        assert!(told.keys.repeat.deadline().is_none());
+        assert_eq!(inputs(&mut told), ["5300 Received Focus(false)"]);
+        // Gone again without the focus: nothing to tell.
+        told.keyboard_gone(at(5_400));
+        assert!(inputs(&mut told).is_empty());
+    }
+
+    #[test]
+    fn a_dead_key_before_the_focus_leaves_composes_with_nothing_after() {
+        let mut told = Told::new();
+        let mut french = Keyboard::new("en_US.UTF-8").expect("libxkbcommon loads");
+        french.set_test_layout("fr").expect("the layout compiles");
+        told.keys.xkb = Some(french);
+        told.focus(true, at(5_000));
+        // `^`, dead on a French keyboard, then the focus lost and given back, then `e`.
+        told.keyboard(key(1_000, 26, true), at(5_000));
+        told.focus(false, at(5_010));
+        told.focus(true, at(5_020));
+        told.keyboard(key(1_030, 18, true), at(5_030));
+        let given = inputs(&mut told);
+        assert_eq!(
+            given.last().map(String::as_str),
+            Some("5030 Anchored Key KeyE Character(\"e\") Some(\"e\") Pressed")
         );
     }
 

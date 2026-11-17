@@ -214,38 +214,61 @@ fn preferred_scale(log: &str) -> f64 {
         .unwrap_or(1.0)
 }
 
-/// The scale that the window drew at, in its log: the width of the last image that its driver
-/// made, by wl_shm or by dmabuf, over its logical width, the toplevel's last configure's or the
-/// example's own.
-fn drawn_scale(log: &str) -> Option<f64> {
-    // The image made last, of either kind: wl_shm's width is its third argument, dmabuf's its
-    // second.
-    let line = log
-        .lines()
-        .rev()
-        .find(|line| line.contains(".create_buffer(") || line.contains(".create_immed("))?;
-    let (call, at) = if line.contains(".create_buffer(") {
-        (".create_buffer(", 2)
-    } else {
-        (".create_immed(", 1)
-    };
-    let width = last_call(line, call)?.get(at)?.clone();
-    let width: f64 = width.parse().ok()?;
-    let logical = log
-        .lines()
-        .filter(|line| line.contains("xdg_toplevel#") && line.contains(".configure("))
-        .filter_map(|line| {
-            line.split_once(".configure(")?
-                .1
-                .split(',')
-                .next()?
-                .trim()
-                .parse::<f64>()
-                .ok()
+/// How the window drew, in its log: the width of the last image that its driver made, by wl_shm
+/// or by dmabuf; the logical width that the surface shows it at, as its requests say, its
+/// viewport's destination or else the image's width over its buffer's scale; and the window's own
+/// logical width, the toplevel's last configure's or the example's.
+struct Drawn {
+    pixels: f64,
+    shown: f64,
+    logical: f64,
+}
+
+impl Drawn {
+    fn read(log: &str) -> Option<Self> {
+        // wl_shm's width is its third argument, dmabuf's its second.
+        let line = log
+            .lines()
+            .rev()
+            .find(|line| line.contains(".create_buffer(") || line.contains(".create_immed("))?;
+        let (call, at) = if line.contains(".create_buffer(") {
+            (".create_buffer(", 2)
+        } else {
+            (".create_immed(", 1)
+        };
+        let pixels: f64 = last_call(line, call)?.get(at)?.parse().ok()?;
+        let number = |call| {
+            last_call(log, call).and_then(|arguments| arguments.first()?.parse::<f64>().ok())
+        };
+        // A destination of -1 unsets the viewport's.
+        let shown = number(".set_destination(")
+            .filter(|&width| width > 0.0)
+            .unwrap_or_else(|| pixels / number(".set_buffer_scale(").unwrap_or(1.0));
+        let logical = log
+            .lines()
+            .filter(|line| line.contains("xdg_toplevel#") && line.contains(".configure("))
+            .filter_map(|line| {
+                line.split_once(".configure(")?
+                    .1
+                    .split(',')
+                    .next()?
+                    .trim()
+                    .parse::<f64>()
+                    .ok()
+            })
+            .rfind(|&width| width > 0.0)
+            .unwrap_or(WIDTH);
+        Some(Self {
+            pixels,
+            shown,
+            logical,
         })
-        .rfind(|&width| width > 0.0)
-        .unwrap_or(WIDTH);
-    Some((width / logical * 100.0).round() / 100.0)
+    }
+
+    /// The physical pixels per logical one that the window drew at.
+    fn scale(&self) -> f64 {
+        (self.pixels / self.shown * 100.0).round() / 100.0
+    }
 }
 
 /// How many images the driver attached to the example's surface so far, in its protocol's log.
@@ -395,6 +418,7 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
     // The output's middle, which the window covers in each compositor of the series: the window's
     // place on the output follows from where the pointer lies in it, both in logical pixels at
     // the scale of 1 that the series' input counts in.
+    let mut typed = false;
     if move_pointer(960, 540) {
         std::thread::sleep(Duration::from_secs(1));
         let log = example.read_log();
@@ -431,19 +455,32 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
             .unwrap_or_else(|_| panic!("the click on Add added no row: {shown}"));
         assert_eq!(added, "added sa", "the field did not take the keys typed");
         println!("keys: typed");
+        typed = true;
         if let Err(error) = at_rest(&example) {
             panic!("the example is not at rest after the keys typed: {error}");
         }
     }
 
+    // The cursor that the host set, each shape of `wp_cursor_shape_v1` by its number: 9 is the
+    // I-beam, which the field asks while the pointer lies over it.
     let log = example.read_log();
-    let cursor = if log.contains("wp_cursor_shape_device_v1#") && log.contains(".set_shape(") {
-        "by shape"
-    } else if log.contains("wl_pointer#") && log.contains(".enter(") {
-        "the compositor's"
-    } else {
-        "not run, the pointer never entered"
+    let shapes: Vec<String> = log
+        .lines()
+        .filter(|line| line.contains("wp_cursor_shape_device_v1#") && line.contains(".set_shape("))
+        .filter_map(|line| last_call(line, ".set_shape(")?.get(1).cloned())
+        .collect();
+    let entered = log.contains("wl_pointer#") && log.contains(".enter(");
+    let cursor = match (shapes.is_empty(), entered) {
+        (false, _) => "by shape",
+        (true, true) => "the compositor's",
+        (true, false) => "not run, the pointer never entered",
     };
+    if !shapes.is_empty() && typed {
+        assert!(
+            shapes.iter().any(|shape| shape == "9"),
+            "the cursor over the field was never the I-beam, its shapes {shapes:?}: {shown}"
+        );
+    }
     println!("cursor: {cursor}");
     assert_eq!(
         example.end_on_sigterm(),
@@ -464,14 +501,23 @@ fn the_window_draws_at_the_scale_that_the_compositor_prefers() {
     }
     let log = example.read_log();
     let preferred = preferred_scale(&log);
-    let drawn = drawn_scale(&log)
+    let drawn = Drawn::read(&log)
         .unwrap_or_else(|| panic!("the example made no image: {}", example.log.display()));
+    // The surface shows the image at the window's size: the scale reached the compositor.
     assert!(
-        (drawn - preferred).abs() < 0.01,
-        "the window drew at {drawn}, the compositor preferring {preferred}: {}",
+        (drawn.shown - drawn.logical).abs() < 1.0,
+        "the surface shows its image {} wide, the window being {}: {}",
+        drawn.shown,
+        drawn.logical,
         example.log.display()
     );
-    println!("scale: {drawn:?}");
+    let scale = drawn.scale();
+    assert!(
+        (scale - preferred).abs() < 0.01,
+        "the window drew at {scale}, the compositor preferring {preferred}: {}",
+        example.log.display()
+    );
+    println!("scale: {scale:?}");
     // The start's token activates the window, where the compositor gives activation.
     if log.contains("\"xdg_activation_v1\"") {
         assert!(

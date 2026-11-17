@@ -39,8 +39,9 @@ MIT OR Apache-2.0.
   focus and its modifiers, and its repeat, which Wayland leaves to the host; the scale that the
   compositor prefers, fractional through a viewport, else an integer one.
 - Holds the keyboard's code of libxkbcommon, Linux's (`xkb`): the compositor's keymap, its state,
-  the compose tables of the person's locale, and each key turned into `slime-input`'s `KeyEvent`
-  as that type's contract says.
+  the compose tables of the person's locale, a sequence in progress forgotten when the focus leaves
+  or the keymap changes, and each key turned into `slime-input`'s `KeyEvent` as that type's
+  contract says.
 - Opens its own device (`gpu`), with wgpu's hint `MemoryHints::MemoryUsage`, the adapter that uses
   the least power, no optional feature, Mailbox where the surface offers it and Fifo elsewhere, and
   draws each frame's display list with `uwui-render` into the window's image.
@@ -78,7 +79,7 @@ depends on it, and that `uwui` pulls no windowing library nor wgpu.
 
 `uwui`, the interface it hosts; `uwui-render` and wgpu, which draw it; `raw-window-handle`, the
 window's pointers given to wgpu; `pollster`, which waits for wgpu's requests; `slime-input`, the
-pointer's buttons and wheel; `ctrlc`, the termination signals; `tracing`. On Linux,
+keys, modifiers, buttons, wheel and cursor's shapes; `ctrlc`, the termination signals; `tracing`. On Linux,
 `wayland-client` on libwayland's display, loaded at run time, `wayland-protocols`' xdg-shell,
 xdg-decoration, the cursor's shapes, the fractional scale, the viewporter and activation;
 `xkbcommon-dl`, libxkbcommon loaded at run time; and `rustix`, the loop's poll, eventfd and

@@ -101,7 +101,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **uwui's desktop host's test of rest fails in CI now and then** ([ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)).
   The example's main thread woke twice in its 10 s of rest under CI's Weston (`crates/uwui-desktop/tests/rest.rs`), its other threads not at all, in 3 of `main`'s 8 runs of CI from 2026-11-15 to 2026-11-17; the last two ran on changes of documents alone.
   It passed three times on the owner's machine, and 14 times more on 2026-11-17 in Weston at 60 Hz, a fresh one for each run, two of its cores loaded: a wake that CI's shared runners cause, or one the host makes now and then, not found.
-  Two switches without time on the processor fit one message that the compositor sends late, which the main thread reads off the socket that it shares with Vulkan's driver, and fit two deadlines of the host's as well; another client drawing beside the example reached it with nothing.
+  The host is quiet at rest, its timer disarmed and one poll without a deadline, and in Weston each deadline that it can arm ends in a frame, which wakes Mesa's threads too: two switches of the main thread alone, without time on the processor, fit one message that the compositor sends late, read off the socket that the main thread shares with Vulkan's driver, or a signal; another window, opened and closed beside the example, reached it with nothing.
   Since M6d.7a2a, a failure names each thread that woke and the lines that the example's protocol gained meanwhile, so that the next one in CI shows whether the compositor spoke.
   While it lasts, `check (windowed)` fails on `main` about once in three runs, whatever the change.
   Followed at M6d.7a2b, from the next failure's account; M6d.7a2c measures the host's rest.
@@ -118,7 +118,10 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Drawing a theme's images needs `wayland-cursor`, a dependency put to the owner once a compositor of the field lacks the protocol.
 - **uwui's desktop host follows no global that comes during its run** ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
   A seat added later gives no pointer or keyboard, and an output plugged later is not bound: where the compositor prefers no scale for the surface, as Weston, a window moved onto it keeps the scale of the outputs known at its start.
-  Followed at M6d.7e, whose several windows follow the outputs.
+  Followed at M6d.7e, whose several windows follow the outputs and the seats.
+- **uwui's desktop host's keyboard tests read the developer's own compose files** ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
+  libxkbcommon reads `XCOMPOSEFILE` or `~/.XCompose` before the locale's table, and `xkbcommon-dl` 0.4.2 gives no way to load a table from a file of the test's own: a person whose own sequence redefines `^` then `e` sees `crates/uwui-desktop/src/xkb.rs`'s tests of dead keys fail; CI has neither.
+  Followed when the host's keyboard is shared with X11's layer, at M6d.7b.
 - **`scripts/input-to-present.sh` loses part of its inputs** ([ADR-0200](adr/0200-applications-measured-from-outside.md)).
   It runs `wlrctl` once an input; each run makes a virtual pointer or keyboard and destroys it at once.
   A headless sway gives its seat a pointer only while one exists: a window binds it too late, and the input goes nowhere.

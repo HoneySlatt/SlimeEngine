@@ -18,7 +18,8 @@ pollster.workspace = true
 # The pointers of Wayland's display and surface given to wgpu, which makes the window's surface
 # on them (ADR-0270).
 raw-window-handle.workspace = true
-# The buttons and the wheel that a person's input arrives as (ADR-0142).
+# The keys, modifiers, buttons and wheel that a person's input arrives as, and the cursor's shapes
+# (ADR-0142).
 slime-input.workspace = true
 # Warnings of what the host leaves aside: a protocol that the compositor lacks, a frame not drawn.
 tracing.workspace = true

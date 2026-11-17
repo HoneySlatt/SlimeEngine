@@ -137,11 +137,29 @@ impl Keyboard {
             )
         };
         let keymap = NonNull::new(keymap).ok_or(KeyboardError("the keymap does not compile"))?;
+        self.replace_keymap(keymap)
+    }
+
+    /// Takes `keymap`, whose reference it holds, in place of the last one: a sequence in progress
+    /// is forgotten, its keys' meaning gone.
+    fn replace_keymap(&mut self, keymap: NonNull<xkb_keymap>) -> Result<(), KeyboardError> {
         self.keymap = Some(Keymap::new(self.xkb, keymap)?);
+        self.forget_sequence();
+        Ok(())
+    }
+
+    /// Forgets the sequence of dead keys in progress: the window lost the keyboard's focus, or
+    /// the keymap changed, and a dead key pressed before composes with nothing after.
+    pub(crate) fn forget_sequence(&mut self) {
         if let Some(compose) = &mut self.compose {
             compose.reset();
         }
-        Ok(())
+    }
+
+    /// Makes a keymap of the XKB rules' layout `layout`, as a test of Wayland's layer types on it.
+    #[cfg(test)]
+    pub(crate) fn set_test_layout(&mut self, layout: &str) -> Result<(), KeyboardError> {
+        self.set_layout(layout, "")
     }
 
     /// Makes a keymap of the XKB rules' layout `layout` and variant `variant`, as a test types on
@@ -167,8 +185,7 @@ impl Keyboard {
             )
         };
         let keymap = NonNull::new(keymap).ok_or(KeyboardError("the layout does not compile"))?;
-        self.keymap = Some(Keymap::new(self.xkb, keymap)?);
-        Ok(())
+        self.replace_keymap(keymap)
     }
 
     /// Whether a keymap is set.
@@ -378,12 +395,15 @@ impl Compose {
 
     /// Feeds a press's keysym to the sequence in progress.
     fn feed(&mut self, keysym: u32) -> Composed {
-        // SAFETY: the state is live; libxkbcommon takes any keysym, ignoring the modifiers'.
+        // SAFETY: the state is live; libxkbcommon takes any keysym, ignoring the modifiers', and
+        // returns one of `xkb_compose_feed_result`'s two values alone, as xkbcommon-dl's Rust enum
+        // needs (libxkbcommon 1.x's `xkbcommon-compose.h`).
         let fed = unsafe { (self.xkb.xkb_compose_state_feed)(self.state.as_ptr(), keysym) };
         if fed == xkb_compose_feed_result::XKB_COMPOSE_FEED_IGNORED {
             return Composed::Nothing;
         }
-        // SAFETY: the state is live.
+        // SAFETY: the state is live; libxkbcommon returns one of `xkb_compose_status`'s four values
+        // alone, as xkbcommon-dl's Rust enum needs.
         match unsafe { (self.xkb.xkb_compose_state_get_status)(self.state.as_ptr()) } {
             xkb_compose_status::XKB_COMPOSE_NOTHING => Composed::Nothing,
             xkb_compose_status::XKB_COMPOSE_COMPOSING => Composed::Composing,
@@ -429,9 +449,14 @@ impl Drop for Compose {
 /// The compose tables' locale for the person: the first of `LC_ALL`, `LC_CTYPE` and `LANG` that is
 /// set and not empty, as the C library's locale reads them, else `C`.
 pub(crate) fn locale() -> String {
+    locale_of(|name| std::env::var(name).ok())
+}
+
+/// The locale that the variables read by `variable` name, in the C library's order.
+fn locale_of(variable: impl Fn(&str) -> Option<String>) -> String {
     ["LC_ALL", "LC_CTYPE", "LANG"]
         .into_iter()
-        .filter_map(|name| std::env::var(name).ok())
+        .filter_map(variable)
         .find(|value| !value.is_empty())
         .unwrap_or_else(|| "C".to_owned())
 }
@@ -441,18 +466,35 @@ fn xkb_code(code: u32) -> u32 {
     code.saturating_add(8)
 }
 
-/// The text that a compose state holds once a sequence ends, if it gives a character.
+/// The text that a compose state holds once a sequence ends, if it gives a character, however
+/// long: a person's compose file may give a sequence a whole sentence.
 fn composed_text(xkb: &XkbCommonCompose, state: NonNull<xkb_compose_state>) -> Option<String> {
-    let mut buffer = [0_u8; 64];
-    // SAFETY: the state is live; libxkbcommon writes at most the buffer's length, nul included.
-    let written = unsafe {
-        (xkb.xkb_compose_state_get_utf8)(
-            state.as_ptr(),
-            buffer.as_mut_ptr().cast::<c_char>(),
-            buffer.len(),
-        )
-    };
-    text_of(&buffer, written)
+    printed(|buffer| {
+        // SAFETY: the state is live; libxkbcommon writes at most the buffer's length, nul
+        // included.
+        unsafe {
+            (xkb.xkb_compose_state_get_utf8)(
+                state.as_ptr(),
+                buffer.as_mut_ptr().cast::<c_char>(),
+                buffer.len(),
+            )
+        }
+    })
+}
+
+/// The text that `print` writes as `snprintf` does: it answers the text's whole length, without
+/// its nul, and writes what fits; a buffer too short is grown to the length and written again.
+fn printed(mut print: impl FnMut(&mut [u8]) -> i32) -> Option<String> {
+    let mut buffer = vec![0_u8; 64];
+    let mut length = usize::try_from(print(&mut buffer)).ok()?;
+    if length >= buffer.len() {
+        buffer = vec![0; length.checked_add(1)?];
+        length = usize::try_from(print(&mut buffer))
+            .ok()?
+            .min(buffer.len() - 1);
+    }
+    let text = std::str::from_utf8(&buffer[..length]).ok()?;
+    (!text.is_empty()).then(|| text.to_owned())
 }
 
 /// The character of `keysym`, if it has one.
@@ -764,6 +806,8 @@ mod tests {
     const KEY_ENTER: u32 = 28;
     const KEY_TAB: u32 = 15;
     const KEY_DELETE: u32 = 111;
+    const KEY_BACKSPACE: u32 = 14;
+    const KEY_ESC: u32 = 1;
     const KEY_LEFTSHIFT: u32 = 42;
     /// The key right of P, `^` on a French keyboard, dead.
     const KEY_LEFTBRACE: u32 = 26;
@@ -851,6 +895,14 @@ mod tests {
         assert_eq!(
             press(&mut keyboard, KEY_DELETE),
             (Key::Named(NamedKey::Delete), None)
+        );
+        assert_eq!(
+            press(&mut keyboard, KEY_BACKSPACE),
+            (Key::Named(NamedKey::Backspace), Some("\u{8}".to_owned()))
+        );
+        assert_eq!(
+            press(&mut keyboard, KEY_ESC),
+            (Key::Named(NamedKey::Escape), Some("\u{1b}".to_owned()))
         );
         assert_eq!(
             press(&mut keyboard, KEY_LEFTSHIFT),
@@ -949,9 +1001,62 @@ mod tests {
 
     #[test]
     fn the_locale_is_read_in_the_c_librarys_order() {
-        // Read, not set: the test's own environment is the process's.
-        let locale = locale();
-        assert!(!locale.is_empty());
+        let of = |set: &[(&str, &str)]| {
+            let set: Vec<(String, String)> = set
+                .iter()
+                .map(|&(name, value)| (name.to_owned(), value.to_owned()))
+                .collect();
+            locale_of(|name| {
+                set.iter()
+                    .find(|(set, _)| set == name)
+                    .map(|(_, value)| value.clone())
+            })
+        };
+        assert_eq!(
+            of(&[("LANG", "en_US.UTF-8"), ("LC_ALL", "fr_FR.UTF-8")]),
+            "fr_FR.UTF-8"
+        );
+        assert_eq!(
+            of(&[("LANG", "en_US.UTF-8"), ("LC_CTYPE", "de_DE.UTF-8")]),
+            "de_DE.UTF-8"
+        );
+        // An empty variable counts as unset.
+        assert_eq!(
+            of(&[("LC_ALL", ""), ("LANG", "en_US.UTF-8")]),
+            "en_US.UTF-8"
+        );
+        assert_eq!(of(&[]), "C");
+    }
+
+    /// `snprintf`'s way, over `text`.
+    fn printing(text: &str) -> impl FnMut(&mut [u8]) -> i32 {
+        let text = text.as_bytes().to_vec();
+        move |buffer: &mut [u8]| {
+            let fits = text.len().min(buffer.len().saturating_sub(1));
+            buffer[..fits].copy_from_slice(&text[..fits]);
+            buffer[fits] = 0;
+            i32::try_from(text.len()).expect("a short text")
+        }
+    }
+
+    #[test]
+    fn a_composed_text_is_read_whole_however_long() {
+        assert_eq!(printed(printing("ê")), Some("ê".to_owned()));
+        let long = "é".repeat(40);
+        assert_eq!(printed(printing(&long)), Some(long));
+        assert_eq!(printed(printing("")), None);
+        assert_eq!(printed(|_| -1), None);
+    }
+
+    #[test]
+    fn a_new_keymap_forgets_the_sequence_in_progress() {
+        let mut keyboard = keyboard("fr");
+        press(&mut keyboard, KEY_LEFTBRACE);
+        keyboard.set_layout("fr", "").expect("the layout compiles");
+        assert_eq!(
+            press(&mut keyboard, KEY_E),
+            (character("e"), Some("e".to_owned()))
+        );
     }
 
     #[test]
