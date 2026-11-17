@@ -25,8 +25,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     [M6d.9a2a](stage-6d.md#m6d9a2a--the-library); M6d.9a2b cut in two
     ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)): done,
     [M6d.9a2b1](stage-6d.md#m6d9a2b1--the-engines-families-on-the-library) and
-    [M6d.9a2b2](stage-6d.md#m6d9a2b2--the-servers-game-off-its-lock), M6d.9a2b whole; next,
-    [V1](stage-6d.md#v1--uwuis-documents-versioned), then [S1](stage-6d.md#s1--saves-migrated-from-layout-5);
+    [M6d.9a2b2](stage-6d.md#m6d9a2b2--the-servers-game-off-its-lock), M6d.9a2b whole, and
+    [V1](stage-6d.md#v1--uwuis-documents-versioned); next, [S1](stage-6d.md#s1--saves-migrated-from-layout-5);
     after M6d.9b, [E1](stage-6d.md#e1--the-elements-contract), the element's contract designed
     before M6d.10a ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six: done,
@@ -60,7 +60,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.9a2b1 to M6d.9a2b2 — The engine on the library](stage-6d.md#m6d9a2b--the-engine-on-the-library) | Done |
 | [M6d.9a2c to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a2c--waiting) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
-| [V1 — uwui's documents versioned](stage-6d.md#v1--uwuis-documents-versioned) | Planned |
+| [V1 — uwui's documents versioned](stage-6d.md#v1--uwuis-documents-versioned) | Done |
 | [S1 — Saves migrated from layout 5](stage-6d.md#s1--saves-migrated-from-layout-5) | Planned |
 | [E1 — The element's contract](stage-6d.md#e1--the-elements-contract) | Planned |
 | [M6d.10a — What the move needs](stage-6d.md#m6d10a--what-the-move-needs) | Planned |

@@ -151,7 +151,8 @@ in git.
   ([ADR-0274](adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)):
   done, [M6d.9a2b1](#m6d9a2b1--the-engines-families-on-the-library), on the same day, and
   [M6d.9a2b2](#m6d9a2b2--the-servers-game-off-its-lock), on 2026-11-17, M6d.9a2b whole; then
-  [V1](#v1--uwuis-documents-versioned) and [S1](#s1--saves-migrated-from-layout-5); then
+  [V1](#v1--uwuis-documents-versioned), done on the same day, and
+  [S1](#s1--saves-migrated-from-layout-5); then
   [M6d.9a2c](#m6d9a2c--waiting),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
@@ -3076,6 +3077,27 @@ Not a milestone of agents': uwui's documents, on track A after M6d.9a2b2
   updated.
 - **Done when.** `scripts/check.sh` passes; each reader's tests read version 1 with and without its
   node, and refuse version 2.
+- **Result.** Done on 2026-11-17
+  ([ADR-0286](adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md), made precise):
+  - Themes, style sheets and tables of shortcuts start with `version 1`; without it, a document
+    reads as version 1. `Theme::VERSION`, `StyleSheet::VERSION` and `Shortcuts::VERSION` give the
+    version that uwui reads.
+  - A later version is refused whole, whatever else its node holds, the error naming both versions
+    and keeping the later one in `DocumentError::later`, even past `DocumentErrors::MOST`. No
+    program writes these documents to a person's file yet; the field is what one will check.
+  - One reader of the node serves the four formats, a dock's layout among them, which still requires
+    it. A node `version` anywhere but first is refused, so no rule of a style sheet is named
+    `version`, the owner's choice.
+  - The repository's own documents write `version 1`.
+  - Tested by `uwui`'s `src/versions_tests.rs`: version 1's fixtures, in `tests/versions`, read as
+    `1.expected` records, the same with their node and without it, with CRLF too; version 2
+    refused for each format, and for a layout; a later document in a stack, past the most errors
+    kept; a version written wrongly or out of place, each at its line.
+  - The closing review found a later version missed when its node held more than its number, two
+    readers of the node, fixtures that recorded no meaning and a group of a style missing from one,
+    and the rule named `version` decided without the owner; all settled.
+  - Left for later ([`debt.md`](debt.md)): a later version told two ways, `ReadError::Later` for a
+    layout and `DocumentError::later` for the others, settled with uwui's rule for errors.
 
 ### S1 — Saves migrated from layout 5
 
