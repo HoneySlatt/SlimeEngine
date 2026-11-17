@@ -1,6 +1,8 @@
 # 0283. uwui's widgets and a program's on one public path
 
-- Status: Accepted
+- Status: Accepted; superseded in part by
+  [0294](0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)
+  (when and how the public path is designed)
 - Date: 2026-11-16
 
 ## Context

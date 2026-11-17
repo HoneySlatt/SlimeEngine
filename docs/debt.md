@@ -1025,7 +1025,7 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   `Kind` lists 28 kinds, their behaviour is private (`tree/control.rs`), and uwui's public traits are sealed.
   A surface declares its role and name, but not its actions: a screen reader or an agent cannot use what a program draws in it (`tree/meaning.rs`).
   An application forks uwui to add a widget; each widget built before the public path has to move onto it.
-  The path is designed with uwui's authoring API, and the surface's actions placed, by M6d.10.
+  The path is designed by [E1](stage-6d.md#e1--the-elements-contract), with the rest of the element's contract, before M6d.10, which places the surface's actions ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
 - **The interface's text has no identity for translation** ([ADR-0284](adr/0284-uwuis-text-a-message-or-a-literal-from-its-authoring-api-fluent-later.md)).
   A label is a `String`; uwui has no catalogue of messages, no plurals and no formatting by locale ([`uwui-needs.md`](uwui-needs.md) asks for Fluent).
   Every label written before them is to be found and keyed again.

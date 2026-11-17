@@ -365,7 +365,7 @@ the ADR linking to it.
 | [0280](0280-a-changed-decision-written-whole-the-changelog-in-fragments.md) | A changed decision written whole, the changelog in fragments | Superseded by 0281 |
 | [0281](0281-decisions-written-whole-consolidated-before-the-move-the-changelog-in-fragments.md) | Decisions written whole, consolidated before the move; the changelog in fragments | Accepted; supersedes 0280 |
 | [0282](0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md) | Errors, logging, assertions; uwui's public enumerations open to new cases | Accepted; supersedes 0008 and 0019 |
-| [0283](0283-uwuis-widgets-and-a-programs-on-one-public-path.md) | uwui's widgets and a program's on one public path | Accepted |
+| [0283](0283-uwuis-widgets-and-a-programs-on-one-public-path.md) | uwui's widgets and a program's on one public path | Accepted; superseded in part by 0294 |
 | [0284](0284-uwuis-text-a-message-or-a-literal-from-its-authoring-api-fluent-later.md) | uwui's text a message or a literal from its authoring API; Fluent later | Accepted |
 | [0285](0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md) | Every pointer named in the host's events; the tree following each with touch | Accepted |
 | [0286](0286-every-document-of-uwui-versioned-as-dock-layouts-are.md) | Every document of uwui versioned, as dock layouts are | Accepted |
@@ -376,3 +376,4 @@ the ADR linking to it.
 | [0291](0291-a-panic-says-why-no-bare-unwrap-outside-tests.md) | A panic says why: no bare `unwrap` outside tests | Accepted |
 | [0292](0292-a-quick-check-without-nix-when-contributions-open.md) | A quick check without Nix, when contributions open | Accepted |
 | [0293](0293-actions-declared-once-in-uwuis-core-undo-and-the-journal-the-programs.md) | Actions declared once in uwui's core; undo and the journal the program's | Accepted; supersedes in part 0218 |
+| [0294](0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md) | The element's contract designed by E1, before M6d.10, on a prototype thrown away | Accepted; supersedes in part 0283 |

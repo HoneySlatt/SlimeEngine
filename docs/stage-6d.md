@@ -2962,6 +2962,41 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
 - **Done when.** `scripts/check.sh` passes; a test reads layout 5's fixture through the reader of a
   layout 6 made for the test, then thrown away.
 
+### E1 — The element's contract
+
+Not a milestone of agents': uwui's core, on track A after M6d.9b and before M6d.10, while track B
+goes on ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
+
+- **Goal.** One contract for what an element of uwui is, designed whole and tried on a prototype
+  thrown away, so that M6d.10 cuts uwui's first stage on figures. Builds nothing kept.
+- **Crates.** None kept. The prototype on a branch of its own, from the signals of `m6d1c-bench`,
+  thrown away once E1 ends.
+- **Delivers.**
+  - A profile of the editor's frame after one value of the inspector changed, on the high tier,
+    the machine quiet: where its time goes.
+  - The survey, in uwui's
+    [`survey-writing-an-application.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/survey-writing-an-application.md):
+    how rivals let a program's widget do what theirs do, keep an item's state by its key in a list
+    that reorders, and draw again only what changed, accessibility kept; each fact with its source,
+    version and date.
+  - A prototype on four cases: a list of rows that a person edits, reordered while rows load; one
+    indicator moving on the editor's tree; a canvas of a crate of its own, used by a screen reader
+    and by an agent; a component that owns a layer, as the palette of commands.
+  - The contract's ADRs, put to the owner: a widget written outside uwui, measured, laid out,
+    drawn, taking input and the focus, giving its meaning and actions, carrying a theme's parts and
+    states; its kind registered for layouts and style sheets, its styles declared outside uwui;
+    items keyed by what they show, their state following the key, and what two equal keys do; the
+    kinds of change and what the display list keeps across frames between `uwui` and `uwui-render`,
+    meaning kept with what is kept; what reading a signal of a scope disposed does; how long
+    `Ui::build` stays public. Text and pointers as ADR-0284 and ADR-0285 shaped them.
+- **Done when.** The owner has validated the contract's ADRs. On the prototype: what a person typed
+  and composed in a row follows its item through a reorder; the moving indicator draws one element
+  again, and the items sent to the GPU are bounded by a number written in the ADR; the canvas's
+  actions are reached through a screen reader's tree and an agent's request; ADR-0283's cost is
+  weighed in figures for M6d.10.
+- **Measured.** The profile; each case's frame, elements drawn, items sent and allocations, on the
+  high tier; in uwui's [`measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md).
+
 ### M6d.10 — uwui designed as a project
 
 - **Goal.** uwui's repository is ready to receive its code. Builds nothing.
@@ -2971,8 +3006,9 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
   ([ADR-0290](adr/0290-uwuis-crate-names-kept-on-crates-io-once-m6d10-names-them.md)), and those of the facade and the reader of the system's preferences
   ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); hover, press and capture kept for each pointer, gestures and inertia, with touch, before the
   library of components ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)); the model of text in uwui's authoring API, a message or a literal, a locale and a fake language
-  of test ([ADR-0284](adr/0284-uwuis-text-a-message-or-a-literal-from-its-authoring-api-fluent-later.md)); the milestone that designs one public path for uwui's widgets and a program's, before its
-  library of components, and the one that lets a surface declare its actions
+  of test ([ADR-0284](adr/0284-uwuis-text-a-message-or-a-literal-from-its-authoring-api-fluent-later.md)); the milestones that build [E1](#e1--the-elements-contract)'s contract, before its
+  library of components, the first stage cut on E1's figures
+  ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)), and the one that lets a surface declare its actions
   ([ADR-0283](adr/0283-uwuis-widgets-and-a-programs-on-one-public-path.md)); the milestone that versions agents' families by major and minor
   ([ADR-0278](adr/0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md)); the engine's ports among uwui's stages ([ADR-0277](adr/0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md)); which repository holds the
   interface's budgets; what stands for the engine in uwui, its benchmarks and a menu driven by a
