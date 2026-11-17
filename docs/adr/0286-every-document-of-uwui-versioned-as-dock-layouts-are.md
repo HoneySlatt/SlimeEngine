@@ -1,6 +1,8 @@
 # 0286. Every document of uwui versioned, as dock layouts are
 
-- Status: Accepted
+- Status: Accepted; made precise on 2026-11-17, by V1: a node `version` anywhere but first is
+  refused, so no rule of a style sheet is named `version`, the owner's choice; a whole number
+  above the reader's version is a later version, whatever else its node holds.
 - Date: 2026-11-16
 
 ## Context

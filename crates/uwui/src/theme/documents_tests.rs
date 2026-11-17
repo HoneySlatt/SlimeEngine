@@ -119,7 +119,7 @@ fn the_repositorys_sheets_and_themes_read_as_the_fixture_records() {
 /// `text` with each number that holds a point or an exponent written to four places: the look's
 /// colours are computed through OKLCH's cube roots and arctangents, whose last bits differ between
 /// the platforms' mathematical libraries, as `examples/common/style_fixture.rs` rounds them.
-fn rounded(text: &str) -> String {
+pub(crate) fn rounded(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(start) = rest.find(|c: char| c.is_ascii_digit() || c == '-') {

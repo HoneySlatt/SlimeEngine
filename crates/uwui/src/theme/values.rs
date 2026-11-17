@@ -169,8 +169,8 @@ pub(crate) fn read(themes: &[(&str, &str)]) -> Result<Values, DocumentErrors> {
     let mut kinds: HashMap<String, (Group, usize, usize)> = HashMap::new();
     // The names given wrongly, already told: what names them is not told again.
     let mut wrong: HashSet<String> = HashSet::new();
-    // Whether a theme is not KDL: the names that it gives are unknown, and what names them is not
-    // told that no theme gives them.
+    // Whether a theme is not read, not KDL or of a later version: the names that it gives are
+    // unknown, and what names them is not told that no theme gives them.
     let mut unreadable = false;
     for (index, &(name, text)) in themes.iter().enumerate() {
         let document = match uwui_kdl::read(text) {

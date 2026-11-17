@@ -27,6 +27,7 @@ button-pressed {
 
 check {
     select kind=CheckBox
+    control size=$space radius=4 fill=$accent_soft
     icons tick=$tick
 }
 

@@ -145,14 +145,15 @@ pub struct Theme {
 }
 
 impl StyleSheet {
-    /// The version of the format of style sheets that this crate reads, and writes; a sheet of a
-    /// later one is refused (`docs/adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md`).
+    /// The version of the format of style sheets that this crate reads, which a program that writes
+    /// a sheet gives it; a sheet of a later one is refused (`docs/adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md`).
     pub const VERSION: i64 = 1;
 
     /// The format of style sheets, as their reader names it.
     pub(crate) const FORMAT: Format = Format {
         what: "the style sheet",
         version: Self::VERSION,
+        named: Some("rule"),
     };
 
     /// The style sheet that `text` holds, named `name` in its errors: its file, usually. A cooked
@@ -172,14 +173,15 @@ impl StyleSheet {
 }
 
 impl Theme {
-    /// The version of the format of themes that this crate reads, and writes; a theme of a later
-    /// one is refused (`docs/adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md`).
+    /// The version of the format of themes that this crate reads, which a program that writes a
+    /// theme gives it; a theme of a later one is refused (`docs/adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md`).
     pub const VERSION: i64 = 1;
 
     /// The format of themes, as their reader names it.
     pub(crate) const FORMAT: Format = Format {
         what: "the theme",
         version: Self::VERSION,
+        named: None,
     };
 
     /// The theme that `text` holds, named `name` in its errors: its file, usually. A cooked theme
@@ -288,7 +290,7 @@ impl KindName {
 }
 
 #[cfg(test)]
-mod documents_tests;
+pub(crate) mod documents_tests;
 pub(crate) mod sheet;
 mod token;
 pub(crate) mod values;

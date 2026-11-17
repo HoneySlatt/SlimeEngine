@@ -152,9 +152,11 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   `shortcuts::Shortcuts::VERSION`, `dock::VERSION`). A theme, a sheet or a table without it reads
   as version 1, the format of before the versions; one of a later version is refused whole, its
   error naming both versions and keeping the later (`DocumentError::later`), so that a program
-  never writes over what a later program wrote. A change of a format's meaning is a new version,
-  migrated as it is read; each version's fixture, in `tests/versions`, stays read by every later
-  reader (`docs/adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md`).
+  never writes over what a later program wrote. A change of the meaning of a theme, a sheet or a
+  table is a new version, migrated as it is read; each version's fixture, in `tests/versions`, stays
+  read by every later reader, as `tests/versions/1.expected` records
+  (`docs/adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md`). A layout's format
+  follows its own rule (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
 - A field (`Element::text_field`, `Element::text_area`, `Element::number_field`) keeps what the
   user types, selects with the keys and the pointer, undoes, copies and pastes through the host's
   clipboard, which the program writes and reads too (`Ui::write_clipboard`, `Ui::read_clipboard`,

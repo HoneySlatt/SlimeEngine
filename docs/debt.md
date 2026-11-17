@@ -728,6 +728,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **uwui writes five of its errors by hand** ([ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md)), where `uwui-render` and uwui's others derive them with `thiserror`.
   They are `DocumentError` and `DocumentErrors` in `document.rs`, `ReadError` and `WriteError` in `dock/document.rs`, and `TokenError` in `theme/token.rs`.
   Four could be derived; `DocumentErrors` could not, its message walking a list.
+  A document of a later version is told two ways: a dock's layout by `ReadError::Later`, a theme, a style sheet or a table of shortcuts by `DocumentError::later`, a field of a struct not `#[non_exhaustive]` ([ADR-0286](adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md)).
   `uwui-kdl` writes its own by hand on purpose: it depends on nothing ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   Followed at [M6d.10b](stage-6d.md#m6d10b--uwuis-first-stage-planned), which sets uwui's rule for errors.
 - **The interface's images are textures that the program gives** for the keys of its display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
@@ -1053,10 +1054,6 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   `Input`'s pointer events carry no pointer's number: no touch, pen, gestures or scroll inertia (see *Input not reported yet* above).
   A new event is cheap, `Input` being `#[non_exhaustive]`; hover, press and capture kept per pointer are not, since every target's state assumes one.
   The identity and the device enter the host's events at track B's next milestone; the state per pointer, gestures and inertia come with touch, which M6d.10b places before uwui's library of components.
-- **uwui's documents carry no version, but dock layouts** ([ADR-0286](adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md)).
-  Themes, style sheets and shortcuts in KDL have no version field; dock layouts have one, and a migration ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
-  Once files circulate, a change of their meaning cannot be told from an error.
-  Settled by V1, on track A before M6d.10a.
 - **A save of an older layout is refused, not migrated** ([ADR-0288](adr/0288-saves-migrated-from-their-layout-5-on.md)).
   `slime_world`'s reader of saves refuses any layout but `LAYOUT_VERSION` (`crates/slime-world/src/document.rs`); scene files accept every layout up to it.
   Nothing is lost: *Hunna Wood* sets the old save aside.

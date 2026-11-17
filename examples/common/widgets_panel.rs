@@ -131,6 +131,7 @@ const ACCENTS: [(&str, &str); 4] = [
 ];
 /// The keys that change the look, as a table of shortcuts names them.
 const KEYS: &str = r#"
+version 1
 scope global {
     T switch-colors
     D switch-density
@@ -367,7 +368,10 @@ impl WidgetsPanel {
         let (name, accent) = ACCENTS[self.accent];
         themes.push(Theme::from_text(
             format!("{name}.theme.kdl"),
-            format!("color {{\n    accent \"{accent}\"\n}}\n"),
+            format!(
+                "version {}\ncolor {{\n    accent \"{accent}\"\n}}\n",
+                Theme::VERSION
+            ),
         ));
         self.ui
             .set_style(&[look::style_sheet()], &themes)

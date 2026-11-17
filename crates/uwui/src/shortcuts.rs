@@ -84,8 +84,8 @@ pub struct Shortcuts {
 }
 
 impl Shortcuts {
-    /// The version of the format of tables of shortcuts that this crate reads, and writes; a
-    /// table of a later one is refused, and a program that writes a person's own table never
+    /// The version of the format of tables of shortcuts that this crate reads, which a program
+    /// that writes a table gives it; a table of a later one is refused, and a program that writes a person's own table never
     /// writes over it then ([`DocumentError::later`](crate::DocumentError::later),
     /// `docs/adr/0286-every-document-of-uwui-versioned-as-dock-layouts-are.md`).
     pub const VERSION: i64 = 1;
@@ -94,6 +94,7 @@ impl Shortcuts {
     pub(crate) const FORMAT: Format = Format {
         what: "the table of shortcuts",
         version: Self::VERSION,
+        named: None,
     };
 
     /// The table that `text`, a document of KDL, holds, named `name` in its errors: its file,

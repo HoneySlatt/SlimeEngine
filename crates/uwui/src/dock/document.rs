@@ -6,11 +6,18 @@ use std::fmt;
 use uwui_kdl::{Limits, Node as KdlNode, Value};
 
 use super::{Floating, Layout, Node, Share};
-use crate::document::{DocumentError, DocumentErrors};
+use crate::document::{DocumentError, DocumentErrors, Format, Version};
 
 /// The version of the format of a layout's document that this crate writes and reads; a document
 /// of a later one is not read ([`ReadError::Later`]).
 pub const VERSION: i64 = 1;
+
+/// The format of a layout's document, as its reader names it.
+const LAYOUT: Format = Format {
+    what: "the layout",
+    version: VERSION,
+    named: None,
+};
 
 /// How strictly [`read`] takes what a document holds that it does not know.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -54,11 +61,7 @@ pub enum ReadError {
 impl fmt::Display for ReadError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Later { version } => write!(
-                formatter,
-                "the layout is of the format's version {version}, later than {VERSION}, the last \
-                 that this program reads"
-            ),
+            Self::Later { version } => formatter.write_str(&LAYOUT.later(*version)),
             Self::Unreadable(errors) => errors.fmt(formatter),
         }
     }
@@ -227,8 +230,9 @@ fn write_pair(text: &mut String, pair: [f32; 2]) {
 /// The layout that `text`, a layout's document named `name` in its errors, holds, as [`write()`]
 /// writes it, read as `reading` says.
 ///
-/// The document starts with its version, `version 1`: a later one is not read
-/// ([`ReadError::Later`]). Then, in any order, `default`, once; the docked panels, `Split` or
+/// The document starts with its version, `version 1`: a later one is not read, whatever else its
+/// node holds ([`ReadError::Later`]), and what the node of a version that it reads holds beyond its
+/// number is unknown, as below. Then, in any order, `default`, once; the docked panels, `Split` or
 /// `Tabs`, once; `floating` for each floating panel; and `closed`, once. A split's children are
 /// nodes `children`, each with its `share` and one child, a split or a stack; a stack's `panels`
 /// are the arguments of its node `panels`, and `chosen` the place of the one shown. A node, a
@@ -258,13 +262,12 @@ pub fn read(name: &str, text: &str, reading: Reading) -> Result<Read, ReadError>
     };
     let mut nodes = document.nodes();
     match nodes.next() {
-        Some(node) if node.name().text() == "version" => {
-            if let Some(version) = reader.version(node)
-                && version > VERSION
-            {
-                return Err(ReadError::Later { version });
-            }
-        }
+        Some(node) if node.name().text() == "version" => match LAYOUT.version(&node) {
+            Version::Later(version) => return Err(ReadError::Later { version }),
+            Version::Wrong(at) => reader.fail(at, LAYOUT.wrong()),
+            Version::Known { more: Some(at) } => reader.unknown(at, LAYOUT.wrong()),
+            Version::Known { more: None } => {}
+        },
         Some(node) => reader.fail(
             node.span().start,
             "a layout starts with its version, `version 1`",
@@ -278,7 +281,7 @@ pub fn read(name: &str, text: &str, reading: Reading) -> Result<Read, ReadError>
     for node in nodes {
         let at = node.span().start;
         match &*node.name().text() {
-            "version" => reader.fail(at, "`version` is given twice"),
+            "version" => reader.fail(at, LAYOUT.out_of_place()),
             "default" => {
                 let read = reader.default(node);
                 default.set(&mut reader, at, "default", read);
@@ -454,28 +457,6 @@ impl<'a> Reader<'a> {
                 ),
             );
         }
-    }
-
-    /// The version that `node`, `version 1`, writes; none, with an error, for a node that writes
-    /// none, or one that is not a whole number from 1.
-    fn version(&mut self, node: KdlNode<'_, '_>) -> Option<i64> {
-        let entries = self.entries(node, &[]);
-        self.extra_arguments(node, 1);
-        self.no_children(node);
-        let (at, version) = match entries.arguments.first() {
-            Some((at, Value::Number(number))) => {
-                (*at, number.to_i64().filter(|version| *version >= 1))
-            }
-            Some((at, _)) => (*at, None),
-            None => (node.span().start, None),
-        };
-        if version.is_none() {
-            self.fail(
-                at,
-                "a layout's version is a whole number from 1, `version 1`",
-            );
-        }
-        version
     }
 
     /// The name of the default that `node`, `default "editor 1"`, names.

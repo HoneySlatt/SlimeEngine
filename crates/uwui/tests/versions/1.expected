@@ -1,0 +1,50 @@
+# 1.style.kdl over 1.theme.kdl
+token canvas_text Color(LinearColor { r: 1.0000, g: 1.0000, b: 1.0000, a: 1.0000 })
+token gray_text Color(LinearColor { r: 0.3000, g: 0.3000, b: 0.3000, a: 1.0000 })
+token button_face Color(LinearColor { r: 0.3000, g: 0.3000, b: 0.3000, a: 1.0000 })
+token accent Color(LinearColor { r: 0.0723, g: 0.1559, b: 0.9131, a: 1.0000 })
+token highlight Color(LinearColor { r: 0.0723, g: 0.1559, b: 0.9131, a: 1.0000 })
+token highlight_text Color(LinearColor { r: 1.0000, g: 1.0000, b: 1.0000, a: 1.0000 })
+token focus Color(LinearColor { r: 0.0723, g: 0.1559, b: 0.9131, a: 1.0000 })
+token gap Length(6.0000)
+token slow Duration(300.0000ms)
+token blend Number(0.2500)
+lacking ["canvas_text", "gray_text", "button_face", "highlight", "highlight_text", "focus"]
+rule Selector { kind: None, classes: ["panel"], key: None, states: [], inside: None }
+  Paint(Background(LinearColor { r: 0.0194, g: 0.0212, b: 0.0252, a: 1.0000 }))
+  Paint(BorderWidth(1.0000))
+  Paint(Border(LinearColor { r: 0.0265, g: 0.0435, b: 0.1020, a: 1.0000 }))
+  Paint(Radii(0, 8.0000))
+  Paint(Radii(1, 8.0000))
+  Paint(Radii(2, 8.0000))
+  Paint(Radii(3, 8.0000))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.0000, g: 0.0000, b: 0.0000, a: 0.5020 }, offset: [0.0000, 4.0000], blur: 18.0000, spread: 0.0000 })))
+  Layout(Direction(Column))
+  Layout(Gap(0, 6.0000))
+  Layout(Gap(1, 6.0000))
+  Layout(Padding(Start(6.0000)))
+  Layout(Padding(End(6.0000)))
+  Layout(Padding(Top(4.0000)))
+  Layout(Padding(Bottom(4.0000)))
+rule Selector { kind: Some(Label), classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: Some("panel") }) }
+  Text(Color(LinearColor { r: 0.7454, g: 0.7454, b: 0.7454, a: 1.0000 }))
+  Text(Style(Size(13.0000)))
+  Text(Style(Weight(600.0000)))
+  Text(Style(Fonts(["Noto Sans"])))
+rule Selector { kind: Some(Button), classes: [], key: None, states: [Pressed], inside: None }
+  Paint(Background(LinearColor { r: 0.0393, g: 0.0887, b: 0.6944, a: 1.0000 }))
+  Transition(Duration(0.1200))
+rule Selector { kind: Some(CheckBox), classes: [], key: None, states: [], inside: None }
+  Control(Size(6.0000))
+  Control(Radius(4.0000))
+  Control(Fill(LinearColor { r: 0.0723, g: 0.1559, b: 0.9131, a: 0.2000 }))
+  Icons(Tick("\u{e06c}"))
+rule Selector { kind: None, classes: [], key: Some("#3"), states: [], inside: None }
+  Paint(Shadow(None))
+# 1.keys.kdl
+binding Binding { scope: "global", chord: Chord { primary: true, control: false, alt: false, shift: false, super_key: false, key: Character("z") }, command: "edit.undo" }
+binding Binding { scope: "global", chord: Chord { primary: true, control: false, alt: false, shift: true, super_key: false, key: Character("z") }, command: "edit.redo" }
+binding Binding { scope: "global", chord: Chord { primary: false, control: false, alt: false, shift: false, super_key: false, key: Named(F2) }, command: "rename" }
+binding Binding { scope: "global", chord: Chord { primary: true, control: false, alt: false, shift: false, super_key: false, key: Character("=") }, command: "zoom.in" }
+binding Binding { scope: "viewport", chord: Chord { primary: false, control: false, alt: false, shift: false, super_key: false, key: Button(Middle) }, command: "orbit" }
+binding Binding { scope: "viewport", chord: Chord { primary: false, control: false, alt: false, shift: true, super_key: false, key: Button(Middle) }, command: "pan" }
