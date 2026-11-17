@@ -6,13 +6,15 @@
 use std::collections::HashMap;
 use std::os::fd::OwnedFd;
 
-use slime_input::{ButtonState, CursorShape, Modifiers, MouseButton, Pointer, ScrollDelta};
+use slime_input::{
+    ButtonState, CursorShape, Modifiers, MouseButton, Pointer, PointerId, ScrollDelta,
+};
 use uwui_time::{EventTime, Instant};
 use wayland_client::backend::ObjectId;
 use wayland_client::globals::GlobalListContents;
 use wayland_client::protocol::{
     wl_callback, wl_compositor, wl_keyboard, wl_output, wl_pointer, wl_registry, wl_seat,
-    wl_surface,
+    wl_surface, wl_touch,
 };
 use wayland_client::{Connection, Dispatch, Proxy, QueueHandle, WEnum, delegate_noop};
 use wayland_protocols::wp::cursor_shape::v1::client::{
@@ -78,6 +80,10 @@ pub(super) struct Told {
     /// Whether the compositor draws the window's bar, once it said.
     pub(super) decorated: Option<bool>,
     pub(super) pointer: Option<wl_pointer::WlPointer>,
+    pub(super) touch: Option<wl_touch::WlTouch>,
+    /// The fingers on the window, each by the compositor's number, and the next name of a finger.
+    fingers: HashMap<i32, PointerId>,
+    next_finger: u32,
     /// The physical pixels per logical one that the window draws at, which the pointer's positions
     /// and the wheel's pixels are multiplied by.
     pub(super) scale: f64,
@@ -151,6 +157,9 @@ impl Told {
             anchor: Anchor::default(),
             decorated: None,
             pointer: None,
+            touch: None,
+            fingers: HashMap::new(),
+            next_finger: 1,
             scale: 1.0,
             fractional_scale: None,
             preferred_buffer_scale: None,
@@ -216,6 +225,80 @@ impl Told {
             pointer,
             x: (x * self.scale) as f32,
             y: (y * self.scale) as f32,
+        }
+    }
+
+    /// A finger touched the window at `x` and `y`, the compositor's number `id`, at its time
+    /// `millis`, received at `received`: a pointer named anew, moved there, then pressing.
+    fn touch_down(
+        &mut self,
+        serial: u32,
+        millis: u32,
+        id: i32,
+        [x, y]: [f64; 2],
+        received: Instant,
+    ) {
+        let finger = Pointer::finger(PointerId(self.next_finger));
+        // Never the mouse's 0, as the count turns over.
+        self.next_finger = self.next_finger.checked_add(1).unwrap_or(1);
+        self.fingers.insert(id, finger.id);
+        self.serial = Some(serial);
+        let time = self.time(millis, received);
+        let moved = self.moved(finger, x, y);
+        self.push(time, moved);
+        self.push(
+            time,
+            Input::PointerButton {
+                pointer: finger,
+                button: MouseButton::Left,
+                state: ButtonState::Pressed,
+            },
+        );
+    }
+
+    /// What a finger did after touching, received at `received`: moved, lifted, or every finger
+    /// cancelled, as when the compositor takes the touch for a gesture of its own. A cancelled
+    /// finger leaves without lifting, so that it presses nothing.
+    fn touch(&mut self, event: wl_touch::Event, received: Instant) {
+        match event {
+            wl_touch::Event::Motion { time, id, x, y } => {
+                let Some(&finger) = self.fingers.get(&id) else {
+                    return;
+                };
+                let time = self.time(time, received);
+                let moved = self.moved(Pointer::finger(finger), x, y);
+                self.push(time, moved);
+            }
+            wl_touch::Event::Up { time, id, .. } => {
+                let Some(finger) = self.fingers.remove(&id) else {
+                    return;
+                };
+                let pointer = Pointer::finger(finger);
+                let time = self.time(time, received);
+                self.push(
+                    time,
+                    Input::PointerButton {
+                        pointer,
+                        button: MouseButton::Left,
+                        state: ButtonState::Released,
+                    },
+                );
+                self.push(time, Input::PointerLeft { pointer });
+            }
+            wl_touch::Event::Cancel => {
+                let mut fingers: Vec<PointerId> =
+                    self.fingers.drain().map(|(_, finger)| finger).collect();
+                fingers.sort_unstable();
+                for finger in fingers {
+                    self.push(
+                        EventTime::received(received),
+                        Input::PointerLeft {
+                            pointer: Pointer::finger(finger),
+                        },
+                    );
+                }
+            }
+            _ => {}
         }
     }
 
@@ -651,6 +734,18 @@ impl Dispatch<wl_seat::WlSeat, ()> for Told {
             }
             _ => {}
         }
+        let has = capabilities.contains(wl_seat::Capability::Touch);
+        match (&told.touch, has) {
+            (None, true) => told.touch = Some(seat.get_touch(queue, ())),
+            (Some(_), false) => {
+                // The fingers on the window go with it.
+                told.touch(wl_touch::Event::Cancel, clock::now());
+                if let Some(touch) = told.touch.take() {
+                    touch.release();
+                }
+            }
+            _ => {}
+        }
         let has = capabilities.contains(wl_seat::Capability::Keyboard);
         match (&told.keys.keyboard, has) {
             (None, true) => told.keys.keyboard = Some(seat.get_keyboard(queue, ())),
@@ -693,6 +788,30 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Told {
                 );
             }
             event => told.pointer(event, clock::now()),
+        }
+    }
+}
+
+impl Dispatch<wl_touch::WlTouch, ()> for Told {
+    fn event(
+        told: &mut Self,
+        _: &wl_touch::WlTouch,
+        event: wl_touch::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            // A touch names its surface: the window's, the only one that the layer makes.
+            wl_touch::Event::Down {
+                serial,
+                time,
+                id,
+                x,
+                y,
+                ..
+            } => told.touch_down(serial, time, id, [x, y], clock::now()),
+            event => told.touch(event, clock::now()),
         }
     }
 }
@@ -1004,6 +1123,92 @@ mod tests {
         assert_eq!(first, second);
         assert!(first.starts_with(b"xkb_keymap {"));
         assert!(read_keymap(&fd, u32::MAX).is_err());
+    }
+
+    #[test]
+    fn each_finger_is_a_pointer_named_anew_pressing_as_it_touches() {
+        let mut told = Told::new();
+        told.scale = 2.0;
+        // The compositor's clock 5 s behind the host's, as in the pointer's test.
+        told.touch_down(1, 1_000, 7, [10.0, 20.0], at(6_000));
+        told.touch_down(2, 1_001, 8, [30.0, 40.0], at(6_001));
+        told.touch(
+            wl_touch::Event::Motion {
+                time: 1_002,
+                id: 7,
+                x: 11.0,
+                y: 21.0,
+            },
+            at(6_002),
+        );
+        told.touch(
+            wl_touch::Event::Up {
+                serial: 3,
+                time: 1_003,
+                id: 7,
+            },
+            at(6_003),
+        );
+        // The compositor's number 7 again: another finger, named anew.
+        told.touch_down(4, 1_004, 7, [1.0, 2.0], at(6_004));
+        let finger = |id| format!("Pointer {{ id: PointerId({id}), device: Finger }}");
+        assert_eq!(
+            inputs(&mut told),
+            [
+                format!(
+                    "6000 Anchored PointerMoved {{ pointer: {}, x: 20.0, y: 40.0 }}",
+                    finger(1)
+                ),
+                format!(
+                    "6000 Anchored PointerButton {{ pointer: {}, button: Left, state: Pressed }}",
+                    finger(1)
+                ),
+                format!(
+                    "6001 Anchored PointerMoved {{ pointer: {}, x: 60.0, y: 80.0 }}",
+                    finger(2)
+                ),
+                format!(
+                    "6001 Anchored PointerButton {{ pointer: {}, button: Left, state: Pressed }}",
+                    finger(2)
+                ),
+                format!(
+                    "6002 Anchored PointerMoved {{ pointer: {}, x: 22.0, y: 42.0 }}",
+                    finger(1)
+                ),
+                format!(
+                    "6003 Anchored PointerButton {{ pointer: {}, button: Left, state: Released }}",
+                    finger(1)
+                ),
+                format!("6003 Anchored PointerLeft {{ pointer: {} }}", finger(1)),
+                format!(
+                    "6004 Anchored PointerMoved {{ pointer: {}, x: 2.0, y: 4.0 }}",
+                    finger(3)
+                ),
+                format!(
+                    "6004 Anchored PointerButton {{ pointer: {}, button: Left, state: Pressed }}",
+                    finger(3)
+                ),
+            ]
+        );
+        // A cancel: each finger still down leaves, none lifts.
+        told.touch(wl_touch::Event::Cancel, at(6_010));
+        assert_eq!(
+            inputs(&mut told),
+            [
+                format!("6010 Received PointerLeft {{ pointer: {} }}", finger(2)),
+                format!("6010 Received PointerLeft {{ pointer: {} }}", finger(3)),
+            ]
+        );
+        // A finger that the layer does not know moves nothing.
+        told.touch(
+            wl_touch::Event::Up {
+                serial: 5,
+                time: 1_011,
+                id: 8,
+            },
+            at(6_011),
+        );
+        assert!(inputs(&mut told).is_empty());
     }
 
     #[test]

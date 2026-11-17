@@ -15,6 +15,7 @@
 //! - *The pointer*: its moves, buttons and wheel, each with the compositor's time anchored on the
 //!   host's clock (`crate::anchor`); entering and leaving with their reception's. Its shape, through
 //!   `wp_cursor_shape_v1`, where the compositor gives it: elsewhere its own cursor shows.
+//! - *Touch*: each finger of `wl_touch` a pointer of its own, named anew at each touch.
 //! - *The keyboard*: its keys through libxkbcommon (`crate::xkb`), their times anchored as the
 //!   pointer's; their repeat, the layer's own (`repeat`); the focus and the modifiers.
 //! - *The scale*: `wp_fractional_scale_v1` with `wp_viewporter`, the image

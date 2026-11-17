@@ -20,7 +20,8 @@ onto it.
   its requests on the `Window`: its title, minimum size, fullscreen, activation, cursor, and the
   platform's signal asked before each present.
 - Gives a person's input as `Input`, in the window's physical pixels: each pointer named, the mouse
-  pointer 0; the wheel; the keys, modifiers and focus. Each event's time is the platform's, anchored on the host's
+  pointer 0, each finger of a touch screen a pointer of its own, named anew at each touch; the
+  wheel; the keys, modifiers and focus. Each event's time is the platform's, anchored on the host's
   clock, or its reception's (`uwui-time`).
 - Holds a *core* that knows no platform, tested without a window on every platform: `anchor`, the
   platform's times of events placed on the host's clock by the fastest reception of a sliding
@@ -30,7 +31,7 @@ onto it.
 - Holds Wayland's layer, on Linux (`wayland`): its loop on `rustix`, one `poll` on the compositor's
   socket, an eventfd that wakes it and a timerfd on `CLOCK_BOOTTIME`, the host's clock (`clock`);
   an xdg-shell window, its bar through xdg-decoration where the compositor draws one; the frame
-  callback as the signal; the pointer and the keyboard with its repeat,
+  callback as the signal; the pointer, `wl_touch`'s fingers and the keyboard with its repeat,
   which Wayland leaves to its clients; the cursor's shapes through `wp_cursor_shape_v1`; the scale,
   fractional through a viewport, else an integer one; activation through `xdg_activation_v1`.
 - Holds the keyboard's code of libxkbcommon, Linux's (`xkb`): the compositor's keymap, its state,
