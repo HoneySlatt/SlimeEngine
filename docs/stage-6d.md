@@ -152,7 +152,10 @@ in git.
   done, [M6d.9a2b1](#m6d9a2b1--the-engines-families-on-the-library), on the same day, and
   [M6d.9a2b2](#m6d9a2b2--the-servers-game-off-its-lock), on 2026-11-17, M6d.9a2b whole; then
   [V1](#v1--uwuis-documents-versioned), done on the same day, and
-  [S1](#s1--saves-migrated-from-layout-5); then
+  [S1](#s1--saves-migrated-from-layout-5), cut in three on 2026-11-18
+  ([ADR-0303](adr/0303-s1-cut-in-three-safe-files-the-editors-journal-saves-migrated.md)):
+  [S1a](#s1a--safe-files), [S1b](#s1b--the-editors-journal) and
+  [S1c](#s1c--saves-migrated-and-a-panics-end); then
   [M6d.9a2c](#m6d9a2c--waiting),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
@@ -3107,29 +3110,54 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
 ([ADR-0288](adr/0288-saves-migrated-from-their-layout-5-on.md)).
 
 - **Goal.** A save of a layout from 5 up to the reader's own reads, each layout upgraded to the
-  next in turn.
-- **Crates.** `slime-world`'s reader of saves; *Hunna Wood*'s fixtures; `slime-files`, new, and
-  its callers, `slime-cook`, `slime-app`, `slime-editor` and *Hunna Wood*
-  ([ADR-0297](adr/0297-one-crate-of-safe-files-and-the-editors-journal-versioned-built-by-s1.md)).
-- **Delivers.** The reader of layouts from 5 on, as scene files read theirs; a fixture of layout 5
-  loaded in CI; the rule that a change of the layout comes with its upgrade, in the reader's
-  rustdoc; layouts 1 to 4 set aside as today. `slime-files`, on the standard library alone: the
-  writer of a file whole or not at all, its directory synced where the system allows it, what
-  Windows gives written in its rustdoc; `HeldFile`, `set_aside` and the data and state directories,
-  out of `slime-app`; the cooker, the editor and *Hunna Wood* writing through it, their copies and
-  the editor's plain write of its keys gone. The editor's journal opened by `# journal 1`, a later
-  version refused with both named and left as it is, a journal without the line read as version 1.
-  `slime-app`'s half of [ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md): a panic in a
-  game's code ends the run with its error, without `stop`, as `run`'s and `stop`'s rustdoc say.
+  next in turn; the files that the engine, its tools and games keep for the user written one safe
+  way ([ADR-0297](adr/0297-one-crate-of-safe-files-and-the-editors-journal-versioned-built-by-s1.md)).
+- **Cut in three** at its start, on 2026-11-18 ([ADR-0303](adr/0303-s1-cut-in-three-safe-files-the-editors-journal-saves-migrated.md)):
+  safe files first, since the journal and the saves write through them; then the editor's journal;
+  then the saves and the rule of a panic. S1 is done when S1c is.
+
+### S1a — Safe files
+
+- **Goal.** One crate of the engine holds how a file the user cannot recover is kept, and every
+  such file is written through it.
+- **Crates.** `slime-files`, new, on the standard library alone; its callers, `slime-cook`,
+  `slime-app`, `slime-editor` and *Hunna Wood*; CI's workflows and `scripts/check.sh`.
+- **Delivers.** The writer of a file whole or not at all, its directory synced where the system
+  allows it, what Windows gives written in its rustdoc; `HeldFile`, its errors an enumeration,
+  `set_aside` and the data and state directories, out of `slime-app`; the cooker, the editor and
+  *Hunna Wood* writing through it, their copies and the editor's plain write of its keys gone.
   Beside them, from [`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10): a
   `cargo tree` check that the engine's data layer and `slime-files` build without wgpu, winit or
-  uwui; the cooked zone's key in CI taken from `cargo tree -p slime-cook`, written once;
-  `HeldFile::hold`'s errors an enumeration; a crash between a level's write and its journal's mark
-  no longer refusing the next start.
+  uwui; the cooked zone's key in CI taken from `cargo tree -p slime-cook`, written once.
+- **Done when.** `scripts/check.sh` passes; no file of a user's is written but through
+  `slime-files`; its tests write a file whole, leave nothing beside it after an error, and tell
+  `HeldFile`'s errors apart.
+
+### S1b — The editor's journal
+
+- **Goal.** An editor tells a journal it cannot play from a damaged one, and a crash at the wrong
+  moment no longer refuses its next start.
+- **Crates.** `slime-editor`.
+- **Delivers.** The editor's journal opened by `# journal 1`, a later version refused with both
+  named and left as it is, a journal without the line read as version 1; from
+  [`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10), a crash between a
+  level's write and its journal's mark no longer refusing the next start.
+- **Done when.** `scripts/check.sh` passes; the journal's tests read version 1 with and without its
+  line, and refuse version 2; a test of the crash between the write and the mark starts again.
+
+### S1c — Saves migrated, and a panic's end
+
+- **Goal.** A save of a layout from 5 up to the reader's own reads; a panic in a game's code ends
+  its run without handing its state back to be kept.
+- **Crates.** `slime-world`'s reader of saves; *Hunna Wood*'s fixtures; `slime-app`.
+- **Delivers.** The reader of layouts from 5 on, as scene files read theirs; a fixture of layout 5
+  loaded in CI; the rule that a change of the layout comes with its upgrade, in the reader's
+  rustdoc; layouts 1 to 4 set aside as today. `slime-app`'s half of
+  [ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md): a panic in a
+  game's code ends the run with its error, without `stop`, as `run`'s and `stop`'s rustdoc say.
 - **Done when.** `scripts/check.sh` passes; a test reads layout 5's fixture through the reader of a
-  layout 6 made for the test, then thrown away; no file of a user's is written but through
-  `slime-files`; the journal's tests read version 1 with and without its line, and refuse version 2;
-  a test's simulation that panics ends `run` with its error, its `stop` not called.
+  layout 6 made for the test, then thrown away; a test's simulation that panics ends `run` with its
+  error, its `stop` not called.
 
 ### E1 — The element's contract
 

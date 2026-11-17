@@ -1057,7 +1057,7 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
 - **A save of an older layout is refused, not migrated** ([ADR-0288](adr/0288-saves-migrated-from-their-layout-5-on.md)).
   `slime_world`'s reader of saves refuses any layout but `LAYOUT_VERSION` (`crates/slime-world/src/document.rs`); scene files accept every layout up to it.
   Nothing is lost: *Hunna Wood* sets the old save aside.
-  From layout 5 on, saves are migrated: S1, on track A after V1, builds the reader of older layouts and layout 5's fixture; layouts 1 to 4 stay set aside.
+  From layout 5 on, saves are migrated: [S1c](stage-6d.md#s1c--saves-migrated-and-a-panics-end), on track A, builds the reader of older layouts and layout 5's fixture; layouts 1 to 4 stay set aside.
 - **The simulation is written for one thread, and draws identities from the system's randomness.**
   `Simulation::fixed_step` takes `&mut World`, as do 119 parameters of the engine and its games.
   `World::new_id` draws from `RandomState::new()` (`crates/slime-world/src/scene.rs`); queries walk in no particular order, which changes as components come and go.
@@ -1090,7 +1090,7 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   Followed at Stage 10a, whose cells load thousands of assets.
 - **Nothing checks that the engine's core stays off the GPU and the window.**
   `scripts/check.sh` checks uwui's crates and hosts by `cargo tree`; that the engine runs headless (`AGENTS.md`) is checked by review alone.
-  Followed at [S1](stage-6d.md#s1--saves-migrated-from-layout-5), which adds `slime-files` below them: a `cargo tree` check that `slime-files`, `slime-color`, `slime-reflect`, `slime-serialize`, `slime-assets` and `slime-world` build without wgpu, winit or uwui, which needs no exception since `slime-color` stays in the engine ([ADR-0296](adr/0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md)).
+  Followed at [S1a](stage-6d.md#s1a--safe-files), which adds `slime-files` below them: a `cargo tree` check that `slime-files`, `slime-color`, `slime-reflect`, `slime-serialize`, `slime-assets` and `slime-world` build without wgpu, winit or uwui, which needs no exception since `slime-color` stays in the engine ([ADR-0296](adr/0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md)).
 - **An `expect` on what comes from outside is found by review alone** ([ADR-0291](adr/0291-a-panic-says-why-no-bare-unwrap-outside-tests.md)).
   `clippy::unwrap_used` refuses a bare `unwrap()` outside tests; an `expect("…")` names its invariant, and no lint tells an invariant from an input.
   The tests of damaged files catch what review misses ([ADR-0102](adr/0102-a-damaged-file-gives-an-error.md)).
@@ -1136,7 +1136,7 @@ A review of uwui's architecture of 2026-11-17, read-only too, added these:
   Followed at M6d.7a2b, which builds it with its test; Win32's and AppKit's callbacks catch theirs as M6d.7c and M6d.7d write them.
 - **A panic in a game's run skips its `stop` without a word** ([ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)).
   `slime-app` catches no panic (`crates/slime-app/src/app.rs`): one in `fixed_step`, `update` or `apply` leaves `run`, and neither `Simulation::stop` nor its rustdoc says what follows.
-  Followed at [S1](stage-6d.md#s1--saves-migrated-from-layout-5), which writes ADR-0298's rule in `slime-app` with its test.
+  Followed at [S1c](stage-6d.md#s1c--saves-migrated-and-a-panics-end), which writes ADR-0298's rule in `slime-app` with its test.
 - **The images that a program gives are not made again after a lost device.**
   uwui holds their keys alone, the program their textures (`crates/uwui-render/src/lib.rs`); uwui's desktop host gives none yet, and its `App` hears nothing of a loss.
   Followed at M6d.7a2b, which makes a lost device again: who makes the images again, uwui or the program, is said there.
@@ -1146,7 +1146,7 @@ A review of the engine's architecture of 2026-11-17, read-only too, added these:
 - **The cooked zone's key in CI misses a crate that the cooker is built from.**
   The key lists the cooker's crates of the workspace by hand, three times in `.github/workflows/ci.yml` and once in `compositors.yml`, without `crates/slime-tasks`, which `slime-cook` depends on; `scripts/cooker-dependencies.sh` names those crates by their versions alone, all the same.
   A change of `slime-tasks` that changes the cooked bytes leaves CI on a zone cooked before it.
-  Followed at [S1](stage-6d.md#s1--saves-migrated-from-layout-5), whose `slime-files` the cooker comes to depend on: the key's crates taken from `cargo tree -p slime-cook`, written once.
+  Followed at [S1a](stage-6d.md#s1a--safe-files), whose `slime-files` the cooker comes to depend on: the key's crates taken from `cargo tree -p slime-cook`, written once.
 - **The process's threads and queues have no end and, most, no bound.**
   `slime-tasks`' pool starts its threads once for the process and never stops them, its count fixed, its two queues unbounded (`crates/slime-tasks/src/lib.rs`); the renderer's lane of loads, `Context`'s commands and the asset cache's loads are unbounded too.
   The development channel's thread that accepts connections outlives its `Listener` (`crates/slime-channel/src/listener.rs`), and the threads that read standard input, the system's dialogs and Play's log are not joined.
@@ -1160,11 +1160,11 @@ A review of the engine's architecture of 2026-11-17, read-only too, added these:
   Followed at Stage 6c's rest, before the tool that merges levels: longer identities for new entities, the old ones read as they are; Stage 7's seeded randomness leaves them to the editor.
 - **Six public functions return their errors as text.**
   `slime_app::HeldFile::hold`, three of `slime-assets` and three of the editor's window return `Result<_, String>`, against [ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md); a caller cannot tell their cases apart.
-  Followed by each milestone that touches one of them, `HeldFile`'s at S1; a check once none is left.
+  Followed by each milestone that touches one of them, `HeldFile`'s at S1a; a check once none is left.
 - **The cooker never removes what no source makes any more.**
   The directory of cooked data grows with every change of a source (`crates/slime-cook/src/cook.rs`).
   Followed at Stage 7's importer of audio, which changes the cooker.
 - **A crash between a level's write and its journal's mark refuses the next start.**
   The editor renames the level's file, then journals `# written`; a crash between leaves a journal that reads as unwritten, whose replay differs from the file, and the next start is refused until `--discard`, though the file holds the work (inferred from `crates/slime-editor/src/editor.rs`, not tested).
-  Followed at [S1](stage-6d.md#s1--saves-migrated-from-layout-5), which changes the journal.
+  Followed at [S1b](stage-6d.md#s1b--the-editors-journal), which changes the journal.
 

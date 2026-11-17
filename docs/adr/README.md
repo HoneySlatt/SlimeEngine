@@ -385,3 +385,4 @@ the ADR linking to it.
 | [0299](0299-what-an-agent-reads-before-a-crate-the-crates-status-in-its-readme-alone.md) | What an agent reads before a crate; a crate's status in its README alone | Accepted |
 | [0300](0300-m6d10-cut-in-two-what-the-move-needs-before-it-uwuis-first-stage-planned-after.md) | M6d.10 cut in two: what the move needs before it, uwui's first stage planned after | Accepted |
 | [0301](0301-the-engine-ported-at-the-end-of-each-of-uwuis-stages-its-wait-weighed-again-at-m6d10b.md) | The engine ported at the end of each of uwui's stages, its wait weighed again at M6d.10b | Accepted; supersedes 0277 |
+| [0303](0303-s1-cut-in-three-safe-files-the-editors-journal-saves-migrated.md) | S1 cut in three: safe files, the editor's journal, saves migrated | Accepted |
