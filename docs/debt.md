@@ -1143,9 +1143,6 @@ A review of uwui's architecture of 2026-11-17, read-only too, added these:
 
 A review of the engine's architecture of 2026-11-17, read-only too, added these:
 
-- **The series of compositors does not run when uwui's desktop host changes.**
-  `.github/workflows/compositors.yml` runs on a list of paths without `crates/uwui-desktop/**`, though `scripts/compositors.sh` tests that host under each compositor ([ADR-0195](adr/0195-a-series-of-headless-compositors.md)); a regression under sway, KWin or Mutter waits for the weekly run.
-  Followed at track B's next milestone, M6d.7a2b, whose changes are that host's.
 - **The cooked zone's key in CI misses a crate that the cooker is built from.**
   The key lists the cooker's crates of the workspace by hand, three times in `.github/workflows/ci.yml` and once in `compositors.yml`, without `crates/slime-tasks`, which `slime-cook` depends on; `scripts/cooker-dependencies.sh` names those crates by their versions alone, all the same.
   A change of `slime-tasks` that changes the cooked bytes leaves CI on a zone cooked before it.
