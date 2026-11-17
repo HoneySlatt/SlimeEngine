@@ -3064,8 +3064,8 @@ In uwui's repository, after M6d.11 and before M6d.12, its ADRs written there.
   ([ADR-0283](adr/0283-uwuis-widgets-and-a-programs-on-one-public-path.md)); the milestone that
   versions agents' families by major and minor
   ([ADR-0278](adr/0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md)); the
-  engine's ports among uwui's stages
-  ([ADR-0277](adr/0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md)); what
+  engine's ports among uwui's stages, and whether Stage 7's design session and its trial run
+  during them ([ADR-0301](adr/0301-the-engine-ported-at-the-end-of-each-of-uwuis-stages-its-wait-weighed-again-at-m6d10b.md)); what
   stands for the engine in uwui, its benchmarks and a menu driven by a gamepad; the measure that
   confirms games' interfaces on uwui's core with a layer of the engine's, or gives them a framework
   of their own if it fails ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)), as the

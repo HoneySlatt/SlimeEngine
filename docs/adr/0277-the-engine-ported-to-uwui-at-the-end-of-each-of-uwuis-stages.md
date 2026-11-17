@@ -1,8 +1,7 @@
 # 0277. The engine ported to uwui at the end of each of uwui's stages
 
-- Status: Accepted; amends
-  [0276](0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md) (the rhythm at which
-  the engine moves uwui's commit before uwui's 1.0)
+- Status: Superseded by
+  [0301](0301-the-engine-ported-at-the-end-of-each-of-uwuis-stages-its-wait-weighed-again-at-m6d10b.md)
 - Date: 2026-11-16
 
 ## Context

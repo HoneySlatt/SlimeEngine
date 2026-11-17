@@ -479,7 +479,7 @@ The stage's milestones are in `docs/stage-6d.md`, the later ones widened so that
 
 ### uwui's stages
 
-In uwui's repository, in [its roadmap](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#4-stages): its first stage, the foundations, Opium and its Android prototype and Slatty ported, and Pluto's native client (ADR-0198, ADR-0203, ADR-0206), which holds what this stage held after the move, then its stages to its 1.0. Stage 6e, the end of Stage 6c, then Stage 7, wait for its 1.0 (ADR-0190, ADR-0194, ADR-0220). At the end of each of uwui's stages, a milestone of the engine ports it to that stage's uwui (ADR-0276, ADR-0277).
+In uwui's repository, in [its roadmap](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#4-stages): its first stage, the foundations, Opium and its Android prototype and Slatty ported, and Pluto's native client (ADR-0198, ADR-0203, ADR-0206), which holds what this stage held after the move, then its stages to its 1.0. Stage 6e, the end of Stage 6c, then Stage 7, wait for its 1.0 (ADR-0190, ADR-0194, ADR-0220). At the end of each of uwui's stages, a milestone of the engine ports it to that stage's uwui (ADR-0276, ADR-0301); M6d.10b weighs again whether Stage 7's design session and its trial run during uwui's stages (ADR-0301).
 
 ### Stage 6e — The market measured
 
