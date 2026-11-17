@@ -3087,7 +3087,10 @@ In uwui's repository, after M6d.11 and before M6d.12, its ADRs written there.
   lack, with [ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md) amended for
   the web. uwui's rule for its errors: derived with `thiserror` or written by hand
   ([`debt.md`](debt.md)); whether its public structures are `#[non_exhaustive]`, which forbids a
-  program to build one by its fields. uwui's roadmap and plan updated.
+  program to build one by its fields. The stage of uwui's that builds each need of the owner's
+  shell and compositor ([`uwui-needs.md`](uwui-needs.md#what-the-owners-shell-and-compositor-ask)),
+  the secret field's clearing and its keeping out of dumps placed before uwui's API is declared
+  stable or said to come after. uwui's roadmap and plan updated.
 - **Done when.** The owner has validated uwui's documents; each decision is recorded in an ADR of
   uwui's repository.
 

@@ -139,17 +139,24 @@ ADR-0003).
 | Need | Its use | Mark | In uwui's requirements |
 |---|---|---|---|
 | A surface of Wayland's layer shell as a target: its layer, its anchors, its exclusive zone, its keyboard's interactivity | Hollow's bar and panels | Indispensable: Hollow | New |
-| A surface of the session lock as a target, one for each output, its input alone while locked | Hollow's lock screen | Indispensable: Hollow | New |
+| A surface of the session lock as a target, one for each output, its input alone while locked | Hollow's lock screen | Indispensable: Hollow | New; precision: it binds `xdg_wm_base` and answers its ping as it reads the connection's events, on the thread that draws the lock, never on a thread kept apart, so that a frozen lock screen is taken for dead (Yuna's ADR-0087, Hollow's ADR-0019); uwui's desktop host answers so today, in its one loop |
 | A host that lends a Vulkan device of its own, its queue and its targets, rather than a wgpu device | Yuna's own interfaces drawn on its Vulkan device | Indispensable: Yuna | New: `uwui-render` takes a wgpu device today |
 | A failure of uwui inside a host caught and recovered from: the interface dropped and built again, the host going on | Yuna, which a fault of its interfaces must never take down; Hollow's surfaces too | Indispensable: Yuna | New |
 | uwui's time in each frame of a host counted and checked in CI | Yuna's frame budget | Indispensable: Yuna | Precision: the counters exist ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)); a host's frame budget is to say |
 | Nothing drawn, nor asked of the GPU, while the host shows a game in full screen and no interface is open | Yuna over a game | Indispensable: Yuna | Precision: rest at zero is uwui's; a host that holds it whole is to say |
-| The host's loop takes the application's file descriptors and timers, and runs a foreign runtime's tasks, its I/O sources, sleeps and spawns, as zbus 6's `Runtime` asks, with no thread of uwui's own | Hollow's services on its host's loop, without tokio: D-Bus, PipeWire's loop, inotify | Indispensable: Hollow | New |
 | An input method's client, for an on-screen keyboard (input-method-v2); a lock surface with an on-screen keyboard of its own and no input method | Hollow's on-screen keyboard and its lock screen | Indispensable: Hollow | New |
 | Popups anchored to a layer shell's surface (`xdg_popup` on a layer surface) | Hollow's menus and popups from its bar | Indispensable: Hollow | New |
 | Surfaces made when they are needed, which give their GPU memory back while hidden | Hollow's popups, launcher and notifications; the owner's current shell needed a patch for it | Indispensable: Hollow | New |
 | One surface for each output, as outputs come and go | Hollow's bar and lock screen on every display | Indispensable: Hollow | New |
+| A blank layer surface for each output, which only clears and presents | The baseline of Hollow's own cost, its memory and GPU measured above it | Indispensable: Hollow | New |
+| A secret field of text: its value kept out of undo, out of the clipboard and input methods, out of what screen readers and agents read, shown to them as a protected field; its memory cleared after use and kept out of core dumps | Hollow's lock screen and polkit agent; any application's passwords | Indispensable: Hollow | New: uwui's first stage plans masked fields, which hide what is drawn alone; clearing and keeping out of dumps may touch how a field stores its text, costlier once uwui's API is stable. The engine's [`debt.md`](debt.md) follows the masking and agents' reading at M6d.9a3a |
 | uwui's CPU renderer measured against a wgpu device for a still bar, on the owner's lowest machine (Athlon Silver 3050U, Vega, 4 GiB) | Which renderer Hollow's bar takes there | Wished: before Hollow's first code | New |
+
+Hollow's services, D-Bus among them, run on a thread of their own and reach the interface through
+the channels that uwui gives other threads
+([ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md)), as Hollow's ADR-0018
+decides: they ask nothing more of uwui's loop. Each need above is to be given the stage of uwui's
+that builds it at [M6d.10b](stage-6d.md#m6d10b--uwuis-first-stage-planned).
 
 Hollow's budget of memory follows uwui's rule of the lead: its own cost above a blank layer
 surface of uwui's, its PSS and its GPU memory, at most a third of the best rival of its class.
