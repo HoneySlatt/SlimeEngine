@@ -178,6 +178,9 @@ These stay in the engine. They ask uwui only for the general needs above.
   agents and the optional assistant, hosted and paid
   ([ADR-0214](adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)).
 - **The dev overlay** of games ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
+- **The engine's colour**, `slime-color`'s `LinearColor` in linear light, which levels and saves
+  store; converted to and from uwui's own colour at the engine's bridge, the dev overlay and the
+  editor ([ADR-0296](adr/0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md)).
 - **The engine's families of tools for agents**, the world, play and editing, added on uwui's core
   for agents; the channel, rights and previews are the core's
   ([ADR-0218](adr/0218-one-core-for-agents-in-uwui.md)).

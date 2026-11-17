@@ -2,7 +2,10 @@
 
 - Status: Accepted; amends [0194](0194-stage-6d-uwui-leaving-the-engine.md) (how the engine
   follows uwui after the move, settled before M6d.10); amended by
-  [0277](0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md) (the rhythm of its moves)
+  [0277](0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md) (the rhythm of its moves);
+  superseded in part by
+  [0296](0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md)
+  (`slime-color` among the re-exports, and the engine's lowest crate following uwui)
 - Date: 2026-11-16
 
 ## Context

@@ -347,7 +347,9 @@ lists every dependency.
   through it from `slime-app`'s bridge alone, which lends it the device through `slime-gfx`'s
   door.
 - `uwui-desktop`, uwui's desktop host, depends on `uwui`, `uwui-render`, wgpu and the platform's
-  libraries, and on no engine crate but `slime-color` and `slime-input`, which leave with uwui;
+  libraries, and on no engine crate but `slime-color` and `slime-input`: `slime-input` leaves with uwui, which
+  gets a colour of its own before the move, `slime-color` staying in the engine
+  ([ADR-0296](adr/0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md));
   no crate of the workspace depends on it, so that the engine's programs build none of uwui's
   hosts, and `uwui` pulls no windowing library nor wgpu: `scripts/check.sh` checks all three
   ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md),

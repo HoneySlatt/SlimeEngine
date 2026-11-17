@@ -38,8 +38,10 @@ The rustdoc holds the contracts: which values each component takes, and how byte
 
 ## Dependencies
 
-None. `slime-reflect` describes `LinearColor` to reflection, so that this crate leaves with uwui
-(`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
+None. `slime-reflect` describes `LinearColor` to reflection
+(`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`). The crate stays in the
+engine when uwui leaves, and uwui gets a colour of its own
+(`docs/adr/0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md`).
 
 ## Must not
 

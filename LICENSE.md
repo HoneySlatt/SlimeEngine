@@ -12,8 +12,8 @@ without one and what GitHub's terms of service let its users do on GitHub.
 What this notice does not cover:
 
 - **uwui**, the user-interface framework in `crates/uwui`, `crates/uwui-accesskit`,
-  `crates/uwui-agent`, `crates/uwui-desktop`, `crates/uwui-mcp`, `crates/uwui-render`, `crates/uwui-kdl` and `crates/uwui-macros`, and `crates/slime-color` and `crates/slime-input`, which move to
-  uwui's repository, are licensed under either of the MIT license or the Apache License 2.0, at
+  `crates/uwui-agent`, `crates/uwui-desktop`, `crates/uwui-mcp`, `crates/uwui-render`, `crates/uwui-kdl` and `crates/uwui-macros`, and `crates/slime-input`, which moves to
+  uwui's repository, and `crates/slime-color`, which stays in the engine, are licensed under either of the MIT license or the Apache License 2.0, at
   your choice, as the `LICENSE-MIT` and `LICENSE-APACHE` files in each of these crates say. They
   depend on no crate that this notice covers, which `scripts/check.sh` checks.
 - **The examples**, in `examples/`, are licensed under MIT-0, as `examples/LICENSE-MIT-0` says: code

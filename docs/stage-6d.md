@@ -230,8 +230,9 @@ Open risks:
   storage buffer or a texture
   ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)); not
   measured on a GPU of WebGL2's class nor in a browser until the web's trial.
-- `slime-color` derives the engine's `Reflect`: leaving with uwui, Rust's orphan rule would make the
-  engine's lowest crate depend on uwui.
+- `slime-color` stays in the engine, uwui gets a colour of its own: the engine's lowest crate,
+  `slime-reflect`, depends on nothing of uwui's
+  ([ADR-0296](adr/0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md)).
 - Docks' layouts and shortcuts saved by users, read by a new reader.
 - KWin and Mutter headless in CI: a session bus each, events dropped before a device is resumed, a
   first key lost; no tool of libei's drives them.
@@ -3018,7 +3019,8 @@ goes on ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-o
   the trials before the authoring API is built proposed; how its ADRs are numbered; the moved
   crates' names, each then kept on crates.io by a version 0.0.0 at the owner's go
   ([ADR-0290](adr/0290-uwuis-crate-names-kept-on-crates-io-once-m6d10-names-them.md)), and those of the facade and the reader of the system's preferences
-  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); hover, press and capture kept for each pointer, gestures and inertia, with touch, before the
+  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); uwui's own
+  colour, its type and first meaning, which M6d.11 builds ([ADR-0296](adr/0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md)); hover, press and capture kept for each pointer, gestures and inertia, with touch, before the
   library of components ([ADR-0285](adr/0285-every-pointer-named-in-the-hosts-events-the-tree-following-each-with-touch.md)); the model of text in uwui's authoring API, a message or a literal, a locale and a fake language
   of test ([ADR-0284](adr/0284-uwuis-text-a-message-or-a-literal-from-its-authoring-api-fluent-later.md)); the milestones that build [E1](#e1--the-elements-contract)'s contract, before its
   library of components, the first stage cut on E1's figures
@@ -3070,7 +3072,9 @@ Not a milestone of uwui's alone: every ADR of the repository, between M6d.10 and
   their former paths, and merged into uwui's repository, checked for personal data, authored by
   the owner's identity alone, its links to the engine's ADRs made absolute; the crates that leave
   with it, as M6d.10 decides, under MIT OR Apache-2.0 and free of the engine's crates
-  ([ADR-0214](adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)); its CI on Linux,
+  ([ADR-0214](adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)): `slime-input`
+  among them, `slime-color` staying in the engine, uwui's own colour built first and the engine
+  converting at its bridge ([ADR-0296](adr/0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md)); its CI on Linux,
   Windows and macOS on Apple's chips, and its builds for the web, Android, iOS and tvOS
   ([ADR-0233](adr/0233-uwuis-platforms-apples-chips-ios-and-the-tvs.md)); the editor's look moved into the
   official theme Pro, a crate of its own in uwui's repository, its images of reference in uwui's CI

@@ -264,7 +264,7 @@ the ADR linking to it.
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180, 0181, 0194 and 0203 |
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
 | [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
-| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; supersedes 0031; amends 0011, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225, 0226, 0227, 0233, 0236, 0241, 0243, 0244, 0248, 0270 and 0279 |
+| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; supersedes 0031; superseded in part by 0296; amends 0011, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225, 0226, 0227, 0233, 0236, 0241, 0243, 0244, 0248, 0270 and 0279 |
 | [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Superseded by 0214 for the engine; amends 0006 and 0181 |
 | [0183](0183-uwuis-logo.md) | uwui's logo | Accepted |
 | [0184](0184-the-engines-logo.md) | The engine's logo | Accepted |
@@ -358,7 +358,7 @@ the ADR linking to it.
 | [0272](0272-the-carriers-families-and-its-connections-state-join-it-at-their-first-reader.md) | A carrier's families served and its connection's state join it at their first reader | Accepted; amends 0269; amended by 0274 |
 | [0274](0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md) | The engine's families typed on the core's way; a family not served refused as it is sent; a tool's name taken twice an error; M6d.9a2b cut in two | Accepted; amends 0269 and 0272 |
 | [0275](0275-a-familys-refusal-gives-the-version-that-the-program-serves.md) | A family's refusal gives the version that the program serves | Accepted; amends 0246; amended by 0278 |
-| [0276](0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md) | The engine follows uwui by one exact commit until its 1.0 | Accepted; amends 0194; amended by 0277 |
+| [0276](0276-the-engine-follows-uwui-by-one-exact-commit-until-its-1-0.md) | The engine follows uwui by one exact commit until its 1.0 | Accepted; superseded in part by 0296; amends 0194; amended by 0277 |
 | [0277](0277-the-engine-ported-to-uwui-at-the-end-of-each-of-uwuis-stages.md) | The engine ported to uwui at the end of each of uwui's stages | Accepted; amends 0276 |
 | [0278](0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md) | Families versioned by major and minor, tools speaking several majors | Accepted; superseded in part by 0295; amends 0246 and 0275 |
 | [0279](0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md) | One windowing layer: a seam in uwui's host now, the engine moved onto it at a port | Accepted; amends 0181 and 0270 |
@@ -378,3 +378,4 @@ the ADR linking to it.
 | [0293](0293-actions-declared-once-in-uwuis-core-undo-and-the-journal-the-programs.md) | Actions declared once in uwui's core; undo and the journal the program's | Accepted; supersedes in part 0218 |
 | [0294](0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md) | The element's contract designed by E1, before M6d.10, on a prototype thrown away | Accepted; supersedes in part 0283 |
 | [0295](0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md) | Each family's messages described and held to its version, from M6d.9a2c | Accepted; supersedes in part 0278 |
+| [0296](0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md) | `slime-color` stays in the engine, uwui gets a colour of its own; `slime-input` leaves with uwui | Accepted; supersedes in part 0181 and 0276 |
