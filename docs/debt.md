@@ -1001,8 +1001,6 @@ The audit did not cover NVIDIA and Intel GPUs, X11, a game outside the workspace
 - **Between two fixed steps, the children of a turning parent cut the arc's chord while their siblings stay on it** (G38, low; Stage 7).
   A child moved by its parent is drawn in a straight line between its two positions.
   Interpolating through the hierarchy is to decide before skeletal animation turns many hierarchies.
-- **A string on several lines in a scene file checked out on Windows keeps its CRLF line ends** (G40, low; M6c.6).
-  `.gitattributes` keeps `*.toml`, `*.meta` and `*.tsv` at LF, not `*.scene`: the value and the cooked bytes depend on the checkout.
 - **A negative integer, or one too large, for an unsigned field gives a wrong message** (G42, low; M6c.6): "not an integer" or "not text", rather than its range.
 - **The writer of documents accepts what the reader refuses** (G43, low; M6c.6): a reserved key `$…` at the root, and a field given twice, the second lost.
 - **A camera target farther than about 2 × 10¹⁹ m draws nothing, without a message** (G44, low; later): `view_from_eye` squares the direction in `f32`.

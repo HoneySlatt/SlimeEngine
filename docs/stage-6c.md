@@ -358,7 +358,7 @@ After Stage 6c's pause, once uwui's desktop host follows the rule
 - **How to test.** `cargo test -p slime-world -p slime-serialize -p slime-editor`; the MCP server's
   session tests.
 - **By hand.** The owner moves an entity from one part of the zone to another, and links two parts.
-- **Debt settled.** G31, G40, G42, G43 and G45; the parents and the order of a placement's
+- **Debt settled.** G31, G42, G43 and G45; the parents and the order of a placement's
   entities; the editor not following the prefabs that change on disk.
 
 ### M6c.7 — Build from a kit

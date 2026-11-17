@@ -537,8 +537,9 @@ Windows without a Windows machine.
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main`, every
 pull request, and every Monday at 06:17 UTC on `main`, without a push, but a push or a pull request
 that changes Markdown files outside `crates/` alone: the `docs` workflow
-([`.github/workflows/docs.yml`](.github/workflows/docs.yml)) then checks their links, with lychee
-alone, in a minute or so ([ADR-0188](docs/adr/0188-a-light-check-for-documentation.md)). The
+([`.github/workflows/docs.yml`](.github/workflows/docs.yml)) then checks their links with lychee,
+the ADRs' index, the changelog's fragments and the lengths of the files that every session reads,
+in a minute or so ([ADR-0188](docs/adr/0188-a-light-check-for-documentation.md)). The
 crates' READMEs are their rustdoc, whose code runs as tests: a change of them runs CI whole. The
 weekly run runs CI whole: a project at rest still
 learns of new advisories against its dependencies (`cargo deny`) and of changes to CI's

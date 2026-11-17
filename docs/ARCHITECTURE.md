@@ -2408,8 +2408,9 @@ The rules every change keeps; each links to where it is enforced or told whole.
 - The editor reaches the engine through public APIs alone, and runs a game's code in a process
   of its own for Play ([above](#editing-a-level)).
 - What may cross threads is stated, type by type ([above](#threads)). State shared by the whole
-  process is limited to facts of the process (signals, the trace, the log, the waker) and two
-  queues, the task pool and the renderer's lane of loads.
+  process is limited to facts of the process (signals, the trace, the log, the waker, the host's
+  clock), counters that number worlds, devices and loads, tables computed once, and two queues,
+  the task pool and the renderer's lane of loads.
 
 ## Limits and recovery
 
