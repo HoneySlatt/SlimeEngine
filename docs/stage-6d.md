@@ -2983,6 +2983,11 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
   version refused with both named and left as it is, a journal without the line read as version 1.
   `slime-app`'s half of [ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md): a panic in a
   game's code ends the run with its error, without `stop`, as `run`'s and `stop`'s rustdoc say.
+  Beside them, from [`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10): a
+  `cargo tree` check that the engine's data layer and `slime-files` build without wgpu, winit or
+  uwui; the cooked zone's key in CI taken from `cargo tree -p slime-cook`, written once;
+  `HeldFile::hold`'s errors an enumeration; a crash between a level's write and its journal's mark
+  no longer refusing the next start.
 - **Done when.** `scripts/check.sh` passes; a test reads layout 5's fixture through the reader of a
   layout 6 made for the test, then thrown away; no file of a user's is written but through
   `slime-files`; the journal's tests read version 1 with and without its line, and refuse version 2;

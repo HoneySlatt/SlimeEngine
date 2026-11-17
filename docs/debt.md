@@ -1059,9 +1059,11 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
 - **The editor's operations are names, and one without a request compiles.**
   Its 60 operations are strings (`crates/slime-editor/src/operation.rs`), matched in six places.
   A name that `Session` cannot answer ends on `unreachable!` at run time (`session.rs`); the test that runs every operation covers those of the selection and the window.
-  Followed at Stage 6c's rest ([`stage-6c.md`](stage-6c.md)).
+  Followed at [M6d.9b](stage-6d.md#m6d9b--actions-declared-once), which declares every operation and runs it through the declaration ([ADR-0293](adr/0293-actions-declared-once-in-uwuis-core-undo-and-the-journal-the-programs.md)): its operations held by one Rust enum, matched whole, leave no name without its request.
 - **An asset kind is added in five crates.**
   `AssetKind` (`crates/slime-assets/src/manifest.rs`), `SOURCE_EXTENSIONS` (`crates/slime-cook/src/scan.rs`) and about twenty matches in `slime-cook`'s `cook.rs` name every kind; no kind has an importer of its own.
+  Three lists of `cook.rs` name the kinds' extensions by hand, `SOURCE_EXTENSIONS`, the constants of each kind and the list of those that glTF's importer skips, and no test ties them: a kind missing from the last goes to glTF's importer.
+  A new kind makes an older runtime refuse the manifest as damaged, not as of another version (`Manifest::from_bytes`).
   Audio's import, at Stage 7, is the second user that asks for one.
 - **Four files hold more than 3,000 lines, 47 more than 1,000.**
   The editor's `window.rs` (5,674), the renderer's `renderer.rs` (5,213, `Renderer::prepare` 635 of them), uwui's `tree.rs` (3,167) and the world's `document.rs` (3,110).
@@ -1077,7 +1079,7 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   Followed at Stage 10a, whose cells load thousands of assets.
 - **Nothing checks that the engine's core stays off the GPU and the window.**
   `scripts/check.sh` checks uwui's crates and hosts by `cargo tree`; that the engine runs headless (`AGENTS.md`) is checked by review alone.
-  Not followed yet; a check like uwui's is cheap.
+  Followed at [S1](stage-6d.md#s1--saves-migrated-from-layout-5), which adds `slime-files` below them: a `cargo tree` check that `slime-files`, `slime-color`, `slime-reflect`, `slime-serialize`, `slime-assets` and `slime-world` build without wgpu, winit or uwui, which needs no exception since `slime-color` stays in the engine ([ADR-0296](adr/0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md)).
 - **An `expect` on what comes from outside is found by review alone** ([ADR-0291](adr/0291-a-panic-says-why-no-bare-unwrap-outside-tests.md)).
   `clippy::unwrap_used` refuses a bare `unwrap()` outside tests; an `expect("…")` names its invariant, and no lint tells an invariant from an input.
   The tests of damaged files catch what review misses ([ADR-0102](adr/0102-a-damaged-file-gives-an-error.md)).
@@ -1127,3 +1129,34 @@ A review of uwui's architecture of 2026-11-17, read-only too, added these:
 - **The images that a program gives are not made again after a lost device.**
   uwui holds their keys alone, the program their textures (`crates/uwui-render/src/lib.rs`); uwui's desktop host gives none yet, and its `App` hears nothing of a loss.
   Followed at M6d.7a2b, which makes a lost device again: who makes the images again, uwui or the program, is said there.
+
+A review of the engine's architecture of 2026-11-17, read-only too, added these:
+
+- **The series of compositors does not run when uwui's desktop host changes.**
+  `.github/workflows/compositors.yml` runs on a list of paths without `crates/uwui-desktop/**`, though `scripts/compositors.sh` tests that host under each compositor ([ADR-0195](adr/0195-a-series-of-headless-compositors.md)); a regression under sway, KWin or Mutter waits for the weekly run.
+  Followed at track B's next milestone, M6d.7a2b, whose changes are that host's.
+- **The cooked zone's key in CI misses a crate that the cooker is built from.**
+  The key lists the cooker's crates of the workspace by hand, three times in `.github/workflows/ci.yml` and once in `compositors.yml`, without `crates/slime-tasks`, which `slime-cook` depends on; `scripts/cooker-dependencies.sh` names those crates by their versions alone, all the same.
+  A change of `slime-tasks` that changes the cooked bytes leaves CI on a zone cooked before it.
+  Followed at [S1](stage-6d.md#s1--saves-migrated-from-layout-5), whose `slime-files` the cooker comes to depend on: the key's crates taken from `cargo tree -p slime-cook`, written once.
+- **The process's threads and queues have no end and, most, no bound.**
+  `slime-tasks`' pool starts its threads once for the process and never stops them, its count fixed, its two queues unbounded (`crates/slime-tasks/src/lib.rs`); the renderer's lane of loads, `Context`'s commands and the asset cache's loads are unbounded too.
+  The development channel's thread that accepts connections outlives its `Listener` (`crates/slime-channel/src/listener.rs`), and the threads that read standard input, the system's dialogs and Play's log are not joined.
+  Followed at Stage 7's design session ([`ROADMAP.md`](ROADMAP.md#stage-7--runtime-systems--08)), whose job system grows from the pool.
+- **What `update` writes, `fixed_step` reads.**
+  *Hunna Wood* turns where the hero looks in `update`, at real time, and its fixed step moves the hero along it (`games/hunnawood/src/simulation.rs`): a replay of fixed steps alone would move the hero otherwise.
+  Its rules also work in `f32` on the world's `f64` translations, and transforms compose their rotations in `f32` (`crates/slime-world/src/transform.rs`).
+  Followed at Stage 7's design session, among ADR-0287's questions.
+- **The editor's identities are short enough to meet across branches.**
+  `World::new_id` adds four characters of base 36 to a name, unique within one world alone (`crates/slime-world/src/write_back.rs`); two branches that each add k entities of one name meet about k² / 36⁴ times, which a scene file then holds as one key written twice.
+  Followed at Stage 6c's rest, before the tool that merges levels: longer identities for new entities, the old ones read as they are; Stage 7's seeded randomness leaves them to the editor.
+- **Six public functions return their errors as text.**
+  `slime_app::HeldFile::hold`, three of `slime-assets` and three of the editor's window return `Result<_, String>`, against [ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md); a caller cannot tell their cases apart.
+  Followed by each milestone that touches one of them, `HeldFile`'s at S1; a check once none is left.
+- **The cooker never removes what no source makes any more.**
+  The directory of cooked data grows with every change of a source (`crates/slime-cook/src/cook.rs`).
+  Followed at Stage 7's importer of audio, which changes the cooker.
+- **A crash between a level's write and its journal's mark refuses the next start.**
+  The editor renames the level's file, then journals `# written`; a crash between leaves a journal that reads as unwritten, whose replay differs from the file, and the next start is refused until `--discard`, though the file holds the work (inferred from `crates/slime-editor/src/editor.rs`, not tested).
+  Followed at [S1](stage-6d.md#s1--saves-migrated-from-layout-5), which changes the journal.
+
