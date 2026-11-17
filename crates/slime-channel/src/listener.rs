@@ -2496,6 +2496,32 @@ mod tests {
         }
     }
 
+    /// Waits at most ten seconds for `connection`'s reader to read the cancel of `id`, while its
+    /// writer is blocked by an answer that the tool does not read ([`blocking`]); fails saying
+    /// what the connection holds. The cancel stays readable only until the writer takes the
+    /// request: a writer that the system let write the whole answer takes it at once, which the
+    /// failure's bytes unwritten tell (0, where a blocked writer holds the answer's).
+    fn cancel_read_while_blocked(connection: &Connection, id: u64) {
+        let until = Instant::now() + Duration::from_secs(10);
+        loop {
+            let state = locked(&connection.state);
+            if state.cancelled.contains(&id) {
+                return;
+            }
+            assert!(
+                Instant::now() < until,
+                "the cancel of {id} was not read: {} bytes unwritten, {} items to write, cancels \
+                 {:?}, the connection {}",
+                connection.unwritten.load(Ordering::Relaxed),
+                state.outbox.len(),
+                state.cancelled,
+                if state.closed { "closed" } else { "open" },
+            );
+            drop(state);
+            thread::sleep(Duration::from_millis(1));
+        }
+    }
+
     #[test]
     fn a_subscription_cancelled_before_its_answer_is_answered_so_and_starts_nothing() {
         let (listener, token) = opened();
@@ -2510,9 +2536,7 @@ mod tests {
             .expect("in flight");
         tool.stream.write_all(&cancel).expect("sent");
         let connection = Arc::clone(&locked(&listener.shared.connections)[0]);
-        eventually("the cancel was read", || {
-            locked(&connection.state).cancelled.contains(&subscribed)
-        });
+        cancel_read_while_blocked(&connection, subscribed);
         assert_eq!(tool.answer(blocked), Ok(done()));
         assert_eq!(
             tool.answer(subscribed).map_err(|fault| fault.code),
@@ -2530,9 +2554,7 @@ mod tests {
             .expect("written")
             .expect("in flight");
         tool.stream.write_all(&cancel).expect("sent");
-        eventually("the cancel was read", || {
-            locked(&connection.state).cancelled.contains(&unsubscribed)
-        });
+        cancel_read_while_blocked(&connection, unsubscribed);
         assert_eq!(tool.answer(blocked), Ok(done()));
         assert_eq!(
             tool.answer(unsubscribed).map_err(|fault| fault.code),
