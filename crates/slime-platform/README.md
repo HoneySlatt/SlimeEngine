@@ -21,8 +21,8 @@ it opens no dialog to save a file yet.
 
 - Owns every interaction with the windowing system: connecting to it, creating the window,
   running the event loop, and translating what happens into engine-owned events.
-- It is the only crate that uses the windowing library (winit), and none of winit's types appears
-  in its public API (`docs/adr/0011-windowing-with-winit.md`).
+- It is the only engine crate that uses the windowing library (winit), and none of winit's types
+  appears in its public API (`docs/adr/0011-windowing-with-winit.md`).
 - With its `accessibility` feature, holds AccessKit's adapter of the window, the only crate that
   uses it: AT-SPI on Linux, through D-Bus, and UI Automation on Windows. AccessKit's tree and the
   actions that screen readers ask cross its API, which `uwui-accesskit` translates the interface's

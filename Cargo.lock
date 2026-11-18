@@ -3811,6 +3811,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "uwui-blank-winit"
+version = "0.6.0"
+dependencies = [
+ "pollster 1.0.1",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
 name = "uwui-desktop"
 version = "0.6.0"
 dependencies = [

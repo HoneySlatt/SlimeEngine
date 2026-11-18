@@ -60,9 +60,13 @@ MIT OR Apache-2.0.
   where the surface offers it and Fifo elsewhere, and draws each frame's display list with
   `uwui-render` into the window's image. A lost device is replaced through the same wgpu
   instance, every object of the old one gone first.
+- Writes a trace of its frames and of each input to present where `UWUI_TRACE` names a file
+  (`trace`; its contract in `TRACE_ENV_VAR`'s rustdoc,
+  [ADR-0307](../../docs/adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)),
+  which `scripts/host-cost.py` reads.
 
 What waits for its milestone: the presentations' times and frames drawn
-just in time (M6d.7a2c); X11 (M6d.7b), Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
+just in time (M6d.7a2c2); X11 (M6d.7b), Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
 it has no layer and ends; a bar drawn by uwui where the compositor draws none, Weston and Mutter
 (M6d.7e); the clipboard, input methods and screen readers (M6d.8).
 [`debt.md`](../../docs/debt.md) holds the rest.
@@ -78,13 +82,19 @@ it has no layer and ends; a bar drawn by uwui where the compositor draws none, W
   the tests `lose_device` and `lose_surface`.
 - `examples/application.rs`: buttons, a field, a list and a dialog, at rest between inputs; with
   `--commands`, the losses, a panic and a window kept open taken on its standard input.
+- `examples/blank.rs`: a *blank window* on the platform layer alone and wgpu, which clears its
+  window and presents it again at each input, and nothing at rest; it writes the same trace, with
+  the host's `trace.rs`.
+  `scripts/host-cost.py` measures it, the same program on winit (`uwui-blank-winit`) and
+  `application` in one compositor: the host's own cost is what `application` adds above it.
 
 ## Tests
 
 `cargo test -p uwui-desktop` runs the core's tests, on every platform, without a window. The
 `rest` tests, `test = false`, run the example in the Wayland compositor that `WAYLAND_DISPLAY` names. The first:
-an image presented and at rest after its start; where the series gives input, the pointer put on
-its button *Add*, whose hover draws frames, and at rest again; its field clicked, `s` and `a`
+an image presented, in its trace too, and at rest after its start; where the series gives input,
+the pointer put on its button *Add*, whose hover draws frames, an input to present in its trace,
+and at rest again; its field clicked, `s` and `a`
 typed, and the row that *Add* makes named `sa`, at rest again; then ended by SIGTERM through its
 closing. Weston takes no input: there the input's part does not run. The second: its device lost
 on purpose, then its surface, each followed by a new swap chain's image, then at rest; two devices
@@ -94,7 +104,8 @@ activation passed on. The fourth: a panic in its step ending the run with `EXIT_
 `stop` called nor the application dropped, its crash report written and its marker left; the next
 start finding that marker, then killed; the start after finding the killed run's, ending cleanly,
 and the tally counting three runs and two crashes. The fifth: a window kept open when asked to
-close, ended by a second termination signal with `EXIT_TERMINATED`. Each run has a state directory
+close, ended by a second termination signal with `EXIT_TERMINATED`. The last: the blank window's
+first image in its trace, then its end on SIGTERM with status 0. Each run has a state directory
 of its own, never the user's. `scripts/check.sh windowed` runs them in a headless Weston, and
 `scripts/compositors.sh` the first three in Weston, sway, KWin and Mutter, the third on an output
 at 1.5, at 2 in Weston

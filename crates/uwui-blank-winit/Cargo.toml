@@ -1,0 +1,20 @@
+[package]
+name = "uwui-blank-winit"
+description = "A blank window on winit and wgpu, which only clears and presents: the reference that uwui's platform layer and desktop host are measured beside."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT OR Apache-2.0"
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Waits for wgpu's requests, which are futures: the adapter and the device it opens.
+pollster.workspace = true
+# The device and the window's surface, opened as uwui's desktop host opens its own.
+wgpu.workspace = true
+# The window, its input and its frames' signal: the windowing layer that uwui's is measured against
+# (ADR-0279, ADR-0307).
+winit.workspace = true

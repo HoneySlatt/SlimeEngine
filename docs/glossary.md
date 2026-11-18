@@ -112,7 +112,10 @@ note ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-name
 **Blank window.** A program that only clears its window and presents it, measured on each
 machine and each screen beside the programs on uwui and their rivals: what any window already costs,
 its driver's memory, a start, power and the GPU's floor. A program's *own cost* is what it adds
-above it ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)).
+above it ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)). Two exist: one on
+uwui's platform layer, `uwui-desktop`'s example `blank`, and one on winit, `uwui-blank-winit`; each
+presents again at each input, so that input to present has a floor too
+([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)).
 
 **Blending.** Laying a color over what a *render target* holds by its alpha, rather than replacing
 it, as a pipeline of the GPU layer may (`slime_gfx::Blend`): glass, smoke, the soft edges of icons

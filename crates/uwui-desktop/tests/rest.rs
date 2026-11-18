@@ -27,12 +27,18 @@
 //! run ends with status 101, without another call, each with its report. The third keeps the
 //! window open when asked to close: a second termination signal ends it with status 130.
 //!
+//! A last test runs the blank window, `examples/blank.rs`, which `scripts/host-cost.py` measures
+//! the host above: it presents its first image, writes it in its trace, and ends on SIGTERM with
+//! status 0.
+//!
 //! The example writes its protocol with `WAYLAND_DEBUG=client` into a file of each test's own,
 //! read for the images it presented and their size, the scale preferred, the pointer's events and
 //! where its window lies, then written on the test's standard error, where
-//! `scripts/compositors.sh` reads who draws its bar.
+//! `scripts/compositors.sh` reads who draws its bar; and its trace (`UWUI_TRACE`) beside it, which
+//! the first test reads for its frames and, where the series gives input, an input to present.
 //!
-//! The example is built first, `cargo build -p uwui-desktop --example application`;
+//! The examples are built first, `cargo build -p uwui-desktop --example application --example
+//! blank`;
 //! `scripts/check.sh windowed` runs this test in a headless Weston, and `scripts/compositors.sh` in
 //! each compositor of the series, whose input reaches it through `scripts/compositor-input.py`'s
 //! socket, which `SLIME_COMPOSITOR_INPUT` names.
@@ -205,6 +211,15 @@ fn example() -> PathBuf {
                 test.display()
             )
         })
+}
+
+/// How many complete events named `name` the trace `trace` holds: `frame`, `input to present`.
+fn traced(trace: &str, name: &str) -> usize {
+    let event = format!("{{\"name\":\"{name}\",");
+    trace
+        .lines()
+        .filter(|line| line.starts_with(&event) && line.contains("\"ph\":\"X\""))
+        .count()
 }
 
 /// Where the *Add* button's middle lies in the window, in logical pixels: the bar's padding, then
@@ -423,6 +438,7 @@ impl Example {
             command.arg("--commands").stdin(Stdio::piped());
         }
         let mut child = command
+            .env("UWUI_TRACE", log.with_extension("trace.json"))
             .env("WAYLAND_DEBUG", "client")
             .env("XDG_ACTIVATION_TOKEN", token)
             .env("XDG_STATE_HOME", state)
@@ -467,6 +483,11 @@ impl Example {
     /// Its protocol's log so far.
     fn read_log(&self) -> String {
         std::fs::read_to_string(&self.log).expect("the example's log reads")
+    }
+
+    /// Its trace so far, which the host writes from the window's opening.
+    fn read_trace(&self) -> String {
+        std::fs::read_to_string(self.log.with_extension("trace.json")).unwrap_or_default()
     }
 
     /// Sends it `signal`, `TERM` or `KILL`.
@@ -534,6 +555,10 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
         commits(&example.read_log()) > 0,
         "the example presented no image: {shown}"
     );
+    assert!(
+        traced(&example.read_trace(), "frame") > 0,
+        "the example's trace holds no frame: {shown}"
+    );
 
     // The output's middle, which the window covers in each compositor of the series: the window's
     // place on the output follows from where the pointer lies in it, both in logical pixels at
@@ -560,6 +585,10 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
         if let Err(error) = at_rest(&example) {
             panic!("the example is not at rest after the pointer hovered its button: {error}");
         }
+        assert!(
+            traced(&example.read_trace(), "input to present") > 0,
+            "the hover's frames are in no input to present of the trace: {shown}"
+        );
 
         // A name typed into the field, and a row added under it: the keyboard's way whole.
         let field = place(FIELD);
@@ -952,4 +981,69 @@ fn a_frame_callback_awaits_its_done() {
     );
     assert_eq!(awaited_callbacks(&answered), ["53"]);
     assert!(awaited_callbacks("").is_empty());
+}
+
+/// A program that the test started, ended if the test fails before it does.
+struct Started(Child);
+
+impl Drop for Started {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+#[test]
+fn the_blank_window_presents_its_first_image_and_ends_on_a_signal() {
+    let blank = example().with_file_name("blank");
+    assert!(
+        blank.exists(),
+        "{} is not built: cargo build -p uwui-desktop --example blank",
+        blank.display()
+    );
+    let directory = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("rest-blank");
+    let _ = std::fs::remove_dir_all(&directory);
+    std::fs::create_dir_all(&directory).expect("the test's directory");
+    let trace = directory.join("trace.json");
+    let mut started = Started(
+        Command::new(&blank)
+            .env("UWUI_TRACE", &trace)
+            .env("XDG_STATE_HOME", &directory)
+            .stdout(Stdio::null())
+            .spawn()
+            .expect("the blank window starts"),
+    );
+    let deadline = Instant::now() + SETTLE;
+    while traced(
+        &std::fs::read_to_string(&trace).unwrap_or_default(),
+        "frame",
+    ) == 0
+    {
+        assert!(
+            started.0.try_wait().expect("its status").is_none(),
+            "the blank window ended before its first image"
+        );
+        assert!(
+            Instant::now() < deadline,
+            "the blank window presented no image within {SETTLE:?}"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let sent = Command::new("kill")
+        .args(["-TERM", &started.0.id().to_string()])
+        .status()
+        .expect("kill runs");
+    assert!(sent.success(), "SIGTERM was not sent");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let status = loop {
+        if let Some(status) = started.0.try_wait().expect("its status") {
+            break status;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the blank window did not end on SIGTERM"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    assert!(status.success(), "the blank window ended with {status}");
 }
