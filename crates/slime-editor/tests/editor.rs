@@ -514,6 +514,40 @@ fn a_recovered_editor_holds_the_level_the_history_and_the_selection_of_the_one_t
     );
 }
 
+/// A level whose directory cannot be synced is written, and written again: the file holds what
+/// the editor wrote, which it does not take for another program's change.
+#[cfg(unix)]
+#[test]
+fn a_level_whose_directory_cannot_be_synced_is_written_twice() {
+    use std::os::unix::fs::PermissionsExt;
+    let yard = Yard::new("unsynced");
+    let (mut world, mut editor) = yard.open();
+    /// The directory's mode while the test runs, given back after it, even when it fails, so that
+    /// the yard can be removed.
+    struct Mode<'d>(&'d Path);
+    impl Drop for Mode<'_> {
+        fn drop(&mut self) {
+            let _ = fs::set_permissions(self.0, fs::Permissions::from_mode(0o755));
+        }
+    }
+    // Names made and renamed, but the directory not opened, which its sync needs on Linux.
+    fs::set_permissions(&yard.directory, fs::Permissions::from_mode(0o300)).expect("set");
+    let _mode = Mode(&yard.directory);
+    assert!(
+        fs::File::open(&yard.directory).is_err(),
+        "the tests run as a user whose rights a directory's mode bounds"
+    );
+    for name in ["a", "b"] {
+        rename_the_well(&mut world, &mut editor, name);
+        editor
+            .write(&mut world)
+            .expect("written, its directory not synced");
+        assert_eq!(editor.unwritten(), 0);
+    }
+    let written = read(&yard.file());
+    assert!(written.contains("Name = \"b\""), "{written}");
+}
+
 #[test]
 fn the_history_forgets_the_steps_undone_then_the_oldest_done_past_its_budget_but_the_last() {
     let yard = Yard::new("budget");
