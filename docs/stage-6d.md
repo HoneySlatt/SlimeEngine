@@ -192,8 +192,9 @@ in git.
   [M6d.7a1](#m6d7a1--the-hosts-core-and-its-wayland-window), on 2026-11-15; then
   [M6d.7a2](#m6d7a2--wayland-whole-and-the-host-measured), cut in three on 2026-11-15 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): done,
   [M6d.7a2a](#m6d7a2a--waylands-input-and-window), on 2026-11-17; then
-  [M6d.7a2b](#m6d7a2b--the-host-made-robust), cut in three on 2026-11-17 ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)): in progress,
-  [M6d.7a2b1](#m6d7a2b1--the-seam-and-the-pointers).
+  [M6d.7a2b](#m6d7a2b--the-host-made-robust), cut in three on 2026-11-17 ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)): done,
+  [M6d.7a2b1](#m6d7a2b1--the-seam-and-the-pointers), on 2026-11-18; next,
+  [M6d.7a2b2](#m6d7a2b2--a-lost-device-and-a-lost-surface).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2475,6 +2476,28 @@ The first part of M6d.7a2b ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platfor
 - **Done when.** The layer's check fails on a copy made to pull `uwui` or wgpu; the example rests,
   takes its click and its text in the series as before; a second finger is not followed, in a test;
   the engine's sessions unchanged; CI is green.
+- **Result.** Done on 2026-11-18, CI green:
+  - `uwui-windowing`, MIT OR Apache-2.0, the host's platform layer: it runs the platform's loop and
+    calls the host back, `opened` with the window's raw handles, `turn` with what `Happened`,
+    `closing` before the window goes; it holds the handler before its window, so that the device's
+    surface goes first. Wayland's layer moved into it whole; `uwui-desktop` keeps the pacing, the
+    application's run and the device, and compiles on every platform. `uwui-time` holds
+    `uwui::time`, given again by `uwui` at the same path.
+  - `scripts/check.sh lint` keeps `uwui`, `uwui-render`, wgpu and its GPU's libraries and the
+    engine's crates but `slime-input` out of the layer, every crate out of `uwui-time`, the
+    platforms' libraries out of the host's own dependencies, and every crate but the host off the
+    layer; each rule fails on a copy made to break it.
+  - `slime_input::Pointer` in each pointer event of uwui's host API, the mouse pointer 0; the tree
+    follows one pointer at a time, the first finger or stylus down, else the mouse, and a contact
+    that leaves pressed lets go of its press without an action. Wayland's layer gives the mouse and
+    each finger of `wl_touch`; the engine's bridge, the mouse.
+  - The example rests, takes its click and its text, and draws at its scale in the series as
+    before; touch is checked by unit tests alone.
+  - The closing review found the mouse and a finger sharing one pointer's state, a cancelled touch
+    keeping its press, one held move for every pointer, and the series not running when the layer
+    changes, with seven smaller defects; each fixed, under a test that failed first or a mutation.
+    Debt left: the drop order behind the host's `unsafe` checked by review alone
+    ([`debt.md`](debt.md)).
 
 ### M6d.7a2b2 — A lost device and a lost surface
 

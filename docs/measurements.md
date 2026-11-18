@@ -4499,3 +4499,34 @@ margin. Reading the editor's default layout allocates once fewer, 49 times
 ([`benches/counters.txt`](../benches/counters.txt)): its node `version` is read without a list
 of its entries. The look's documents and the editor's tables of shortcuts, each now starting with
 `version 1`, allocate as before.
+
+## M6d.7a2b1, the seam and the pointers in uwui's desktop host
+
+uwui's desktop host is checked, not timed, at this part: it stands on its platform layer,
+`uwui-windowing`, and its example rests, takes its keys and draws at its scale in the series as at
+M6d.7a2a ([`compositors.md`](compositors.md)). The GPU's clock: `high`.
+
+GitHub's hosted runners, on 2026-11-18, each run green, on `7b279c4a`, against M6d.7a2a's:
+
+| Job | Time | Before |
+|---|---|---|
+| `check (lint)` | 8 min 32 s | 11 min 11 s |
+| `check (headless)` | 16 min 12 s | 13 min 6 s |
+| `check (windowed)` | 10 min 25 s | 8 min 39 s |
+| `check (game)` | 9 min 37 s | 9 min 14 s |
+| `check (gles)` | 3 min 13 s | 3 min 26 s |
+| `windows (tests)` | 16 min 24 s | 13 min 13 s |
+| `windows (render)` | 5 min 52 s | 6 min 21 s |
+| `windows (game)` | 7 min 41 s | 6 min 57 s |
+| `windows-release` | 16 min 17 s | 9 min 41 s |
+| `compositors (weston)` | 11 min 51 s | 16 min 24 s |
+| `compositors (sway)` | 13 min 14 s | 14 min 42 s |
+| `compositors (kwin)` | 13 min 7 s | 12 min 14 s |
+| `compositors (mutter)` | 12 min 14 s | 16 min 4 s |
+| `compositors (x11)` | 12 min 29 s | 12 min 25 s |
+| Docs' `links` | 22 s | 20 s |
+
+Every job stays within its limit of 20 minutes; `windows (tests)`, the longest, has 3 min 36 s of
+margin. `windows-release` took 6 min 36 s more and `check (headless)` 3 min 6 s more, where this
+part adds two small crates and moves code; the runners' spread, seen at M6d.7a2a under X11, is as
+large, and one run cannot tell them apart. Followed at the next part's run.
