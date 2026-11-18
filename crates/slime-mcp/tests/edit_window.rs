@@ -31,6 +31,8 @@
 
 #[path = "common/interface.rs"]
 mod interface;
+#[path = "common/journal.rs"]
+mod journal;
 #[path = "common/rest.rs"]
 mod rest;
 #[path = "common/session.rs"]
@@ -366,17 +368,47 @@ fn main() {
     let field = path_of(&mut session, "TextInput", "Level's path");
     assert!(field.starts_with("choose/"), "{field}");
     let other = other.to_str().expect("a path of text");
+    // A wait from the journal's end, held while the other level opens, is answered stale
+    // (`docs/adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md`).
+    let end = journal::end(&mut session);
+    let waiting = session.send_tool("editor_journal", json!({ "cursor": end, "wait": 30 }));
+    // So that the editor holds the wait before the level opens.
+    std::thread::sleep(Duration::from_millis(500));
     act(&mut session, "set_value", &field, json!({ "value": other }));
     path_of(&mut session, "Label", other);
     let (said, _) = session.tool("editor_history", json!({}));
     assert!(said[0].contains("other yard.scene"), "{said:?}");
+    let (said, result) = session.tool_answer(waiting);
+    assert_eq!(result["isError"], json!(true), "{said:?}");
+    assert!(said[0].contains("list it again from its start"), "{said:?}");
     // Left alone, a panel floating, once the menu's closing transition has ended, the editor is at
-    // rest: none of its threads wakes in ten seconds, so it runs no frame.
+    // rest: none of its threads wakes in ten seconds, so it runs no frame, while an agent waits
+    // for its journal's next entry, which a step then gives. The wait, of the tool's most, outlasts
+    // the watch, which ends within 41 s.
     let floating = path_of(&mut session, "Pane", "Console");
     assert!(floating.starts_with("floating console/"), "{floating}");
+    let end = journal::end(&mut session);
+    let waiting = session.send_tool("editor_journal", json!({ "cursor": end, "wait": 50 }));
     if let Err(woke) = rest::at_rest(pid, Duration::from_secs(30)) {
         panic!("the editor is not at rest: {woke}");
     }
+    let (said, _) = session.tool(
+        "edit",
+        json!({
+            "label": "Move the lamp",
+            "commands": [
+                "[SetProperty]\nentity = \"yard/lamp 1\"\ncomponent = \"Transform\"\npath = \"translation.x\"\nvalue = 6.0\n"
+            ],
+        }),
+    );
+    assert_eq!(said, ["done"]);
+    let (said, result) = session.tool_answer(waiting);
+    assert_ne!(result["isError"], json!(true), "{said:?}");
+    assert!(
+        said.last()
+            .is_some_and(|page| page.contains("label = \"Move the lamp\"")),
+        "{said:?}"
+    );
     // Quit by its name: the window closes at once.
     let (said, _) = session.tool("run_operation", json!({ "name": "file.quit" }));
     assert_eq!(said, ["done"]);

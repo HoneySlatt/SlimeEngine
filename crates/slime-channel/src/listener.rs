@@ -42,6 +42,13 @@ const ACCEPT_PAUSE: Duration = Duration::from_millis(100);
 /// What a request that reaches no game is answered.
 const STOPPED: &str = "the game has stopped";
 
+/// The most requests that wait for a change, as a page of the journal from its end with `wait`,
+/// of every family together, that a game holds of one connection: half its places in flight
+/// ([`InFlight::DEFAULT`]), so that its other requests still pass. A game answers one more that
+/// would wait `BUSY`, the connection kept
+/// (`docs/adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md`).
+pub const MAX_WAITS: usize = InFlight::DEFAULT.requests / 2;
+
 /// A game's end of its development channel: it listens on the machine's own address, on a port
 /// that the system chooses, accepts the connections whose hello gives its token and speaks its
 /// version of the core, serves them the [`FAMILIES`](crate::FAMILIES) that they speak at the same
@@ -516,6 +523,12 @@ impl Incoming {
     pub fn cancelled(&self) -> bool {
         let state = locked(&self.connection.state);
         state.closed || state.finishing || state.cancelled.contains(&self.id)
+    }
+
+    /// Whether `other` came on the same connection: what a game counts the requests that it holds
+    /// of one connection by ([`MAX_WAITS`]).
+    pub fn same_connection(&self, other: &Incoming) -> bool {
+        Arc::ptr_eq(&self.connection, &other.connection)
     }
 
     /// Answers the request with `reply`.

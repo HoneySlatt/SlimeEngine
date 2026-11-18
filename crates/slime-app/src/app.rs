@@ -204,8 +204,9 @@ impl Default for AppConfig {
 /// a failure.
 ///
 /// Built with the `development` feature, a run whose environment gives a token listens for the
-/// tools that drive it, before its `start` methods, and answers them at the start of each frame
-/// (the crate's documentation says what they ask). It stops, as at a termination signal, once its
+/// tools that drive it, before its `start` methods, and answers them at the start of each frame,
+/// a request that waits for a change once the simulation ran in the frame that brings it (the
+/// crate's documentation says what they ask). It stops, as at a termination signal, once its
 /// standard input closes, which the tool that started it holds as a pipe, unless that input is a
 /// terminal: an input that is empty or missing, as `/dev/null`, stops it at once
 /// (`slime_channel::TOKEN_ENV_VAR`).
@@ -411,6 +412,12 @@ impl Frames {
             );
         }
         host.frame(simulation, raw_delta);
+        // What waits for a change of the simulation, as soon as its phases ran, before the frame
+        // is drawn: nothing after them changes what it waits for.
+        #[cfg(feature = "development")]
+        if let Some(channel) = &mut self.channel {
+            channel.answer_waits(&*simulation);
+        }
         let mut presented = false;
         if let Some(surface) = surface {
             {

@@ -18,7 +18,8 @@ of its views read and changed (`docs/adr/0127-the-settings-of-a-view.md`), its r
 (`docs/adr/0128-asset-requests.md`), the entity at a pixel of a view picked
 (`docs/adr/0130-picking.md`), the interface's family, scripted keys, the game's state, log and frame times, its run
 saved to a file and loaded from one (`docs/adr/0125-saves-per-scene.md`), and an editor's requests
-(`Request::Edit`): steps of commands as text, undo and redo, its history, its journal by pages, its selection
+(`Request::Edit`): steps of commands as text, undo and redo, its history, its journal by pages,
+waiting at its end for the entries written next, its selection
 and its level written back (`docs/adr/0135-the-editors-program.md`), its operations listed and run
 by name (`docs/adr/0156-the-editors-window-and-its-operations.md`), and where the game that it plays
 listens, with its token (`docs/adr/0165-editing-while-playing.md`). The interface's family is
@@ -59,7 +60,10 @@ tells how game time stands to a connection that subscribed to it. Only programs 
   connection holding something unwritten while all of them pass another: a tool that stops
   reading stops being served. The bounds are kept by the listener until a second carrier
   ([ADR-0252](../../docs/adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md));
-  `Listener::open`'s rustdoc gives their figures.
+  `Listener::open`'s rustdoc gives their figures. A request that waits for a change, a page of the
+  journal with `wait`, holds its place until answered or cancelled; a game holds fewer such
+  requests of a connection than its places (`MAX_WAITS`, counted by `Incoming::same_connection`),
+  so that its other requests pass.
 - The world's entities, the interface's elements and the log are read by pages
   ([ADR-0260](../../docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md), `page`, re-exported from `uwui-agent`). `Incoming::page` gives the most that
   a page holds for a request, within the line that its tool reads, and bound to the process by a

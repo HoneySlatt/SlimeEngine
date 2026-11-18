@@ -9,7 +9,8 @@
 //! tool cancelled, which it answers so. That a program of the engine's never applies an edit
 //! cancelled while it waits for a drag is `slime-app`'s test
 //! `a_read_passes_a_waiting_edit_and_a_cancelled_edit_is_never_applied`; this one proves the
-//! server's half. It needs no window, and runs on Windows too.
+//! server's half. So does a page of the journal that waits, which the program holds: cancelled
+//! once the tool's wait passed, or by its agent. It needs no window, and runs on Windows too.
 
 #[expect(dead_code, reason = "this test starts no silent program")]
 #[path = "common/program.rs"]
@@ -128,6 +129,73 @@ fn a_call_cancelled_while_its_edit_is_held_is_cancelled_in_the_program_and_never
     assert!(
         report.starts_with("applied: [1];"),
         "never applied: {report}"
+    );
+    let said = tool(&mut session, held, "stop_game", json!({}));
+    assert!(said[0].contains("the game ended"), "{said:?}");
+    drop(session);
+    let status = server.wait().expect("the server ends with its input");
+    assert!(status.success(), "{status}");
+}
+
+/// A page of the journal asked to wait, which the program holds: once the tool's wait of a second
+/// passed, the tool gives the cursor back and the program sees the request cancelled, its place
+/// freed; one that its agent cancels is cancelled in the program too, and never answered
+/// (`docs/adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md`).
+#[test]
+fn a_wait_of_the_journal_is_cancelled_in_the_program_once_its_bound_passed_or_its_call_was() {
+    let program = std::env::current_exe().expect("the test's program");
+    let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let (mut session, mut server, _) = Session::start(&workspace, "cancel-wait");
+    let (said, _) = session.tool(
+        "start_game",
+        json!({
+            "command": [program, "--exact", PROGRAM, "--nocapture", "--test-threads=1"],
+            "timeout_seconds": 60,
+        }),
+    );
+    assert!(said[0].contains("the tests' program runs"), "{said:?}");
+    let wait = |seconds: u64| json!({ "cursor": "journal:at its end", "wait": seconds });
+    let started = Instant::now();
+    let asked = session.send(
+        "tools/call",
+        json!({ "name": "editor_journal", "arguments": wait(1) }),
+    );
+    let answer = loop {
+        let message = session.next_message_within("a wait of a second", SOON);
+        if message["id"] == json!(asked) {
+            break message;
+        }
+    };
+    assert!(started.elapsed() >= Duration::from_secs(1), "waited");
+    let said: Vec<String> = answer["result"]["content"]
+        .as_array()
+        .expect("content")
+        .iter()
+        .filter_map(|block| block["text"].as_str().map(str::to_owned))
+        .collect();
+    assert!(
+        said[0].starts_with("cursor: journal:at its end (no entry came within 1 s"),
+        "{said:?}"
+    );
+    let report = wait_for(&mut session, None, "waits cancelled: 1");
+    assert!(report.contains("waiting: 0"), "{report}");
+    // A call cancelled by its agent while it waits, long before its bound.
+    let held = session.send(
+        "tools/call",
+        json!({ "name": "editor_journal", "arguments": wait(50) }),
+    );
+    wait_for(&mut session, None, "waiting: 1");
+    let cancelled = Instant::now();
+    session.notify(
+        "notifications/cancelled",
+        json!({ "requestId": held, "reason": "the agent gave it up" }),
+    );
+    let held = Some(held);
+    let report = wait_for(&mut session, held, "waits cancelled: 2");
+    assert!(report.contains("waiting: 0"), "{report}");
+    assert!(
+        cancelled.elapsed() < Duration::from_secs(20),
+        "cancelled by its agent, not by its bound"
     );
     let said = tool(&mut session, held, "stop_game", json!({}));
     assert!(said[0].contains("the game ended"), "{said:?}");

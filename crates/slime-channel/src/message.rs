@@ -232,8 +232,10 @@ pub enum Edit {
     #[serde(rename = "editing/history")]
     History,
     /// A page of the editor's journal, as text: [`Reply::Journal`], with `next` while the journal
-    /// goes on past it (`uwui_agent::page`), none at its end
-    /// (`docs/adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md`).
+    /// goes on past it (`uwui_agent::page`), else `end`, a cursor at its end, from which the
+    /// entries written later are read
+    /// (`docs/adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md`,
+    /// `docs/adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md`).
     /// A page holds whole lines, read from the journal's file within the entries that the editor
     /// wrote whole: it ends just after its last line's end, `\n`, when it holds one and the
     /// journal goes on, else at a character's boundary, as within the level's text, one line that
@@ -248,15 +250,30 @@ pub enum Edit {
     /// again would not help; every page is refused once a write of the journal failed, as the
     /// editor then stops. A file replaced apart from the editor by one as long or longer is read
     /// as the journal, with no fault.
+    ///
+    /// With `wait`, a cursor at the journal's end is answered once the editor wrote an entry past
+    /// it, as a request in flight that holds its place until then, and that its tool cancels
+    /// (`docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md`):
+    /// stale once the editor made its journal anew, as it opened a level, and refused once a
+    /// write of the journal failed. A game holds at most [`MAX_WAITS`](crate::MAX_WAITS) requests
+    /// that wait of one connection, of every family, so that its other requests pass: one more
+    /// that would wait is answered `BUSY`. Its edits that wait for a person's gesture to end hold
+    /// places too. A cursor that the journal goes on past, or none, is answered at once. A
+    /// selection made alone is written with the entry after it, which answers the wait.
     #[serde(rename = "editing/journal")]
     Journal {
-        /// Where the page starts: the `next` of the page before; none for the journal's start.
+        /// Where the page starts: the `next` of the page before, or the `end` of the last; none for
+        /// the journal's start.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         cursor: Option<String>,
         /// The most bytes of JSON that the page's text takes, its quotes included; none for the
         /// editor's most.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bytes: Option<u64>,
+        /// Whether a cursor at the journal's end waits for the entries written after it, rather
+        /// than being answered at once with none.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        wait: bool,
     },
     /// Selects entities, which is not a step.
     #[serde(rename = "editing/select")]
@@ -372,6 +389,10 @@ pub enum Reply {
         /// The cursor to the rest, while the journal goes on; none at its end.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         next: Option<String>,
+        /// A cursor at the journal's end, when the page reaches it: the entries written later
+        /// start there, and a request that waits from it is answered once they come.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        end: Option<String>,
         /// Whether bytes of the page that are not UTF-8 were each replaced, by run, with U+FFFD:
         /// then the text is not the file's bytes.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -758,12 +779,21 @@ mod tests {
                 edit: Edit::Journal {
                     cursor: None,
                     bytes: None,
+                    wait: false,
                 },
             },
             Request::Edit {
                 edit: Edit::Journal {
                     cursor: Some(text("journal:1:2:3:4")),
                     bytes: Some(4096),
+                    wait: false,
+                },
+            },
+            Request::Edit {
+                edit: Edit::Journal {
+                    cursor: Some(text("journal:1:2:3:4")),
+                    bytes: None,
+                    wait: true,
                 },
             },
             Request::Edit {
@@ -921,11 +951,13 @@ mod tests {
             Reply::Journal {
                 text: text("# do\n"),
                 next: None,
+                end: Some(text("journal:1:2:3:9")),
                 lossy: false,
             },
             Reply::Journal {
                 text: text("# level\n\u{fffd}"),
                 next: Some(text("journal:1:2:3:4")),
+                end: None,
                 lossy: true,
             },
             Reply::Written {

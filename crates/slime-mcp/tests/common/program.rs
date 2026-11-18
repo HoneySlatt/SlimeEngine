@@ -8,8 +8,9 @@
 //! it ends, and writes on its standard error, its log, how many it holds ([`STEPS_HELD`]). It
 //! plays a game as an editor does, a listener of its own whose report `seen` is [`PLAYED`], which
 //! `edit/played` gives; it holds that request too while the key is down, which an editor of the
-//! engine never does, so that a test can make it wait. It ends once its standard input closes, as
-//! the engine's programs do.
+//! engine never does, so that a test can make it wait. It holds each page of the journal asked
+//! with `wait` until its tool cancels it, and its report counts those that it holds and those
+//! cancelled. It ends once its standard input closes, as the engine's programs do.
 
 use std::io::Read as _;
 use std::net::TcpListener;
@@ -42,16 +43,22 @@ struct Seen {
     dragging: bool,
     /// The steps of game time asked for, which it never runs.
     steps: Vec<Incoming>,
+    /// The pages of the journal asked with `wait`, held until their tool cancels them.
+    waits: Vec<Incoming>,
+    /// How many of those their tool cancelled.
+    waits_cancelled: usize,
 }
 
 impl Seen {
     fn report(&self) -> String {
         let held: Vec<String> = self.held.iter().map(label).collect();
         format!(
-            "applied: [{}]; held: [{}]; cancelled: [{}]",
+            "applied: [{}]; held: [{}]; cancelled: [{}]; waiting: {}; waits cancelled: {}",
             self.applied.join(", "),
             held.join(", "),
-            self.cancelled.join(", ")
+            self.cancelled.join(", "),
+            self.waits.len(),
+            self.waits_cancelled
         )
     }
 }
@@ -168,6 +175,10 @@ pub fn run_if_started() -> bool {
                 seen.held.push(incoming);
             }
         }
+        for incoming in seen.waits.extract_if(.., |incoming| incoming.cancelled()) {
+            seen.waits_cancelled += 1;
+            incoming.cancel();
+        }
         while let Some(incoming) = listener.next() {
             match incoming.request() {
                 Request::Edit {
@@ -176,6 +187,9 @@ pub fn run_if_started() -> bool {
                 Request::Edit {
                     edit: Edit::Step { .. } | Edit::Played,
                 } => apply(incoming, &mut seen, &played),
+                Request::Edit {
+                    edit: Edit::Journal { wait: true, .. },
+                } => seen.waits.push(incoming),
                 Request::Press { .. } => {
                     seen.dragging = true;
                     incoming.answer(Reply::Done);

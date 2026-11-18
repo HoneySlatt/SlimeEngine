@@ -30,6 +30,9 @@ use crate::shared::{BuildMark, CONSOLE_LINES, Notice, Playing, Request, Shared};
 use crate::{arrange, handles};
 use crate::{journal, level, panels, recent};
 
+/// Why the editor answers nothing of its level yet.
+const NOT_OPENED: &str = "the editor has not opened its level";
+
 /// Why the program has no journal when the environment gives no data directory.
 const NO_DATA_DIRECTORY: &str =
     "the environment gives no data directory: give the journal's file with --journal";
@@ -113,9 +116,7 @@ impl Session {
     }
 
     fn editor(&mut self) -> Result<&mut Editor, AppError> {
-        self.editor
-            .as_mut()
-            .ok_or_else(|| "the editor has not opened its level".into())
+        self.editor.as_mut().ok_or_else(|| NOT_OPENED.into())
     }
 
     /// The journal's file of the level `level`, whose whole path is `whole`: `journal` when it is
@@ -1369,6 +1370,37 @@ fn request_of(edit: &Edit) -> Result<Request, AppError> {
     })
 }
 
+impl Session {
+    /// The journal that the editor keeps.
+    fn kept_journal(&self) -> Result<&journal::Journal, AppError> {
+        self.editor
+            .as_ref()
+            .ok_or(NOT_OPENED)?
+            .kept_journal()
+            .ok_or_else(|| "the editor keeps no journal".into())
+    }
+
+    /// The page of the journal from `cursor` within `page` and `bytes`
+    /// ([`journal::Journal::page`]); a fault as [`Reply::Failed`].
+    fn journal_page(
+        &self,
+        cursor: Option<&str>,
+        bytes: Option<u64>,
+        page: Page,
+        time_up: &mut dyn FnMut() -> bool,
+    ) -> Result<Reply, AppError> {
+        Ok(self
+            .kept_journal()?
+            .page(cursor, page.within(None, bytes), time_up)
+            .map_or_else(Reply::from, |page| Reply::Journal {
+                text: page.text,
+                next: page.next,
+                end: page.end,
+                lossy: page.lossy,
+            }))
+    }
+}
+
 impl Simulation for Session {
     fn start(
         &mut self,
@@ -1484,22 +1516,39 @@ impl Simulation for Session {
         time_up: &mut dyn FnMut() -> bool,
     ) -> Result<Reply, AppError> {
         // A page of the journal changes nothing that the window shows: it is read without
-        // publishing to it.
-        if let Edit::Journal { cursor, bytes } = edit {
-            let journal = self
-                .editor()?
-                .kept_journal()
-                .ok_or("the editor keeps no journal")?;
-            return Ok(journal
-                .page(cursor.as_deref(), page.within(None, *bytes), time_up)
-                .map_or_else(Reply::from, |page| Reply::Journal {
-                    text: page.text,
-                    next: page.next,
-                    lossy: page.lossy,
-                }));
+        // publishing to it. One asked with `wait` reaches `wait`; here, it is answered at once.
+        if let Edit::Journal { cursor, bytes, .. } = edit {
+            return self.journal_page(cursor.as_deref(), *bytes, page, time_up);
         }
         let request = request_of(edit)?;
         self.handle(world, request)
+    }
+
+    /// A page of the journal from its end with `wait` is answered once the editor wrote past it,
+    /// read as `edit` reads one, which the channel asks again in each frame.
+    fn wait(
+        &self,
+        edit: &Edit,
+        page: Page,
+        time_up: &mut dyn FnMut() -> bool,
+    ) -> Result<Option<Reply>, AppError> {
+        let Edit::Journal {
+            cursor,
+            bytes,
+            wait,
+        } = edit
+        else {
+            return Err("only a page of the journal waits".into());
+        };
+        if *wait && let Some(cursor) = cursor {
+            match self.kept_journal()?.at_end(cursor, page.program) {
+                Ok(true) => return Ok(None),
+                Ok(false) => {}
+                Err(fault) => return Ok(Some(Reply::from(fault))),
+            }
+        }
+        self.journal_page(cursor.as_deref(), *bytes, page, time_up)
+            .map(Some)
     }
 
     /// The level's library, through which the commands that a tool sends as text place prefabs.
@@ -1958,6 +2007,7 @@ mod tests {
                 &Edit::Journal {
                     cursor,
                     bytes: None,
+                    wait: false,
                 },
                 page,
                 &mut || false,
@@ -1975,8 +2025,9 @@ mod tests {
     ) -> (Vec<u8>, usize) {
         let (mut joined, mut pages) = (Vec::new(), 0);
         loop {
-            let Reply::Journal { text, next, lossy } =
-                journal_page(host, session, cursor.take(), page)
+            let Reply::Journal {
+                text, next, lossy, ..
+            } = journal_page(host, session, cursor.take(), page)
             else {
                 panic!("a page of the journal");
             };
@@ -2111,6 +2162,102 @@ mod tests {
         assert_eq!(done(&mut host, &mut session).0, ["Rename"]);
         let reply = from(&mut host, &mut session, &cursor);
         assert!(stale(&reply), "{reply:?}");
+    }
+
+    /// A page of the journal asked with `wait` from a cursor that the journal goes on past is
+    /// answered at once; from its end, it gives none, without reading the file, until the editor
+    /// writes past it, then the entries written, with a cursor at the new end; a level opened while
+    /// it waits makes it stale
+    /// (`docs/adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md`).
+    #[test]
+    fn a_page_that_waits_at_the_journal_s_end_is_answered_by_the_next_step() {
+        let yard = Yard::new("journal-wait");
+        fs::write(
+            yard.directory.join("court.scene"),
+            "[entities]\nbench = { components = { Name = \"bench\" } }\n",
+        )
+        .expect("the court");
+        fs::write(
+            yard.directory.join("court.scene.meta"),
+            "id = \"00000000-0000-0000-0000-000000000002\"\n",
+        )
+        .expect("its metadata");
+        let (mut host, mut session) = yard.start(&[]).expect("started");
+        let whole = Page::new(1, usize::MAX);
+        let waiting = |session: &Session, cursor: &str| {
+            session
+                .wait(
+                    &Edit::Journal {
+                        cursor: Some(cursor.to_owned()),
+                        bytes: None,
+                        wait: true,
+                    },
+                    whole,
+                    &mut || false,
+                )
+                .expect("answered")
+        };
+        let small = whole.within(None, Some(16));
+        let Reply::Journal {
+            next: Some(middle),
+            end: None,
+            ..
+        } = journal_page(&mut host, &mut session, None, small)
+        else {
+            panic!("a first page that the journal goes on past");
+        };
+        let reply = waiting(&session, &middle);
+        assert!(
+            matches!(&reply, Some(Reply::Journal { text, .. }) if !text.is_empty()),
+            "{reply:?}"
+        );
+        let Reply::Journal {
+            next: None,
+            end: Some(end),
+            ..
+        } = journal_page(&mut host, &mut session, None, whole)
+        else {
+            panic!("the whole journal, to its end");
+        };
+        assert_eq!(waiting(&session, &end), None);
+        step(
+            &mut host,
+            &mut session,
+            "Rename",
+            "[SetProperty]\nentity = \"yard/well\"\ncomponent = \"Name\"\npath = \"0\"\nvalue = \"old well\"\n",
+        );
+        let Some(Reply::Journal {
+            text,
+            next: None,
+            end: Some(after),
+            lossy: false,
+        }) = waiting(&session, &end)
+        else {
+            panic!("the step, to the journal's new end");
+        };
+        assert!(text.starts_with("# do\nlabel = \"Rename\""), "{text:?}");
+        assert_eq!(waiting(&session, &after), None, "each step seen once");
+        // Cut apart from the editor, a file read would be stale: at its end, none is read.
+        fs::OpenOptions::new()
+            .write(true)
+            .open(yard.journal())
+            .and_then(|file| file.set_len(4))
+            .expect("cut");
+        assert_eq!(waiting(&session, &after), None, "nothing read");
+        edit(
+            &mut host,
+            &mut session,
+            &Edit::Run {
+                name: "file.open".to_owned(),
+                arguments: vec![yard.directory.join("court.scene").display().to_string()],
+            },
+        )
+        .expect("another level");
+        let reply = waiting(&session, &after);
+        assert!(
+            matches!(&reply, Some(Reply::Failed { code, .. }) if *code == slime_channel::Fault::STALE),
+            "{reply:?}"
+        );
     }
 
     /// A journal's file cut apart from the editor: a cursor is stale, and the journal's start is
@@ -2280,6 +2427,7 @@ mod tests {
                                 &Edit::Journal {
                                     cursor: cursor.clone(),
                                     bytes: None,
+                                    wait: false,
                                 },
                                 page,
                                 &mut || std::time::Instant::now() >= until,

@@ -12,7 +12,10 @@
   (a page that reaches the journal's end gives a cursor there); amended by
   [0272](0272-the-carriers-families-and-its-connections-state-join-it-at-their-first-reader.md)
   (the carrier's families served and its connection's state join it at their first reader) and
-  [0274](0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md) (M6d.9a2b cut in two)
+  [0274](0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md) (M6d.9a2b cut in two);
+  superseded in part by
+  [0310](0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)
+  (what the tools that wait give back)
 - Date: 2026-11-15
 
 ## Context

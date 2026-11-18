@@ -66,11 +66,21 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Followed at uwui's first stage, whose carrier of the core counts once, and which benchmarks its walks.
 - **A page of the editor's journal is read on the editor's thread** ([ADR-0265](adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md)).
   Its work stops once its share of the frame's start has passed, past a floor of 4 KiB of text, the first of its reads, but a read from a slow or remote disk, a NAS, may still take a frame; a file out of the system's cache costs more ([`measurements.md`](measurements.md#m6d9a1b3b2-the-editors-journal)).
+  Pages that wait at the journal's end read nothing until it grows; then each page that they ask, those of the same cursor and bytes once, reads its floor in that frame ([ADR-0310](adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)).
   Reading it on another thread needs a `Simulation::edit` that answers later.
   Followed at [M6c.Q2f](stage-6c.md#m6cq2f--the-editor-at-the-displays-rate), which holds the editor's frames to the display's rate.
-- **An agent follows the editor's steps by reading its journal again** ([ADR-0265](adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md)).
-  A page that reaches the journal's end gives no cursor, as every list's: an agent that waits for the next steps reads the journal again from its start, the level's entry included.
-  Followed at [M6d.9a2c2](stage-6d.md#m6d9a2c2--the-journal-that-waits), whose journal waits for its next steps ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
+- **The bound of a tool that waits lives in `slime-mcp`** ([ADR-0310](adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)).
+  `editor_journal` bounds its wait with a timer of its own that cancels the request through `uwui-mcp`'s cancel; the interface's tool, in `uwui-mcp`, will need the same.
+  Followed at [M6d.9a2c4](stage-6d.md#m6d9a2c4--the-interface-that-waits), which moves it into `uwui-mcp` for both tools.
+- **A wait cancelled frees its place untested** ([ADR-0310](adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)).
+  `slime-app`'s channel leaves a wait cancelled, not yet answered, out of its connection's count (`MAX_WAITS`), so that a wait that comes in the same frame is held rather than `BUSY`; no test times a cancel and a new wait into one frame.
+  Followed at [M6d.9a2c4](stage-6d.md#m6d9a2c4--the-interface-that-waits), whose waits share the count.
+- **The journal's wait was measured under a heavy load** ([`measurements.md`](measurements.md#m6d9a2c2-the-journal-that-waits)).
+  Another project's builds held the machine's load between 13 and 20: the figures compare the two points of answer, and say nothing of a machine at rest.
+  Followed at [M6d.9a2c4](stage-6d.md#m6d9a2c4--the-interface-that-waits), which times the interface's wait on the editor, the journal's beside it.
+- **`slime-app`'s tests of the channel fail now and then under a heavy load**.
+  Run four at a time while another project's builds held the machine's load near 40, a test's game ended its connection early (`UnexpectedEof`), on the commit before M6d.9a2c2 as after it, and once a cancelled edit's answer came past its 30 s; at rest they pass. Not diagnosed.
+  Followed at [M6d.12](stage-6d.md#m6d12--the-audit-of-stage-6d), the stage's audit.
 - **Part of the core's messages is described by hand** ([ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)).
   The envelope, written by two private types, and the replies to `subscribe` and `unsubscribe` are lines that the core's test writes by hand; the parameters of `subscribe`, typed for their description, are still read by hand, to say what is wrong with each name.
   A change of them escapes the test, which a review catches; so does a field read or written by a function of its own, which `schemars` describes as its type says.

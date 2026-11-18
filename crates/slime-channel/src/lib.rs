@@ -11,7 +11,7 @@ mod wire;
 
 pub use client::{Canceller, Client, Launched, Notice, Outcome, Pending, launch, launch_unless};
 pub use error::ChannelError;
-pub use listener::{Incoming, Listener};
+pub use listener::{Incoming, Listener, MAX_WAITS};
 pub use message::{
     ComponentText, Edit, EditorHistory, EntitySummary, Event, GameState, GameTime, LogLine,
     OperationSummary, Reply, Request, ViewSummary,
@@ -67,7 +67,7 @@ pub const EDITING: &str = "editing";
 pub const FAMILIES: [(&str, u32, &[&str]); 4] = [
     (PLAY, 1, &["time"]),
     (WORLD, 2, &[]),
-    (EDITING, 2, &[]),
+    (EDITING, 3, &[]),
     (
         uwui_agent::interface::FAMILY,
         uwui_agent::interface::VERSION,

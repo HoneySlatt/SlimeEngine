@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use slime_channel::page::{Listing, Page, Pager, cut};
 use slime_channel::{
     ANNOUNCEMENT, ComponentText, Edit, EntitySummary, Event, Fault, GameState, GameTime, Incoming,
-    Listener, Reply, Request, TOKEN_ENV_VAR, Token, ViewSummary, interface,
+    Listener, MAX_WAITS, Reply, Request, TOKEN_ENV_VAR, Token, ViewSummary, interface,
 };
 use slime_gfx::{Gpu, Image, RenderTarget};
 use slime_platform::KeyCode;
@@ -32,6 +32,8 @@ const FRAMES_MEASURED: usize = 120;
 /// rest wait for the next frame, so that a busy agent does not drop the frames of a person who
 /// plays. Estimated, a little over a tenth of a frame at 240 Hz
 /// (`docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md`).
+/// The requests that wait for a change take as much again once the simulation ran, past a page's
+/// floor for each page asked ([`DevChannel::answer_waits`]).
 const REQUESTS_BUDGET: Duration = Duration::from_micros(500);
 
 /// Whether the tool that started the game ended: its standard input, which the tool held, closed.
@@ -59,6 +61,12 @@ pub(crate) struct DevChannel {
     /// simulation said that they wait ([`Simulation::edits_wait`]), in their order: answered at the
     /// first frame at which it no longer does.
     edits: VecDeque<Incoming>,
+    /// The requests that wait for a change, a page of the journal from its end with `wait`, which
+    /// the simulation answers ([`Simulation::wait`]): asked again once each frame's simulation ran
+    /// ([`DevChannel::answer_waits`]), and not counted in [`DevChannel::waiting`], so that a run at
+    /// rest runs no frame for them. A cancel, or a connection that closes, wakes the run, whose
+    /// next frame answers it.
+    waits: Vec<Incoming>,
     /// The time between the starts of the last frames.
     frames: VecDeque<Duration>,
     /// How game time stood as the last frame's end published it, while a connection subscribed.
@@ -124,6 +132,7 @@ impl DevChannel {
             listener,
             captures: Vec::new(),
             edits: VecDeque::new(),
+            waits: Vec::new(),
             picks: Vec::new(),
             steps: Vec::new(),
             frames: VecDeque::new(),
@@ -133,14 +142,15 @@ impl DevChannel {
     }
 
     /// At the start of a frame that represents `real` time, after `frames` frames: answers the
-    /// steps that ran, drops what waits and its tool cancelled, answering it so, answers the
-    /// pickings that came and the edits that waited and no longer do, then takes the requests that
-    /// arrived, one of each connection in turn, until a budget
+    /// steps that ran, drops what waits for the frame and its tool cancelled, answering it so,
+    /// answers the pickings that came and the edits that waited and no longer do, then takes the
+    /// requests that arrived, one of each connection in turn, until a budget
     /// of time passed, the rest left for the next frame ([`DevChannel::waiting`]); each changes the
     /// host as a frame's start may. A step is answered once
     /// the frames have run every step asked for, so that what the tool asks next comes after them;
-    /// a capture waits for the frame's image ([`DevChannel::capture`]), and a picking for the
-    /// answer that the presentation gives a frame or more later ([`Presentation::pick`]);
+    /// a capture waits for the frame's image ([`DevChannel::capture`]), a picking for the
+    /// answer that the presentation gives a frame or more later ([`Presentation::pick`]), and a
+    /// request that waits for a change for the simulation ([`DevChannel::answer_waits`]);
     /// `windowed` says whether the run has one. A save and a load are `simulation`'s
     /// ([`Simulation::save`]); the views that the last frame drew, and their settings,
     /// `presentation`'s ([`Presentation::views`]).
@@ -271,6 +281,12 @@ impl DevChannel {
             self.edits.push_back(incoming);
             return;
         }
+        if let Request::Edit { edit } = incoming.request()
+            && waits(edit)
+        {
+            self.wait(incoming, simulation, share);
+            return;
+        }
         if is_capture(incoming.request()) && windowed {
             self.captures.push(incoming);
             return;
@@ -298,6 +314,78 @@ impl DevChannel {
             self.steps.push((incoming, until));
         } else {
             incoming.answer(reply);
+        }
+    }
+
+    /// Asks `simulation` the request that waits, `incoming`, within `share` of time: answers it,
+    /// or holds it while it waits, past [`MAX_WAITS`] of its connection answering it `BUSY`. A
+    /// wait cancelled, which [`DevChannel::answer_waits`] answers so, frees its place at once.
+    fn wait(&mut self, incoming: Incoming, simulation: &dyn Simulation, share: Duration) {
+        let Request::Edit { edit } = incoming.request() else {
+            unreachable!("only an editor's requests wait");
+        };
+        if let Some(reply) = waited(simulation.wait(edit, incoming.page(), &mut within(share))) {
+            incoming.answer(reply);
+            return;
+        }
+        let held = self
+            .waits
+            .iter()
+            .filter(|held| held.same_connection(&incoming) && !held.cancelled())
+            .count();
+        if held < MAX_WAITS {
+            self.waits.push(incoming);
+        } else {
+            incoming.answer(Reply::from(Fault::new(
+                Fault::BUSY,
+                format!(
+                    "the connection holds {MAX_WAITS} requests that wait already: cancel one, or \
+                     wait for its answer"
+                ),
+            )));
+        }
+    }
+
+    /// Once a frame's simulation ran, after all that may have changed what they wait for: answers
+    /// the requests that wait and were cancelled so, and asks `simulation` the others again, those
+    /// that ask the same page once, within the requests' budget parted among them; answers those
+    /// that it answers, and holds the rest. Asks nothing while none waits.
+    pub(crate) fn answer_waits(&mut self, simulation: &dyn Simulation) {
+        if self.waits.is_empty() {
+            return;
+        }
+        for incoming in self.waits.extract_if(.., |incoming| incoming.cancelled()) {
+            incoming.cancel();
+        }
+        let held = std::mem::take(&mut self.waits);
+        let share = REQUESTS_BUDGET / u32::try_from(held.len().max(1)).unwrap_or(u32::MAX);
+        // Each page asked, and its answer, which the waits that ask it again share.
+        let mut asked: Vec<(&Edit, slime_channel::page::Page, Option<Reply>)> = Vec::new();
+        let mut replies = Vec::with_capacity(held.len());
+        for incoming in &held {
+            let Request::Edit { edit } = incoming.request() else {
+                unreachable!("only an editor's requests wait");
+            };
+            let page = incoming.page();
+            let reply = match asked
+                .iter()
+                .find(|(other, other_page, _)| *other == edit && *other_page == page)
+            {
+                Some((.., reply)) => reply.clone(),
+                None => {
+                    let reply = waited(simulation.wait(edit, page, &mut within(share)));
+                    asked.push((edit, page, reply.clone()));
+                    reply
+                }
+            };
+            replies.push(reply);
+        }
+        drop(asked);
+        for (reply, incoming) in replies.into_iter().zip(held) {
+            match reply {
+                Some(reply) => incoming.answer(reply),
+                None => self.waits.push(incoming),
+            }
         }
     }
 
@@ -334,7 +422,8 @@ impl DevChannel {
 
     /// Whether what a tool asked waits for the next frame: a capture, the steps asked for, a
     /// picking that the presentation answers a frame or more later, an edit that waits for the
-    /// simulation, or a request that the last frame's budget left.
+    /// simulation, or a request that the last frame's budget left; not a request that waits for a
+    /// change, which only a frame that runs for something else can bring.
     pub(crate) fn waiting(&self) -> bool {
         !self.captures.is_empty()
             || !self.steps.is_empty()
@@ -621,6 +710,18 @@ fn in_rounds<C, T>(
         }
         left = budget - spent;
     }
+}
+
+/// Whether `edit` waits for a change rather than being answered at once: a page of the journal
+/// with `wait`, which [`Simulation::wait`] answers.
+fn waits(edit: &Edit) -> bool {
+    matches!(edit, Edit::Journal { wait: true, .. })
+}
+
+/// The reply of what [`Simulation::wait`] answered: none while it waits, a refusal saying why it
+/// cannot answer.
+fn waited(answered: Result<Option<Reply>, crate::AppError>) -> Option<Reply> {
+    answered.unwrap_or_else(|error| Some(failed(crate::error_chain(&*error))))
 }
 
 /// The reply that says why the game refused a request.

@@ -173,6 +173,11 @@ The tools, each described to the agent by the server itself, with its parameters
   some 32 KiB, or of the fewer `bytes` that the agent asks, each that more follow starting with its
   `next`, which `cursor` takes; the level's entry, one line, may take many pages
   (`docs/adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md`).
+  The last page starts with `end`, which `cursor` takes with `wait`, in seconds, at most 50, to
+  wait for the entries that the editor writes next, each seen once: the editor holds the request,
+  at rest, and answers it in the frame that writes them, before drawing it; a wait that none
+  answers gives its cursor back, its request cancelled in the editor
+  (`docs/adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md`).
 - `list_operations` and `run_operation`: an editor's operations, every action that its menus, its
   shortcuts and its palette run, listed with their parameters and what they change, and one run
   by its name with its arguments, as a person runs it

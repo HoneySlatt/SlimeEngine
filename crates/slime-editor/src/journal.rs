@@ -50,6 +50,8 @@ pub(crate) struct JournalPage {
     pub(crate) text: String,
     /// The cursor to the rest, while the journal goes on; none at its end.
     pub(crate) next: Option<String>,
+    /// A cursor at the journal's end, when the page reaches it.
+    pub(crate) end: Option<String>,
     /// Whether bytes that are not UTF-8 were replaced in it.
     pub(crate) lossy: bool,
 }
@@ -118,20 +120,12 @@ impl Journal {
         page: Page,
         time_up: &mut dyn FnMut() -> bool,
     ) -> Result<JournalPage, Fault> {
-        let path = self.held.path();
-        if self.torn {
-            return Err(Fault::new(
-                Fault::REFUSED,
-                format!(
-                    "the journal {} could not be written whole, and the editor stops",
-                    path.display()
-                ),
-            ));
-        }
+        self.whole()?;
         let start = match cursor {
             None => 0,
             Some(cursor) => self.place(cursor, page.program)?,
         };
+        let path = self.held.path();
         let unread = |error: io::Error| {
             Fault::new(
                 Fault::REFUSED,
@@ -154,12 +148,44 @@ impl Journal {
                 _ => fault,
             }
         })?;
+        let cursor = LISTING.cursor(page.program, self.number, &[read.end]);
+        let (next, end) = if read.end < self.written {
+            (Some(cursor), None)
+        } else {
+            (None, Some(cursor))
+        };
         Ok(JournalPage {
             text: read.text,
-            next: (read.end < self.written)
-                .then(|| LISTING.cursor(page.program, self.number, &[read.end])),
+            next,
+            end,
             lossy: read.lossy,
         })
+    }
+
+    /// Whether `cursor`, given in the process numbered `program`, is at the journal's end, where a
+    /// page that waits finds nothing yet: found without reading the file, so that a request that
+    /// waits costs a cursor's parse each time it is asked again.
+    ///
+    /// # Errors
+    ///
+    /// As [`Journal::page`]'s, for a write that failed and a cursor that is not this journal's.
+    pub(crate) fn at_end(&self, cursor: &str, program: u64) -> Result<bool, Fault> {
+        self.whole()?;
+        Ok(self.place(cursor, program)? == self.written)
+    }
+
+    /// Refuses every page once a write failed ([`Journal::add`]).
+    fn whole(&self) -> Result<(), Fault> {
+        if self.torn {
+            return Err(Fault::new(
+                Fault::REFUSED,
+                format!(
+                    "the journal {} could not be written whole, and the editor stops",
+                    self.held.path().display()
+                ),
+            ));
+        }
+        Ok(())
     }
 
     /// The byte where the page that `cursor` asks starts, if it is this journal's.
@@ -481,7 +507,8 @@ pub(crate) fn entries<'t>(
 mod tests {
     use super::*;
 
-    /// A write that fails leaves the journal torn: it adds nothing more, and refuses its pages.
+    /// A write that fails leaves the journal torn: it adds nothing more, and refuses its pages,
+    /// those that wait at its end with the others.
     #[test]
     fn a_journal_whose_write_failed_adds_nothing_more_and_refuses_its_pages() {
         let directory =
@@ -501,6 +528,8 @@ mod tests {
             written: 8,
             torn: false,
         };
+        let (page, end) = (Page::new(1, usize::MAX), LISTING.cursor(1, 1, &[8]));
+        assert_eq!(journal.at_end(&end, 1), Ok(true));
         assert!(journal.add("# do\n").is_err());
         assert!(journal.torn);
         // The disk takes writes again: still nothing more, after what may be part of an entry.
@@ -511,9 +540,11 @@ mod tests {
         assert!(journal.add("# undo\n").is_err(), "nothing more");
         assert_eq!(fs::read_to_string(&path).expect("read"), "# level\n");
         let fault = journal
-            .page(None, Page::new(1, usize::MAX), &mut || false)
+            .page(None, page, &mut || false)
             .err()
             .expect("refused");
+        assert_eq!(fault.code, Fault::REFUSED, "{fault:?}");
+        let fault = journal.at_end(&end, 1).expect_err("refused");
         assert_eq!(fault.code, Fault::REFUSED, "{fault:?}");
         fs::remove_dir_all(&directory).expect("removed");
     }

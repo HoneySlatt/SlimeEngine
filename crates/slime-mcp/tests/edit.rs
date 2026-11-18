@@ -25,12 +25,19 @@
 //! default run of `cargo test` (`test = false` in Cargo.toml), and has no harness, so that its
 //! failures print once.
 
+#[path = "common/journal.rs"]
+#[expect(
+    dead_code,
+    reason = "this session reads the journal by pages of its own"
+)]
+mod journal;
 #[path = "common/session.rs"]
 #[expect(dead_code, reason = "this session reads no image")]
 mod session;
 
 use std::fs;
 use std::path::Path;
+use std::time::Duration;
 
 use serde_json::json;
 
@@ -202,24 +209,23 @@ fn main() {
     );
     let (said, _) = session.tool("inspect_entity", json!({ "entity": "yard/lamp-k3f9" }));
     assert!(said[0].contains("named lamp-k3f9"), "{said:?}");
-    // The journal, by pages of 2 KiB, each that more follow giving its `next` first, read whole.
+    // The journal, by pages of 2 KiB, each that more follow giving its `next` first, the last
+    // its `end`, read whole.
     let (mut read, mut pages) = (String::new(), 0);
     let mut cursor = None;
-    loop {
+    let end = loop {
         pages += 1;
         let (said, _) = session.tool("editor_journal", json!({ "cursor": cursor, "bytes": 2048 }));
-        let (next, page) = match &said[..] {
-            [next, page] => (next.strip_prefix("next: "), page),
-            [page] => (None, page),
-            said => panic!("{said:?}"),
+        let [first, page] = &said[..] else {
+            panic!("{said:?}");
         };
         assert!(page.len() <= 2048, "{}", page.len());
         read.push_str(page);
-        match next {
-            Some(next) => cursor = next.split_once(' ').map(|(next, _)| next.to_owned()),
-            None => break,
+        match first.strip_prefix("next: ") {
+            Some(_) => cursor = journal::cursor(first, "next"),
+            None => break journal::cursor(first, "end").expect("next or end"),
         }
-    }
+    };
     assert_eq!(
         read,
         fs::read_to_string(&journal).expect("the journal"),
@@ -237,6 +243,49 @@ fn main() {
     ] {
         assert!(read.contains(entry), "{entry}: {read:?}");
     }
+    // From its end, a wait of a second that no entry answers gives the cursor back; one answered
+    // by an entry that another call makes gives that entry, and a new end, from which nothing more
+    // is read: each entry seen once
+    // (`docs/adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md`).
+    let (said, _) = session.tool("editor_journal", json!({ "cursor": end, "wait": 1 }));
+    assert!(
+        said[0].starts_with(&format!("cursor: {end} (no entry came within 1 s")),
+        "{said:?}"
+    );
+    // The step undone, done again by another call while the wait is held, then undone again.
+    let waiting = session.send_tool("editor_journal", json!({ "cursor": end, "wait": 30 }));
+    // So that the editor holds the wait before the step comes; were it not, the wait would be
+    // answered at once, by the same page.
+    std::thread::sleep(Duration::from_millis(500));
+    let (said, _) = session.tool("redo", json!({}));
+    assert_eq!(said, ["done"]);
+    let (said, result) = session.tool_answer(waiting);
+    assert_ne!(result["isError"], json!(true), "{said:?}");
+    let [first, page] = &said[..] else {
+        panic!("{said:?}");
+    };
+    assert!(page.ends_with("# redo\n"), "{page:?}");
+    let end = journal::cursor(first, "end").expect("the new end");
+    let (said, _) = session.tool("editor_journal", json!({ "cursor": end }));
+    assert_eq!(said[1], "no entry after this cursor yet", "{said:?}");
+    // A wait of fewer bytes than the entries written: the editor's page ends after the
+    // selection's first line, and the tool gathers the pages after it, as for a list.
+    let (said, _) = session.tool(
+        "select",
+        json!({ "selection": ["yard/lamp 1", "yard/lamp 2", "yard/lamp 3", "yard/torch-0rdx"] }),
+    );
+    assert_eq!(said, ["done"]);
+    let waiting = session.send_tool(
+        "editor_journal",
+        json!({ "cursor": end, "bytes": 64, "wait": 30 }),
+    );
+    std::thread::sleep(Duration::from_millis(500));
+    session.tool("undo", json!({}));
+    let (said, result) = session.tool_answer(waiting);
+    assert_ne!(result["isError"], json!(true), "{said:?}");
+    assert!(said[0].starts_with("next: "), "{said:?}");
+    assert!(said[1].starts_with("# select\nselection = "), "{said:?}");
+    session.tool("select", json!({ "selection": ["yard/torch-0rdx"] }));
     let (said, _) = session.tool("run_operation", json!({ "name": "file.save" }));
     assert_eq!(said, ["the level is written, whole"]);
     let (said, _) = session.tool("editor_history", json!({}));

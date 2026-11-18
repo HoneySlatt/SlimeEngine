@@ -1,4 +1,4 @@
-# The messages of the family `editing`, version 2: one line for each message, value and field,
+# The messages of the family `editing`, version 3: one line for each message, value and field,
 # read from their types (`uwui_agent::description`). Written by the family's test with UWUI_DESCRIBE=write.
 reply done
 reply done . object
@@ -42,6 +42,7 @@ reply image height integer format="uint32" minimum=0
 reply image width integer format="uint32" minimum=0
 reply journal
 reply journal . object
+reply journal end string|null optional
 reply journal lossy boolean optional
 reply journal next string|null optional
 reply journal text string
@@ -105,6 +106,7 @@ request editing/journal
 request editing/journal . object
 request editing/journal bytes integer|null format="uint64" minimum=0 optional
 request editing/journal cursor string|null optional
+request editing/journal wait boolean optional
 request editing/operations
 request editing/played
 request editing/redo

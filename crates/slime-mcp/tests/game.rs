@@ -16,7 +16,6 @@ mod program;
 #[expect(dead_code, reason = "this session reads no image")]
 mod session;
 
-use std::collections::HashMap;
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::Child;
@@ -55,12 +54,10 @@ const PLACES: usize = 16;
 /// How long the session waits for the server to end once its input closed.
 const END: Duration = Duration::from_secs(30);
 
-/// An agent's session whose calls go side by side: the answers read while another was awaited
-/// are kept for their own call.
+/// An agent's session and its server, whose calls go side by side.
 struct Calls {
     session: Session,
     server: Child,
-    kept: HashMap<u64, Value>,
 }
 
 impl Calls {
@@ -68,33 +65,17 @@ impl Calls {
     fn start(client: &str) -> Self {
         let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let (session, server, _) = Session::start(&workspace, client);
-        Self {
-            session,
-            server,
-            kept: HashMap::new(),
-        }
+        Self { session, server }
     }
 
     /// Calls the tool `name` with `arguments`, without waiting for its answer: its number.
     fn send(&mut self, name: &str, arguments: Value) -> u64 {
-        self.session.send(
-            "tools/call",
-            json!({ "name": name, "arguments": arguments }),
-        )
+        self.session.send_tool(name, arguments)
     }
 
     /// The result of the call `id`, once it answered, which must not be an error of the protocol.
     fn answer(&mut self, id: u64) -> Value {
-        loop {
-            if let Some(message) = self.kept.remove(&id) {
-                assert!(message["error"].is_null(), "{message}");
-                return message["result"].clone();
-            }
-            let message = self.session.next_message("an answer");
-            if let Some(answered) = message["id"].as_u64() {
-                self.kept.insert(answered, message);
-            }
-        }
+        self.session.answer(id)
     }
 
     /// The result of the tool `name` with `arguments`.
@@ -120,7 +101,7 @@ impl Calls {
 
     /// Whether the call `id` answered, among the answers read so far.
     fn answered(&self, id: u64) -> bool {
-        self.kept.contains_key(&id)
+        self.session.kept.contains_key(&id)
     }
 
     /// Ends the session, and checks that the server ends with it, within [`END`].

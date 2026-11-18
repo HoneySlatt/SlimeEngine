@@ -14,6 +14,10 @@ use uwui::tree::Ui;
 use crate::error::AppError;
 use crate::host::{Context, SimulationContext};
 
+/// Why a simulation that is not an editor answers nothing of what a tool asks of an editor.
+#[cfg(feature = "development")]
+const NOT_AN_EDITOR: &str = "the program is not an editor: it plays its level, and edits none";
+
 /// A game's rules: what changes its world, on game time, from the input given as data
 /// (`docs/adr/0107-the-execution-model.md`). It has no GPU and no window, and does not end the
 /// process: it asks its host to stop ([`SimulationContext::request_exit`]), and the host decides
@@ -163,7 +167,31 @@ pub trait Simulation {
         time_up: &mut dyn FnMut() -> bool,
     ) -> Result<slime_channel::Reply, AppError> {
         let _ = (world, edit, page, time_up);
-        Err("the program is not an editor: it plays its level, and edits none".into())
+        Err(NOT_AN_EDITOR.into())
+    }
+
+    /// Answers what a tool asks of an editor that waits, a page of the journal from its end with
+    /// `wait` ([`Edit::Journal`](slime_channel::Edit::Journal)): `None` while what it waits for has
+    /// not come, which the development channel asks again in each frame that runs, once its phases
+    /// ran, until it gives a reply, its tool cancels it or its connection closes. It only reads:
+    /// the channel asks it as often as it likes. Its page and `time_up` are as
+    /// [`edit`](Self::edit)'s; a fault that keeps its code is answered as
+    /// [`Reply::Failed`](slime_channel::Reply)
+    /// (`docs/adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md`).
+    ///
+    /// # Errors
+    ///
+    /// Why it cannot answer, which a tool reads as a refusal: by default, that the program is not
+    /// an editor.
+    #[cfg(feature = "development")]
+    fn wait(
+        &self,
+        edit: &slime_channel::Edit,
+        page: slime_channel::page::Page,
+        time_up: &mut dyn FnMut() -> bool,
+    ) -> Result<Option<slime_channel::Reply>, AppError> {
+        let _ = (edit, page, time_up);
+        Err(NOT_AN_EDITOR.into())
     }
 
     /// The library of scenes through which the commands that a tool sends place prefabs, as an
@@ -554,9 +582,12 @@ mod tests {
             &mut || false,
         );
         let refused = refused.expect_err("refused");
-        assert_eq!(
-            refused.to_string(),
-            "the program is not an editor: it plays its level, and edits none"
+        assert_eq!(refused.to_string(), NOT_AN_EDITOR);
+        let refused = ().wait(
+            &slime_channel::Edit::Undo,
+            slime_channel::page::Page::new(1, usize::MAX),
+            &mut || false,
         );
+        assert_eq!(refused.expect_err("refused").to_string(), NOT_AN_EDITOR);
     }
 }

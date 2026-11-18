@@ -306,7 +306,8 @@ material's double-sidedness and from whether the instance is *mirrored* (ADR-003
 confused with *frustum culling*.
 
 **Cursor (of a list).** The opaque text that a *page* of a long list gives as `next` while more
-may follow, and that a tool gives back as `cursor` for the rest. It is bound to the process and to
+may follow, and that a tool gives back as `cursor` for the rest; the editor's journal and the log
+give `end`, a cursor at their end, from which what is written later is read. It is bound to the process and to
 the page's maker, and stale once another took the place of either (`uwui_agent::page`,
 [ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)). Not the pointer's cursor.
 

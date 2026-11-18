@@ -4,7 +4,9 @@
 //! and times three calls, each a median and the slowest of 21 after three to warm up, taken in
 //! turn: `game_state`, the floor of a call; `find_elements` without a filter, a list of the
 //! editor's whole interface gathered from the game's pages; `editor_journal` from its start, a
-//! page of its text. It prints each figure, with what the list and the page held. It needs a
+//! page of its text. It prints each figure, with what the list and the page held. Then it times,
+//! as many times, a step made by `edit` to the answer of `editor_journal` waiting at the journal's
+//! end, held by the editor before the step comes. It needs a
 //! Wayland compositor, the example built (`cargo build --release --example editor`) and the
 //! examples' assets cooked, in the directory that its first argument names, or
 //! `target/cooked/examples`: run it in a headless Weston with lavapipe.
@@ -16,13 +18,18 @@
 //! slowest of 201 after 21; it needs nothing else.
 //!
 //! `SLIME_MCP_SERVER` names the server timed, another commit's build, as the measure's "before";
-//! the programs are this build's either way. A measure, not a check (`docs/measurements.md`): run
-//! it in release, on a machine at rest. It is not in the default run of
-//! `cargo test` (`test = false` in Cargo.toml), and has no harness, so that it prints once.
+//! the programs are this build's either way. As a server built before `editing` 3 is refused that
+//! family by this build's editor, neither `editor_journal` nor the wait is timed against another
+//! build. A
+//! measure, not a check (`docs/measurements.md`): run it in release, on a machine at rest. It is
+//! not in the default run of `cargo test` (`test = false` in Cargo.toml), and has no harness, so
+//! that it prints once.
 
 #[expect(dead_code, reason = "this measure only waits for the window")]
 #[path = "common/interface.rs"]
 mod interface;
+#[path = "common/journal.rs"]
+mod journal;
 #[expect(dead_code, reason = "this measure starts no silent program")]
 #[path = "common/program.rs"]
 mod program;
@@ -152,13 +159,59 @@ fn main() {
         |said| !said.iter().any(|text| text.contains("notifications/")),
     );
 
-    let calls = [
-        ("game_state", json!({})),
-        ("find_elements", json!({})),
-        ("editor_journal", json!({})),
-    ];
+    // A server of another build may speak an `editing` of before, which this editor refuses.
+    let other_server = std::env::var_os("SLIME_MCP_SERVER").is_some();
+    let mut calls = vec![("game_state", json!({})), ("find_elements", json!({}))];
+    if !other_server {
+        calls.push(("editor_journal", json!({})));
+    }
     measure(&mut session, &calls, TIMED, WARM_UP);
+    if !other_server {
+        measure_wait(&mut session);
+    }
     stop(session, &mut child);
+}
+
+/// Times, as many times as [`measure`] times each call, a step's call to the answer of a call
+/// that waits for the journal's next entry, held by the editor before the step comes, and prints
+/// the figures.
+fn measure_wait(session: &mut Session) {
+    let mut end = journal::end(session);
+    let mut times = Vec::with_capacity(TIMED);
+    for round in 0..WARM_UP + TIMED {
+        let waiting = session.send_tool("editor_journal", json!({ "cursor": end, "wait": 50 }));
+        // So that the editor holds the wait before the step comes.
+        std::thread::sleep(Duration::from_millis(300));
+        let step = json!({
+            "label": "Move the lamp",
+            "commands": [format!(
+                "[SetProperty]\nentity = \"yard/lamp 1\"\ncomponent = \"Transform\"\n\
+                 path = \"translation.x\"\nvalue = {}.0\n",
+                round % 2 + 5
+            )],
+        });
+        let started = Instant::now();
+        let stepping = session.send_tool("edit", step);
+        let (said, result) = session.tool_answer(waiting);
+        let time = started.elapsed();
+        assert_ne!(result["isError"], json!(true), "{said:?}");
+        assert!(
+            said.last()
+                .is_some_and(|page| page.contains("label = \"Move the lamp\"")),
+            "the step's entry: {said:?}"
+        );
+        assert_eq!(session.tool_answer(stepping).0, ["done"]);
+        end = journal::cursor(&said[0], "end")
+            .unwrap_or_else(|| panic!("the journal's new end: {said:?}"));
+        if round >= WARM_UP {
+            times.push(time);
+        }
+    }
+    let (median, slowest) = figures(&mut times);
+    println!(
+        "a step to the answer of editor_journal waiting: median {median:.3} ms, slowest \
+         {slowest:.3} ms, of {TIMED}"
+    );
 }
 
 /// Times `calls`, taken in turn, `timed_calls` times each after `warm_up` untimed, and

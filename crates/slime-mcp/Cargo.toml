@@ -14,7 +14,8 @@ workspace = true
 rmcp.workspace = true
 serde.workspace = true
 slime-channel.workspace = true
-tokio.workspace = true
+# `time`: the bound of a tool that waits for a program's change.
+tokio = { workspace = true, features = ["time"] }
 # uwui's MCP library, on which the server stands: the interface's tools, a page of a list, a
 # program's faults as tools' errors (ADR-0269).
 uwui-mcp.workspace = true

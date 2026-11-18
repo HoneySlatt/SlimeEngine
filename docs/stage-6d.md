@@ -3271,7 +3271,8 @@ The first part of M6d.9a2c, started on 2026-11-18, designed in [ADR-0308](adr/03
 - **Delivers.** `editing/journal`'s `wait`, answered once the journal grows past its cursor, and
   `end`, a cursor at the journal's end; `editing` 3, its kept copy; the wait held in `slime-app`'s
   channel as a request in flight, bounded and cancelled; `slime-mcp`'s journal tool waiting under
-  60 s, giving `after`.
+  60 s, giving `end`, the journal's `after`
+  ([ADR-0310](adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)).
 - **Done when.** A tool waits for the next step and sees each step once; a wait is answered stale
   when a level opens, and refused once a write of the journal failed; a program at rest with a
   wait in flight runs no frame for 10 s; a connection's reads pass while it waits; CI is green.
@@ -3298,6 +3299,9 @@ The first part of M6d.9a2c, started on 2026-11-18, designed in [ADR-0308](adr/03
 - **Delivers.** `interface/wait`, `interface` 4, its kept copy; `slime-app` holding it; `uwui-mcp`'s
   interface tool waiting under 60 s, giving `after`; the in-memory carrier of `uwui-mcp`'s tests
   holding a request in flight.
+- **Debt settled.** The bound of a tool that waits in `slime-mcp`, moved into `uwui-mcp` for both
+  tools; a wait cancelled that frees its place untested; the journal's wait measured under a
+  heavy load ([`debt.md`](debt.md)).
 - **Done when.** A tool waits for a dialog to close, seen once; a still frame's counters as before;
   a program at rest with a wait in flight runs no frame for 10 s; CI is green, closing M6d.9a2.
 - **Measured.** From a change to the waiting tool's answer, on the editor; a still frame's counters.

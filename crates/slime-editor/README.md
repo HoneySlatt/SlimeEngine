@@ -39,7 +39,9 @@ editor's other panels come with Stage 6c's next milestones.
   whose journal's `# written` entry a crash lost is recovered as written. A tool reads the
   journal by pages through the development channel (`slime_channel::Edit::Journal`), each read by
   seek on the editor's thread
-  (`docs/adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md`).
+  (`docs/adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md`),
+  and waits at its end for the entries written next, which `Simulation::wait` answers without
+  reading the file while none came.
 - `Editor::unwritten`: how many steps the level's file does not hold, which the window's title
   and status bar show.
 - `Editor::gesture`, `end_gesture` and `cancel_gesture`: the *open step* of a person's gesture,

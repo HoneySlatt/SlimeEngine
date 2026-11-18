@@ -4859,3 +4859,30 @@ game took 10 min 32 s, against 10 min 43 s to 13 min 52 s for the whole job on t
 cache holds its build, which builds every crate each run, and the milestone adds only a few lines
 to what a program compiles, the rest being tests: the gap is taken for the runner's; the next runs
 tell.
+
+## M6d.9a2c2, the journal that waits
+
+From a step to the answer of a tool that waits for the journal's next entry, as `slime-mcp`'s
+measure `answer` takes it (`cargo test --release -p slime-mcp --test answer -- <cooked examples>`):
+the `editor` example's window on a copy of the yard in a headless Weston, drawn with lavapipe;
+`editor_journal` waits from the journal's end, the editor holds the request for 300 ms, then
+`edit` makes a step, timed from the line that the agent writes for the step to the line that it
+reads for the wait. The median and the slowest of 21, after three to warm up. On 2026-11-18, on
+an AMD Ryzen 7 5800X, in release builds, **disturbed**: another project's builds and tests held
+the machine's load between 13 and 20 throughout (between 17 and 21 at the start of each pass).
+Three passes of each, alternated: the waits answered at the frame's end, after it is drawn, as
+first built, and once the simulation ran, before it is drawn, as kept
+([ADR-0310](adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)).
+
+| Pass | At the frame's end: median, slowest | Once the simulation ran: median, slowest | `game_state`'s median, in each run |
+|---|---|---|---|
+| 1 | 305.2 ms, 1077.0 ms | 0.66 ms, 0.83 ms | 16.8 ms, 20.9 ms |
+| 2 | 186.3 ms, 564.5 ms | 0.63 ms, 5.58 ms | 18.5 ms, 16.8 ms |
+| 3 | 78.4 ms, 169.1 ms | 0.61 ms, 0.86 ms | 16.8 ms, 19.0 ms |
+
+Answered at the frame's end, a wait waited for the frame's drawing, which lavapipe does on the
+processor, its time growing with the load. Answered once the simulation ran, the step, which wakes
+the editor at rest, and the wait's answer leave within the frame's start: under a millisecond,
+under the floor of a call that `game_state` takes, which comes while the editor draws the frame
+that the measure's last call asked for. A fourth run, which checks that the page answered holds the
+step, gave 0.69 ms. To measure again at rest ([`debt.md`](debt.md)).

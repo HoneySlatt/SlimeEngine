@@ -129,7 +129,10 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   default refusal (`docs/adr/0135-the-editors-program.md`), and `edits_wait` says when those that
   change the level or the selection wait, with the values that tools set and the commands that
   they apply, as while a person drags a handle in the editor, the channel keeping them meanwhile
-  (`docs/adr/0161-the-open-step-and-the-handles.md`); `scenes`, with the `development` feature,
+  (`docs/adr/0161-the-open-step-and-the-handles.md`); `wait`, with the `development` feature,
+  answers an editor's request that waits for a change, a page of its journal from its end, which
+  the channel asks again in each frame that runs, once its phases ran, without running one for it;
+  `scenes`, with the `development` feature,
   gives the game's library of scenes, through which the commands that an editor sends the game
   that it plays place prefabs (`docs/adr/0165-editing-while-playing.md`).
 - `Presentation`: what the player sees, which reads the world and never writes it: every method
@@ -343,7 +346,9 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   `set_view_settings`, `reports`, `pick` and `ui`,
   the last lines of its log (`slime_channel::MAX_LOG_LINES`), which only such a run keeps, and its
   run saved to a file and loaded from one, by the simulation's `save` and `load`, and an editor's
-  requests, by the simulation's `edit`. At the end of each frame, it tells the tools subscribed to
+  requests, by the simulation's `edit`; a page of an editor's journal that waits, by its `wait`,
+  held without running frames and answered in the frame that brings what it waits
+  for. At the end of each frame, it tells the tools subscribed to
   `play/time` how game time stands, when it changed in the frame or a subscription started, whose
   first value it is
   (`docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md`).

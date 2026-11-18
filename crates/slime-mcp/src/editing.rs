@@ -1,5 +1,8 @@
 //! The family `editing` as tools: an agent edits an editor's level, by steps of commands, by its
-//! history and its selection, by its operations, and reads its journal by pages.
+//! history and its selection, by its operations, and reads its journal by pages, waiting at its
+//! end for the steps that the editor makes next.
+
+use std::time::Duration;
 
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock};
@@ -7,7 +10,7 @@ use rmcp::service::RequestContext;
 use rmcp::{ErrorData as McpError, RoleServer, schemars, tool, tool_router};
 use serde::Deserialize;
 use slime_channel::{EDITING, Edit, Fault, Reply, json_size};
-use uwui_mcp::{Family, List, Page, gather, next_line, page_bytes};
+use uwui_mcp::{Answer, Family, List, Page, failure, fault, gather, next_line, page_bytes};
 
 use crate::Server;
 
@@ -15,14 +18,19 @@ use crate::Server;
 const INSTRUCTIONS: &str = "An editor's tools reach the editor, whatever the game's tools drive: \
      `edit` makes a step of commands, `undo` and `redo` undo and make it again, `select` selects \
      entities, `editor_history` says its steps and selection, `editor_journal` gives its journal \
-     by pages, `write_level` writes the level back to its file, `list_operations` lists every \
-     action of its menus, shortcuts and palette, and `run_operation` runs one by its name, as a \
-     person does.";
+     by pages and waits at its end for the next steps, `write_level` writes the level back to its \
+     file, `list_operations` lists every action of its menus, shortcuts and palette, and \
+     `run_operation` runs one by its name, as a person does.";
 
 /// The family `editing`, for the server.
 pub(crate) fn family() -> Family<Server> {
     Family::new(EDITING, INSTRUCTIONS, Server::editing_tools())
 }
+
+/// The most seconds that `editor_journal` waits for the editor's next steps: under the 60 s after
+/// which Codex stops a call
+/// (`docs/adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md`).
+const MOST_WAIT: u64 = 50;
 
 /// What `edit` takes.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -64,12 +72,15 @@ pub(crate) struct RunOperation {
 /// What `editor_journal` takes.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub(crate) struct EditorJournal {
-    /// Where the page starts: the `next` that the page before gave; left out for the journal's
-    /// start.
+    /// Where the page starts: the `next` or the `end` that a call before gave; left out for the
+    /// journal's start.
     cursor: Option<String>,
     /// The most bytes of the page, as JSON writes its text; left out for as many as the server
     /// gives, some 32 KiB.
     bytes: Option<u64>,
+    /// How many seconds to wait, from a cursor at the journal's end, for the entries that the
+    /// editor writes next, at most 50; left out, or 0, to be answered at once.
+    wait: Option<u64>,
 }
 
 #[tool_router(router = editing_tools, vis = "pub(crate)")]
@@ -131,24 +142,45 @@ impl Server {
     #[tool(
         description = "An editor's journal, as text, a page at a time: the level as the journal \
                        started, on one line that may take many pages, then each step made, undone \
-                       and done again, each selection and each writing. A page that more follow \
-                       starts with `next`, which `cursor` takes for the rest; one whose bytes were \
-                       not text says so."
+                       and done again, each selection, written with the step after it, and each \
+                       writing. A page that more follow starts with `next`, which `cursor` takes \
+                       for the rest; the last starts with `end`, which `cursor` takes, with \
+                       `wait` in seconds, to wait for the entries written next, each seen once; \
+                       one whose bytes were not text says so."
     )]
     async fn editor_journal(
         &self,
-        Parameters(EditorJournal { cursor, bytes }): Parameters<EditorJournal>,
+        Parameters(EditorJournal {
+            cursor,
+            bytes,
+            wait,
+        }): Parameters<EditorJournal>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let bytes = page_bytes(bytes);
-        let first = Journal(Edit::Journal {
-            cursor,
-            bytes: Some(bytes),
-        });
-        Ok(match gather(self, &context, first, bytes).await {
-            Ok(page) => described(page),
-            Err(failed) => failed,
-        })
+        let seconds = wait.unwrap_or(0).min(MOST_WAIT);
+        // The journal's start is never empty: it is answered at once.
+        let page = match cursor {
+            Some(cursor) if seconds > 0 => {
+                match self
+                    .waited(&cursor, bytes, Duration::from_secs(seconds), &context)
+                    .await
+                {
+                    Ok(Some(page)) => self.rest(page, bytes, &context).await,
+                    Ok(None) => return Ok(no_entry(&cursor, seconds)),
+                    Err(failed) => Err(failed),
+                }
+            }
+            cursor => {
+                let first = Journal(Edit::Journal {
+                    cursor,
+                    bytes: Some(bytes),
+                    wait: false,
+                });
+                gather(self, &context, first, bytes).await
+            }
+        };
+        Ok(page.map_or_else(|failed| failed, described))
     }
 
     #[tool(
@@ -189,6 +221,73 @@ impl Server {
     }
 }
 
+impl Server {
+    /// The page of the journal from `cursor`, of at most `bytes`, asked to wait for the entries
+    /// written after it, at most `bound`: none once `bound` passed, the request cancelled then and
+    /// its answer dropped, so that the agent reads those entries from the same cursor.
+    async fn waited(
+        &self,
+        cursor: &str,
+        bytes: u64,
+        bound: Duration,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<Option<JournalPage>, CallToolResult> {
+        // A cancel of its own, which the agent's cancels too: the library cancels the request,
+        // where a future dropped would leave it held.
+        let mut bounded = context.clone();
+        bounded.ct = context.ct.child_token();
+        let timer = tokio::spawn({
+            let ct = bounded.ct.clone();
+            async move {
+                tokio::time::sleep(bound).await;
+                ct.cancel();
+            }
+        });
+        let request = Edit::Journal {
+            cursor: Some(cursor.to_owned()),
+            bytes: Some(bytes),
+            wait: true,
+        };
+        let answer = uwui_mcp::request::<Self, Reply>(self, &request, &bounded).await;
+        timer.abort();
+        match answer {
+            Err(_) if bounded.ct.is_cancelled() && !context.ct.is_cancelled() => Ok(None),
+            Err(why) => Err(failure(why)),
+            Ok(Answer {
+                outcome: Err(refused),
+                ..
+            }) => Err(fault(refused)),
+            Ok(Answer {
+                outcome: Ok(reply), ..
+            }) => Journal::page(reply).map(Some).map_err(fault),
+        }
+    }
+
+    /// `page`, the one that a wait gave, with the pages after it gathered within `bytes` as
+    /// [`gather`] gathers a list's, while it holds less than half of them, by the call's own
+    /// clock and cancel.
+    async fn rest(
+        &self,
+        mut page: JournalPage,
+        bytes: u64,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<JournalPage, CallToolResult> {
+        let (_, held) = page.size();
+        let whole = Journal(Edit::Journal {
+            cursor: None,
+            bytes: Some(bytes),
+            wait: false,
+        });
+        if let Some(next) = page.next.clone()
+            && held < bytes / 2
+            && let Some(rest) = whole.resumed(next, 0, bytes - held)
+        {
+            page.extend(gather(self, context, rest, bytes - held).await?);
+        }
+        Ok(page)
+    }
+}
+
 /// A request of a page of an editor's journal, `editing/journal`, which `editor_journal` reads
 /// page after page.
 #[derive(Clone, Debug, PartialEq)]
@@ -199,6 +298,8 @@ struct Journal(Edit);
 struct JournalPage {
     text: String,
     next: Option<String>,
+    /// A cursor at the journal's end, when the page reaches it.
+    end: Option<String>,
     /// Whether bytes of a page that were not UTF-8 were replaced.
     lossy: bool,
 }
@@ -211,6 +312,7 @@ impl Page for JournalPage {
     fn extend(&mut self, more: Self) {
         self.text.push_str(&more.text);
         self.next = more.next;
+        self.end = more.end;
         self.lossy |= more.lossy;
     }
 
@@ -236,12 +338,23 @@ impl List for Journal {
         Some(Self(Edit::Journal {
             cursor: Some(cursor),
             bytes: Some(bytes),
+            wait: false,
         }))
     }
 
     fn page(reply: Reply) -> Result<JournalPage, Fault> {
         match reply {
-            Reply::Journal { text, next, lossy } => Ok(JournalPage { text, next, lossy }),
+            Reply::Journal {
+                text,
+                next,
+                end,
+                lossy,
+            } => Ok(JournalPage {
+                text,
+                next,
+                end,
+                lossy,
+            }),
             other => Err(Fault::new(
                 Fault::INVALID,
                 format!("the editor answered a page of its journal with {other:?}"),
@@ -250,10 +363,20 @@ impl List for Journal {
     }
 }
 
-/// The result that gives `page`'s text, apart from where it goes on and how it was read, which
-/// come first.
+/// The result that gives `page`'s text, apart from where it goes on, `next`, or where the entries
+/// written later start, `end`, and how it was read, which come first.
 fn described(page: JournalPage) -> CallToolResult {
-    let mut said: Vec<String> = page.next.as_deref().map(next_line).into_iter().collect();
+    let mut said: Vec<String> = match (&page.next, &page.end) {
+        (Some(next), _) => vec![next_line(next)],
+        (None, Some(end)) => vec![format!(
+            "end: {end} (give it as `cursor`, with `wait` in seconds, for the entries written \
+             after these)"
+        )],
+        (None, None) => Vec::new(),
+    };
+    if page.text.is_empty() {
+        said.push("no entry after this cursor yet".to_owned());
+    }
     if page.lossy {
         said.push(
             "bytes of this page that are not UTF-8 were each replaced, by run, with U+FFFD"
@@ -265,49 +388,88 @@ fn described(page: JournalPage) -> CallToolResult {
     CallToolResult::success(blocks)
 }
 
+/// The result of a wait from `cursor` that no entry answered within `seconds`.
+fn no_entry(cursor: &str, seconds: u64) -> CallToolResult {
+    uwui_mcp::text(format!(
+        "cursor: {cursor} (no entry came within {seconds} s: give it again as `cursor`, with \
+         `wait`, to wait on)"
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn page(text: &str, next: Option<&str>, lossy: bool) -> JournalPage {
+    fn page(text: &str, next: Option<&str>, end: Option<&str>, lossy: bool) -> JournalPage {
         JournalPage {
             text: text.to_owned(),
             next: next.map(str::to_owned),
+            end: end.map(str::to_owned),
             lossy,
         }
     }
 
+    /// The texts of `result`.
+    fn said(result: &CallToolResult) -> Vec<String> {
+        result
+            .content
+            .iter()
+            .filter_map(|block| block.as_text().map(|text| text.text.clone()))
+            .collect()
+    }
+
     /// The journal's pages gathered into one text, lossy when one was, with the last `next`; the
-    /// rest asked from it within the bytes left; the agent shown `next` first, apart from the
-    /// journal's text.
+    /// rest asked from it within the bytes left, without waiting; the agent shown `next` first,
+    /// apart from the journal's text.
     #[test]
     fn the_journal_s_pages_are_gathered_its_next_shown_first() {
-        let mut gathered = page("# level\n", Some("1"), false);
-        gathered.extend(page("\u{fffd}", Some("2"), true));
-        gathered.extend(page("# do\n", Some("3"), false));
-        assert_eq!(gathered, page("# level\n\u{fffd}# do\n", Some("3"), true));
+        let mut gathered = page("# level\n", Some("1"), None, false);
+        gathered.extend(page("\u{fffd}", Some("2"), None, true));
+        gathered.extend(page("# do\n", Some("3"), None, false));
+        assert_eq!(
+            gathered,
+            page("# level\n\u{fffd}# do\n", Some("3"), None, true)
+        );
         assert_eq!(gathered.size(), (0, 20));
         let first = Journal(Edit::Journal {
             cursor: None,
             bytes: Some(4096),
+            wait: true,
         });
         assert_eq!(
             first.resumed("3".to_owned(), 0, 4000),
             Some(Journal(Edit::Journal {
                 cursor: Some("3".to_owned()),
                 bytes: Some(4000),
+                wait: false,
             }))
         );
         assert_eq!(Journal(Edit::Undo).resumed("3".to_owned(), 0, 4000), None);
-        let said: Vec<String> = described(gathered)
-            .content
-            .iter()
-            .filter_map(|block| block.as_text().map(|text| text.text.clone()))
-            .collect();
+        let said = said(&described(gathered));
         assert_eq!(said.len(), 3, "{said:?}");
         assert!(said[0].starts_with("next: 3 "), "{said:?}");
         assert!(said[1].contains("not UTF-8"), "{said:?}");
         assert_eq!(said[2], "# level\n\u{fffd}# do\n");
+    }
+
+    /// The last page's `end` is the gathered page's, shown first, with a word when no entry
+    /// follows the cursor yet; a wait that no entry answered gives its cursor back.
+    #[test]
+    fn the_journal_s_end_is_the_last_page_s_and_shown_first() {
+        let mut gathered = page("# level\n", Some("1"), None, false);
+        gathered.extend(page("# do\n", None, Some("9"), false));
+        assert_eq!(gathered, page("# level\n# do\n", None, Some("9"), false));
+        let shown = said(&described(gathered));
+        assert_eq!(shown.len(), 2, "{shown:?}");
+        assert!(shown[0].starts_with("end: 9 "), "{shown:?}");
+        let shown = said(&described(page("", None, Some("9"), false)));
+        assert_eq!(shown.len(), 3, "{shown:?}");
+        assert_eq!(shown[1], "no entry after this cursor yet");
+        let shown = said(&no_entry("9", 2));
+        assert!(
+            shown[0].starts_with("cursor: 9 (no entry came within 2 s"),
+            "{shown:?}"
+        );
     }
 
     /// A reply that is no page of the journal is a fault.

@@ -17,8 +17,8 @@ use std::time::Duration;
 
 use slime_app::{AppConfig, AppError, Simulation, SimulationContext, run};
 use slime_channel::{
-    ANNOUNCEMENT, ChannelError, Client, Event, GameTime, Named, Notice, Pending, Reply, Request,
-    TOKEN_ENV_VAR, Token, launch,
+    ANNOUNCEMENT, ChannelError, Client, Event, GameTime, MAX_WAITS, Named, Notice, Pending, Reply,
+    Request, TOKEN_ENV_VAR, Token, launch,
 };
 use slime_color::LinearColor;
 use slime_platform::KeyCode;
@@ -391,6 +391,7 @@ impl Simulation for Holder {
             return Ok(Reply::Journal {
                 text: self.journal.clone(),
                 next: None,
+                end: None,
                 lossy: false,
             });
         }
@@ -475,6 +476,7 @@ fn a_tool_s_edits_wait_while_the_simulation_says_so() {
         edit: slime_channel::Edit::Journal {
             cursor: None,
             bytes: None,
+            wait: false,
         },
     };
     let page = |reader: &Client| {
@@ -488,6 +490,7 @@ fn a_tool_s_edits_wait_while_the_simulation_says_so() {
     let written = |text: &str| Reply::Journal {
         text: text.to_owned(),
         next: None,
+        end: None,
         lossy: false,
     };
     assert_eq!(page(&reader), written("1"));
@@ -852,6 +855,189 @@ fn a_run_on_demand_tells_its_subscribers_how_game_time_stands() {
         "nothing told while nothing changed"
     );
     assert_eq!(ask(&client, Request::Stop), Reply::Done);
+    let status = launched.child.wait().expect("the run ends");
+    assert!(status.success(), "{status}");
+}
+
+/// An editor's journal of the tests' own: each step adds its label, at once, or in the next update
+/// for a label that starts with `in the update: `, as an editor adds a person's step; a page that
+/// waits, from a cursor that is a place in it as text, gives what follows and a cursor at its end,
+/// or none while it waits there. It counts the times that a page that waits is asked, which `save`
+/// writes.
+#[derive(Default)]
+struct Follower {
+    journal: String,
+    /// What the next update adds.
+    later: String,
+    asked: std::cell::Cell<u64>,
+}
+
+impl Simulation for Follower {
+    fn update(&mut self, _ctx: &mut SimulationContext<'_>, _world: &mut World) {
+        let later = std::mem::take(&mut self.later);
+        self.journal.push_str(&later);
+    }
+
+    fn edit(
+        &mut self,
+        _world: &mut World,
+        edit: &slime_channel::Edit,
+        _page: slime_channel::page::Page,
+        _time_up: &mut dyn FnMut() -> bool,
+    ) -> Result<Reply, AppError> {
+        let slime_channel::Edit::Step { label, .. } = edit else {
+            return Err("steps alone".into());
+        };
+        match label.strip_prefix("in the update: ") {
+            Some(later) => self.later.push_str(later),
+            None => self.journal.push_str(label),
+        }
+        Ok(Reply::Done)
+    }
+
+    fn wait(
+        &self,
+        edit: &slime_channel::Edit,
+        _page: slime_channel::page::Page,
+        _time_up: &mut dyn FnMut() -> bool,
+    ) -> Result<Option<Reply>, AppError> {
+        self.asked.set(self.asked.get() + 1);
+        let slime_channel::Edit::Journal {
+            cursor: Some(cursor),
+            wait: true,
+            ..
+        } = edit
+        else {
+            return Err("a page that waits, from a cursor".into());
+        };
+        let at: usize = cursor.parse()?;
+        Ok((at < self.journal.len()).then(|| Reply::Journal {
+            text: self.journal[at..].to_owned(),
+            next: None,
+            end: Some(self.journal.len().to_string()),
+            lossy: false,
+        }))
+    }
+
+    fn save(&mut self, _world: &World, file: &Path) -> Result<(), AppError> {
+        std::fs::write(file, self.asked.get().to_string())?;
+        Ok(())
+    }
+}
+
+/// A page of the journal that waits, in a run on demand: held as a request in flight, at most
+/// half a connection's places, past which one more of that connection is answered `BUSY`, while
+/// its reads pass and another's wait is held; at rest, the run runs no frame for it; the waits that
+/// ask the same page are asked once a frame; one cancelled is answered so, and one of a connection
+/// that closes is asked no more; a step made in the simulation's update, as a person's in an
+/// editor, answers every wait in the frame that made it, though the run rests after it
+/// (`docs/adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md`).
+#[test]
+fn a_page_that_waits_holds_its_place_at_rest_until_the_step_after_it() {
+    if std::env::var_os(CHILD_ENV).is_some() {
+        let config = AppConfig {
+            on_demand: true,
+            ..AppConfig::default()
+        };
+        run(&mut Follower::default(), &mut (), &config).expect("the run starts");
+        return;
+    }
+    let mut launched = launch(
+        &mut command("a_page_that_waits_holds_its_place_at_rest_until_the_step_after_it"),
+        Duration::from_secs(60),
+    )
+    .expect("the run listens");
+    let connect = || {
+        Client::connect(launched.address, &launched.token, &tester(), &tester()).expect("accepted")
+    };
+    const { assert!(MAX_WAITS < 16, "fewer waits than a connection's places") };
+    let (reader, waiter) = (connect(), connect());
+    let wait = |cursor: &str| Request::Edit {
+        edit: slime_channel::Edit::Journal {
+            cursor: Some(cursor.to_owned()),
+            bytes: None,
+            wait: true,
+        },
+    };
+    let mut held: Vec<Pending> = (0..MAX_WAITS)
+        .map(|_| waiter.send(&wait("0")).expect("sent"))
+        .collect();
+    // Its reads pass while its waits hold their places; answered, it was taken after them.
+    assert!(matches!(ask(&waiter, Request::State), Reply::State { .. }));
+    let busy = waiter
+        .send(&wait("0"))
+        .expect("sent")
+        .wait_for(Duration::from_secs(30))
+        .expect("answered at once")
+        .0;
+    assert!(
+        matches!(&busy, Reply::Failed { code, .. } if *code == slime_channel::Fault::BUSY),
+        "{busy:?}"
+    );
+    // The bound is each connection's: another's wait is held.
+    let other = reader.send(&wait("0")).expect("sent");
+    // At rest, the run runs no frame for its waits: two reads apart are a frame apart.
+    thread::sleep(Duration::from_millis(300));
+    let before = frame(&reader);
+    thread::sleep(Duration::from_secs(1));
+    assert_eq!(frame(&reader), before + 1, "no frame at rest");
+    // A wait cancelled is answered so, never asked again.
+    let cancelled = held.pop().expect("held");
+    cancelled.cancel();
+    assert!(matches!(
+        cancelled.wait_for(Duration::from_secs(30)),
+        Err(ChannelError::Cancelled)
+    ));
+    // A wait of a connection that closes, from a place of its own, is asked no more: each frame
+    // asks the waits of one page once, those of the other connection.
+    let closing = connect();
+    let _dropped = closing.send(&wait("00")).expect("sent");
+    assert!(matches!(ask(&closing, Request::State), Reply::State { .. }));
+    drop(closing);
+    thread::sleep(Duration::from_millis(300));
+    let counts = std::env::temp_dir().join(format!("slime-waits-{}.txt", std::process::id()));
+    let asked = || {
+        let saved = ask(
+            &reader,
+            Request::Save {
+                file: counts.display().to_string(),
+            },
+        );
+        assert_eq!(saved, Reply::Done);
+        std::fs::read_to_string(&counts)
+            .expect("the count")
+            .parse::<u64>()
+            .expect("a number")
+    };
+    let first = asked();
+    assert_eq!(asked(), first + 1, "one page asked a frame");
+    let _ = std::fs::remove_file(&counts);
+    // A step made in the update answers every wait in its frame, once the simulation ran: a
+    // frame's start would see it only at the next frame, which a run at rest never runs.
+    let step = Request::Edit {
+        edit: slime_channel::Edit::Step {
+            label: "in the update: a".to_owned(),
+            commands: Vec::new(),
+            selection: None,
+        },
+    };
+    assert_eq!(ask(&reader, step), Reply::Done);
+    held.push(other);
+    for pending in held {
+        assert_eq!(
+            pending
+                .wait_for(Duration::from_secs(30))
+                .expect("answered in the step's frame")
+                .0,
+            Reply::Journal {
+                text: "a".to_owned(),
+                next: None,
+                end: Some("1".to_owned()),
+                lossy: false,
+            }
+        );
+    }
+    assert_eq!(ask(&reader, Request::Stop), Reply::Done);
     let status = launched.child.wait().expect("the run ends");
     assert!(status.success(), "{status}");
 }
