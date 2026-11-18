@@ -161,8 +161,9 @@ in git.
   done on the same day; then
   [M6d.9a2c](#m6d9a2c--waiting), cut in four on 2026-11-18
   ([ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)):
-  [M6d.9a2c1](#m6d9a2c1--each-family-described), done on the same day; next,
-  [M6d.9a2c2](#m6d9a2c2--the-journal-that-waits),
+  [M6d.9a2c1](#m6d9a2c1--each-family-described) and
+  [M6d.9a2c2](#m6d9a2c2--the-journal-that-waits), done on the same day; next,
+  [M6d.9a2c3](#m6d9a2c3--waits-in-uwui), [M6d.9a2c4](#m6d9a2c4--the-interface-that-waits),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
@@ -3277,6 +3278,42 @@ The first part of M6d.9a2c, started on 2026-11-18, designed in [ADR-0308](adr/03
   when a level opens, and refused once a write of the journal failed; a program at rest with a
   wait in flight runs no frame for 10 s; a connection's reads pass while it waits; CI is green.
 - **Measured.** From a step to the tool's answer.
+- **Result.** Done on 2026-11-18, CI green on `40d9ae07` ([ADR-0310](adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)):
+  - `editing/journal`'s `wait`, and `end` on the page that reaches the journal's end; `editing` 3,
+    its kept copy; `end` described in `play` and `world` too, without a version raised.
+  - `Simulation::wait`, a read that answers a request that waits, apart from `edit`; the journal
+    finds a wait at its end from its number, its torn mark and the cursor's place, without reading
+    its file.
+  - `slime-app`'s channel holds the waits apart from what makes frames run, and asks them again in
+    each frame once the simulation ran, before the frame is drawn, those that ask the same page
+    once; at most 8 of a connection, its cancelled ones left out, then `BUSY`
+    (`slime_channel::MAX_WAITS`).
+  - `editor_journal` takes `wait`, in seconds, at most 50, its bound cancelling the request through
+    `uwui-mcp`'s cancel, and gives `end`, the journal's `after`, the owner's choice; a wait that no
+    entry answers gives its cursor back.
+  - Tested: in a run on demand, held waits run no frame, a connection's reads pass, a ninth wait of
+    it is `BUSY` while another's is held, a cancel is answered, a closed connection's wait is asked
+    no more, a step made in the simulation's update answers every wait in its frame; in the editor, a wait at the end reads
+    nothing, a step answers it once, a level opened answers it stale, a failed write refuses it;
+    through the MCP server, a wait of a second gives its cursor back, one answered by a step gives
+    that step and a new end, one of fewer bytes gathers the pages after it, a wait held while
+    another level opens is stale, and the editor at rest with a wait of 50 s in flight wakes none
+    of its threads in 10 s; on Windows too, a tool's bound and its agent's cancel each cancel the
+    request in the program. The tests' session keeps the answers read while another was awaited.
+  - A fresh agent attacked the design first: a contract that let a request asked again make a
+    step at each frame, a timeout that left the request held, tests that could not fail, a test
+    session that dropped answers, and `end` against ADR-0269, which the owner decided. The closing
+    review found the count per connection, the agent's cancel and the gathering after a wait
+    untested, no changelog, and documents behind; all fixed. Answering at the frame's end, as first
+    built, made a wait wait for the frame's drawing: moved before it. A second review found that
+    point untested, and documents behind it; fixed.
+  - Measured, disturbed ([`measurements.md`](measurements.md#m6d9a2c2-the-journal-that-waits)):
+    from a step to the waiting tool's answer, a median of 0.6 ms, against 78 to 305 ms at the
+    frame's end.
+  - Left for later ([`debt.md`](debt.md)): the bound of a tool that waits in `slime-mcp`, a wait
+    cancelled that frees its place in the same frame, untested, and the measure at rest, for
+    M6d.9a2c4; `slime-app`'s tests of the channel, which fail now and then under a heavy load,
+    before this milestone too.
 
 ### M6d.9a2c3 — Waits in uwui
 
