@@ -4615,3 +4615,27 @@ renderer and its first frame, on the processor: below the reads' 50 ms. The surf
 wait of one second, then a new swap chain and a frame. Before the review's fixes, with the other
 sessions' load at 19 to 33, the device took 51 to 801 ms and the surface 1,055 to 1,222 ms. The
 four `rest` tests took 31 s in Weston, within `scripts/check.sh windowed`'s 120 s.
+
+GitHub's hosted runners, on 2026-11-18, each run green, on `9ca50783`, which holds the milestone:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 28 s |
+| `check (headless)` | 13 min 1 s |
+| `check (windowed)` | 10 min 29 s |
+| `check (game)` | 9 min 12 s |
+| `check (gles)` | 5 min 10 s |
+| `windows (tests)` | 11 min 15 s |
+| `windows (render)` | 5 min 6 s |
+| `windows (game)` | 6 min 29 s |
+| `windows-release` | 15 min 18 s |
+| `compositors (weston)` | 16 min 36 s |
+| `compositors (sway)` | 12 min 53 s |
+| `compositors (kwin)` | 12 min 20 s |
+| `compositors (mutter)` | 17 min 24 s |
+| `compositors (x11)` | 12 min 11 s |
+| Docs' `links` | 19 s |
+
+Every job stays within its limit of 20 minutes; `compositors (mutter)`, the longest, has 2 min 36 s
+of margin. Each compositor's job runs the new test once, some 17 s; the series found the
+application drawn again after both losses in Weston, sway, KWin and Mutter.

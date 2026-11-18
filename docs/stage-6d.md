@@ -2513,7 +2513,7 @@ The second part of M6d.7a2b ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platfo
   frame asked again after a delay; who makes a program's images again after a lost device, said
   ([`debt.md`](debt.md)).
 - **Done when.** A device and a surface lost on purpose drawn again in the series; CI is green.
-- **Result.** Built on 2026-11-18; CI's run follows
+- **Result.** Done on 2026-11-18, CI green
   ([ADR-0305](adr/0305-uwuis-desktop-host-makes-its-device-and-surface-again-a-programs-images-made-again-from-their-source.md)):
   - The host's core gained `recovery`, the engine's budgets adapted under uwui's licence: a lost
     device replaced at once, between frames, through the same wgpu instance, every object of the
@@ -2544,7 +2544,8 @@ The second part of M6d.7a2b ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platfo
     four images not presented, and seven smaller defects; each fixed, the first under the test,
     which now fails without it.
   - In a headless Weston on lavapipe, a lost device drawn again within 51 ms of the command, a
-    surface within 1.014 s ([`measurements.md`](measurements.md#m6d7a2b2-a-lost-device-and-a-lost-surface-in-uwuis-desktop-host)).
+    surface within 1.014 s; every job of CI within its 20 minutes
+    ([`measurements.md`](measurements.md#m6d7a2b2-a-lost-device-and-a-lost-surface-in-uwuis-desktop-host)).
 
 ### M6d.7a2b3 — Crashes and panics
 
