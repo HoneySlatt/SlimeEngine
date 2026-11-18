@@ -8,7 +8,13 @@
 //! cursor was set, `cursor: by shape`. The series' input counts the output in logical pixels at a scale of 1: this test runs
 //! at that scale.
 //!
-//! A second test, run in a compositor at another scale, finds the window drawn at the scale that
+//! A second test loses the example's GPU device on purpose, then its surface, through its
+//! commands on its standard input, and finds after each a new swap chain's images presented, then
+//! the example at rest; it writes how long each took, `lose device: drawn again in 120 ms`, and
+//! `lost: drawn again`. Two devices more lost are replaced, and the fourth within five minutes
+//! ends the run with status 1, the application stopped.
+//!
+//! A third test, run in a compositor at another scale, finds the window drawn at the scale that
 //! the compositor prefers, and the start's token of activation passed to the compositor where it
 //! gives `xdg_activation_v1`, then ends it, and writes that scale, `scale: 1.5`, on its standard
 //! output.
@@ -33,7 +39,7 @@ use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
@@ -301,6 +307,14 @@ fn commits(log: &str) -> usize {
         .count()
 }
 
+/// How many images the driver made for the example's swap chains so far, by wl_shm or by dmabuf,
+/// in its protocol's log: a new swap chain makes its own.
+fn images_made(log: &str) -> usize {
+    log.lines()
+        .filter(|line| line.contains(".create_buffer(") || line.contains(".create_immed("))
+        .count()
+}
+
 /// Where the pointer last entered or moved in the window, in the window's logical pixels: the
 /// last two numbers of the last `wl_pointer`'s `enter` or `motion` in the log.
 fn pointer_in_window(log: &str) -> Option<[f64; 2]> {
@@ -346,19 +360,31 @@ struct Example {
     child: Child,
     lines: mpsc::Receiver<String>,
     log: PathBuf,
+    /// Its standard input, where it takes commands, with `--commands`.
+    commands: Option<ChildStdin>,
 }
 
 impl Example {
     /// Starts the example, its log in `log`, a file of the test's directory, and its start's
     /// token of activation `token`, and waits for its first line.
     fn start(log: &str, token: &str) -> Self {
+        Self::start_with(log, token, false)
+    }
+
+    /// Starts the example as [`start`](Self::start) does, taking commands on its input if
+    /// `commands`.
+    fn start_with(log: &str, token: &str, commands: bool) -> Self {
         assert!(
             std::env::var_os("WAYLAND_DISPLAY").is_some(),
             "the test runs in a Wayland compositor, which WAYLAND_DISPLAY names"
         );
         let log = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(log);
         let log_file = std::fs::File::create(&log).expect("the example's log");
-        let mut child = Command::new(example())
+        let mut command = Command::new(example());
+        if commands {
+            command.arg("--commands").stdin(Stdio::piped());
+        }
+        let mut child = command
             .env("WAYLAND_DEBUG", "client")
             .env("XDG_ACTIVATION_TOKEN", token)
             .stdout(Stdio::piped())
@@ -374,13 +400,31 @@ impl Example {
                 }
             }
         });
-        let example = Self { child, lines, log };
+        let commands = child.stdin.take();
+        let example = Self {
+            child,
+            lines,
+            log,
+            commands,
+        };
         let started = example
             .lines
             .recv_timeout(SETTLE)
             .expect("the example writes its first line");
         assert_eq!(started, "started", "the example did not start");
         example
+    }
+
+    /// Gives it `command` on its input, then waits for the line that it writes as it takes it.
+    fn command(&mut self, command: &str, taken: &str) {
+        let input = self.commands.as_mut().expect("started with its commands");
+        writeln!(input, "{command}").expect("the command is written");
+        input.flush().expect("the command is sent");
+        let line = self
+            .lines
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap_or_else(|_| panic!("the example did not take {command:?}"));
+        assert_eq!(line, taken, "the example did not take {command:?}");
     }
 
     fn pid(&self) -> u32 {
@@ -415,6 +459,21 @@ impl Example {
         eprint!("{}", self.read_log());
         assert!(status.success(), "the example ended with {status}");
         rest
+    }
+}
+
+impl Example {
+    /// Waits for it to end by itself, for at most 10 s: its status and its last lines.
+    fn end_by_itself(&mut self) -> (std::process::ExitStatus, Vec<String>) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let status = loop {
+            if let Some(status) = self.child.try_wait().expect("the example's status") {
+                break status;
+            }
+            assert!(Instant::now() < deadline, "the example did not end");
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        (status, self.lines.iter().collect())
     }
 }
 
@@ -509,6 +568,71 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
         example.end_on_sigterm(),
         ["closing asked", "stopped"],
         "the example was not asked to close, then stopped"
+    );
+}
+
+/// Gives `example` `command`, which it answers with `taken`, then waits until a new swap chain's
+/// image is presented, for at most 10 s: how long that took from the command, to 50 ms.
+fn drawn_again(example: &mut Example, command: &str, taken: &str) -> Duration {
+    let log = example.read_log();
+    let (presented, made) = (commits(&log), images_made(&log));
+    let asked = Instant::now();
+    example.command(command, taken);
+    let deadline = asked + Duration::from_secs(10);
+    loop {
+        let log = example.read_log();
+        if commits(&log) > presented && images_made(&log) > made {
+            return asked.elapsed();
+        }
+        assert!(
+            Instant::now() < deadline,
+            "after {command:?}, no new swap chain's image was presented: {}",
+            example.log.display()
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[test]
+fn the_application_draws_again_after_its_device_and_its_surface_are_lost() {
+    let mut example = Example::start_with("lost-application.log", "", true);
+    if let Err(error) = settled(&example) {
+        panic!("the example never settled: {error}");
+    }
+    for (command, taken) in [
+        ("lose device", "losing the device"),
+        ("lose surface", "losing the surface"),
+    ] {
+        let took = drawn_again(&mut example, command, taken);
+        // The surface given up is made again a second later.
+        println!("{command}: drawn again in {} ms", took.as_millis());
+        if let Err(error) = settled(&example) {
+            panic!("the example never settled after {command:?}: {error}");
+        }
+    }
+    // Once, after both: a recovery that keeps waking would wake it still.
+    if let Err(error) = at_rest(&example) {
+        panic!("the example is not at rest after its losses: {error}");
+    }
+    println!("lost: drawn again");
+    // Two devices more are replaced; the fourth lost within five minutes ends the run, the
+    // application stopped all the same.
+    for _ in 0..2 {
+        drawn_again(&mut example, "lose device", "losing the device");
+    }
+    example.command("lose device", "losing the device");
+    let (status, rest) = example.end_by_itself();
+    assert_eq!(
+        status.code(),
+        Some(1),
+        "the fourth device lost did not end the run with EXIT_HOST_FAILED"
+    );
+    assert_eq!(rest, ["stopped"], "the application was not stopped");
+    let log = example.read_log();
+    assert!(
+        log.contains("the GPU's device was lost again after 3 new ones within 5 minutes"),
+        "the host did not tell why it ended: {}",
+        example.log.display()
     );
 }
 

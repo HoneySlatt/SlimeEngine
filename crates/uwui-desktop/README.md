@@ -30,18 +30,27 @@ MIT OR Apache-2.0.
     once the signal is late ([ADR-0187](../../docs/adr/0187-a-hidden-window-at-rest.md)); the time given to the
     interface on the grid of the signals (`FrameSource::OnGrid`), its period measured from their
     gaps.
+  - `recovery`: the budgets within which it makes a lost device and a lost surface again, the
+    engine's, adapted
+    ([ADR-0264](../../docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md),
+    [ADR-0305](../../docs/adr/0305-uwuis-desktop-host-makes-its-device-and-surface-again-a-programs-images-made-again-from-their-source.md)):
+    a device replaced at once, a surface given up made again a second later or at once when the
+    window changes, the fourth of either within five minutes ending the run.
   - `session`: the application's run, its interface and its window, in the order of its calls.
 - `host`, at each turn of the layer: a closing asked or a termination signal given to the
   application; the window's size and scale given to the device; the person's input given to the
   interface, the pointer's moves gathered, each event's time the layer's; the application's step
-  and its requests made of the window; a frame drawn when the pacing says so, the platform's
-  signal asked just before its present.
+  and its requests made of the window; a lost device replaced and a surface given up made again,
+  the window holding its frames meanwhile; a frame drawn when the pacing says so, the platform's
+  signal asked just before its present, and an image drawn in part not presented, the frame
+  drawn again after a wait that doubles.
 - Opens its own device (`gpu`) on the window's raw handles, with wgpu's hint
   `MemoryHints::MemoryUsage`, the adapter that uses the least power, no optional feature, Mailbox
   where the surface offers it and Fifo elsewhere, and draws each frame's display list with
-  `uwui-render` into the window's image.
+  `uwui-render` into the window's image. A lost device is replaced through the same wgpu
+  instance, every object of the old one gone first.
 
-What waits for its milestone: a lost device or surface made again (M6d.7a2b2); the crash report,
+What waits for its milestone: the crash report,
 the session's marker and the rule of panics (M6d.7a2b3); the presentations' times and frames drawn
 just in time (M6d.7a2c); X11 (M6d.7b), Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
 it has no layer and ends; a bar drawn by uwui where the compositor draws none, Weston and Mutter
@@ -52,8 +61,10 @@ it has no layer and ends; a bar drawn by uwui where the compositor draws none, W
 
 - `run(look, window, app)`, its exit statuses `EXIT_HOST_FAILED` and `EXIT_START_FAILED`.
 - `App`, `Close`; `Look`; `WindowSettings`, how the window opens; `Window`, its state and the
-  application's requests, `bring_to_front` and `request_attention` among them.
-- `examples/application.rs`: buttons, a field, a list and a dialog, at rest between inputs.
+  application's requests, `bring_to_front` and `request_attention` among them, and the doors of
+  the tests `lose_device` and `lose_surface`.
+- `examples/application.rs`: buttons, a field, a list and a dialog, at rest between inputs; with
+  `--commands`, the losses taken on its standard input.
 
 ## Tests
 
@@ -62,10 +73,13 @@ it has no layer and ends; a bar drawn by uwui where the compositor draws none, W
 an image presented and at rest after its start; where the series gives input, the pointer put on
 its button *Add*, whose hover draws frames, and at rest again; its field clicked, `s` and `a`
 typed, and the row that *Add* makes named `sa`, at rest again; then ended by SIGTERM through its
-closing. Weston takes no input: there the input's part does not run. The second: the window drawn
-at the scale that the compositor prefers, and the start's token of activation passed on.
-`scripts/check.sh windowed` runs both in a headless Weston, and `scripts/compositors.sh` in Weston,
-sway, KWin and Mutter, the second on an output at 1.5, at 2 in Weston
+closing. Weston takes no input: there the input's part does not run. The second: its device lost
+on purpose, then its surface, each followed by a new swap chain's image, then at rest; two devices
+more replaced, and the fourth ending the run with `EXIT_HOST_FAILED`, the application stopped. The
+third: the window drawn at the scale that the compositor prefers, and the start's token of
+activation passed on. `scripts/check.sh windowed` runs them in a headless Weston, and
+`scripts/compositors.sh` in Weston, sway, KWin and Mutter, the third on an output at 1.5, at 2 in
+Weston
 ([`compositors.md`](../../docs/compositors.md)). `scripts/check.sh lint` checks that its tree
 holds no engine crate but `slime-color` and `slime-input`, that no other crate of the workspace
 depends on it, that `uwui` pulls no windowing library nor wgpu, and that its platform layer

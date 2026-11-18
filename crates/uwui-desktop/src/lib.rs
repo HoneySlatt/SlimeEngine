@@ -41,7 +41,8 @@
 //! it back at each turn, and knows neither the interface nor the GPU
 //! (`docs/adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md`).
 //! Above it, its *core* knows no platform and is tested without a window, on every platform: the
-//! pacing of frames and the rest, the clock given to it (`pacing`), and the application's run
+//! pacing of frames and the rest, the clock given to it (`pacing`), the budgets within which it
+//! makes a lost device and a lost surface again (`recovery`), and the application's run
 //! (`session`); `host` drives them at each turn, and `gpu` draws each frame into the window's image.
 //! The layer gives Wayland's window alone yet: elsewhere [`run`] says that it has none and ends.
 //!
@@ -54,13 +55,14 @@ mod app;
 mod gpu;
 mod host;
 mod pacing;
+mod recovery;
 mod session;
 
 pub use app::{App, Close, Look, Window, WindowSettings};
 
 /// The process's exit status when the host cannot start, a compositor or a GPU missing, or stops
-/// on a failure of its own: the connection to the compositor broken, the device lost. What failed
-/// is told on the standard error.
+/// on a failure of its own: the connection to the compositor broken, the device or the surface lost
+/// more often than it makes them again. What failed is told on the standard error.
 pub const EXIT_HOST_FAILED: i32 = 1;
 
 /// The process's exit status when the application's look does not read or its

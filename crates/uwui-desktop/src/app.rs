@@ -98,6 +98,10 @@ pub(crate) struct Requests {
     /// The application asked the window to be brought to the front, or to ask for attention: the
     /// last request made.
     pub(crate) activation: Option<Activation>,
+    /// The application asked the GPU's device lost, on purpose.
+    pub(crate) lose_device: bool,
+    /// The application asked the window's surface given up, on purpose.
+    pub(crate) lose_surface: bool,
 }
 
 impl Window {
@@ -189,6 +193,26 @@ impl Window {
         self.requests.activation = Some(Activation::Attention);
     }
 
+    /// Loses the window's GPU device on purpose after this step, as a reset of the driver would:
+    /// for the tests and the tools that check how an application goes on after a lost device. The
+    /// host opens a new device and draws the window again, the application told nothing; the
+    /// fourth device lost within five minutes ends the run with
+    /// [`EXIT_HOST_FAILED`](crate::EXIT_HOST_FAILED)
+    /// (`docs/adr/0305-uwuis-desktop-host-makes-its-device-and-surface-again-a-programs-images-made-again-from-their-source.md`).
+    pub fn lose_device(&mut self) {
+        self.requests.lose_device = true;
+    }
+
+    /// Gives the window's surface up on purpose after this step, as a surface lost each time it
+    /// is made would be: for the tests and the tools that check how an application goes on after a
+    /// lost surface. The window holds its frames, and the host makes the surface again a second
+    /// later, or at once when the window is resized or its scale changes; the fourth surface given
+    /// up within five minutes ends the run with [`EXIT_HOST_FAILED`](crate::EXIT_HOST_FAILED)
+    /// (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+    pub fn lose_surface(&mut self) {
+        self.requests.lose_surface = true;
+    }
+
     /// Closes the window, as the application chose: the run ends after this step, through
     /// [`App::stop`], without asking [`App::close_requested`].
     pub fn close(&mut self) {
@@ -256,8 +280,8 @@ pub trait App {
     }
 
     /// The run ends: the window closed, the application allowed it or closed it, or the host
-    /// failed, its connection to the compositor broken or its device lost, the window then
-    /// perhaps gone. The last call, so that the application may keep its work; the interface is
+    /// failed, its connection to the compositor broken, or its device or its surface lost more
+    /// often than it makes them again, the window then perhaps gone. The last call, so that the application may keep its work; the interface is
     /// still whole. By default, nothing.
     fn stop(&mut self, ui: &mut Ui) {
         let _ = ui;

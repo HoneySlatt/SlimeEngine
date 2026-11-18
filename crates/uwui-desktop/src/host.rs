@@ -7,7 +7,8 @@
 //! its frames (`docs/adr/0187-a-hidden-window-at-rest.md`); a closing asked goes to the
 //! application; the platform's signal paces the frames; the window's size and scale reach the
 //! device; the person's input reaches the interface, the pointer's moves gathered; the application
-//! steps and makes its requests; a frame is drawn if the pacing says so, the signal asked just
+//! steps and makes its requests; a device lost is replaced and a surface given up made again,
+//! within their budget (`recovery`); a frame is drawn if the pacing says so, the signal asked just
 //! before its present.
 
 use std::error::Error;
@@ -19,8 +20,9 @@ use uwui::tree::Ui;
 use uwui_windowing::{Control, Drawn, Handler, Happened, Opening, Stopped, Window as Platform};
 
 use crate::app::{App, Look, Window, WindowSettings};
-use crate::gpu::Gpu;
+use crate::gpu::{Gpu, Loss};
 use crate::pacing::{Next, Pacing};
+use crate::recovery::{Budget, MAX_RECOVERIES, Remake, WINDOW};
 use crate::session::{Session, StartError};
 use crate::{EXIT_HOST_FAILED, EXIT_START_FAILED};
 
@@ -74,6 +76,8 @@ pub(crate) fn run<A: App>(look: Look, settings: WindowSettings, app: A) -> i32 {
             scale: 1.0,
         },
         held_moves: Vec::new(),
+        devices: Budget::default(),
+        remake: Remake::default(),
         failure: None,
     };
     let (host, ran) = uwui_windowing::run(opening, host);
@@ -143,6 +147,10 @@ struct Host<A> {
     drawn: Drawn,
     /// Each pointer's last move, given to the interface before the next event or frame.
     held_moves: Vec<(EventTime, uwui_windowing::Input)>,
+    /// The devices that replaced lost ones, within the budget's window.
+    devices: Budget,
+    /// When the surface given up is made again.
+    remake: Remake,
     failure: Option<Failure>,
 }
 
@@ -231,19 +239,21 @@ impl<A: App> Host<A> {
         if let Some(at) = signal {
             self.pacing.signalled(at);
         }
+        let now = platform.now();
         if let Some(configured) = configured {
             session
                 .window
                 .configured(configured.size, configured.fullscreen);
             // The commit that follows the acknowledgement carries the new size.
             self.pacing.host_changed();
+            self.remake.soon(now);
         }
         if let Some(drawn) = drawn {
             self.drawn = drawn;
             gpu.resize(drawn.pixels);
             self.pacing.host_changed();
+            self.remake.soon(now);
         }
-        let now = platform.now();
         for input in gather(inputs, &mut self.held_moves, self.pacing.awaiting()) {
             give(session, platform, now, input);
         }
@@ -251,10 +261,18 @@ impl<A: App> Host<A> {
         if session.ending() {
             return Ok(Control::Exit);
         }
-        if make_requests(&mut session.window, platform) {
+        if make_requests(&mut session.window, platform, gpu) {
             self.pacing.host_changed();
         }
         let now = platform.now();
+        self.recover(now)?;
+        if let Some(remade) = self.remake.next() {
+            // The window holds its frames until its surface is made again.
+            return Ok(Control::Wait(Some(remade)));
+        }
+        let Some(session) = &self.session else {
+            return Ok(Control::Exit);
+        };
         let ui = &session.ui;
         let mut next = self.pacing.next(
             now,
@@ -281,14 +299,90 @@ impl<A: App> Host<A> {
         }))
     }
 
+    /// Replaces a lost device and makes a surface given up again, at `now`, within their budget
+    /// (`crate::recovery`): the first frame after either runs even while the window holds its
+    /// frames, since the image that the lost device presented may never reach the compositor,
+    /// whose signal would then never come.
+    ///
+    /// # Errors
+    ///
+    /// When the losses pass their budget, or no device replaces the lost one.
+    fn recover(&mut self, now: Instant) -> Result<(), HostError> {
+        let Some(gpu) = &mut self.gpu else {
+            return Ok(());
+        };
+        if gpu.device_lost() {
+            if !self.devices.spend(now) {
+                return Err(HostError(format!(
+                    "the GPU's device was lost again after {MAX_RECOVERIES} new ones within {} \
+                     minutes",
+                    WINDOW.as_secs() / 60
+                )));
+            }
+            let Some(lost) = self.gpu.take() else {
+                return Ok(());
+            };
+            let gpu = lost
+                .restore()
+                .map_err(|cause| failed("no new GPU device replaces the lost one", cause))?;
+            tracing::warn!("the GPU's device was lost; a new one replaces it");
+            self.gpu = Some(gpu);
+            // The new device's surface is new too.
+            self.remake.made();
+            self.redraw_whole();
+            return Ok(());
+        }
+        if !gpu.surface_given_up() {
+            return Ok(());
+        }
+        if self.remake.next().is_none() {
+            if !self.remake.given_up(now) {
+                return Err(HostError(format!(
+                    "the window's surface was given up again after {MAX_RECOVERIES} within {} \
+                     minutes",
+                    WINDOW.as_secs() / 60
+                )));
+            }
+            tracing::warn!("the window holds its frames until its surface is made again");
+        }
+        if !self.remake.due(now) {
+            return Ok(());
+        }
+        match gpu.make_surface_again() {
+            Ok(()) => {
+                self.remake.made();
+                self.redraw_whole();
+            }
+            Err(cause) => {
+                tracing::warn!(%cause, "the window's surface cannot be made again yet");
+                if !self.remake.failed(now) {
+                    return Err(failed("the window's surface cannot be made again", cause));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// The window's next image is drawn whole, even while the window holds its frames, once the
+    /// signal of the image before is late if it has not come.
+    fn redraw_whole(&mut self) {
+        self.pacing.asked_from_outside();
+        self.pacing.host_changed();
+    }
+
     /// Draws a frame, started at `now`, and presents it with the platform's signal asked.
     fn frame(&mut self, platform: &mut Platform<'_>, now: Instant) -> Result<(), HostError> {
         let (Some(session), Some(gpu)) = (&mut self.session, &mut self.gpu) else {
             return Ok(());
         };
-        let image = gpu
-            .acquire()
-            .map_err(|cause| failed("the window's image", cause))?;
+        let image = match gpu.acquire() {
+            Ok(image) => image,
+            // Replaced or made again before the next frame, which the interface's changes wait for.
+            Err(Loss::Device | Loss::Surface) => {
+                self.pacing.host_changed();
+                return Ok(());
+            }
+        };
         let Some(image) = image else {
             // No image now: tried again a signal's wait later, rather than at once.
             self.pacing.missed(now);
@@ -307,8 +401,19 @@ impl<A: App> Host<A> {
         let (list, _) = ui.frame(TargetId::MAIN);
         serve_outputs(ui, platform, now);
         let (drawn, result) = gpu.draw(image, ui.fonts(), &list);
+        if gpu.device_lost() {
+            // Replaced before the next frame, which draws the interface whole.
+            drawn.discard();
+            self.pacing.host_changed();
+            return Ok(());
+        }
         if let Err(error) = result {
-            tracing::warn!(%error, "a frame is drawn in part");
+            // The window keeps its last image whole rather than show this one, and draws again
+            // later: the frame's changes are spent.
+            tracing::warn!(%error, "a frame drawn in part is not presented");
+            drawn.discard();
+            self.pacing.not_presented(now);
+            return Ok(());
         }
         // Asked before the present, whose commit carries it.
         platform.ask_signal();
@@ -319,9 +424,16 @@ impl<A: App> Host<A> {
 }
 
 /// Makes the requests of the window that the application made: whether an image must follow to
-/// apply one, as the platform says.
-fn make_requests(window: &mut Window, platform: &mut Platform<'_>) -> bool {
+/// apply one, as the platform says. The losses asked on purpose are made on `gpu`, between
+/// frames.
+fn make_requests(window: &mut Window, platform: &mut Platform<'_>, gpu: &mut Gpu) -> bool {
     let requests = window.take_requests();
+    if requests.lose_device {
+        gpu.lose_device();
+    }
+    if requests.lose_surface {
+        gpu.give_up_surface("the application gave it up on purpose");
+    }
     let mut image = false;
     if requests.title {
         platform.set_title(window.title());

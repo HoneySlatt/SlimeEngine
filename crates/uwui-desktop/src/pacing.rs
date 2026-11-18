@@ -31,6 +31,11 @@ use uwui::time::{FrameShown, FrameSource, Instant};
 /// window is answered at once.
 pub(crate) const SIGNAL_WAIT: Duration = Duration::from_millis(100);
 
+/// The longest wait before a frame drawn in part is drawn again: its wait doubles from
+/// [`SIGNAL_WAIT`] up to it, so that a window whose GPU's memory comes back draws within two
+/// seconds, and one whose memory never does wakes less than once a second.
+const LONGEST_REDRAW_WAIT: Duration = Duration::from_millis(1600);
+
 /// How many gaps between signals the period is measured on.
 const GAPS: usize = 15;
 
@@ -68,6 +73,9 @@ pub(crate) struct Pacing {
     signal: Option<Signal>,
     /// The latest gaps between signals that followed each other, oldest first.
     gaps: Vec<Duration>,
+    /// When a frame drawn in part, and not presented, is drawn again, and the wait that led there;
+    /// none since a frame was presented.
+    redraw: Option<(Instant, Duration)>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -98,6 +106,18 @@ impl Pacing {
     pub(crate) fn missed(&mut self, now: Instant) {
         self.awaiting = Some(now);
         self.checked = false;
+    }
+
+    /// The frame started at `now` was drawn in part and its image not presented, the GPU's memory
+    /// short: the frame is drawn again after a wait that doubles at each such frame, from
+    /// [`SIGNAL_WAIT`] to [`LONGEST_REDRAW_WAIT`], and none sooner, so that the window neither
+    /// shows a broken image nor rests on one, nor spins.
+    pub(crate) fn not_presented(&mut self, now: Instant) {
+        let wait = self
+            .redraw
+            .map_or(SIGNAL_WAIT, |(_, wait)| (wait * 2).min(LONGEST_REDRAW_WAIT));
+        self.redraw = Some((now + wait, wait));
+        self.pending = true;
     }
 
     /// Whether the last image presented waits for its signal.
@@ -135,10 +155,12 @@ impl Pacing {
             // What asked from outside was served by a step that changed nothing.
             self.outside = false;
         }
-        let next = match self.awaiting {
-            None if wanted => Next::Frame,
-            None => due.map_or(Next::Wait, Next::WaitUntil),
-            Some(asked) => {
+        let next = match (self.awaiting, self.redraw) {
+            // A frame drawn in part is drawn again after its wait, none sooner.
+            (_, Some((redraw, _))) if now < redraw => Next::WaitUntil(redraw),
+            (None, _) if wanted => Next::Frame,
+            (None, _) => due.map_or(Next::Wait, Next::WaitUntil),
+            (Some(asked), _) => {
                 let late = asked + SIGNAL_WAIT;
                 let may = self.outside || !self.checked;
                 match (wanted, may) {
@@ -175,6 +197,7 @@ impl Pacing {
         self.awaiting = Some(now);
         self.outside = false;
         self.pending = false;
+        self.redraw = None;
     }
 
     /// The display's period, measured from the signals' gaps: their median; none before one gap.
@@ -402,5 +425,41 @@ mod tests {
         assert_eq!(pacing.next(at(100), true, None), Next::Frame);
         pacing.missed(at(100));
         assert_eq!(pacing.next(at(200), true, None), Next::Frame);
+    }
+
+    #[test]
+    fn a_frame_drawn_in_part_is_drawn_again_after_a_wait_that_doubles() {
+        let mut pacing = Pacing::default();
+        assert_eq!(pacing.next(at(0), false, None), Next::Wait);
+        // The interface changed; its frame, drawn in part, is not presented.
+        assert_eq!(pacing.next(at(0), true, None), Next::Frame);
+        pacing.not_presented(at(0));
+        // Wanted again though the interface asks nothing more: its changes are spent.
+        assert_eq!(pacing.next(at(10), false, None), Next::WaitUntil(at(100)));
+        // An input meanwhile does not hasten it.
+        pacing.asked_from_outside();
+        assert_eq!(pacing.next(at(20), true, None), Next::WaitUntil(at(100)));
+        assert_eq!(pacing.next(at(100), false, None), Next::Frame);
+        let mut now = at(100);
+        for wait in [200, 400, 800, 1600, 1600] {
+            pacing.not_presented(now);
+            assert_eq!(
+                pacing.next(now, false, None),
+                Next::WaitUntil(now + wait * MS),
+                "after {now:?}"
+            );
+            now += wait * MS;
+            assert_eq!(pacing.next(now, false, None), Next::Frame);
+        }
+        // A frame presented forgets the waits: the next one drawn in part waits the first again.
+        pacing.drew(now);
+        pacing.signalled(now + 4 * MS);
+        now += 4 * MS;
+        assert_eq!(pacing.next(now, false, None), Next::Wait);
+        pacing.not_presented(now);
+        assert_eq!(
+            pacing.next(now, false, None),
+            Next::WaitUntil(now + SIGNAL_WAIT)
+        );
     }
 }

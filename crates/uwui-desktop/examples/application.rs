@@ -4,6 +4,7 @@
 //!
 //! ```sh
 //! cargo run -p uwui-desktop --example application
+//! cargo run -p uwui-desktop --example application -- --commands  # takes commands on its input
 //! ```
 //!
 //! *Add* puts the field's name, or a numbered one, at the end of the list, which its wheel
@@ -12,8 +13,15 @@
 //! close. It writes `started` once it starts, `added <the row's name>` at each row that *Add*
 //! makes, `closing asked` when asked to close and `stopped` as it ends, which
 //! `crates/uwui-desktop/tests/rest.rs` reads.
+//!
+//! With `--commands`, it reads lines on its standard input, the tests' door to the host's losses:
+//! `lose device` loses the window's GPU device on purpose, `lose surface` gives its surface up
+//! (`Window::lose_device`, `Window::lose_surface`); it writes `losing the device` or `losing the
+//! surface` as it asks.
 
 use std::error::Error;
+use std::io::BufRead;
+use std::sync::mpsc;
 
 use uwui::action::{ActionKind, FieldValue, Intent};
 use uwui::host::TargetId;
@@ -39,6 +47,18 @@ struct Application {
     list: Option<ElementId>,
     /// The dialog's root and its button, while it is open.
     dialog: Option<(ElementId, ElementId)>,
+    /// Whether it reads commands on its standard input, and their lines once it started.
+    commands: Commands,
+}
+
+/// The lines of its standard input, with `--commands`.
+#[derive(Default)]
+enum Commands {
+    #[default]
+    None,
+    /// Asked, read once the application starts.
+    Asked,
+    Reading(mpsc::Receiver<String>),
 }
 
 #[derive(Clone, Copy, Default)]
@@ -55,11 +75,40 @@ impl App for Application {
             s.direction(FlexDirection::Column)
         }));
         self.build(ui);
+        if matches!(self.commands, Commands::Asked) {
+            let (send, lines) = mpsc::channel();
+            let waker = ui.waker().clone();
+            // Blocked in its read while nothing comes, which leaves the program at rest.
+            std::thread::spawn(move || {
+                for line in std::io::stdin().lock().lines().map_while(Result::ok) {
+                    if send.send(line).is_err() {
+                        break;
+                    }
+                    waker.wake_by_ref();
+                }
+            });
+            self.commands = Commands::Reading(lines);
+        }
         println!("started");
         Ok(())
     }
 
-    fn step(&mut self, ui: &mut Ui, _: &mut Window) {
+    fn step(&mut self, ui: &mut Ui, window: &mut Window) {
+        if let Commands::Reading(lines) = &self.commands {
+            for line in lines.try_iter() {
+                match line.trim() {
+                    "lose device" => {
+                        println!("losing the device");
+                        window.lose_device();
+                    }
+                    "lose surface" => {
+                        println!("losing the surface");
+                        window.lose_surface();
+                    }
+                    other => eprintln!("unknown command: {other:?}"),
+                }
+            }
+        }
         let mut changed = false;
         for action in ui.take_actions() {
             let element = action.element;
@@ -255,5 +304,15 @@ fn main() {
     let window = WindowSettings::new("uwui application", "dev.uwui.Application")
         .size(720, 480)
         .min_size(480, 320);
-    uwui_desktop::run(look, window, Application::default());
+    let mut application = Application::default();
+    for argument in std::env::args().skip(1) {
+        match argument.as_str() {
+            "--commands" => application.commands = Commands::Asked,
+            _ => {
+                eprintln!("usage: application [--commands]");
+                std::process::exit(2);
+            }
+        }
+    }
+    uwui_desktop::run(look, window, application);
 }

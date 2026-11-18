@@ -263,7 +263,7 @@ run timeout -k 10 300 cargo test --locked -p slime-mcp --test drive | tee "$work
 grep '^minimized: ' "$work/drive.txt" | sed 's/^minimized: /Game minimized: /' | tee -a "$observations"
 observe "Agents' sessions and rest" "pass"
 
-step "uwui's desktop host: an application on uwui alone, at rest, woken by the pointer, typed into, ended by a signal"
+step "uwui's desktop host: an application on uwui alone, at rest, woken by the pointer, typed into, ended by a signal, its device and surface lost"
 # Its own Wayland layer (ADR-0270): X11's comes at M6d.7b.
 if [ "$name" != x11 ]; then
     # The test writes the example's protocol, logged with WAYLAND_DEBUG=client, on its standard
@@ -284,6 +284,13 @@ if [ "$name" != x11 ]; then
     else
         observe "uwui's host's bar" "none, no protocol"
     fi
+    # Its device lost on purpose, then its surface, each drawn again; the fourth device lost ends
+    # it (ADR-0264, ADR-0305).
+    run timeout -k 10 120 cargo test --locked -p uwui-desktop --test rest -- --nocapture --exact \
+        the_application_draws_again_after_its_device_and_its_surface_are_lost \
+        2>"$report/application-lost.log" | tee "$work/application-lost.txt" ||
+        { cat "$report/application-lost.log"; exit 1; }
+    observe "uwui's host's losses" "$(sed -n 's/^lost: //p' "$work/application-lost.txt")"
 fi
 
 step "Scale: the window example on an output at a fractional scale"

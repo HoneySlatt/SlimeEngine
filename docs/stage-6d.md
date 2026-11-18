@@ -193,8 +193,9 @@ in git.
   [M6d.7a2](#m6d7a2--wayland-whole-and-the-host-measured), cut in three on 2026-11-15 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): done,
   [M6d.7a2a](#m6d7a2a--waylands-input-and-window), on 2026-11-17; then
   [M6d.7a2b](#m6d7a2b--the-host-made-robust), cut in three on 2026-11-17 ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)): done,
-  [M6d.7a2b1](#m6d7a2b1--the-seam-and-the-pointers), on 2026-11-18; next,
-  [M6d.7a2b2](#m6d7a2b2--a-lost-device-and-a-lost-surface).
+  [M6d.7a2b1](#m6d7a2b1--the-seam-and-the-pointers) and
+  [M6d.7a2b2](#m6d7a2b2--a-lost-device-and-a-lost-surface), on 2026-11-18; next,
+  [M6d.7a2b3](#m6d7a2b3--crashes-and-panics).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2512,6 +2513,27 @@ The second part of M6d.7a2b ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platfo
   frame asked again after a delay; who makes a program's images again after a lost device, said
   ([`debt.md`](debt.md)).
 - **Done when.** A device and a surface lost on purpose drawn again in the series; CI is green.
+- **Result.** Built on 2026-11-18; CI's run follows
+  ([ADR-0305](adr/0305-uwuis-desktop-host-makes-its-device-and-surface-again-a-programs-images-made-again-from-their-source.md)):
+  - The host's core gained `recovery`, the engine's budgets adapted under uwui's licence: a lost
+    device replaced at once, between frames, through the same wgpu instance, every object of the
+    old one gone first, never by an adapter on the processor after one that was not; a surface
+    lost made again at once, given up at its fourth loss in a row, then made again a second later
+    or at once when the window changes, after a wait that doubles once an attempt failed; the
+    fourth of either within five minutes ends the run with `EXIT_HOST_FAILED`, the application
+    stopped. The window holds its frames while its surface is given up.
+  - The doors of the tests, `Window::lose_device` and `Window::lose_surface`; the example takes
+    them on its standard input with `--commands`. The `rest` test's second test loses the device,
+    then the surface, finds a new swap chain's image after each and the example at rest, then
+    ends it at its fourth device lost; it fails with the replacement or the remaking taken out.
+    The series runs it: the row *uwui's host's losses* ([`compositors.md`](compositors.md)).
+  - An image drawn in part is not presented: the window keeps the image before, and the frame is
+    drawn again after a wait that doubles from 100 ms to 1.6 s. Checked by the pacing's unit test
+    and by review alone: nothing that the tests control makes `uwui-render`'s draw fail.
+  - Who makes a program's images again: the host, from their source, the owner's choice; built
+    when the host takes images ([`debt.md`](debt.md)).
+  - In a headless Weston on lavapipe, a lost device drawn again 51 to 801 ms after the command, a
+    surface 1.06 to 1.22 s ([`measurements.md`](measurements.md#m6d7a2b2-a-lost-device-and-a-lost-surface-in-uwuis-desktop-host)).
 
 ### M6d.7a2b3 — Crashes and panics
 

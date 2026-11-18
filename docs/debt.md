@@ -103,10 +103,6 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The `widgets` example, which [ADR-0180](adr/0180-one-canvas-and-the-frameworks-foundations.md) names, moves two progress bars without end and draws 60 frames a second.
   Since M6d.7a1, `uwui-desktop`'s `application` example is checked at rest in Weston, sway, KWin and Mutter, none of its threads waking in 10 s ([`compositors.md`](compositors.md)).
   Its wakes and its processor's time at rest are measured from outside by M6d.7a2c's tool; under X11 and Xwayland, from M6d.7b, which brings the host's X11 layer.
-- **uwui's desktop host ends on a lost device or surface** ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
-  M6d.7a1's host configures a surface outdated or lost once again, then ends with `EXIT_HOST_FAILED`; a device lost ends it at its next frame.
-  The engine makes both again within a budget ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)); the host does not yet, and no test loses them.
-  Followed at [M6d.7a2b2](stage-6d.md#m6d7a2b2--a-lost-device-and-a-lost-surface), the owner's choice of 2026-11-15.
 - **uwui's desktop host measures the display's period rather than reading it** ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
   The time on the grid adds whole periods to the last frame callback; the period is the median of the callbacks' gaps while frames follow each other, and before any is measured the frame's start is given.
   ADR-0227 asks for the display's rate first: the outputs are bound for their scale alone, and a program whose frames all miss one refresh measures twice the period.
@@ -1126,9 +1122,6 @@ A review of uwui's architecture of 2026-11-17, read-only too, added these:
 - **No family's messages are described, and nothing holds a family to its version.**
   A message changed under the same version reads differently at each end, without an error.
   Followed at [M6d.9a2c](stage-6d.md#m6d9a2c--waiting) ([ADR-0295](adr/0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md)).
-- **uwui's desktop host presents an image drawn in part, then rests.**
-  A draw that fails is warned of and its image presented (`crates/uwui-desktop/src/host.rs`); the frame's changes are spent, so the window stays as drawn until something else changes: black, after the GPU's memory ran out.
-  Followed at M6d.7a2b2, track B's: the image not presented, the frame asked again after a delay.
 - **A termination asked twice does not end uwui's desktop host.**
   A signal only asks the application to close (`crates/uwui-windowing/src/wake.rs`, `crates/uwui-desktop/src/host.rs`): an application that keeps its window, or hangs in `step`, ends only when killed; the engine ends at a second signal (`crates/slime-app/src/signal.rs`).
   Followed at M6d.7a2b3.
@@ -1140,9 +1133,10 @@ A review of uwui's architecture of 2026-11-17, read-only too, added these:
 - **A panic in a game's run skips its `stop` without a word** ([ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)).
   `slime-app` catches no panic (`crates/slime-app/src/app.rs`): one in `fixed_step`, `update` or `apply` leaves `run`, and neither `Simulation::stop` nor its rustdoc says what follows.
   Followed at [S1c](stage-6d.md#s1c--saves-migrated-and-a-panics-end), which writes ADR-0298's rule in `slime-app` with its test.
-- **The images that a program gives are not made again after a lost device.**
-  uwui holds their keys alone, the program their textures (`crates/uwui-render/src/lib.rs`); uwui's desktop host gives none yet, and its `App` hears nothing of a loss.
-  Followed at M6d.7a2b2, which makes a lost device again: who makes the images again, uwui or the program, is said there.
+- **uwui's desktop host takes no image from a program.**
+  uwui holds images' keys alone, the program their textures (`crates/uwui-render/src/lib.rs`); the host gives `uwui-render` none, and its `App` has no way to give one.
+  When it takes them, a program gives each with its source, a file or its encoded bytes, which the host decodes and makes again after a lost device, the program told nothing ([ADR-0305](adr/0305-uwuis-desktop-host-makes-its-device-and-surface-again-a-programs-images-made-again-from-their-source.md)).
+  Followed by the milestone that gives the host images, placed when Stage 6d's audit plans uwui's first stage.
 
 A review of the engine's architecture of 2026-11-17, read-only too, added these:
 

@@ -44,6 +44,7 @@ A cell that starts with "—" is not observed: what it says comes from elsewhere
 | uwui's host's keys | not run, no input | typed | typed | typed | — no layer for X11 before M6d.7b |
 | uwui's host's cursor | not run, the pointer never entered | by shape | by shape | by shape | — no layer for X11 before M6d.7b |
 | uwui's host's scale | 2.0 | 1.5 | 1.5 | 1.5 | — no layer for X11 before M6d.7b |
+| uwui's host's losses | drawn again | drawn again | drawn again | drawn again | — no layer for X11 before M6d.7b |
 
 The rows:
 
@@ -84,6 +85,10 @@ The rows:
   to the compositor; the scale that its window drew at on an output at 1.5, at 2 in Weston, its
   image's width over its logical width
   ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
+- **uwui's host's losses**: the same example, its GPU device lost on purpose, then its surface
+  given up, each followed by a new swap chain's image presented and the example at rest; then the
+  fourth device lost ending it with status 1, the application stopped
+  ([ADR-0305](adr/0305-uwuis-desktop-host-makes-its-device-and-surface-again-a-programs-images-made-again-from-their-source.md)).
 
 ## What differs
 
