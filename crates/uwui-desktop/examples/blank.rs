@@ -15,7 +15,8 @@
 //! presented in Mailbox where the surface offers it, else Fifo. Its frames follow the host's main
 //! rule (`docs/adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md`): the
 //! first after a rest at once, then each on the platform's signal of the image before; it has not
-//! the host's frame for a signal that never comes. It answers the pointer, its buttons, the wheel
+//! the host's frame for a signal that never comes, and draws nothing just in time: it is the plain
+//! program that the host's pacing is measured against. It answers the pointer, its buttons, the wheel
 //! and the keys, not the focus nor the modifiers, as the same program on winit. It makes nothing
 //! again after a loss: a lost device or surface ends its run. Where `UWUI_TRACE` names a file, it
 //! writes the host's trace there, with the host's own writer (`uwui_desktop::TRACE_ENV_VAR`).
