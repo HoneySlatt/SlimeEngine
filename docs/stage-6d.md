@@ -2695,11 +2695,14 @@ The second part of M6d.7a2c ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-mea
   - `scripts/host-cost.py` measures input to shown beside input to present, and inputs in motion,
     400 notches a second: at 180 a second, the host on the GPU rested between inputs, and its
     figures in a row were inputs at rest.
-  - On the GPU, in motion, the example shows an input 2.9 ms sooner, 4.18 / 5.40 ms from input to
-    shown at the median and the 99th percentile, against 7.06 / 8.30 ms before; input to present
-    stays within its budget, 0.55 / 1.18 ms apart and 3.16 / 4.39 ms in motion, against 4.67 ms;
-    no frame missed its refresh
-    ([`measurements.md`](measurements.md#m6d7a2c2-frames-drawn-just-in-time)).
+  - On the GPU, in motion, the example shows each input about 2.9 ms sooner than before, and its
+    input to present stays within its budgets at rest and in motion
+    ([`measurements.md`](measurements.md#m6d7a2c2-frames-drawn-just-in-time), its figures).
+  - The closing review, in four rounds, found the margin widened by images that no margin could
+    help, a hidden window's, a frame after a rest, a compositor that shows its images later, a
+    frame whose work outlasts a period; the lag poisoned by one image composed from idle; one long
+    frame moving the times given; and two tests that passed with their feature removed. Each fixed
+    with a test that fails without it, before the figures were taken.
   - Before building, three facts put to the owner: the gain shows only at the screen; no pacing in
     step with the display meets 4.17 ms at the 99th percentile in motion; and the tool measured no
     input in motion. ADR-0309 records the owner's answers.

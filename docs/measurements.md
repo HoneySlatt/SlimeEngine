@@ -4913,64 +4913,77 @@ uwui's desktop host drawing its frames just in time, before and after
 ([ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)),
 measured by `scripts/host-cost.py` as at [M6d.7a2c1](#m6d7a2c1-uwuis-desktop-host-measured), in one
 headless sway 1.12 at 1920 × 1080 and 240 Hz, built in release, on the owner's AMD Ryzen 7 5800X and
-RX 6900 XT, on 2026-11-18. *Before* is the milestone's code with the presentations read and the
-time predicted, its frames still started on the signal; *after*, with its frames drawn just in time.
-The tool now also gives inputs in motion, 1,000 notches at 400 a second, more than the display's
-refreshes, so that frames run without a rest; and input to shown, to when the image showed as
-`wp_presentation` tells it, which winit's program does not tell. Other programs, the owner's
-browser and another session's tests, used 0.5 to 1.7 cores during *before* and 0.3 to 0.75 during
-*after*, none of the GPU: the tool marks the runs above half a core as disturbed.
+RX 6900 XT, on 2026-11-18. The tool now also gives inputs in motion, 1,000 notches at 400 a second,
+more than the display's refreshes, so that frames run without a rest; and input to shown, to when
+the image showed as `wp_presentation` tells it, which winit's program does not tell.
+
+- *Before*: the milestone's code with the presentations read and the time predicted, its frames
+  still started on the signal, from a commit that the milestone's history no longer holds. Other
+  programs, the owner's browser and another session's tests, used 0.5 to 1.7 cores meanwhile, which
+  the tool marked as disturbed for each program on the GPU; and a frame's work then ran from the
+  frame's start, not its turn's.
+- *After*: `7c6c3849`, the milestone with its closing review's fixes, on a clean tree, the machine at
+  rest: other programs used 0.04 to 0.10 of a core and none of the GPU, but during the blank window
+  on winit on the GPU, where the tool counted 180 cores, more than the machine has: a process that
+  ended then, its whole time counted at once; that column's figures match the other runs'.
+
+A headless sway tells no period with its presentations: the host measures it there from the frame
+callbacks' gaps ([`compositors.md`](compositors.md)). It composes a late image when it comes, not
+at the next refresh as a display does: no frame missed here proves little of a display
+([`debt.md`](debt.md)).
 
 The host's example `application` on the GPU, before and after:
 
 | Input | To present, before | To present, after | To shown, before | To shown, after |
 |---|---|---|---|---|
-| Apart, median / 99th | 0.56 / 0.72 ms | 0.55 / 1.18 ms | 0.75 / 0.95 ms | 0.75 / 1.59 ms |
-| In a row (180 a second), median / 99th | 0.37 / 0.47 ms | 0.37 / 0.49 ms | 0.50 / 0.66 ms | 0.51 / 0.64 ms |
-| In motion (400 a second), median / 99th | 3.27 / 4.50 ms | 3.16 / 4.39 ms | 7.06 / 8.30 ms | 4.18 / 5.40 ms |
+| Apart, median / 99th | 0.56 / 0.72 ms | 0.79 / 0.87 ms | 0.75 / 0.95 ms | 1.07 / 1.16 ms |
+| In a row (180 a second), median / 99th | 0.37 / 0.47 ms | 0.36 / 0.46 ms | 0.50 / 0.66 ms | 0.48 / 0.61 ms |
+| In motion (400 a second), median / 99th | 3.27 / 4.50 ms | 3.13 / 4.37 ms | 7.06 / 8.30 ms | 4.17 / 5.43 ms |
 
 In motion, an input reaches the screen 2.9 ms sooner at the median and at the 99th percentile: its
 image is composed at the refresh after its frame rather than waiting a refresh at the compositor.
-Input to present does not move, as ADR-0309 foresaw: within 4.17 ms at rest, and in motion within a
-refresh plus the frame's work at its 99th percentile, 4.17 + 0.50 = 4.67 ms. No frame missed the
-refresh predicted for it. Inputs in a row, 5.6 ms apart, come after the start just in time has
-passed, and start at once. Apart, the 99th percentile's rise, one input in a hundred, stays within
-the runs' spread under the load.
+Input to present does not move in motion, as ADR-0309 foresaw, and stays within its budgets: 4.17 ms
+at rest, and in motion a refresh plus the frame's work at its 99th percentile, from its turn's
+start, 4.17 + 0.65 = 4.82 ms. Inputs apart take about 0.2 ms longer at the median after than before, in
+the two blank windows as in the example, which draw no frame just in time: the runs differ there, not the
+pacing.
 
 After, on the GPU, through sway's GL renderer and RADV:
 
 | Measure | Blank, uwui's layer | Blank, winit | `application` | The host's own cost |
 |---|---|---|---|---|
-| Start, median (min–max) | 48.3 ms (46.6–53.4) | 47.7 ms (46.5–49.4) | 52.1 ms (49.6–53.1) | +3.8 ms |
-| Memory, Pss / Rss / peak | 37.4 / 56.3 / 64.9 MB | 38.5 / 57.4 / 66.1 MB | 43.7 / 62.8 / 67.5 MB | +6.4 MB Pss |
+| Start, median (min–max) | 47.3 ms (46.3–49.0) | 47.4 ms (46.2–48.9) | 51.0 ms (49.3–52.7) | +3.7 ms |
+| Memory, Pss / Rss / peak | 39.8 / 56.2 / 65.2 MB | 40.9 / 57.3 / 66.0 MB | 46.4 / 62.9 / 68.1 MB | +6.6 MB Pss |
 | Video memory | 51.7 MB | 51.7 MB | 54.3 MB | +2.6 MB |
 | Binary, built / stripped | 7.3 / 5.2 MB | 10.1 / 6.9 MB | 18.0 / 14.5 MB | +9.3 MB stripped |
 | At rest over 10 s: frames, wake-ups a second, share of a core | 0, 0.0, 0.00 % | 0, 0.0, 0.00 % | 0, 0.0, 0.00 % | none |
-| Input to present, apart: median / 99th / longest | 0.31 / 0.47 / 0.49 ms | 0.31 / 0.51 / 0.59 ms | 0.55 / 1.18 / 1.21 ms | +0.71 ms at the 99th |
-| Input to present, in a row: median / 99th / longest | 0.21 / 0.72 / 3.28 ms | 0.21 / 0.27 / 0.41 ms | 0.37 / 0.49 / 0.69 ms | −0.23 ms at the 99th |
-| Input to present, in motion: median / 99th / longest | 3.14 / 4.38 / 4.45 ms | 3.12 / 4.37 / 4.42 ms | 3.16 / 4.39 / 4.56 ms | +0.01 ms at the 99th |
-| Input to shown, apart: median / 99th / longest | 0.49 / 0.71 / 0.71 ms | not told | 0.75 / 1.59 / 2.17 ms | +0.88 ms at the 99th |
-| Input to shown, in a row: median / 99th / longest | 0.34 / 2.52 / 5.05 ms | not told | 0.51 / 0.64 / 0.92 ms | −1.88 ms at the 99th |
-| Input to shown, in motion: median / 99th / longest | 7.06 / 8.30 / 8.37 ms | not told | 4.18 / 5.40 / 5.62 ms | −2.90 ms at the 99th |
-| Frames that missed their predicted refresh | 0 | 0 | 0 | none |
-| A frame's work, start to present: median / 99th | 0.16 / 0.42 ms | 0.15 / 0.29 ms | 0.29 / 0.50 ms | +0.13 ms |
+| Input to present, apart: median / 99th / longest | 0.49 / 0.60 / 0.71 ms | 0.48 / 0.52 / 0.52 ms | 0.79 / 0.87 / 0.90 ms | +0.27 ms at the 99th |
+| Input to present, in a row: median / 99th / longest | 0.19 / 0.27 / 0.63 ms | 0.20 / 0.25 / 0.40 ms | 0.36 / 0.46 / 0.77 ms | +0.19 ms at the 99th |
+| Input to present, in motion: median / 99th / longest | 3.07 / 4.31 / 4.40 ms | 3.09 / 4.34 / 4.36 ms | 3.13 / 4.37 / 4.48 ms | +0.07 ms at the 99th |
+| Input to shown, apart: median / 99th / longest | 0.79 / 0.88 / 0.96 ms | not told | 1.07 / 1.16 / 1.17 ms | +0.27 ms at the 99th |
+| Input to shown, in a row: median / 99th / longest | 0.31 / 0.45 / 0.78 ms | not told | 0.48 / 0.61 / 1.02 ms | +0.16 ms at the 99th |
+| Input to shown, in motion: median / 99th / longest | 6.99 / 8.21 / 8.33 ms | not told | 4.17 / 5.43 / 5.74 ms | −2.78 ms at the 99th |
+| Frames drawn just in time that missed their refresh | — | — | 0 | — |
+| A frame's work, its turn's start to present: median / 99th | 0.15 / 0.33 ms | 0.15 / 0.31 ms | 0.31 / 0.65 ms | +0.16 ms |
+| Other programs' load meanwhile | 0.04 cores | **disturbed**: 180.57 cores, see above | 0.05 cores | |
 
 The blank window on the layer starts its frames on the signal, the plain program that the host is
-measured against: in motion, the host's example now shows each input 2.9 ms before it does.
+measured against: in motion, the host's example now shows each input 2.8 ms before it does.
 
-After, on lavapipe, which draws on the processor:
+After, on lavapipe, which draws on the processor, the machine at rest (0.05 to 0.10 of a core):
 
 | Measure | Blank, uwui's layer | Blank, winit | `application` | The host's own cost |
 |---|---|---|---|---|
-| Input to present, apart: median / 99th / longest | 0.78 / 1.22 / 3.91 ms | 0.79 / 3.90 / 3.91 ms | 8.18 / 10.82 / 10.88 ms | +9.60 ms at the 99th |
-| Input to present, in a row: median / 99th / longest | 0.67 / 0.94 / 1.70 ms | 0.67 / 0.83 / 1.46 ms | 13.28 / 18.98 / 24.09 ms | +18.04 ms at the 99th |
-| Input to present, in motion: median / 99th / longest | 3.44 / 4.71 / 4.87 ms | 3.41 / 4.72 / 4.95 ms | 14.32 / 17.18 / 17.77 ms | +12.47 ms at the 99th |
-| Input to shown, in motion: median / 99th / longest | 6.78 / 8.00 / 8.05 ms | not told | 14.35 / 17.23 / 17.83 ms | +9.23 ms at the 99th |
-| Frames that missed their predicted refresh | 0 | 0 | 0 | none |
-| A frame's work, start to present: median / 99th | 0.62 / 0.94 ms | 0.62 / 0.94 ms | 7.93 / 10.64 ms | +7.31 ms |
+| Start, median (min–max) | 31.5 ms (30.6–32.9) | 31.4 ms (30.7–34.4) | 44.3 ms (42.0–45.8) | +12.8 ms |
+| Memory, Pss / Rss / peak | 76.3 / 79.9 / 79.9 MB | 77.2 / 80.7 / 80.7 MB | 105.9 / 109.7 / 109.7 MB | +29.7 MB Pss |
+| Input to present, apart: median / 99th / longest | 0.93 / 1.19 / 3.98 ms | 0.92 / 3.78 / 4.02 ms | 8.18 / 10.76 / 11.04 ms | +9.57 ms at the 99th |
+| Input to present, in a row: median / 99th / longest | 0.64 / 0.84 / 0.95 ms | 0.64 / 0.85 / 1.11 ms | 12.21 / 16.36 / 18.94 ms | +15.52 ms at the 99th |
+| Input to present, in motion: median / 99th / longest | 3.42 / 4.77 / 4.93 ms | 3.41 / 4.79 / 5.02 ms | 14.02 / 15.54 / 15.98 ms | +10.77 ms at the 99th |
+| Input to shown, in motion: median / 99th / longest | 6.78 / 8.01 / 8.05 ms | not told | 14.05 / 15.57 / 16.02 ms | +7.56 ms at the 99th |
+| Frames drawn just in time that missed their refresh | — | — | 0 | — |
+| A frame's work, its turn's start to present: median / 99th | 0.60 / 1.02 ms | 0.60 / 0.97 ms | 7.58 / 9.59 ms | +6.98 ms |
 
 On lavapipe the example's frame takes longer than a refresh: its start just in time has always
-passed, and nothing changes from *before* (14.28 / 16.96 ms to present in motion, 14.32 / 17.00 ms
-to shown). Its start, memory, binary and rest match M6d.7a2c1's within the runs' spread. The
-compositor and the display after the shown time are not measured; nor is a real display, where a
-late image waits a whole refresh ([`debt.md`](debt.md)).
+passed, and its frames start on the signal as before (14.28 / 16.96 ms to present in motion
+before, a disturbed run). Its start, memory, binary and rest match M6d.7a2c1's within the runs'
+spread. The compositor and the display after the shown time are not measured.
