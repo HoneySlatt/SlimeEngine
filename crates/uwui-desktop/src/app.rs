@@ -193,9 +193,10 @@ impl Window {
         self.requests.activation = Some(Activation::Attention);
     }
 
-    /// Loses the window's GPU device on purpose after this step, as a reset of the driver would:
-    /// for the tests and the tools that check how an application goes on after a lost device. The
-    /// host opens a new device and draws the window again, the application told nothing; the
+    /// Loses the window's GPU device on purpose in the next frame, once drawn and before its
+    /// submission, as a reset of the driver found there would: for the tests and the tools that
+    /// check how an application goes on after a lost device. The host drops that frame's image,
+    /// opens a new device and draws the window again, the application told nothing; the
     /// fourth device lost within five minutes ends the run with
     /// [`EXIT_HOST_FAILED`](crate::EXIT_HOST_FAILED)
     /// (`docs/adr/0305-uwuis-desktop-host-makes-its-device-and-surface-again-a-programs-images-made-again-from-their-source.md`).
@@ -281,8 +282,8 @@ pub trait App {
 
     /// The run ends: the window closed, the application allowed it or closed it, or the host
     /// failed, its connection to the compositor broken, or its device or its surface lost more
-    /// often than it makes them again, the window then perhaps gone. The last call, so that the application may keep its work; the interface is
-    /// still whole. By default, nothing.
+    /// often than it makes them again, the window then perhaps gone. The last call, so that the
+    /// application may keep its work; the interface is still whole. By default, nothing.
     fn stop(&mut self, ui: &mut Ui) {
         let _ = ui;
     }

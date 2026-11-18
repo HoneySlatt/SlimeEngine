@@ -403,7 +403,7 @@ impl<A: App> Host<A> {
         let (drawn, result) = gpu.draw(image, ui.fonts(), &list);
         if gpu.device_lost() {
             // Replaced before the next frame, which draws the interface whole.
-            drawn.discard();
+            gpu.discard(drawn);
             self.pacing.host_changed();
             return Ok(());
         }
@@ -411,7 +411,7 @@ impl<A: App> Host<A> {
             // The window keeps its last image whole rather than show this one, and draws again
             // later: the frame's changes are spent.
             tracing::warn!(%error, "a frame drawn in part is not presented");
-            drawn.discard();
+            gpu.discard(drawn);
             self.pacing.not_presented(now);
             return Ok(());
         }
@@ -424,17 +424,18 @@ impl<A: App> Host<A> {
 }
 
 /// Makes the requests of the window that the application made: whether an image must follow to
-/// apply one, as the platform says. The losses asked on purpose are made on `gpu`, between
-/// frames.
+/// apply one, as the platform says. The losses asked on purpose are made on `gpu`: the surface's
+/// at once, the device's in the next frame's draw.
 fn make_requests(window: &mut Window, platform: &mut Platform<'_>, gpu: &mut Gpu) -> bool {
     let requests = window.take_requests();
+    // A device is lost in a frame's draw, which must follow.
+    let mut image = requests.lose_device;
     if requests.lose_device {
-        gpu.lose_device();
+        gpu.lose_device_at_next_draw();
     }
     if requests.lose_surface {
         gpu.give_up_surface("the application gave it up on purpose");
     }
-    let mut image = false;
     if requests.title {
         platform.set_title(window.title());
     }

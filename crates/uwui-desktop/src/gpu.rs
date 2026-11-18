@@ -53,12 +53,41 @@ pub(crate) enum Loss {
     Surface,
 }
 
+/// The window's surface and the texture of the last image taken from it.
+///
+/// wgpu 30 keeps an image taken when the device refused to present or discard it, lost before the
+/// host knew, and on Vulkan its discard does nothing: the image stays taken from the swap chain,
+/// with its synchronization. wgpu panics when it destroys a swap chain whose synchronization an
+/// image holds. Destroying the image's texture releases it, and does nothing to an image presented;
+/// so the last one is destroyed before the surface is configured again, made again or dropped, as
+/// the engine's `Surface::release_image` does (`crates/slime-gfx/src/surface.rs`,
+/// `docs/adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md`).
+struct WindowSurface {
+    surface: wgpu::Surface<'static>,
+    image: Option<wgpu::Texture>,
+}
+
+impl WindowSurface {
+    /// Lets the swap chain go, or be configured again, with the last image taken.
+    fn release_image(&mut self) {
+        if let Some(image) = self.image.take() {
+            image.destroy();
+        }
+    }
+}
+
+impl Drop for WindowSurface {
+    fn drop(&mut self) {
+        self.release_image();
+    }
+}
+
 /// The device, its queue, the window's surface and the renderer that draws into it.
 pub(crate) struct Gpu {
     renderer: UiRenderer,
     config: wgpu::SurfaceConfiguration,
     // Dropped before the device, as wgpu asks.
-    surface: wgpu::Surface<'static>,
+    surface: WindowSurface,
     queue: wgpu::Queue,
     device: wgpu::Device,
     /// The instance that made the surface and the device, which makes their replacements.
@@ -74,21 +103,17 @@ pub(crate) struct Gpu {
     given_up: Option<String>,
     /// The surface's losses since it last gave an image.
     losses_in_a_row: u32,
-    /// Whether the surface is configured again once the image held is presented: wgpu refuses to
-    /// configure a surface while one of its images is held.
-    stale: bool,
+    /// Whether the surface is configured before its next image is taken: after it is resized, made
+    /// again, outdated, suboptimal, or an image not presented. wgpu refuses to configure a surface
+    /// while one of its images is held, so it waits for the next image.
+    unconfigured: bool,
+    /// Whether the next draw loses the device before its submission: the door of the tests.
+    lose_at_draw: bool,
 }
 
 /// A frame's image, drawn, to be presented once the platform's signal is asked for
-/// ([`Gpu::present`]).
+/// ([`Gpu::present`]), or discarded ([`Gpu::discard`]).
 pub(crate) struct Drawn(wgpu::SurfaceTexture);
-
-impl Drawn {
-    /// Drops the image without presenting it: the window keeps showing the image before.
-    pub(crate) fn discard(self) {
-        drop(self.0);
-    }
-}
 
 impl Gpu {
     /// Opens a device that can draw into the window of the raw handles `display` and `window`, and
@@ -137,6 +162,7 @@ impl Gpu {
             ..
         } = self;
         drop(renderer);
+        // Its last image released first.
         drop(surface);
         drop(queue);
         drop(device);
@@ -265,7 +291,10 @@ impl Gpu {
             alpha_mode,
             view_formats: vec![format.remove_srgb_suffix()],
         };
-        window.configure(&device, &config);
+        let ((), refused) = within_error_scopes(&device, || window.configure(&device, &config));
+        if let Some(refused) = refused {
+            return Err(error("the window's surface cannot be configured", refused));
+        }
         let renderer = UiRenderer::new(&device, &queue, format)
             .map_err(|cause| error("the interface's renderer cannot be made", cause))?;
         tracing::info!(
@@ -278,7 +307,10 @@ impl Gpu {
         Ok(Self {
             renderer,
             config,
-            surface: window,
+            surface: WindowSurface {
+                surface: window,
+                image: None,
+            },
             queue,
             device,
             instance,
@@ -287,7 +319,8 @@ impl Gpu {
             lost,
             given_up: None,
             losses_in_a_row: 0,
-            stale: false,
+            unconfigured: false,
+            lose_at_draw: false,
         })
     }
 
@@ -301,11 +334,11 @@ impl Gpu {
         self.given_up.is_some()
     }
 
-    /// Loses the device on purpose, as a reset of the driver would: the door of the tests
-    /// ([`Window::lose_device`](crate::Window::lose_device)). No image of it may be held.
-    pub(crate) fn lose_device(&mut self) {
-        self.lost.store(true, Ordering::Release);
-        self.device.destroy();
+    /// Loses the device on purpose in the next draw, while it holds its image, before its
+    /// submission, as a reset of the driver found there would: the door of the tests
+    /// ([`Window::lose_device`](crate::Window::lose_device)).
+    pub(crate) fn lose_device_at_next_draw(&mut self) {
+        self.lose_at_draw = true;
     }
 
     /// Gives the surface up, for `reason`: it shows no image until it is made again.
@@ -332,9 +365,11 @@ impl Gpu {
         Ok(())
     }
 
-    /// Makes the window's surface again and configures it. The old one goes before the new one is
-    /// configured: a window has one swap chain at a time on Vulkan.
+    /// Makes the window's surface again, configured before its first image. The old one goes, its
+    /// last image released, before the new one is configured: a window has one swap chain at a
+    /// time on Vulkan.
     fn remake_surface(&mut self) -> Result<(), GpuError> {
+        self.surface.release_image();
         #[expect(
             unsafe_code,
             reason = "wgpu makes a surface on the window's raw handles"
@@ -342,10 +377,22 @@ impl Gpu {
         // SAFETY: `Gpu::new`'s caller keeps the handles live while this value lives, which drops
         // its surface first.
         let surface = unsafe { surface_of(&self.instance, self.handles) }?;
-        self.surface = surface;
-        self.surface.configure(&self.device, &self.config);
-        self.stale = false;
+        self.surface = WindowSurface {
+            surface,
+            image: None,
+        };
+        self.unconfigured = true;
         Ok(())
+    }
+
+    /// Configures the surface, its last image released first: wgpu's refusal, if it refuses.
+    fn configure(&mut self) -> Result<(), wgpu::Error> {
+        self.surface.release_image();
+        let (surface, device, config) = (&self.surface.surface, &self.device, &self.config);
+        match within_error_scopes(device, || surface.configure(device, config)) {
+            ((), Some(refused)) => Err(refused),
+            ((), None) => Ok(()),
+        }
     }
 
     /// Sizes the window's images at `size`, in physical pixels, from the next frame.
@@ -354,13 +401,14 @@ impl Gpu {
         if size != [self.config.width, self.config.height] {
             self.config.width = size[0];
             self.config.height = size[1];
-            self.surface.configure(&self.device, &self.config);
+            self.unconfigured = true;
         }
     }
 
     /// Takes the window's next image: none when the surface gives none now, covered or late, the
-    /// frame then drawing nothing. A surface lost is made again at once, and given up at its
-    /// fourth loss in a row without an image between.
+    /// frame then drawing nothing. A surface lost, or whose configuration the graphics API refuses,
+    /// is made again at once, and given up at its fourth loss in a row without an image between
+    /// (`docs/adr/0025-giving-up-a-lost-surface.md`).
     ///
     /// # Errors
     ///
@@ -373,25 +421,40 @@ impl Gpu {
             if self.surface_given_up() {
                 return Err(Loss::Surface);
             }
-            match self.surface.get_current_texture() {
-                wgpu::CurrentSurfaceTexture::Success(texture) => {
-                    self.losses_in_a_row = 0;
-                    return Ok(Some(texture));
+            if self.unconfigured {
+                match self.configure() {
+                    Ok(()) => self.unconfigured = false,
+                    // Configuring waits for the GPU, which may find the loss.
+                    Err(_) if self.device_lost() => return Err(Loss::Device),
+                    Err(refused) => {
+                        tracing::warn!(%refused, "the window's surface cannot be configured");
+                        self.surface_lost(Some(refused.to_string()));
+                        continue;
+                    }
                 }
+            }
+            let texture = match self.surface.surface.get_current_texture() {
+                wgpu::CurrentSurfaceTexture::Success(texture) => texture,
                 wgpu::CurrentSurfaceTexture::Suboptimal(texture) => {
-                    // Drawn as it is; the surface is configured again once it is presented.
-                    self.losses_in_a_row = 0;
-                    self.stale = true;
-                    return Ok(Some(texture));
+                    // Drawn as it is; the surface is configured again before the next image.
+                    self.unconfigured = true;
+                    texture
                 }
                 wgpu::CurrentSurfaceTexture::Outdated => {
-                    self.surface.configure(&self.device, &self.config);
+                    self.unconfigured = true;
+                    continue;
                 }
-                wgpu::CurrentSurfaceTexture::Lost => self.surface_lost(),
+                wgpu::CurrentSurfaceTexture::Lost => {
+                    self.surface_lost(None);
+                    continue;
+                }
                 wgpu::CurrentSurfaceTexture::Timeout
                 | wgpu::CurrentSurfaceTexture::Occluded
                 | wgpu::CurrentSurfaceTexture::Validation => break,
-            }
+            };
+            self.losses_in_a_row = 0;
+            self.surface.image = Some(texture.texture.clone());
+            return Ok(Some(texture));
         }
         if self.device_lost() {
             return Err(Loss::Device);
@@ -399,14 +462,19 @@ impl Gpu {
         Ok(None)
     }
 
-    /// The surface was lost: it is made again, or given up when it cannot be, or when the losses
-    /// follow one another without an image between.
-    fn surface_lost(&mut self) {
+    /// The surface was lost, or its configuration `refused`: it is made again, or given up when
+    /// it cannot be, or when the losses follow one another without an image between.
+    fn surface_lost(&mut self, refused: Option<String>) {
         self.losses_in_a_row += 1;
         if self.losses_in_a_row > MAX_LOSSES_IN_A_ROW {
-            self.give_up_surface(format!(
-                "it was lost again {MAX_LOSSES_IN_A_ROW} times after being made again"
-            ));
+            let mut reason =
+                format!("it was lost again {MAX_LOSSES_IN_A_ROW} times after being made again");
+            if let Some(refused) = refused {
+                reason.push_str(&format!(
+                    ", the last because its configuration was refused: {refused}"
+                ));
+            }
+            self.give_up_surface(reason);
             return;
         }
         match self.remake_surface() {
@@ -419,8 +487,9 @@ impl Gpu {
     ///
     /// # Errors
     ///
-    /// When the GPU's memory cannot hold what the frame draws, or the device is lost: the image is
-    /// drawn in part, and the host does not present it.
+    /// When the GPU's memory cannot hold what the frame draws: the image is drawn in part, and the
+    /// host does not present it. A device lost meanwhile is no error: wgpu drops what it refuses
+    /// then, and [`Gpu::device_lost`] tells it.
     pub(crate) fn draw(
         &mut self,
         image: wgpu::SurfaceTexture,
@@ -460,16 +529,27 @@ impl Gpu {
             .draw(&mut context, fonts, list, |_| None, &image.texture)
             .map(|_| ())
             .map_err(|cause| error("the frame cannot be drawn whole", cause));
+        if std::mem::take(&mut self.lose_at_draw) {
+            self.lost.store(true, Ordering::Release);
+            self.device.destroy();
+        }
         self.queue.submit([encoder.finish()]);
         (Drawn(image), drawn)
     }
 
-    /// Presents a frame's image: on Wayland, the driver commits the surface. A surface that gave
-    /// a suboptimal image is configured again then, once no image of it is held.
+    /// Presents a frame's image: on Wayland, the driver commits the surface.
     pub(crate) fn present(&mut self, drawn: Drawn) {
         self.queue.present(drawn.0);
-        if std::mem::take(&mut self.stale) {
-            self.surface.configure(&self.device, &self.config);
+    }
+
+    /// Drops a frame's image without presenting it: the window keeps showing the image before. On
+    /// Vulkan, wgpu's discard gives the image back to nothing, so the surface is configured again
+    /// before the next image, which gives the swap chain its images back; not on a lost device,
+    /// which the host replaces.
+    pub(crate) fn discard(&mut self, drawn: Drawn) {
+        drop(drawn.0);
+        if !self.device_lost() {
+            self.unconfigured = true;
         }
     }
 }
@@ -495,4 +575,20 @@ unsafe fn surface_of(
     // SAFETY: the caller keeps the handles live while the surface lives.
     unsafe { instance.create_surface_unsafe(target) }
         .map_err(|cause| error("the window's surface cannot be made", cause))
+}
+
+/// Runs `run` inside error scopes of validation and of internal errors on `device`: what it returns,
+/// and the first error that either caught. Adapted from the engine's `within_error_scopes`
+/// (`crates/slime-gfx/src/gpu.rs`), under uwui's licence (ADR-0270).
+fn within_error_scopes<T>(
+    device: &wgpu::Device,
+    run: impl FnOnce() -> T,
+) -> (T, Option<wgpu::Error>) {
+    let validation = device.push_error_scope(wgpu::ErrorFilter::Validation);
+    let internal = device.push_error_scope(wgpu::ErrorFilter::Internal);
+    let result = run();
+    // Scopes are popped in the reverse order of their pushes.
+    let internal = pollster::block_on(internal.pop());
+    let validation = pollster::block_on(validation.pop());
+    (result, internal.or(validation))
 }

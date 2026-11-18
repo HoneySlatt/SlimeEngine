@@ -34,6 +34,16 @@ The facts, read in the repository on 2026-11-18:
   not told, which the engine knows from its own errors (ADR-0075).
 - A draw that fails, the GPU's memory short, was presented in part, and the frame's changes were
   spent: the window stayed as drawn, black or in part, until something else changed.
+- wgpu 30 keeps an image taken when the device refused to present or discard it, and on Vulkan its
+  discard gives the image back to nothing. wgpu panics when it destroys a swap chain whose
+  synchronization such an image holds. The engine destroys the last image's texture before its
+  surface is configured again, made again or dropped (`Surface::release_image`, ADR-0103).
+- A surface that wgpu never configured panics at its next image. The engine configures inside
+  error scopes, and counts a refusal as a loss
+  ([ADR-0025](0025-giving-up-a-lost-surface.md)).
+- A first version of this milestone, under its closing review, panicked on a device lost while a
+  frame held its image, panicked on a configuration refused, and froze its window after four
+  images not presented; each was reproduced, then fixed as below.
 
 ## Decision
 
@@ -48,23 +58,29 @@ Then the lead's, within ADR-0264 and ADR-0075:
 - **The engine's budgets, in the host's core.** A module of the core, `recovery`, holds the
   engine's `Budget` and `Remake`, adapted to uwui's clock, the copy named in its documentation. The
   host replaces a lost device at once, between frames, three times within five minutes; the fourth
-  loss ends the run with `EXIT_HOST_FAILED`, the application stopped. A surface lost is made again
-  at once, and given up at its fourth loss in a row without an image between; the host makes a
+  loss ends the run with `EXIT_HOST_FAILED`, the application stopped. A surface lost, or
+  whose configuration the graphics API refuses inside error scopes, is made again at once, and
+  given up at its fourth loss in a row without an image between; the host makes a
   surface given up again a second later, or at once when the window is configured or its scale
   changes; after an attempt that failed, after a wait that doubles. The fourth given up or failed
   within five minutes ends the run. While its surface is given up, the window holds its frames.
 - **Always on.** The host replaces a lost device without asking the application, unlike the
   engine's `AppConfig::restore_lost_device`: the application holds no object of the device.
+- **The last image released**: its texture destroyed before the surface is configured again,
+  made again or dropped, as the engine's `Surface::release_image`.
 - **The device replaced with every object of the old one gone first**, its renderer and its
   surface, as ADR-0075 asks for Direct3D 12; through the same wgpu instance, the adapter chosen as
   at the start, and never one on the processor after one that was not.
 - **The doors of the tests**: `Window::lose_device` and `Window::lose_surface`, public, documented
-  for the tests and the tools, as the engine's `Context::lose_surface`. The host makes them after
-  the application's step, between frames. The example takes them as commands on its standard input,
+  for the tests and the tools, as the engine's `Context::lose_surface`. The host gives the surface
+  up after the application's step, and loses the device in the next frame's draw, while it holds
+  its image, before its submission, where a reset of the driver is found. The example takes them as commands on its standard input,
   with `--commands`, which the `rest` test gives; the series of compositors runs it.
 - **An image drawn in part is not presented.** The host drops it, the window keeping the image
-  before, and draws the frame again after a wait that doubles from 100 ms to 1.6 s, reset by an
-  image presented. A device lost during a draw drops its image too; the next turn replaces it.
+  before, configures the surface again before the next image, which gives the swap chain back the
+  image that wgpu could not, and draws the frame again after a wait that doubles from 100 ms to
+  1.6 s, reset by an image presented. A device lost during a draw drops its image too; the next
+  turn releases it and replaces the device.
 - **After either loss, the next frame runs even while the window holds its frames**, as the
   engine's: the image that the lost device presented may never reach the compositor, whose signal
   would then never come.

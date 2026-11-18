@@ -2518,22 +2518,33 @@ The second part of M6d.7a2b ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platfo
   - The host's core gained `recovery`, the engine's budgets adapted under uwui's licence: a lost
     device replaced at once, between frames, through the same wgpu instance, every object of the
     old one gone first, never by an adapter on the processor after one that was not; a surface
-    lost made again at once, given up at its fourth loss in a row, then made again a second later
+    lost, or its configuration refused inside error scopes, made again at once, given up at its
+    fourth loss in a row, then made again a second later
     or at once when the window changes, after a wait that doubles once an attempt failed; the
     fourth of either within five minutes ends the run with `EXIT_HOST_FAILED`, the application
-    stopped. The window holds its frames while its surface is given up.
-  - The doors of the tests, `Window::lose_device` and `Window::lose_surface`; the example takes
-    them on its standard input with `--commands`. The `rest` test's second test loses the device,
-    then the surface, finds a new swap chain's image after each and the example at rest, then
-    ends it at its fourth device lost; it fails with the replacement or the remaking taken out.
+    stopped. The window holds its frames while its surface is given up. The last image taken is
+    released before the surface is configured again, made again or dropped, as in the engine.
+  - The doors of the tests, `Window::lose_device`, in the next frame's draw while it holds its
+    image, and `Window::lose_surface`; the example takes them on its standard input with
+    `--commands`. The `rest` test's second test loses the device, then the surface, finds a new
+    swap chain's image after each and the example at rest, then ends it at its fourth device lost;
+    it fails with the replacement, the remaking or the release of the last image taken out. That
+    the surface is a new `wgpu::Surface`, not the old one configured again, is checked by review
+    alone: the protocol's log shows a new swap chain either way.
     The series runs it: the row *uwui's host's losses* ([`compositors.md`](compositors.md)).
-  - An image drawn in part is not presented: the window keeps the image before, and the frame is
-    drawn again after a wait that doubles from 100 ms to 1.6 s. Checked by the pacing's unit test
-    and by review alone: nothing that the tests control makes `uwui-render`'s draw fail.
+  - An image drawn in part is not presented: the window keeps the image before, the surface is
+    configured again, and the frame is drawn again after a wait that doubles from 100 ms to 1.6 s.
+    Checked by the pacing's unit test, and once by hand, six draws made to fail drawn again after
+    the six waits; no test makes `uwui-render`'s draw fail. A configuration refused, made by hand,
+    ends the run at the fourth surface given up, without a panic.
   - Who makes a program's images again: the host, from their source, the owner's choice; built
     when the host takes images ([`debt.md`](debt.md)).
-  - In a headless Weston on lavapipe, a lost device drawn again 51 to 801 ms after the command, a
-    surface 1.06 to 1.22 s ([`measurements.md`](measurements.md#m6d7a2b2-a-lost-device-and-a-lost-surface-in-uwuis-desktop-host)).
+  - The closing review found a device lost while a frame held its image panicking in its
+    replacement, a configuration refused panicking at the next image, the window frozen after
+    four images not presented, and seven smaller defects; each fixed, the first under the test,
+    which now fails without it.
+  - In a headless Weston on lavapipe, a lost device drawn again within 51 ms of the command, a
+    surface within 1.014 s ([`measurements.md`](measurements.md#m6d7a2b2-a-lost-device-and-a-lost-surface-in-uwuis-desktop-host)).
 
 ### M6d.7a2b3 — Crashes and panics
 

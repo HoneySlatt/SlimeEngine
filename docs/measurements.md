@@ -4531,24 +4531,6 @@ margin. `windows-release` took 6 min 36 s more and `check (headless)` 3 min 6 s 
 part adds two small crates and moves code; the runners' spread, seen at M6d.7a2a under X11, is as
 large, and one run cannot tell them apart. Followed at the next part's run.
 
-## M6d.7a2b2, a lost device and a lost surface in uwui's desktop host
-
-How long uwui's desktop host takes to draw again after a loss asked on purpose: from the command
-written on the `application` example's input to a new swap chain's image attached to its surface,
-read in its protocol's log every 50 ms. Run by the `rest` test
-`the_application_draws_again_after_its_device_and_its_surface_are_lost`, five times, in a headless
-Weston 16 on lavapipe, on the owner's AMD Ryzen 7 5800X, on 2026-11-18. **Disturbed:** other
-sessions built and ran meanwhile, a load average of 19 to 33; to measure again at rest.
-
-| Loss | Drawn again after |
-|---|---|
-| The device, replaced at once | 51, 110, 174, 193 and 801 ms |
-| The surface, made again a second later (ADR-0264) | 1,055, 1,065, 1,068, 1,146 and 1,222 ms |
-
-A device's time is a new instance's adapter and device, the surface, the renderer and its first
-frame, on the processor; the surface's is its wait of one second, then a new swap chain and a
-frame. The four `rest` tests took 34 s in Weston, within `scripts/check.sh windowed`'s 120 s.
-
 ## S1a, safe files
 
 What syncing a file's directory adds to a write whole, which `slime_files::write` now does after
@@ -4613,3 +4595,23 @@ Every job stays within its limit of 20 minutes; `windows-release`, the longest, 
 margin. `windows (tests)` took 5 min 21 s more than at S1a, though the change adds
 a few tests of the editor alone; its cause is not looked into, and the next milestones' runs tell
 whether it holds.
+
+## M6d.7a2b2, a lost device and a lost surface in uwui's desktop host
+
+How long uwui's desktop host takes to draw again after a loss asked on purpose: from the command
+written on the `application` example's input to a new swap chain's image attached to its surface,
+read in its protocol's log every 50 ms. Run by the `rest` test
+`the_application_draws_again_after_its_device_and_its_surface_are_lost`, five times, in a headless
+Weston 16 on lavapipe, on the owner's AMD Ryzen 7 5800X, on 2026-11-18, the machine quiet, a load
+average of 0.6 to 2.2, on `5c00110a` with the fixes of its closing review.
+
+| Loss | Drawn again after, five runs |
+|---|---|
+| The device, lost in a frame's draw, replaced at once | 51 ms each, the first read |
+| The surface, made again a second later (ADR-0264) | 1,012 to 1,014 ms |
+
+A device's time is a new adapter and device, through the same instance, the surface, the
+renderer and its first frame, on the processor: below the reads' 50 ms. The surface's is its
+wait of one second, then a new swap chain and a frame. Before the review's fixes, with the other
+sessions' load at 19 to 33, the device took 51 to 801 ms and the surface 1,055 to 1,222 ms. The
+four `rest` tests took 31 s in Weston, within `scripts/check.sh windowed`'s 120 s.

@@ -34,8 +34,8 @@ MIT OR Apache-2.0.
     engine's, adapted
     ([ADR-0264](../../docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md),
     [ADR-0305](../../docs/adr/0305-uwuis-desktop-host-makes-its-device-and-surface-again-a-programs-images-made-again-from-their-source.md)):
-    a device replaced at once, a surface given up made again a second later or at once when the
-    window changes, the fourth of either within five minutes ending the run.
+    a device replaced at once, a surface given up made again after a wait or at once when the
+    window changes; past the budgets, the run ends.
   - `session`: the application's run, its interface and its window, in the order of its calls.
 - `host`, at each turn of the layer: a closing asked or a termination signal given to the
   application; the window's size and scale given to the device; the person's input given to the
