@@ -17,8 +17,9 @@
 //!   not wait for its start, or whose signal comes much later, as a hidden window's, counts
 //!   neither way, nor does an image shown later than predicted: that is the prediction's. A frame
 //!   drawn at its signal because its start had already passed counts when on time, so that a
-//!   margin as wide as a period narrows back, but never as missed: its work may outlast a period. The pointers' moves are held until the frame starts. Where the
-//!   platform tells nothing, the frame starts on the signal.
+//!   margin as wide as a period narrows back, but never as missed: its work may outlast a period.
+//!   The pointers' moves are held until the frame starts. Where the platform tells nothing, the
+//!   frame starts on the signal.
 //! - *The first frame after a rest* starts at once when that time has passed, as it has after a
 //!   rest longer than a period, so that an input at rest reaches the screen within one frame's
 //!   work; after a shorter rest, it starts just in time, which reaches the same refresh with
@@ -144,7 +145,8 @@ pub(crate) struct Pacing {
     given: Option<(FrameShown, Cadence)>,
     /// When the frame wanted starts just in time, while the host waits for it.
     waiting_start: Option<Instant>,
-    /// The refresh that the frame about to be drawn aims at, once it waited for its start.
+    /// The refresh that the frame about to be drawn aims at, once it waited for its start or is
+    /// drawn at its signal's own turn.
     aiming: Option<Aim>,
     /// The image drawn just in time whose signal is awaited, and its aim.
     aimed: Option<(u64, Aim)>,

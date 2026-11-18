@@ -4945,7 +4945,7 @@ image is composed at the refresh after its frame rather than waiting a refresh a
 Input to present does not move in motion, as ADR-0309 foresaw, and stays within its budgets: 4.17 ms
 at rest, and in motion a refresh plus the frame's work at its 99th percentile, from its turn's
 start, 4.17 + 0.65 = 4.82 ms. Inputs apart take about 0.2 ms longer at the median after than before, in
-the two blank windows as in the example, which draw no frame just in time: the runs differ there, not the
+the example as in the two blank windows, which draw no frame just in time: the runs differ there, not the
 pacing.
 
 After, on the GPU, through sway's GL renderer and RADV:

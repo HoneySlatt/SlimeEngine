@@ -2698,7 +2698,7 @@ The second part of M6d.7a2c ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-mea
   - On the GPU, in motion, the example shows each input about 2.9 ms sooner than before, and its
     input to present stays within its budgets at rest and in motion
     ([`measurements.md`](measurements.md#m6d7a2c2-frames-drawn-just-in-time), its figures).
-  - The closing review, in four rounds, found the margin widened by images that no margin could
+  - The closing review, in five rounds, found the margin widened by images that no margin could
     help, a hidden window's, a frame after a rest, a compositor that shows its images later, a
     frame whose work outlasts a period; the lag poisoned by one image composed from idle; one long
     frame moving the times given; and two tests that passed with their feature removed. Each fixed
