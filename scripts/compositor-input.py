@@ -14,7 +14,8 @@ wlroots' virtual pointers and keyboards for sway, libei for KWin and Mutter, XTe
 commands on a Unix socket, whose path `SLIME_COMPOSITOR_INPUT` gives them. A device made for each
 command and gone after it would come and go before the window bound it: the compositor tells its
 clients that the seat has a keyboard, then none, and the keys between reach no window.
-scripts/compositors.sh serves; slime-mcp's `compositor` test sends.
+scripts/compositors.sh serves; slime-mcp's `compositor` test sends. scripts/host-cost.py holds a
+`Wlroots` itself, and turns the wheel through its `scroll`.
 
 sway takes wlroots' protocols, spoken here on the Wayland socket itself; KWin and Mutter give a
 socket of libei on the session bus, as the desktop's portal would, without its dialog: KWin through
@@ -164,6 +165,16 @@ class Wlroots:
         for state in (1, 0):
             self.send(self.pointer, 2, struct.pack("<III", self.now(), BTN_LEFT, state))
             self.send(self.pointer, 4, b"")
+        self.roundtrip(lambda *_: None)
+
+    def scroll(self, notches):
+        # zwlr_virtual_pointer_v1.axis_source, a wheel; axis_discrete, the vertical axis turned
+        # `notches`, 15 units each as libinput gives a wheel's, in 24.8 fixed point; then frame.
+        self.send(self.pointer, 5, struct.pack("<I", 0))
+        self.send(
+            self.pointer, 7, struct.pack("<IIii", self.now(), 0, notches * 15 * 256, notches)
+        )
+        self.send(self.pointer, 4, b"")
         self.roundtrip(lambda *_: None)
 
     def key(self, keys):
