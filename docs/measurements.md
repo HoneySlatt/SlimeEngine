@@ -4766,3 +4766,47 @@ jobs that read the zone cooked it again, 4 min 31 s in `windows (game)`, which e
 more, and part of the compositors'. The Windows jobs now build their tests in the step that puts
 DXC beside them, 5 min 29 s in `windows (game)`, time that their tests' step no longer takes. The
 next runs, the zone cooked, tell what the toolchain itself costs.
+
+## M6d.7a2c1, uwui's desktop host measured
+
+uwui's desktop host's own cost, what its example `application` adds above a blank window on the
+host's platform layer, beside the same blank window on winit
+([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)),
+measured by `scripts/host-cost.py` in one headless sway 1.12 at 1920 × 1080 and 240 Hz, built in
+release, on the owner's AMD Ryzen 7 5800X and RX 6900 XT, on 2026-11-18, on the milestone's code
+with its closing review's fixes, the machine at rest: other programs used about 0.1 of a core and
+none of the GPU meanwhile. Starts are the median of 10 after one that warms the caches, from the
+launch to the end of the first image's present. Input to present runs from the moment the tool
+sends a notch of the wheel to the end of the present of the first image that took it: 100 notches
+100 ms apart, then 1,000 at 180 a second. It ends at the present, not at the screen: the
+compositor and the display are not measured.
+
+On the GPU, through sway's GL renderer and RADV:
+
+| Measure | Blank, uwui's layer | Blank, winit | `application` | The host's own cost |
+|---|---|---|---|---|
+| Start, median (min–max) | 46.5 ms (45.1–49.6) | 45.9 ms (43.3–47.3) | 49.8 ms (48.4–50.1) | +3.3 ms |
+| Memory, Pss / Rss / peak | 32.4 / 56.2 / 65.1 MB | 34.0 / 57.7 / 66.7 MB | 39.9 / 63.8 / 68.6 MB | +7.4 MB Pss |
+| Video memory | 51.7 MB | 51.7 MB | 54.3 MB | +2.6 MB |
+| Binary, built / stripped | 7.2 / 5.1 MB | 10.1 / 6.9 MB | 17.9 / 14.4 MB | +9.3 MB stripped |
+| At rest over 10 s: frames, wake-ups a second, share of a core | 0, 0.0, 0.00 % | 0, 0.0, 0.00 % | 0, 0.0, 0.00 % | none |
+| Input to present, apart: median / 99th / longest | 0.44 / 0.51 / 0.55 ms | 0.46 / 0.55 / 0.57 ms | 0.79 / 0.92 / 0.96 ms | +0.40 ms at the 99th |
+| Input to present, in a row: median / 99th / longest | 0.20 / 0.28 / 0.58 ms | 0.20 / 0.32 / 0.45 ms | 0.36 / 0.46 / 0.85 ms | +0.18 ms at the 99th |
+| A frame's work, start to present: median / 99th | 0.15 / 0.32 ms | 0.15 / 0.31 ms | 0.28 / 0.62 ms | +0.13 ms |
+
+On lavapipe, which draws on the processor, its memory counted in the process's:
+
+| Measure | Blank, uwui's layer | Blank, winit | `application` | The host's own cost |
+|---|---|---|---|---|
+| Start, median (min–max) | 31.6 ms (30.8–33.2) | 32.6 ms (30.7–33.8) | 44.3 ms (43.2–47.4) | +12.7 ms |
+| Memory, Pss / Rss / peak | 75.3 / 79.7 / 79.7 MB | 76.5 / 80.9 / 80.9 MB | 105.8 / 110.3 / 110.3 MB | +30.5 MB Pss |
+| At rest over 10 s | 0 frames, 0 wake-ups | 0 frames, 0 wake-ups | 0 frames, 0 wake-ups | none |
+| Input to present, apart: median / 99th / longest | 0.95 / 1.35 / 4.13 ms | 0.96 / 3.93 / 3.99 ms | 8.14 / 10.57 / 11.06 ms | +9.22 ms at the 99th |
+| Input to present, in a row: median / 99th / longest | 0.65 / 0.94 / 1.30 ms | 0.64 / 0.76 / 1.56 ms | 12.39 / 15.42 / 16.60 ms (722 images) | +14.47 ms at the 99th |
+| A frame's work, start to present: median / 99th | 0.61 / 1.09 ms | 0.59 / 1.00 ms | 7.63 / 8.72 ms | +7.03 ms |
+
+The two blank windows match within the runs' spread: uwui's layer costs no more than winit at its
+start, memory or input to present, and its binary is 1.8 MB smaller stripped. On the GPU the
+example stays under 1 ms from input to present, within the editor's budget of 4.17 ms; on
+lavapipe its frame's work, 7.6 ms, makes inputs in a row wait behind the frame being drawn. These
+figures are M6d.7a2c2's starting point, before its frames are drawn just in time.

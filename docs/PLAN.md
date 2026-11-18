@@ -29,10 +29,10 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     after M6d.9b, [E1](stage-6d.md#e1--the-elements-contract), the element's contract designed
     before M6d.10a ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six, M6d.7a2 in three, M6d.7a2b
-    in three ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)):
+    in three, M6d.7a2c in two ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)):
     done, [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) to
-    [M6d.7a2b3](stage-6d.md#m6d7a2b3--crashes-and-panics), M6d.7a2b whole; next,
-    [M6d.7a2c](stage-6d.md#m6d7a2c--frames-and-the-host-measured).
+    [M6d.7a2c1](stage-6d.md#m6d7a2c1--the-host-measured); next,
+    [M6d.7a2c2](stage-6d.md#m6d7a2c2--frames-in-step-with-the-display).
   - M6d.10a, D1, M6d.11, M6d.10b and M6d.12 run alone, in this order
     ([ADR-0300](adr/0300-m6d10-cut-in-two-what-the-move-needs-before-it-uwuis-first-stage-planned-after.md)).
   - Timed measures run one track at a time; shared files are edited by one session at a time.
@@ -48,8 +48,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 |---|---|
 | [M6d.0a to M6d.3c3, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.4, M6d.5, M6d.6 — The canvas, the host's API, the compositors](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
-| [M6d.7a1 to M6d.7a2b3 — The host's core, Wayland, the seam, its losses and crashes](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) | Done |
-| [M6d.7a2c to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7a2c--frames-and-the-host-measured) | Planned |
+| [M6d.7a1 to M6d.7a2c1 — The host's core, Wayland, the seam, its losses and crashes, its cost measured](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) | Done |
+| [M6d.7a2c2 to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7a2c2--frames-in-step-with-the-display) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a2a — The library](stage-6d.md#m6d9a2a--the-library) | Done |

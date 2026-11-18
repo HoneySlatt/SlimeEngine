@@ -197,8 +197,10 @@ in git.
   [M6d.7a2b](#m6d7a2b--the-host-made-robust), cut in three on 2026-11-17 ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)): done,
   [M6d.7a2b1](#m6d7a2b1--the-seam-and-the-pointers),
   [M6d.7a2b2](#m6d7a2b2--a-lost-device-and-a-lost-surface) and
-  [M6d.7a2b3](#m6d7a2b3--crashes-and-panics), on 2026-11-18, M6d.7a2b whole; next,
-  [M6d.7a2c](#m6d7a2c--frames-and-the-host-measured).
+  [M6d.7a2b3](#m6d7a2b3--crashes-and-panics), on 2026-11-18, M6d.7a2b whole; then
+  [M6d.7a2c](#m6d7a2c--frames-and-the-host-measured), cut in two on 2026-11-18 ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)):
+  done, [M6d.7a2c1](#m6d7a2c1--the-host-measured), on 2026-11-18; next,
+  [M6d.7a2c2](#m6d7a2c2--frames-in-step-with-the-display).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2610,6 +2612,64 @@ The third part of M6d.7a2 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyb
   the binary, rest and input to present.
 - **Done when.** M6d.7a2's "Done when" above.
 - **Measured.** The host's own cost above the blank window, in one run; the applications' budgets'
+  first figures, in uwui's repository.
+
+- **Cut in two** on 2026-11-18, the owner's choice ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)): the host measured first,
+  then its frames put in step with the display and measured again. The blank window on winit in a
+  package of its own, `uwui-blank-winit`. M6d.7a2's "Done when" is met at M6d.7a2c2.
+
+### M6d.7a2c1 — The host measured
+
+The first part of M6d.7a2c ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The host's own cost known before its frames change.
+- **Crates.** `uwui-desktop`; `uwui-blank-winit`, new; `scripts/`.
+- **Delivers.** The host's trace where `UWUI_TRACE` names a file: each frame, and each input to the
+  present of the image after it. A blank window on the platform layer alone, `uwui-desktop`'s
+  example `blank`; one on winit, `uwui-blank-winit`; each presents again at each input and writes
+  the same trace. `scripts/host-cost.py`, which runs the three programs in turn in one headless
+  sway at 240 Hz and measures the start, memory, the binary, rest and input to present, inputs
+  apart and in a row.
+- **Done when.** The tool prints the three programs' figures and the host's own cost; the rest
+  tests read the example's trace and run the blank window; the first figures are recorded on
+  lavapipe, and on the GPU with the owner's go; CI is green.
+- **Measured.** The three programs' figures, the starting point of M6d.7a2c2.
+- **Result.** Done on 2026-11-18
+  ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)):
+  - The host's trace, `UWUI_TRACE`: each frame with the notches of the wheel it took, and each
+    input to present from the input's own time; an input answered with no image, one before the
+    first image and one across a device or a surface made again not counted. The blank window on
+    the layer writes it with the host's own file; the one on winit with a writer of its own.
+  - `scripts/host-cost.py` measures input to present from outside, from each notch of the wheel
+    that it sends through wlroots' virtual pointer to the image that took it, the same way for the
+    three programs; and it marks a program that other work disturbed.
+  - Two `rest` tests read the trace: the example's frames and, where the series gives input, its
+    hover's input to present; the blank window's first image and its end on SIGTERM. The eight
+    take 33 s in Weston.
+  - The host on the GPU adds 3.3 ms to a start, 7.4 MB of proportional memory, 2.6 MB of video
+    memory, 9.3 MB of stripped binary and no wake-up at rest; its example's input to present stays
+    under 1 ms at the 99th percentile, apart and in a row, 0.40 ms and 0.18 ms above the blank
+    window. The two blank windows match each other within the noise
+    ([`measurements.md`](measurements.md#m6d7a2c1-uwuis-desktop-host-measured)).
+  - The closing review found the host's input dated when its turn took it, which hid an input's
+    wait behind a long frame, about 10 ms on lavapipe; a pointer's held move dropped from the
+    trace; a percentile one rank low; a load said to be checked and not checked; and smaller
+    defects; each fixed before any figure was recorded.
+
+### M6d.7a2c2 — Frames in step with the display
+
+The second part of M6d.7a2c ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Input in motion reaches the next image.
+- **Crates.** `uwui-desktop`, `uwui-windowing`; `scripts/`.
+- **Delivers.** The presentations' times read through `wp_presentation` and given as predicted,
+  the display's period read; frames drawn just in time
+  ([ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)); the
+  host measured again with M6d.7a2c1's tool.
+- **Done when.** M6d.7a2's "Done when" above.
+- **Measured.** The host's own cost before and after, in one run each; the applications' budgets'
   first figures, in uwui's repository.
 
 ### M6d.7b — X11
