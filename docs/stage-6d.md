@@ -155,7 +155,8 @@ in git.
   [S1](#s1--saves-migrated-from-layout-5), cut in three on 2026-11-18
   ([ADR-0303](adr/0303-s1-cut-in-three-safe-files-the-editors-journal-saves-migrated.md)):
   [S1a](#s1a--safe-files), [S1b](#s1b--the-editors-journal) and
-  [S1c](#s1c--saves-migrated-and-a-panics-end); then [R1](#r1--rust-1100), the toolchain
+  [S1c](#s1c--saves-migrated-and-a-panics-end), all three done on the same day, S1 whole; then
+  [R1](#r1--rust-1100), the toolchain
   bumped ([ADR-0304](adr/0304-rust-1100-in-a-milestone-of-its-own-after-s1-new-crate-versions-three-days-old.md)); then
   [M6d.9a2c](#m6d9a2c--waiting),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
@@ -3335,6 +3336,51 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
 - **Done when.** `scripts/check.sh` passes; a test reads layout 5's fixture through the reader of a
   layout 6 made for the test, then thrown away; a test's simulation that panics ends `run` with its
   error, its `stop` not called.
+- **Result.** Done on 2026-11-18; with it, S1 is done:
+  - `slime-world`'s reader of saves reads every layout from 5 to the one it writes, each brought to
+    the next by its upgrade in turn, then reads the save at its own layout. Its table of upgrades,
+    `LAYOUT_UPGRADES`, is empty: the layout written is 5 plus its length, so that a new layout
+    cannot be written without its upgrade. The table's rustdoc holds the rule of a change of the
+    layout: its upgrade and a fixture of the layout before. Layouts 1 to 4 are refused as before,
+    and *Hunna Wood* sets them aside; `DocumentError::Layout` names the layouts read.
+  - An upgrade takes the save's fields as its text holds them and gives them back at the next
+    layout, as a type's upgrade takes its value ([ADR-0085](adr/0085-reflection.md)).
+    `slime-serialize` gains `Document::upgrade`, through which it runs; the errors of a document
+    upgraded name their path and no line, since a part that moved has no line in the text.
+  - The fixture of layout 5, `crates/slime-world/tests/reference/saves/layout-5.toml`, written by
+    the writer of layout 5 from a run made for it, holds every section of the layout but an
+    entity's identity in a scene file written from the world, which is drawn at random. The engine
+    keeps it, since *Hunna Wood*'s fixture is made again when its zone changes.
+  - `slime-app` catches a panic around the headless run and around each call that the platform's
+    event loop makes of its driver, the release of the window included: the run ends at once,
+    neither `stop` nor any other method of the game's is called, and `run` returns
+    `RunError::Panicked` with the panic's message, where the panic used to unwind out of `run`. A
+    panic in the engine's code that the run calls ends it the same way, as uwui's host does
+    (M6d.7a2b3): neither host can tell whose state is broken. A panic inside the windowing layer
+    itself, `slime-platform`'s adapter or winit, is not caught, as `run`'s rustdoc says.
+  - *Hunna Wood* saved nothing after a panic before, and still does not: its last save stays, as
+    F5 or the last quit wrote it, and the run since then is lost, as after a crash; the game now
+    exits with a failure rather than as a panic does.
+  - Checked on Linux, under Wayland; on Windows and macOS, not checked: no program makes a windowed
+    run panic, and those systems' event loops call the driver otherwise.
+  - Tested: the fixture loads as the run that wrote it, and saves again as that run does; read
+    through readers of one and two layouts past the engine's latest, made for the tests alone and
+    chained after the engine's upgrades, each upgrade in turn, and saves of those layouts through
+    the second; a layout before 5 and one past the reader's refused, naming the layouts read; an
+    upgrade that refuses refuses the save whole, the world unchanged. `Document::upgrade`: a type's
+    version still applies after it, its errors name no line, a refusal empties the document. A
+    panic in a frame and in `start`, headless, end `run` with the panic's error, no `stop` called;
+    windowed, a panic in the presentation's `render` and in the simulation's `update`, the same,
+    the call that panicked the game's last.
+  - The quality bar: "a file of an older version" now reads saves from layout 5.
+  - The closing review found the architecture's page still saying that both `stop` methods always
+    run, the docs promising to catch panics that the release of the window and the windowing layer
+    raise, a change claimed of *Hunna Wood* that a panic had already made, tests of later layouts
+    that the first real upgrade would break, `Document::upgrade` silent on what an upgrade gives
+    back, a windowed check weaker than it said, and smaller points; all settled, but two written
+    in [`debt.md`](debt.md): the windowed panic checked under Wayland alone, and a panic's message
+    read in two places.
+  - Measured: no budget's figure moves; a save of the latest layout takes no upgrade.
 
 ### R1 — Rust 1.100
 

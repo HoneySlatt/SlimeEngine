@@ -483,9 +483,13 @@ then, with a window, an image drawn or not:
 
 The run stops before the next frame once the game has asked for it (`request_exit`) or failed it
 (`exit_with_error`), the window was closed, the process received a termination signal, or
-`config.frame_limit` frames have run. The frame in progress always finishes, and both `stop`
-methods, the presentation's then the simulation's, are always called after `start` methods that
-succeeded; when a `start` returns an error, the run stops at once and `run` returns it as
+`config.frame_limit` frames have run. The frame in progress finishes, and both `stop` methods,
+the presentation's then the simulation's, are called after `start` methods that succeeded, but
+after a panic: one in a call of the game's, or of the engine's within the run, ends the run where
+it is, no method of the game's called again, `stop` included, and `run` returns
+`RunError::Panicked`
+([ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)). When a
+`start` returns an error, the run stops at once and `run` returns it as
 `RunError::Init`, and an error passed to `exit_with_error` is returned as `RunError::App` once the
 `stop` methods have run. The call order is checked by
 [`crates/slime-app/tests/lifecycle.rs`](../crates/slime-app/tests/lifecycle.rs) headless, with the
@@ -505,7 +509,8 @@ slime_app::run
 ├── loop: frame with delta = the fixed step (simulated time), back to back, or only when
 │         something asks for one when AppConfig::on_demand says, as the editor's program runs
 │         (see "Frames on demand")
-└── simulation.stop(ctx, &mut world)
+└── simulation.stop(ctx, &mut world), unless the run panicked: start, frames and stop run
+    inside one catch_unwind, which returns RunError::Panicked
 ```
 
 **Windowed driver** (`AppConfig::window` is `Some`), in
@@ -546,9 +551,13 @@ slime_app::run
     │                              asked from outside; return WaitUntil(next frame), Wait or
     │                              Exit
     └── winit "exiting"          → driver.exiting → presentation.stop(ctx), then
-                                   simulation.stop(ctx, &mut world); the surface, the GPU and the
-                                   window are released
+                                   simulation.stop(ctx, &mut world), unless the run panicked;
+                                   the surface, the GPU and the window are released
 ```
+
+Each of the driver's methods above runs inside `guarded`, which catches a panic before it
+reaches winit: the run is marked as panicked, `about_to_wait` returns Exit, and every later call
+returns at once, so that no method of the game's runs after it.
 
 Frames run on redraw requests ([ADR-0020](adr/0020-rendering-in-the-main-loop.md)). The engine
 asks for one every `1 / AppConfig::max_frame_rate` seconds: between them the event loop sleeps
@@ -1456,9 +1465,11 @@ world.save(&about)                                   slime-world
 
 start.load(text, &mut scenes, &mut prepare)          a world the game made as at the start of a run,
 │                                                    settled first if it never was
+├── upgrade_layout                                   its layout, from 5 to the latest, else
+│                                                    refused; Document::upgrade through each
+│                                                    layout's upgrade from its own, in turn
 ├── read_layout                                      first reading: all that can refuse the save,
-│                                                    before the world changes: its layout, which
-│                                                    must be 5, and sections, what it spawns,
+│                                                    before the world changes: its sections, what it spawns,
 │                                                    adopts and creates, each identity once, the
 │                                                    run's numbers following the world's count,
 │                                                    what it removes, the parents, what it keeps
@@ -2467,11 +2478,13 @@ The rules every change keeps; each links to where it is enforced or told whole.
   an error ([above](#losing-the-gpu)); uwui's desktop host replaces its own, and makes its
   window's surface again, within the same bounds
   ([ADR-0305](adr/0305-uwuis-desktop-host-makes-its-device-and-surface-again-a-programs-images-made-again-from-their-source.md)). A termination signal ends a run through its `stop` methods
-  ([above](#termination-signals)).
+  ([above](#termination-signals)); a panic ends it without them, the last save left as it was
+  ([ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)).
 - What the engine reads and promises of each file, damaged or of another version:
   [ADR-0096](adr/0096-the-files-the-engine-reads.md),
-  [ADR-0102](adr/0102-a-damaged-file-gives-an-error.md). Saves of another layout are refused,
-  not migrated yet ([`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10)).
+  [ADR-0102](adr/0102-a-damaged-file-gives-an-error.md). Saves are read from their layout 5 on,
+  each layout upgraded to the next in turn; those of layouts 1 to 4 are refused, and a game sets
+  them aside ([ADR-0288](adr/0288-saves-migrated-from-their-layout-5-on.md)).
 
 ## Evolution constraints
 

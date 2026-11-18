@@ -1056,10 +1056,6 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   Since M6d.7a2b1, `Input`'s pointer events name their `Pointer`, the mouse, a finger or a stylus; each target follows the first finger or stylus down, else the mouse, and a second finger on a screen does nothing (`crates/uwui/src/tree/interact.rs`).
   A touch that the compositor cancels, for a gesture of its own, leaves without lifting, and lets go of what it pressed without an action; touch is checked by unit tests alone, no compositor of the series injecting it.
   Hover, press and capture kept per pointer, gestures, scroll inertia and a stylus translated by the desktop host's layers come with touch, which M6d.10b places before uwui's library of components ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)).
-- **A save of an older layout is refused, not migrated** ([ADR-0288](adr/0288-saves-migrated-from-their-layout-5-on.md)).
-  `slime_world`'s reader of saves refuses any layout but `LAYOUT_VERSION` (`crates/slime-world/src/document.rs`); scene files accept every layout up to it.
-  Nothing is lost: *Hunna Wood* sets the old save aside.
-  From layout 5 on, saves are migrated: [S1c](stage-6d.md#s1c--saves-migrated-and-a-panics-end), on track A, builds the reader of older layouts and layout 5's fixture; layouts 1 to 4 stay set aside.
 - **The simulation is written for one thread, and draws identities from the system's randomness.**
   `Simulation::fixed_step` takes `&mut World`, as do 119 parameters of the engine and its games.
   `World::new_id` draws from `RandomState::new()` (`crates/slime-world/src/scene.rs`); queries walk in no particular order, which changes as components come and go.
@@ -1130,9 +1126,14 @@ A review of uwui's architecture of 2026-11-17, read-only too, added these:
   Since Rust 1.81, a panic that leaves an `extern "C"` function aborts the process: Win32's and AppKit's callbacks are such functions.
   The rule is [ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md): no `stop` after a panic, the run ending with its error, a panic caught in a platform's callback.
   Followed at M6d.7a2b3, which builds it with its test; Win32's and AppKit's callbacks catch theirs as M6d.7c and M6d.7d write them.
-- **A panic in a game's run skips its `stop` without a word** ([ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)).
-  `slime-app` catches no panic (`crates/slime-app/src/app.rs`): one in `fixed_step`, `update` or `apply` leaves `run`, and neither `Simulation::stop` nor its rustdoc says what follows.
-  Followed at [S1c](stage-6d.md#s1c--saves-migrated-and-a-panics-end), which writes ADR-0298's rule in `slime-app` with its test.
+- **A windowed run that panics is checked under Wayland alone** ([ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)).
+  `slime-app`'s windowed driver catches a panic in each call that the event loop makes of it (`crates/slime-app/src/windowed.rs`); `windowed_lifecycle.rs` checks it in a headless Weston.
+  On Windows, while the user resizes or moves the window, the loop does not ask the driver whether to end until the user lets go: a panic then leaves the window on screen, undrawn, until that moment, which nobody has seen.
+  No program makes a windowed run panic, so no check by hand covers Windows or macOS.
+  Followed by M6d.7c and M6d.7d, which catch the panics of Win32's and AppKit's callbacks in uwui's layer, onto which the engine moves.
+- **A panic's message is read from its payload in two places** (`crates/slime-reflect/src/support.rs`, `crates/slime-app/src/error.rs`), and uwui's desktop host makes a third.
+  The three crates share no dependency where one helper could live; the standard library gives none for a payload that `catch_unwind` caught.
+  Followed by D1, which consolidates the rule on errors.
 - **uwui's desktop host takes no image from a program.**
   uwui holds images' keys alone, the program their textures (`crates/uwui-render/src/lib.rs`); the host gives `uwui-render` none, and its `App` has no way to give one.
   When it takes them, a program gives each with its source, a file or its encoded bytes, which the host decodes and makes again after a lost device, the program told nothing ([ADR-0305](adr/0305-uwuis-desktop-host-makes-its-device-and-surface-again-a-programs-images-made-again-from-their-source.md)).
