@@ -2234,7 +2234,7 @@ run ─▶ uwui_windowing::run, the layer: connects (WAYLAND_DISPLAY), makes the
               cursor's shape that the outputs ask ─▶ Window::set_cursor ─▶ wp_cursor_shape_v1
             App::step, then the window's requests (title, minimum size, fullscreen, activation)
             Pacing::next(now, changed or Ui::needs_frame, Ui::next_frame_due):
-              WaitUntil(start just in time), while the signal is in, or Frame ─▶ acquire the image,
+              WaitUntil(the start just in time), once the signal came, or Frame ─▶ acquire the image,
                        Ui::set_target_size, Ui::set_frame_shown(predicted), Ui::frame, uwui-render
                        draws, Window::ask_signal (wl_surface.frame and wp_presentation.feedback),
                        present (the driver's commit carries both)

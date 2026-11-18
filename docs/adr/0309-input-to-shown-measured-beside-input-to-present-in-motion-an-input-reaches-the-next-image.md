@@ -67,18 +67,16 @@ the refresh that their time was predicted for.
 - Where the platform tells when images show, a frame starts at the signal's time plus the display's
   period, less the frame's work and a margin, or at once if that time has passed. The work is the
   longest of the latest frames', from the start of the turn that draws them to the end of their
-  present. The margin covers what the compositor spends between composing and signalling: an image
-  drawn just in time that shows half a period or more after the time predicted for it widens the
-  margin, and the host traces it (`missed`); images shown on time in a row narrow it back; it never
-  exceeds a period. A frame started at once after a rest, or an image shown much later, as a hidden
-  window's, says nothing of the margin. Its figures are in the rustdoc of `uwui-desktop`'s
-  `pacing`.
+  present. The margin covers what the compositor spends between composing and signalling: a frame
+  that waited for its start and whose image's signal comes half a period or more after the refresh
+  that it aimed at, the signal before it plus the period, missed it; it widens the margin, and the
+  host traces it (`missed`); frames on time in a row narrow it back; it never exceeds a period. A
+  frame that did not wait for its start, a signal much later, as a hidden window's, and an image
+  shown later than predicted, as where a compositor shows its images a refresh after composing
+  them, say nothing of the margin. Its figures are in the rustdoc of `uwui-desktop`'s `pacing`.
 - So the first frame after a rest longer than a period starts at once: an input at rest reaches the
   screen within one frame's work. After a shorter rest, it starts just in time, which reaches the
   same refresh.
-- The time given is predicted from the frame's usual work and the usual lag of recent frames that
-  came as it does, in step with the signal or after a rest, which compositors that compose at once
-  when idle show sooner.
 - Where the platform tells no presentation, the frame starts on the signal.
 - Built on Wayland at M6d.7a2c2, on each other platform at its part of M6d.7.
 
@@ -107,10 +105,15 @@ On the first frame after a rest:
 
 ## Validation and reconsideration
 
-- Measured in a headless sway at 240 Hz alone, which composes a late image when it comes and tells
-  no period: a real display, sway's and niri's on the owner's machine, under a variable refresh
-  too, is checked by hand, the frames that miss counted in a trace. Many there, or a margin that
-  stays wide, reopen the margin's rule and the lags'.
+- Measured: the gain and the budgets, in a headless sway at 240 Hz alone, which composes a late
+  image when it comes and tells no period ([`measurements.md`](../measurements.md),
+  [`compositors.md`](../compositors.md)). Reviewed, not measured: the margin's rule and the lags,
+  on a model of compositors in `pacing`'s tests. Assumed: that a real compositor signals at
+  each composition, as wlroots, Weston, KWin and Mutter do, and composes an image ready before
+  the refresh at that refresh.
+- A real display, sway's and niri's on the owner's machine, under a variable refresh too, is
+  checked by hand, the frames that miss counted in a trace. Many there, or a margin that stays
+  wide, reopen the margin's rule.
 - The budget in motion is reconsidered if a platform's pacing passes under a refresh plus the
   frame's work, as one that composes at an input's commit would.
 

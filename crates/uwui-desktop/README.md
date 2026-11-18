@@ -27,14 +27,16 @@ MIT OR Apache-2.0.
 - Holds a *core* that knows no platform, tested without a window on every platform:
   - `pacing`: nothing runs at rest; while frames run, one per refresh, each on the signal that the
     image before asked, drawn just in time where the layer tells when images show: it starts at the
-    signal plus the period, less the frame's work and a margin that a frame shown late widens, or at
-    once when that time has passed, as for the first frame after a rest
+    signal plus the period, less the frame's work from its turn's start and a margin that a frame
+    drawn just in time widens when its image's signal says that it missed its refresh, or at once
+    when that time has passed, as for the first frame after a rest
     ([ADR-0309](../../docs/adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)); a window whose signal does
     not come holds its frames, an event of the window or a wake from another thread running one
     once the signal is late ([ADR-0187](../../docs/adr/0187-a-hidden-window-at-rest.md)); the time given to the
     interface predicted from the presentations that the layer tells (`FrameSource::Predicted`):
-    the first refresh after the frame's work, on the grid of the last image shown and the period
-    that the platform gave, plus the lag that recent images showed; where the layer tells none, on
+    the first refresh after the frame's usual work, on the grid of the last image shown and the
+    period, plus the usual lag of recent frames that came as it does, in step with the signal or
+    after a rest; where the layer tells none, on
     the grid of the signals (`FrameSource::OnGrid`), its period measured from their gaps
     ([ADR-0227](../../docs/adr/0227-the-time-that-motion-reads.md)).
   - `recovery`: the budgets within which it makes a lost device and a lost surface again, the

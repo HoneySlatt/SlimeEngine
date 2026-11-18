@@ -128,6 +128,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   `wp_presentation` tells a period of zero in a headless sway: there the period is the median of the frame callbacks' gaps while frames follow each other, as before M6d.7a2c2 ([`compositors.md`](compositors.md)).
   ADR-0227 asks for the display's rate first: the outputs are bound for their scale alone, not for their mode.
   The grid is anchored on every presentation, also those without the `vsync` flag, whose times the compositor takes in software.
+  Followed at M6d.7e, whose several windows follow the outputs and their modes.
 - **uwui's desktop host follows no global that comes during its run** ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
   A seat added later gives no pointer, touch or keyboard, and an output plugged later is not bound: where the compositor prefers no scale for the surface, as Weston, a window moved onto it keeps the scale of the outputs known at its start.
   Followed at M6d.7e, whose several windows follow the outputs and the seats.

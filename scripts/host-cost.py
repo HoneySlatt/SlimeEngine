@@ -29,8 +29,8 @@ For each program, built in release, it measures:
   for the three programs, which an input that waits behind a long frame does not escape;
 - its input to shown: the same, to when the first image at or after the one that took it showed,
   as its trace says where its platform tells it (`shown`, from `wp_presentation`); winit's program
-  tells none. And the frames that missed the refresh that their time was predicted for (`missed`),
-  which only the host traces;
+  tells none. And the frames drawn just in time that missed the refresh that they aimed at
+  (`missed`), which only the host draws and traces;
 - its binary's size, as built and stripped.
 
 The input reaches the window through the compositor, as a person's does, through the virtual
@@ -627,7 +627,12 @@ def measure(name, binary, sway, devices, work, given):
         **{f"{which} shown": scenario(which, True) for which in bounds},
         "binary": (size / 1e6, stripped.stat().st_size / 1e6),
         "frame work": [event["dur"] / 1000 for event in frames(trace)],
-        "missed": sum(1 for event in trace if event["name"] == "missed"),
+        # Only the host draws frames just in time, and traces those that miss.
+        "missed": (
+            sum(1 for event in trace if event["name"] == "missed")
+            if name == "application"
+            else None
+        ),
         "load": load.end(given.gpu),
     }
 
@@ -723,12 +728,12 @@ def table(figures):
             )
         ),
         (
-            "Frames that missed their predicted refresh",
-            lambda f: str(f["missed"]),
+            "Frames drawn just in time that missed their refresh",
+            lambda f: "—" if f["missed"] is None else str(f["missed"]),
             "",
         ),
         (
-            "A frame's work, start to present: median / 99th",
+            "A frame's work, its turn's start to present: median / 99th",
             lambda f: f"{statistics.median(f['frame work']):.2f} / "
             f"{p99(f['frame work']):.2f} ms",
             own(lambda f: statistics.median(f["frame work"]), "ms", 2),

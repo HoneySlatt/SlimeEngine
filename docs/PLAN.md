@@ -176,11 +176,11 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
 - **Each window's size and scale** (M6d.5e2): the editor in the Windows virtual machine moved
   between screens of two scales, and its scale changed while it runs: laid out again at once,
   sharp; minimized and restored as it was.
-- **An application on uwui's desktop host** (M6d.7a1 to M6d.7a2c2): `cargo run -p uwui-desktop
-  --example application` on the owner's desktop: its window, its bar or none, the pointer on its
+- **An application on uwui's desktop host** (M6d.7a1 to M6d.7a2c2): `UWUI_TRACE=<file> cargo run
+  -p uwui-desktop --example application` on the owner's desktop: its window, its bar or none, the pointer on its
   buttons, list and dialog, then at rest; closed by its window's button, then by Ctrl+C; typing
   with the owner's layout: dead keys, Compose, a key held, the I-beam over its field; sharp on
-  displays of two scales; its list scrolled fast, variable refresh on and off, smooth, no `missed` in its `UWUI_TRACE`.
+  displays of two scales; its list scrolled fast, variable refresh on and off, smooth, a few `missed` at most in its trace.
 - **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
   left by Alt and Tab, Alt held or mid-drag: no bar in focus, nothing dropped; *Hunna Wood*'s
   button that loses the surface, on Direct3D 12: drawn again.

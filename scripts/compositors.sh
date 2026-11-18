@@ -287,7 +287,7 @@ if [ "$name" != x11 ]; then
     # The display's period that wp_presentation tells with each image shown, `presented`'s fourth
     # argument in nanoseconds, zero where the compositor does not know it (ADR-0309).
     refresh=$(grep -m 1 -o -E 'wp_presentation_feedback#[0-9]+\.presented\([^)]*\)' \
-        "$report/application.log" | cut -d, -f4 | tr -d ' ')
+        "$report/application.log" | cut -d, -f4 | tr -d ' ' || true)
     case "$refresh" in
         "") observe "uwui's host's period told" "no image shown told" ;;
         0) observe "uwui's host's period told" "none, measured from the signals" ;;
