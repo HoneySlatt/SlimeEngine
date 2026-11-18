@@ -1060,8 +1060,11 @@ mod tests {
             report.contains("GPU: llvmpipe, driver llvmpipe, Vulkan"),
             "{report}"
         );
+        // Windows writes the panic's file with `\`.
         assert!(
-            report.contains("at: crates/uwui-desktop/src/crash.rs:"),
+            report
+                .replace('\\', "/")
+                .contains("at: crates/uwui-desktop/src/crash.rs:"),
             "{report}"
         );
         let text = std::fs::read_to_string(&marker).expect("the marker stays");
