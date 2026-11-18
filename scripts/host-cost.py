@@ -609,8 +609,12 @@ def measure(name, binary, sway, devices, work, given):
             for index, present, shown in intervals
             if low <= index < high
         ]
-        # A program whose platform tells no image shown has no such figure.
-        return None if to_shown and None in found else found
+        if not to_shown:
+            return found
+        # A program whose platform tells no image shown has no such figure; an image that the
+        # platform did not tell, as one discarded with no later image, is left out.
+        told = [interval for interval in found if interval is not None]
+        return told or None
 
     size = binary.stat().st_size
     stripped = work / f"{slug}.stripped"
