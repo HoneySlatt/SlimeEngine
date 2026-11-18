@@ -1174,7 +1174,7 @@ impl Ui {
         if !multiline {
             field.offset[1] = 0.0;
         }
-        for axis in 0..axes {
+        for (axis, offset) in field.offset.iter_mut().enumerate().take(axes) {
             let (at, size, extent, room) = match axis {
                 0 => (
                     caret.x,
@@ -1184,7 +1184,6 @@ impl Ui {
                 ),
                 _ => (caret.y, caret.height, layout.height(), content.height),
             };
-            let offset = &mut field.offset[axis];
             if at - *offset < 0.0 {
                 *offset = at;
             } else if at + size - *offset > room {

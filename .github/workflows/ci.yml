@@ -91,7 +91,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        part: [tests, render, game]
+        # Each part's packages, which its tests and its DXC step name alike, so that cargo builds
+        # the same programs for both.
+        include:
+          - part: tests
+            packages: --workspace --exclude slime-render
+          - part: render
+            packages: -p slime-render
+          - part: game
+            packages: -p hunnawood -p hunnawood-editor
     name: windows (${{ matrix.part }})
     runs-on: windows-2025
     timeout-minutes: 45
@@ -104,9 +112,12 @@ jobs:
         run: rustup toolchain install
       # Direct3D 12 compiles shaders with the DXC that lies beside the program, as where the
       # engine's programs are shipped (docs/adr/0066-shipping-dxc-beside-the-programs.md): here,
-      # beside the tests and the samples that cargo runs.
+      # beside the tests and the samples that cargo runs, each test in a directory that cargo
+      # names as it builds it (scripts/test-directories.sh).
       - name: Put DXC beside the tests and the samples
-        run: scripts/fetch-dxc.sh target/debug/deps target/debug/examples
+        run: |
+          { scripts/test-directories.sh ${{ matrix.packages }} --locked; echo target/debug/examples; } |
+            xargs -d '\n' scripts/fetch-dxc.sh
       # The tests run one at a time: WARP's shader compiler crashes the process, now and then, when
       # several threads compile shaders at once, even on separate devices (an access violation in
       # d3d10warp.dll, which no test can catch; seen in other projects too). Without failing fast,
@@ -118,10 +129,10 @@ jobs:
       # them built the workspace again, with the features of those packages alone.
       - name: Tests
         if: matrix.part == 'tests'
-        run: cargo test --workspace --exclude slime-render --locked --no-fail-fast -- --nocapture --test-threads=1
+        run: cargo test ${{ matrix.packages }} --locked --no-fail-fast -- --nocapture --test-threads=1
       - name: The renderer's tests
         if: matrix.part == 'render'
-        run: cargo test -p slime-render --locked --no-fail-fast -- --nocapture --test-threads=1
+        run: cargo test ${{ matrix.packages }} --locked --no-fail-fast -- --nocapture --test-threads=1
       - name: Headless samples
         if: matrix.part == 'tests'
         run: |
@@ -159,7 +170,7 @@ jobs:
           cargo run --locked --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
       - name: The tests that read the sample game's zone
         if: matrix.part == 'game'
-        run: cargo test --locked -p hunnawood -p hunnawood-editor -- --ignored
+        run: cargo test ${{ matrix.packages }} --locked -- --ignored
       # An image test that fails writes the image it rendered in target/tmp (CARGO_TARGET_TMPDIR).
       # Only these jobs can show what WARP drew, and the runner is discarded with that image.
       - name: Publish the images rendered by the image tests that failed

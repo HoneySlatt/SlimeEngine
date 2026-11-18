@@ -1,0 +1,1 @@
+- Building needs Rust 1.100 or later; the workspace pins 1.100.0 (ADR-0304).

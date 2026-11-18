@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Downloads DXC, the shader compiler of Direct3D 12 that the engine uses when its library lies
 # beside the program (docs/adr/0066-shipping-dxc-beside-the-programs.md), checks the archive
-# against its SHA-256, and copies `dxcompiler.dll` and its licence into each directory given. CI
-# runs it on Windows; a contributor on Windows runs it from Git Bash, for example:
-#   scripts/fetch-dxc.sh target/debug/deps target/debug/examples target/debug
+# against its SHA-256, and puts `dxcompiler.dll` and its licence into each directory given, the
+# library a hard link where the disk allows, as the tests' directories are many. CI runs it on
+# Windows; a contributor on Windows runs it from Git Bash, for example beside the samples and the
+# game, then beside each test that `scripts/test-directories.sh` names:
+#   scripts/fetch-dxc.sh target/debug/examples target/debug
+#   scripts/test-directories.sh --workspace | xargs -d '\n' scripts/fetch-dxc.sh
 # It needs curl, sha256sum and PowerShell, which Git for Windows and Windows provide. The archive
 # and what it holds are kept in target/, so that a second run downloads nothing.
 set -euo pipefail
@@ -33,6 +36,6 @@ if [[ ! -f $work/dxcompiler.dll ]]; then
 fi
 for directory in "$@"; do
   mkdir -p "$directory"
-  cp "$work/dxcompiler.dll" "$directory/"
+  ln -f "$work/dxcompiler.dll" "$directory/" 2> /dev/null || cp "$work/dxcompiler.dll" "$directory/"
   cp "$work/LICENSE-LLVM.txt" "$directory/dxcompiler-LICENSE.txt"
 done

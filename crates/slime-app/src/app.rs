@@ -343,13 +343,11 @@ impl Frames {
     /// a capture, steps, a picking or an edit.
     pub(crate) fn waiting(&self) -> bool {
         #[cfg(feature = "development")]
-        if self
+        return self
             .channel
             .as_ref()
-            .is_some_and(crate::channel::DevChannel::waiting)
-        {
-            return true;
-        }
+            .is_some_and(crate::channel::DevChannel::waiting);
+        #[cfg(not(feature = "development"))]
         false
     }
 

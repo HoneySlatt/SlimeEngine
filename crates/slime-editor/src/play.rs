@@ -974,22 +974,22 @@ impl Drop for Cargo {
 }
 
 /// The arguments that make cargo build in the profile that the editor's own program, `own`, was
-/// built in, which names the directory that holds it, or that holds its directory of examples or,
-/// for a test program, of dependencies: none for `debug`, cargo's default.
+/// built in: none for `debug`, cargo's default. The profile names the directory that holds the
+/// program, or its directory of examples; a test program lies deeper, in
+/// `<profile>/build/<package>/<hash>/out/`, where Cargo's build directory puts it since Cargo
+/// 1.100. That layout is Cargo's own, free to change: a test reads the running test program's path.
 fn profile(own: &Path) -> Vec<String> {
-    let mut directory = own.parent();
-    if matches!(
-        directory
-            .and_then(Path::file_name)
-            .and_then(|name| name.to_str()),
-        Some("examples" | "deps")
-    ) {
-        directory = directory.and_then(Path::parent);
+    fn name(path: Option<&Path>) -> Option<&str> {
+        path.and_then(Path::file_name)
+            .and_then(|name| name.to_str())
     }
-    match directory
-        .and_then(Path::file_name)
-        .and_then(|name| name.to_str())
-    {
+    let parent = own.parent();
+    let directory = match name(parent) {
+        Some("examples") => parent.and_then(Path::parent),
+        Some("out") if name(own.ancestors().nth(4)) == Some("build") => own.ancestors().nth(5),
+        _ => parent,
+    };
+    match name(directory) {
         None | Some("debug") => Vec::new(),
         Some("release") => vec!["--release".to_owned()],
         Some(profile) => vec!["--profile".to_owned(), profile.to_owned()],
@@ -1155,9 +1155,24 @@ mod tests {
         let profile = |path: &str| profile(Path::new(path));
         assert!(profile("/w/target/debug/hunnawood-editor").is_empty());
         assert!(profile("/w/target/debug/examples/editor").is_empty());
-        assert!(profile("/w/target/debug/deps/slime_editor-0123").is_empty());
+        assert!(
+            profile("/w/target/debug/build/slime-editor/0123/out/slime_editor-0123").is_empty()
+        );
         assert_eq!(profile("/w/target/release/examples/editor"), ["--release"]);
+        assert_eq!(
+            profile("/w/target/release/build/slime-editor/0123/out/slime_editor-0123"),
+            ["--release"]
+        );
         assert_eq!(profile("/w/target/ci/editor"), ["--profile", "ci"]);
+        // Where cargo really put this test program: built in debug by `cargo test`, in release by
+        // `cargo test --release`, the workspace's two profiles that tests run in.
+        let own = std::env::current_exe().expect("the test program");
+        let built: &[&str] = if cfg!(debug_assertions) {
+            &[]
+        } else {
+            &["--release"]
+        };
+        assert_eq!(super::profile(&own), built, "{}", own.display());
     }
 
     #[test]

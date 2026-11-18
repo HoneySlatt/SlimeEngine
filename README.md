@@ -140,7 +140,7 @@ codegen-units = 1
   `cargo build --profile shipping --no-default-features`, which leaves both out, as [`games/hunnawood`](games/hunnawood/Cargo.toml) does
   ([`crates/slime-app/README.md`](crates/slime-app/README.md),
   [`crates/slime-devui/README.md`](crates/slime-devui/README.md)).
-- Building needs Rust 1.99 or later and, on Linux, the libraries that
+- Building needs Rust 1.100 or later and, on Linux, the libraries that
   [`CONTRIBUTING.md`](CONTRIBUTING.md#on-linux-without-nix) lists and a [Vulkan
   driver](CONTRIBUTING.md#gpu).
 - On Windows, put DXC's `dxcompiler.dll` beside the game's program, as `scripts/fetch-dxc.sh` does:

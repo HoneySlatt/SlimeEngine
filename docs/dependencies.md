@@ -157,7 +157,8 @@ it cuts down, which keep theirs.
 `curl` and `sha256sum` download and check the sample game's source assets and DXC
 (`scripts/fetch-assets.sh`, `scripts/fetch-dxc.sh`). They are the system's, outside the shell; Git
 for Windows provides them on Windows. `scripts/fetch-dxc.sh` unpacks DXC's archive with PowerShell,
-which Windows provides.
+which Windows provides. `scripts/test-directories.sh` turns the paths that cargo gives on Windows
+into Git Bash's with `cygpath`, which Git for Windows provides.
 
 ## CI actions
 

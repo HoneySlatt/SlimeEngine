@@ -188,20 +188,21 @@ fn at_rest(example: &Example) -> Result<(), String> {
     ))
 }
 
-/// The example, built beside this test.
+/// The example, built in this test's profile. Cargo puts it in `<profile>/examples/`, as its book
+/// documents, and this test below the same `<profile>` directory, in a build directory whose layout
+/// Cargo keeps internal: the example is in the test's nearest ancestor that holds one.
 fn example() -> PathBuf {
     let test = std::env::current_exe().expect("the test's path");
-    let profile = test
-        .parent()
-        .and_then(|deps| deps.parent())
-        .expect("the test lies in target/<profile>/deps");
-    let example = profile.join("examples/application");
-    assert!(
-        example.exists(),
-        "{} is not built: cargo build -p uwui-desktop --example application",
-        example.display()
-    );
-    example
+    let name = format!("examples/application{}", std::env::consts::EXE_SUFFIX);
+    test.ancestors()
+        .map(|directory| directory.join(&name))
+        .find(|example| example.is_file())
+        .unwrap_or_else(|| {
+            panic!(
+                "no {name} above {}: cargo build -p uwui-desktop --example application",
+                test.display()
+            )
+        })
 }
 
 /// Where the *Add* button's middle lies in the window, in logical pixels: the bar's padding, then
