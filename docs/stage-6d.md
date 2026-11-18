@@ -2403,6 +2403,9 @@ The second part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-
 - **Cut in three** on 2026-11-15, the owner's choice ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): Wayland's input and window; the
   host made robust; frames and the host measured, last, on the host as the first two leave it. The
   "Done when" above is met at M6d.7a2c.
+- **Done** on 2026-11-18 with M6d.7a2c2. In motion, its "Done when" reads as the budget that
+  [ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md) set on 2026-11-18, the owner's choice: the input reaches the next image, within a
+  refresh plus the frame's work; no pacing in step with the display meets 4.17 ms there.
 
 ### M6d.7a2a — Wayland's input and window
 
@@ -2676,6 +2679,26 @@ The second part of M6d.7a2c ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-mea
 - **Done when.** M6d.7a2's "Done when" above.
 - **Measured.** The host's own cost before and after, in one run each; the applications' budgets'
   first figures, in uwui's repository.
+- **Result.** Done on 2026-11-18, CI pending ([ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)):
+  - Wayland's layer asks `wp_presentation`'s feedback with each image and tells the host when it
+    showed, on the host's clock, with the display's period. The host reads the period rather than
+    measuring it, gives the interface the time predicted from the presentations
+    (`FrameSource::Predicted`), and traces when each image showed and the frames that missed the
+    refresh predicted for them.
+  - Frames are drawn just in time where the compositor tells presentations: a frame starts at the
+    signal plus the period, less the longest of the latest frames' work and a margin that a late
+    image widens, or at once when that time has passed, as after a rest longer than a period.
+  - `scripts/host-cost.py` measures input to shown beside input to present, and inputs in motion,
+    400 notches a second: at 180 a second, the host on the GPU rested between inputs, and its
+    figures in a row were inputs at rest.
+  - On the GPU, in motion, the example shows an input 2.9 ms sooner, 4.18 / 5.40 ms from input to
+    shown at the median and the 99th percentile, against 7.06 / 8.30 ms before; input to present
+    stays within its budget, 0.55 / 1.18 ms apart and 3.16 / 4.39 ms in motion, against 4.67 ms;
+    no frame missed its refresh
+    ([`measurements.md`](measurements.md#m6d7a2c2-frames-drawn-just-in-time)).
+  - Before building, three facts put to the owner: the gain shows only at the screen; no pacing in
+    step with the display meets 4.17 ms at the 99th percentile in motion; and the tool measured no
+    input in motion. ADR-0309 records the owner's answers.
 
 ### M6d.7b — X11
 

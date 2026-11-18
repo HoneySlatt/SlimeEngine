@@ -28,11 +28,11 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     done, M6d.9a2c1 and [M6d.9a2c2](stage-6d.md#m6d9a2c2--the-journal-that-waits); next, [M6d.9a2c3](stage-6d.md#m6d9a2c3--waits-in-uwui);
     after M6d.9b, [E1](stage-6d.md#e1--the-elements-contract), the element's contract designed
     before M6d.10a ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
-  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six, M6d.7a2 in three, M6d.7a2b
-    in three, M6d.7a2c in two ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)):
+  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six
+    ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)):
     done, [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) to
-    [M6d.7a2c1](stage-6d.md#m6d7a2c1--the-host-measured); next,
-    [M6d.7a2c2](stage-6d.md#m6d7a2c2--frames-in-step-with-the-display).
+    [M6d.7a2c2](stage-6d.md#m6d7a2c2--frames-in-step-with-the-display), M6d.7a2 whole; next,
+    [M6d.7b](stage-6d.md#m6d7b--x11).
   - M6d.10a, D1, M6d.11, M6d.10b and M6d.12 run alone, in this order
     ([ADR-0300](adr/0300-m6d10-cut-in-two-what-the-move-needs-before-it-uwuis-first-stage-planned-after.md)).
   - Timed measures run one track at a time; shared files are edited by one session at a time.
@@ -48,8 +48,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 |---|---|
 | [M6d.0a to M6d.3c3, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.4, M6d.5, M6d.6 — The canvas, the host's API, the compositors](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
-| [M6d.7a1 to M6d.7a2c1 — The host's core, Wayland, the seam, its losses and crashes, its cost measured](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) | Done |
-| [M6d.7a2c2 to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7a2c2--frames-in-step-with-the-display) | Planned |
+| [M6d.7a1 to M6d.7a2c2 — The host's core, Wayland whole, its cost measured](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) | Done |
+| [M6d.7b to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7b--x11) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a2a — The library](stage-6d.md#m6d9a2a--the-library) | Done |
@@ -176,12 +176,11 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
 - **Each window's size and scale** (M6d.5e2): the editor in the Windows virtual machine moved
   between screens of two scales, and its scale changed while it runs: laid out again at once,
   sharp; minimized and restored as it was.
-- **An application on uwui's desktop host** (M6d.7a1): `cargo run -p uwui-desktop --example
-  application` on the owner's desktop: its window, its bar or none, the pointer on its buttons,
-  list and dialog, then at rest; closed by its window's button, then by Ctrl+C in its terminal.
-- **Typing in an application on uwui's desktop host** (M6d.7a2a): its example on the owner's
-  desktop, with the owner's own layout: dead keys and Compose, a key held repeating, the I-beam
-  over its field, the window sharp on displays of two scales.
+- **An application on uwui's desktop host** (M6d.7a1 to M6d.7a2c2): `cargo run -p uwui-desktop
+  --example application` on the owner's desktop: its window, its bar or none, the pointer on its
+  buttons, list and dialog, then at rest; closed by its window's button, then by Ctrl+C; typing
+  with the owner's layout: dead keys, Compose, a key held, the I-beam over its field; sharp on
+  displays of two scales; its list scrolled fast, variable refresh on and off, smooth.
 - **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
   left by Alt and Tab, Alt held or mid-drag: no bar in focus, nothing dropped; *Hunna Wood*'s
   button that loses the surface, on Direct3D 12: drawn again.
