@@ -1,0 +1,7 @@
+# Cargo's settings for everyone who builds the workspace, CI included.
+
+[registry]
+# A version of a crate published less than three days ago is not chosen when Cargo resolves the
+# dependencies, by `cargo update` or a new dependency; the versions that Cargo.lock holds stay
+# (ADR-0304). CONTRIBUTING.md, "Dependencies", says how to take a newer one for an urgent fix.
+global-min-publish-age = "3 days"

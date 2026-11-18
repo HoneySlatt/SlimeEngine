@@ -650,6 +650,19 @@ the allowed licenses; `cargo deny` enforces the license and advisory rules. Reco
 dependency in [`docs/dependencies.md`](docs/dependencies.md) in the same change that adds it, and
 declare its version once, in `[workspace.dependencies]` of the root `Cargo.toml`.
 
+Cargo does not choose a version published less than three days ago, as
+[`.cargo/config.toml`](.cargo/config.toml) asks
+([ADR-0304](docs/adr/0304-rust-1100-in-a-milestone-of-its-own-after-s1-new-crate-versions-three-days-old.md)):
+a broken or malicious release is often found and yanked within that time. The versions in
+`Cargo.lock` stay. For an urgent fix, a security advisory for one, take the newer version for that
+crate alone, and say why in the commit:
+
+```sh
+CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE=allow cargo update -p <crate> --precise <version>
+```
+
+`cargo deny` and review then check it as any other change of `Cargo.lock`.
+
 Cargo also warns about a dependency that no target uses; `scripts/check.sh lint` makes that an
 error. It does not check dev-dependencies.
 
