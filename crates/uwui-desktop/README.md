@@ -16,7 +16,8 @@ MIT OR Apache-2.0.
   the look first, its fonts, style sheets and themes; the window's settings; the application, an
   `App`, whose `start` builds its roots and may fail, whose `step` runs after the events and before
   each frame, whose `close_requested` keeps the window open or lets it close, and whose `stop`
-  runs as the run ends, after a failure of the host too, so that it may keep its work.
+  runs as the run ends, after a failure of the host too, so that it may keep its work; never after
+  a panic, nor after a second termination signal, which ends the process at once.
 - Stands on a platform layer, `uwui-windowing`, which runs the platform's loop and calls the host
   back at each turn, and knows neither the interface nor the GPU
   ([ADR-0279](../../docs/adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md),
@@ -37,6 +38,16 @@ MIT OR Apache-2.0.
     a device replaced at once, a surface given up made again after a wait or at once when the
     window changes; past the budgets, the run ends.
   - `session`: the application's run, its interface and its window, in the order of its calls.
+  - `crash`: what it keeps of the runs that did not end well, in the application's crash
+    directory under the user's state directory
+    ([ADR-0306](../../docs/adr/0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md)):
+    a crash report written by its panic hook for a panic on the host's thread; a session's marker
+    that each run holds by a file's lock and removes at its end, which the next start finds when
+    the run did not end and tells; the hours of use, the runs and the crashes counted.
+- A panic in any call of its layer to it, the application's code, uwui's or its own, and in
+  `stop`, is caught before it leaves the call: the application is called no more and never
+  dropped, the device and the window still let go of, and the process ends with `EXIT_PANICKED`
+  ([ADR-0298](../../docs/adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)).
 - `host`, at each turn of the layer: a closing asked or a termination signal given to the
   application; the window's size and scale given to the device; the person's input given to the
   interface, the pointer's moves gathered, each event's time the layer's; the application's step
@@ -50,8 +61,7 @@ MIT OR Apache-2.0.
   `uwui-render` into the window's image. A lost device is replaced through the same wgpu
   instance, every object of the old one gone first.
 
-What waits for its milestone: the crash report,
-the session's marker and the rule of panics (M6d.7a2b3); the presentations' times and frames drawn
+What waits for its milestone: the presentations' times and frames drawn
 just in time (M6d.7a2c); X11 (M6d.7b), Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
 it has no layer and ends; a bar drawn by uwui where the compositor draws none, Weston and Mutter
 (M6d.7e); the clipboard, input methods and screen readers (M6d.8).
@@ -59,12 +69,15 @@ it has no layer and ends; a bar drawn by uwui where the compositor draws none, W
 
 ## Entry points
 
-- `run(look, window, app)`, its exit statuses `EXIT_HOST_FAILED` and `EXIT_START_FAILED`.
-- `App`, `Close`; `Look`; `WindowSettings`, how the window opens; `Window`, its state and the
+- `run(look, window, app)`, its exit statuses `EXIT_HOST_FAILED`, `EXIT_START_FAILED`,
+  `EXIT_PANICKED` and `EXIT_TERMINATED`; its rustdoc says where the crash directory lies and what
+  it holds.
+- `App`, `Close`; `Look`; `WindowSettings`, how the window opens and the application's version;
+  `Window`, its state and the
   application's requests, `bring_to_front` and `request_attention` among them, and the doors of
   the tests `lose_device` and `lose_surface`.
 - `examples/application.rs`: buttons, a field, a list and a dialog, at rest between inputs; with
-  `--commands`, the losses taken on its standard input.
+  `--commands`, the losses, a panic and a window kept open taken on its standard input.
 
 ## Tests
 
@@ -77,9 +90,14 @@ closing. Weston takes no input: there the input's part does not run. The second:
 on purpose, then its surface, each followed by a new swap chain's image, then at rest; two devices
 more replaced, and the fourth ending the run with `EXIT_HOST_FAILED`, the application stopped. The
 third: the window drawn at the scale that the compositor prefers, and the start's token of
-activation passed on. `scripts/check.sh windowed` runs them in a headless Weston, and
-`scripts/compositors.sh` in Weston, sway, KWin and Mutter, the third on an output at 1.5, at 2 in
-Weston
+activation passed on. The fourth: a panic in its step ending the run with `EXIT_PANICKED`, neither
+`stop` called nor the application dropped, its crash report written and its marker left; the next
+start finding that marker, then killed; the start after finding the killed run's, ending cleanly,
+and the tally counting three runs and two crashes. The fifth: a window kept open when asked to
+close, ended by a second termination signal with `EXIT_TERMINATED`. Each run has a state directory
+of its own, never the user's. `scripts/check.sh windowed` runs them in a headless Weston, and
+`scripts/compositors.sh` the first three in Weston, sway, KWin and Mutter, the third on an output
+at 1.5, at 2 in Weston
 ([`compositors.md`](../../docs/compositors.md)). `scripts/check.sh lint` checks that its tree
 holds no engine crate but `slime-color` and `slime-input`, that no other crate of the workspace
 depends on it, that `uwui` pulls no windowing library nor wgpu, and that its platform layer

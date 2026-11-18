@@ -285,6 +285,13 @@ interior, a short cutscene, a quest with its dialogue. It measures the human tim
 tokens and the machine's waits, imports, cooking, shaders and light, the quality judged in a *blind
 test* ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)). Not built yet.
 
+**Crash report.** A text file that uwui's desktop host writes when a panic ends a run, in the
+application's crash directory under the user's state directory: the panic's message, where it came
+and its backtrace, the application's and the host's versions, the system, the GPU and its driver,
+the home directory written `~`. Nothing leaves the machine
+([ADR-0306](adr/0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md)).
+The engine writes none yet ([ADR-0176](adr/0176-fuzzing-and-crash-reports.md)).
+
 **Cube texture (cube map).** Six square images on the faces of a cube, which shaders read by
 direction: the face is the axis along which the direction is longest
 (`Gpu::create_cube_texture`).
@@ -1608,10 +1615,12 @@ Wood* are checked, each the reference of a family: Weston, sway, KWin, Mutter, a
 Xvfb ([ADR-0195](adr/0195-a-series-of-headless-compositors.md)). What each gives and what the
 engine does there is in [`compositors.md`](compositors.md).
 
-**Session's marker.** A file that uwui's desktop host writes as a program starts and removes at a
-clean end: found at the next start, it tells that the run ended otherwise, a crash, an abort, a
-power cut, and counts the hours without a crash
-([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
+**Session's marker.** A file that uwui's desktop host writes as a program starts, holds by a
+file's lock while it runs, and removes at a clean end: found at the next start with no run holding
+it, it tells that the run ended otherwise, a panic, an abort, a power cut, and counts a crash
+beside the hours of use
+([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md),
+[ADR-0306](adr/0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md)).
 
 **Set aside.** Kept but not applied, and reported: an *override*, a reference or a part of a *save*
 whose target the *prefab* or the world no longer has (`slime_world::SetAside`,

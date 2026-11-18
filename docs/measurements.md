@@ -4668,3 +4668,25 @@ milestone changed `slime-world` and `slime-serialize`, which the cooked zone's k
 zone was cooked again, about 3 min, and its build started colder, 6 min to the first binary. A run
 whose cooker's crates do not change takes neither; the next runs tell whether the margin comes
 back.
+
+## M6d.7a2b3, crashes and panics in uwui's desktop host
+
+What a run's crash directory costs uwui's desktop host
+([ADR-0306](adr/0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md)):
+its start, the facts that a report would hold read, the system's name among them, then
+`Crashes::start_in`, its markers scanned and its own made; its clean end, the tally read, written
+beside, synced and renamed, the marker removed. Timed by a test thrown away after, 50 starts and
+ends in a row in a directory under `/tmp`, on the same NVMe disk as the user's state directory,
+built in release, on the owner's AMD Ryzen 7 5800X, on 2026-11-18, a load average of 1.2, on
+`694538ad` with the milestone's changes and its closing review's fixes.
+
+| Step | Median | Slowest of 50 |
+|---|---|---|
+| The start, no run found that did not end | 0.07 ms | 0.13 ms |
+| A clean end: the tally synced, the marker removed | 0.56 ms | 0.69 ms |
+
+A start syncs nothing unless it finds a run that did not end, whose count it then writes; the
+end's time is the disk's sync, once the window has closed. A first measure, before the review's
+fixes, saw one end take 7.6 ms. The seven `rest` tests took 31.9 s in a headless Weston on
+lavapipe, within `scripts/check.sh windowed`'s 120 s: the three new ones, panics in the step, the
+start and the stop, a run killed, and a window kept open, 1.4 s together.

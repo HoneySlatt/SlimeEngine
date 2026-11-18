@@ -27,7 +27,9 @@ onto it.
   platform's times of events placed on the host's clock by the fastest reception of a sliding
   window ([ADR-0227](../../docs/adr/0227-the-time-that-motion-reads.md)); `wake`, the waker that
   turns the loop from any thread and the termination signals, SIGTERM, SIGINT and SIGHUP, each
-  turning it once however many come before it turns.
+  turning it once however many come before it turns; a second signal, half a second or more after
+  the first, ends the process at once with `EXIT_TERMINATED`, for a host that no longer ends
+  ([ADR-0306](../../docs/adr/0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md)).
 - Holds Wayland's layer, on Linux (`wayland`): its loop on `rustix`, one `poll` on the compositor's
   socket, an eventfd that wakes it and a timerfd on `CLOCK_BOOTTIME`, the host's clock (`clock`);
   an xdg-shell window, its bar through xdg-decoration where the compositor draws one; the frame

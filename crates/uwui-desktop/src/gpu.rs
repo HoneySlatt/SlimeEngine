@@ -109,6 +109,8 @@ pub(crate) struct Gpu {
     unconfigured: bool,
     /// Whether the next draw loses the device before its submission: the door of the tests.
     lose_at_draw: bool,
+    /// The adapter, its driver and its API, as a crash report tells them.
+    described: String,
 }
 
 /// A frame's image, drawn, to be presented once the platform's signal is asked for
@@ -321,7 +323,16 @@ impl Gpu {
             losses_in_a_row: 0,
             unconfigured: false,
             lose_at_draw: false,
+            described: format!(
+                "{}, driver {} {}, {:?}",
+                info.name, info.driver, info.driver_info, info.backend
+            ),
         })
+    }
+
+    /// The adapter, its driver and its API, as a crash report tells them.
+    pub(crate) fn described(&self) -> &str {
+        &self.described
     }
 
     /// Whether the device is lost, and must be replaced ([`Gpu::restore`]).

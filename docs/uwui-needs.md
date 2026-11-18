@@ -123,6 +123,7 @@ The editor and games change their interfaces in two ways that applications rarel
 | The core built and run with fonts, files, the clipboard and threads all given by the host, none taken from the system; checked by a build that uses none | Consoles one day, through private layers ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)) | Wished: before consoles | New |
 | Linux and Windows first, the Steam Deck as a platform of the first rank | Every game | Indispensable: Stage 7 | Yes |
 | Services of files, settings, the network and long work, the same on every platform, the web and the phones included | The editor's and the tools' files and settings, and their long work, written once for every platform, as uwui's budget of porting asks ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)) | Indispensable: uwui's 1.0 | Yes: weighed at M6d.10b |
+| A log kept by uwui's hosts, whose last lines a crash report holds | Crash reports that say what came before a panic, as the engine's will from M6c.Q4 ([ADR-0176](adr/0176-fuzzing-and-crash-reports.md)) | Wished: uwui's first stage | New: the desktop host writes reports without it ([ADR-0306](adr/0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md)) |
 | Semantic versioning kept strictly after uwui's 1.0 | The engine's façade, stable after its own 1.0 ([ADR-0207](adr/0207-what-slimeengine-is-to-become.md)) | Indispensable: the engine's 1.0 | Yes |
 
 ### What the owner's shell and compositor ask

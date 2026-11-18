@@ -43,7 +43,8 @@
 //! Above it, its *core* knows no platform and is tested without a window, on every platform: the
 //! pacing of frames and the rest, the clock given to it (`pacing`), the budgets within which it
 //! makes a lost device and a lost surface again (`recovery`), and the application's run
-//! (`session`); `host` drives them at each turn, and `gpu` draws each frame into the window's image.
+//! (`session`), and what it keeps of the runs that did not end well (`crash`); `host` drives them
+//! at each turn, and `gpu` draws each frame into the window's image.
 //! The layer gives Wayland's window alone yet: elsewhere [`run`] says that it has none and ends.
 //!
 //! No type of a platform's library appears in its public API.
@@ -52,6 +53,7 @@
 #![warn(clippy::exhaustive_enums)]
 
 mod app;
+mod crash;
 mod gpu;
 mod host;
 mod pacing;
@@ -69,13 +71,50 @@ pub const EXIT_HOST_FAILED: i32 = 1;
 /// [`App::start`] fails, which is told on the standard error.
 pub const EXIT_START_FAILED: i32 = 2;
 
+/// The process's exit status when a panic ended the run, on the host's thread: in the application's
+/// code, or in uwui's or the host's own. The application is called no more, [`App::stop`] included,
+/// and the panic is told on the standard error and, where the user's state directory is given, in
+/// a crash report (see [`run`]). The status of a panic that leaves `main`, as Rust gives it.
+pub const EXIT_PANICKED: i32 = 101;
+
+/// The process's exit status when a second termination signal, half a second or more after the
+/// first, ended the run at once: an application that keeps its window, or does not return from
+/// [`App::step`], still ends. The status that a shell gives a process ended by Ctrl+C.
+pub const EXIT_TERMINATED: i32 = uwui_windowing::EXIT_TERMINATED;
+
 /// Runs `app` in a window opened with `window`, in `look`, and ends the process when the window
 /// closes, with status 0; never returns, on any platform.
 ///
 /// The window closes when the application allows a closing that the person or the system asks
 /// ([`App::close_requested`]), a termination signal among them, or closes it itself
 /// ([`Window::close`]). A failure ends the process with [`EXIT_HOST_FAILED`] or
-/// [`EXIT_START_FAILED`].
+/// [`EXIT_START_FAILED`]; a panic on the host's thread with [`EXIT_PANICKED`], without
+/// [`App::stop`]; a second termination signal with [`EXIT_TERMINATED`], at once.
+///
+/// What the host keeps of the runs that did not end well goes to the application's crash
+/// directory, `crashes` in a directory named by its identity ([`WindowSettings::new`]) in the
+/// user's state directory: `$XDG_STATE_HOME`, else `~/.local/state`; `%LOCALAPPDATA%` on Windows.
+/// Nothing leaves the machine:
+///
+/// - The host installs a panic hook, then runs the one installed before it; the hook keeps what a
+///   report needs of each panic on the host's thread. A panic that ends the run writes a *crash
+///   report*, `crash-<time>-<pid>.txt`: the message, where it came and the backtrace, the
+///   application's identity and version ([`WindowSettings::version`]), the host's version, the
+///   system, the GPU and its driver, the running user's home directory written `~`. A panic that
+///   the application catches itself writes none. The 20 newest are kept. The backtrace's paths of
+///   the machine that built the program are written as they are: a program built for others
+///   hides them with `--remap-path-prefix`.
+/// - A run holds a *session's marker* from its start to its end. A start that finds one that no
+///   live run holds tells on the standard error how that run ended: by a panic, with its report,
+///   or without a word, an abort, the system's killer of memory, a power cut, a second
+///   termination signal.
+/// - The file `hours` counts the seconds that the runs lasted, the runs and the crashes, which the
+///   quality bar's hours without a crash read.
+///
+/// A run ended by a panic or by a second termination signal leaves its marker: the next start
+/// counts it as a crash. What fails in the crash directory is told on the standard error, and the
+/// run goes on. A program run by a test or a tool is given its own `XDG_STATE_HOME`, or it writes
+/// in the user's.
 ///
 /// On Linux, it needs a Wayland compositor, which `WAYLAND_DISPLAY` names, and a GPU with Vulkan;
 /// elsewhere, it has no windowing layer yet, and ends with [`EXIT_HOST_FAILED`].

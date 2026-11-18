@@ -19,6 +19,14 @@
 //! gives `xdg_activation_v1`, then ends it, and writes that scale, `scale: 1.5`, on its standard
 //! output.
 //!
+//! Three more, each in a state directory of its own. The first makes the example panic in its
+//! step: the run ends with status 101, the application neither stopped nor dropped, its crash
+//! report written; the next start finds that run's marker, then is killed, and the start after
+//! finds the killed run's, ends cleanly and counts the three runs and the two crashes. It writes
+//! `crashes: reported and found`. The second makes it panic in its start, then in its stop: each
+//! run ends with status 101, without another call, each with its report. The third keeps the
+//! window open when asked to close: a second termination signal ends it with status 130.
+//!
 //! The example writes its protocol with `WAYLAND_DEBUG=client` into a file of each test's own,
 //! read for the images it presented and their size, the scale preferred, the pointer's events and
 //! where its window lies, then written on the test's standard error, where
@@ -372,8 +380,34 @@ impl Example {
     }
 
     /// Starts the example as [`start`](Self::start) does, taking commands on its input if
-    /// `commands`.
+    /// `commands`, in a state directory of its own, empty, named after `log`.
     fn start_with(log: &str, token: &str, commands: bool) -> Self {
+        let state = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("state-{log}"));
+        let _ = std::fs::remove_dir_all(&state);
+        Self::start_in(log, token, commands, &state)
+    }
+
+    /// Starts the example as [`start_with`](Self::start_with) does, in the state directory
+    /// `state`, where it keeps its crash reports, never the user's own.
+    fn start_in(log: &str, token: &str, commands: bool, state: &std::path::Path) -> Self {
+        let example = Self::spawn(log, token, commands, state, &[]);
+        let started = example
+            .lines
+            .recv_timeout(SETTLE)
+            .expect("the example writes its first line");
+        assert_eq!(started, "started", "the example did not start");
+        example
+    }
+
+    /// Starts the example as [`start_in`](Self::start_in) does, with `arguments` more, without
+    /// waiting for its first line.
+    fn spawn(
+        log: &str,
+        token: &str,
+        commands: bool,
+        state: &std::path::Path,
+        arguments: &[&str],
+    ) -> Self {
         assert!(
             std::env::var_os("WAYLAND_DISPLAY").is_some(),
             "the test runs in a Wayland compositor, which WAYLAND_DISPLAY names"
@@ -381,12 +415,14 @@ impl Example {
         let log = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(log);
         let log_file = std::fs::File::create(&log).expect("the example's log");
         let mut command = Command::new(example());
+        command.args(arguments);
         if commands {
             command.arg("--commands").stdin(Stdio::piped());
         }
         let mut child = command
             .env("WAYLAND_DEBUG", "client")
             .env("XDG_ACTIVATION_TOKEN", token)
+            .env("XDG_STATE_HOME", state)
             .stdout(Stdio::piped())
             .stderr(log_file)
             .spawn()
@@ -401,18 +437,12 @@ impl Example {
             }
         });
         let commands = child.stdin.take();
-        let example = Self {
+        Self {
             child,
             lines,
             log,
             commands,
-        };
-        let started = example
-            .lines
-            .recv_timeout(SETTLE)
-            .expect("the example writes its first line");
-        assert_eq!(started, "started", "the example did not start");
-        example
+        }
     }
 
     /// Gives it `command` on its input, then waits for the line that it writes as it takes it.
@@ -436,13 +466,18 @@ impl Example {
         std::fs::read_to_string(&self.log).expect("the example's log reads")
     }
 
-    /// Ends it by SIGTERM, which asks it to close: its last lines, once it ended with success.
-    fn end_on_sigterm(mut self) -> Vec<String> {
-        let killed = Command::new("kill")
-            .args(["-TERM", &self.pid().to_string()])
+    /// Sends it `signal`, `TERM` or `KILL`.
+    fn signal(&self, signal: &str) {
+        let sent = Command::new("kill")
+            .args([&format!("-{signal}"), &self.pid().to_string()])
             .status()
             .expect("kill runs");
-        assert!(killed.success());
+        assert!(sent.success(), "SIG{signal} was not sent");
+    }
+
+    /// Ends it by SIGTERM, which asks it to close: its last lines, once it ended with success.
+    fn end_on_sigterm(mut self) -> Vec<String> {
+        self.signal("TERM");
         let deadline = Instant::now() + Duration::from_secs(10);
         let status = loop {
             if let Some(status) = self.child.try_wait().expect("the example's status") {
@@ -566,7 +601,7 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
     println!("cursor: {cursor}");
     assert_eq!(
         example.end_on_sigterm(),
-        ["closing asked", "stopped"],
+        ["closing asked", "stopped", "dropped"],
         "the example was not asked to close, then stopped"
     );
 }
@@ -627,12 +662,230 @@ fn the_application_draws_again_after_its_device_and_its_surface_are_lost() {
         Some(1),
         "the fourth device lost did not end the run with EXIT_HOST_FAILED"
     );
-    assert_eq!(rest, ["stopped"], "the application was not stopped");
+    assert_eq!(
+        rest,
+        ["stopped", "dropped"],
+        "the application was not stopped"
+    );
     let log = example.read_log();
     assert!(
         log.contains("the GPU's device was lost again after 3 new ones within 5 minutes"),
         "the host did not tell why it ended: {}",
         example.log.display()
+    );
+}
+
+/// The files in `directory` whose names start with `start`, sorted.
+fn files(directory: &std::path::Path, start: &str) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    let mut files: Vec<PathBuf> = entries
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with(start))
+        .map(|entry| entry.path())
+        .collect();
+    files.sort();
+    files
+}
+
+#[test]
+fn a_panic_leaves_its_report_and_the_next_start_finds_each_runs_marker() {
+    let state = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("state-crashes");
+    let _ = std::fs::remove_dir_all(&state);
+    let crashes = state.join("dev.uwui.Application").join("crashes");
+
+    // A panic in the application's step ends the run with EXIT_PANICKED, the application neither
+    // stopped nor dropped, its report written and its marker left.
+    let mut example = Example::start_in("panic-application.log", "", true, &state);
+    example.command("panic", "panicking");
+    let (status, rest) = example.end_by_itself();
+    let shown = example.log.display().to_string();
+    assert_eq!(
+        status.code(),
+        Some(101),
+        "the panic did not end the run with EXIT_PANICKED: {shown}"
+    );
+    assert!(
+        rest.is_empty(),
+        "the application was called after its panic: {rest:?}"
+    );
+    let message = "the application was made to panic by its command";
+    assert!(
+        example
+            .read_log()
+            .contains(&format!("uwui's desktop host ended on a panic: {message}")),
+        "the host did not tell the panic: {shown}"
+    );
+    let reports = files(&crashes, "crash-");
+    assert_eq!(reports.len(), 1, "no report, or more than one: {reports:?}");
+    let report = std::fs::read_to_string(&reports[0]).expect("the report reads");
+    for told in [
+        format!("message:\n{message}\n"),
+        format!(
+            "application: dev.uwui.Application {}\n",
+            env!("CARGO_PKG_VERSION")
+        ),
+        "at: crates/uwui-desktop/examples/application.rs:".to_owned(),
+        "backtrace:\n".to_owned(),
+    ] {
+        assert!(
+            report.contains(&told),
+            "{told:?} not in the report: {report}"
+        );
+    }
+    assert!(
+        !report.contains("GPU: none opened yet"),
+        "the report names no GPU: {report}"
+    );
+    if let Some(home) = std::env::var_os("HOME").filter(|home| home.len() > 1) {
+        let home = home.to_string_lossy();
+        assert!(
+            !report.contains(home.as_ref()),
+            "the report names the home directory"
+        );
+    }
+    assert_eq!(
+        files(&crashes, "session-").len(),
+        1,
+        "the panic left no marker"
+    );
+
+    // The next start finds the panic's marker with its report; then a run killed, as the system's
+    // killer of memory would, leaves its own.
+    let example = Example::start_in("killed-application.log", "", false, &state);
+    let report_name = reports[0]
+        .file_name()
+        .expect("a name")
+        .to_string_lossy()
+        .into_owned();
+    let log = example.read_log();
+    assert!(
+        log.contains("ended by a panic after") && log.contains(&report_name),
+        "the next start did not find the panic's marker: {}",
+        example.log.display()
+    );
+    example.signal("KILL");
+    drop(example);
+
+    // The start after finds the killed run's marker, ends cleanly, and the tally counts the three.
+    let example = Example::start_in("after-crashes-application.log", "", false, &state);
+    assert!(
+        example
+            .read_log()
+            .contains("did not end: it was killed or aborted"),
+        "the next start did not find the killed run's marker: {}",
+        example.log.display()
+    );
+    assert_eq!(
+        example.end_on_sigterm(),
+        ["closing asked", "stopped", "dropped"]
+    );
+    assert!(
+        files(&crashes, "session-").is_empty(),
+        "a marker was left after a clean end"
+    );
+    let hours = std::fs::read_to_string(crashes.join("hours")).expect("the tally reads");
+    assert!(
+        hours.starts_with("# hours 1\n") && hours.ends_with("sessions 3\ncrashes 2\n"),
+        "the runs were not counted: {hours}"
+    );
+    println!("crashes: reported and found");
+}
+
+#[test]
+fn a_panic_in_the_start_or_the_stop_ends_the_run_without_another_call() {
+    let state = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("state-panic-calls");
+    let _ = std::fs::remove_dir_all(&state);
+    let crashes = state.join("dev.uwui.Application").join("crashes");
+    // In its start: the run ends with EXIT_PANICKED before the application writes anything.
+    let mut example = Example::spawn(
+        "panic-start-application.log",
+        "",
+        false,
+        &state,
+        &["--panic-in", "start"],
+    );
+    let (status, rest) = example.end_by_itself();
+    assert_eq!(
+        status.code(),
+        Some(101),
+        "a panic in the start did not end the run with EXIT_PANICKED: {}",
+        example.log.display()
+    );
+    assert!(
+        rest.is_empty(),
+        "the application was called after its panic: {rest:?}"
+    );
+    drop(example);
+    // In its stop, once asked to close: neither stopped again nor dropped.
+    let example = Example::spawn(
+        "panic-stop-application.log",
+        "",
+        false,
+        &state,
+        &["--panic-in", "stop"],
+    );
+    let started = example
+        .lines
+        .recv_timeout(SETTLE)
+        .expect("the example writes its first line");
+    assert_eq!(started, "started");
+    let mut example = example;
+    example.signal("TERM");
+    let (status, rest) = example.end_by_itself();
+    assert_eq!(
+        status.code(),
+        Some(101),
+        "a panic in the stop did not end the run with EXIT_PANICKED: {}",
+        example.log.display()
+    );
+    assert_eq!(
+        rest,
+        ["closing asked"],
+        "the application was called after its panic"
+    );
+    let reports = files(&crashes, "crash-");
+    assert_eq!(reports.len(), 2, "a report for each panic: {reports:?}");
+    for (report, call) in reports.iter().zip(["start", "stop"]) {
+        let report = std::fs::read_to_string(report).expect("the report reads");
+        assert!(
+            report.contains(&format!("made to panic in its {call}")),
+            "the report of the panic in its {call}: {report}"
+        );
+    }
+}
+
+#[test]
+fn a_second_termination_ends_an_application_that_keeps_its_window() {
+    let mut example = Example::start_with("keep-application.log", "", true);
+    example.command("keep", "keeping its window");
+    example.signal("TERM");
+    let asked = example
+        .lines
+        .recv_timeout(Duration::from_secs(10))
+        .expect("the example was asked to close");
+    assert_eq!(asked, "closing asked");
+    // Past the window within which a signal repeats the first.
+    std::thread::sleep(Duration::from_millis(700));
+    assert!(
+        example
+            .child
+            .try_wait()
+            .expect("the example's status")
+            .is_none(),
+        "the example ended though it kept its window"
+    );
+    example.signal("TERM");
+    let (status, rest) = example.end_by_itself();
+    assert_eq!(
+        status.code(),
+        Some(130),
+        "the second termination did not end the run with EXIT_TERMINATED"
+    );
+    assert!(
+        rest.is_empty(),
+        "the application was called after the second signal: {rest:?}"
     );
 }
 
@@ -673,7 +926,10 @@ fn the_window_draws_at_the_scale_that_the_compositor_prefers() {
             example.log.display()
         );
     }
-    assert_eq!(example.end_on_sigterm(), ["closing asked", "stopped"]);
+    assert_eq!(
+        example.end_on_sigterm(),
+        ["closing asked", "stopped", "dropped"]
+    );
 }
 
 #[test]

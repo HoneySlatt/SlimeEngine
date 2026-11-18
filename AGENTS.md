@@ -53,7 +53,7 @@ Keep off the owner's files and desktop:
 - Run the game with `--new --save <your file>`: without `--save`, it resumes and writes the user's save.
 - Run the MCP server in headless Weston: windows stay off the owner's desktop.
 - Run the editor on a level's copy, with your own journal: the user's default one keeps unwritten steps, recovered at start.
-- Drive the editor through an MCP server with its own `XDG_STATE_HOME`: the editor writes keys, layout, speeds and recent levels there, not in the owner's.
+- Give the editor's MCP server and uwui's applications their own `XDG_STATE_HOME`: they keep keys, layout, speeds, recent levels and crash reports there.
 
 ## Definition of done
 

@@ -8,7 +8,9 @@
   [0279](0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md) (one windowing layer: a seam in the host now, the engine
   moved onto it at a port) and
   [0273](0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md) (M6d.7a2 cut in
-  three)
+  three) and
+  [0306](0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md)
+  (no lines of the log in a crash report while the host keeps no log)
 - Date: 2026-11-15
 
 ## Context

@@ -4,11 +4,29 @@
 //! termination signals, SIGTERM, SIGINT and SIGHUP (`ctrlc`), set a flag and *notify* the loop
 //! once, the platform's way: an eventfd written on Linux. Wakes that come before the loop takes
 //! them notify it once, so that a thread that wakes it a thousand times while it draws costs one
-//! step.
+//! step. A second termination signal, half a second or more after the first, ends the process at
+//! once, with [`EXIT_TERMINATED`](crate::EXIT_TERMINATED).
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::task::{Wake, Waker};
+use std::time::{Duration, Instant};
+
+/// Signals that come within this time of the first repeat it rather than insist: a terminal that
+/// closes sends SIGHUP twice, from the shell and then from the kernel, less than a millisecond
+/// apart; the engine's own host waits as long (`crates/slime-app/src/signal.rs`).
+const REPEAT_WINDOW: Duration = Duration::from_millis(500);
+
+/// What a termination signal asks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Termination {
+    /// The first: the loop asks the application whether it closes.
+    Ask,
+    /// One that repeats the first, within half a second of it: nothing more.
+    Repeat,
+    /// One that insists: the process ends at once.
+    End,
+}
 
 /// What the loop is asked from other threads, and how they notify it.
 pub(crate) struct Asks {
@@ -16,6 +34,8 @@ pub(crate) struct Asks {
     woken: AtomicBool,
     /// A termination signal came since the loop last took it.
     terminated: AtomicBool,
+    /// When the first termination signal came.
+    first_termination: OnceLock<Instant>,
     /// Wakes the loop, from any thread, without blocking.
     notify: Box<dyn Fn() + Send + Sync>,
 }
@@ -26,6 +46,7 @@ impl Asks {
         Arc::new(Self {
             woken: AtomicBool::new(false),
             terminated: AtomicBool::new(false),
+            first_termination: OnceLock::new(),
             notify: Box::new(notify),
         })
     }
@@ -35,11 +56,22 @@ impl Asks {
         Waker::from(Arc::clone(self))
     }
 
-    /// A termination signal came: the loop asks the application whether it closes.
-    pub(crate) fn terminate(&self) {
+    /// A termination signal came at `now`: the first asks the loop to ask the application whether
+    /// it closes; what a later one asks is answered.
+    pub(crate) fn terminate(&self, now: Instant) -> Termination {
+        if let Some(first) = self.first_termination.get() {
+            return if now.saturating_duration_since(*first) >= REPEAT_WINDOW {
+                Termination::End
+            } else {
+                Termination::Repeat
+            };
+        }
+        // The signals come on one thread, so nothing sets it between the two calls.
+        let _ = self.first_termination.set(now);
         if !self.terminated.swap(true, Ordering::AcqRel) {
             (self.notify)();
         }
+        Termination::Ask
     }
 
     /// Whether a wake was asked since the last call.
@@ -66,11 +98,19 @@ impl Wake for Asks {
 }
 
 /// Ends the run on SIGTERM, SIGINT and SIGHUP through `asks`, which asks the application whether
-/// it closes. A process has one handler of them: when another part of the program set it first,
-/// the host says so, and the signals end the process as their default does.
+/// it closes; a second signal, half a second or more after the first, ends the process at once, for
+/// an application that keeps its window or no longer returns to the loop. A process has one
+/// handler of them: when another part of the program set it first, the host says so, and the
+/// signals end the process as their default does.
 pub(crate) fn on_termination(asks: &Arc<Asks>) {
     let asks = Arc::clone(asks);
-    if let Err(error) = ctrlc::set_handler(move || asks.terminate()) {
+    let handled = ctrlc::set_handler(move || {
+        if asks.terminate(Instant::now()) == Termination::End {
+            // Nothing written first: a standard error that nobody reads could block the exit.
+            std::process::exit(crate::EXIT_TERMINATED);
+        }
+    });
+    if let Err(error) = handled {
         tracing::warn!(%error, "the termination signals end the program without asking it");
     }
 }
@@ -118,11 +158,30 @@ mod tests {
     #[test]
     fn a_termination_is_told_apart_from_a_wake() {
         let (asks, count) = counted();
-        asks.terminate();
-        asks.terminate();
+        let now = Instant::now();
+        assert_eq!(asks.terminate(now), Termination::Ask);
+        assert_eq!(asks.terminate(now), Termination::Repeat);
         assert_eq!(count.load(Ordering::Relaxed), 1);
         assert!(!asks.take_woken());
         assert!(asks.take_terminated());
         assert!(!asks.take_terminated());
+    }
+
+    #[test]
+    fn a_second_termination_ends_the_process_once_it_insists() {
+        let (asks, _) = counted();
+        let first = Instant::now();
+        assert_eq!(asks.terminate(first), Termination::Ask);
+        assert_eq!(
+            asks.terminate(first + REPEAT_WINDOW - Duration::from_millis(1)),
+            Termination::Repeat
+        );
+        assert_eq!(asks.terminate(first + REPEAT_WINDOW), Termination::End);
+        // Once taken by the loop, a later signal still insists.
+        assert!(asks.take_terminated());
+        assert_eq!(
+            asks.terminate(first + Duration::from_secs(9)),
+            Termination::End
+        );
     }
 }

@@ -141,7 +141,8 @@ pub struct Happened {
     pub drawn: Option<Drawn>,
     /// The person asked the window to close.
     pub close_asked: bool,
-    /// A termination signal came: SIGTERM, SIGINT or SIGHUP.
+    /// A termination signal came: SIGTERM, SIGINT or SIGHUP; the first alone, a second that
+    /// insists ending the process ([`EXIT_TERMINATED`]).
     pub terminated: bool,
     /// Another thread woke the loop through [`Window::waker`].
     pub woken: bool,
@@ -169,6 +170,11 @@ pub enum Activation {
     /// Shown as asking for the person's attention, its focus left where it is.
     Attention,
 }
+
+/// The process's exit status when a second termination signal, SIGTERM, SIGINT or SIGHUP, half a
+/// second or more after the first, ends it at once, without a call of the host: the status that a
+/// shell gives a process ended by Ctrl+C. The first is the host's, as [`Happened::terminated`].
+pub const EXIT_TERMINATED: i32 = 130;
 
 /// The host above the layer, which it calls back.
 pub trait Handler {
@@ -325,8 +331,9 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 /// Opens a window as `opening` says and runs the platform's loop, calling `handler` back, until a
-/// turn ends it or the platform fails; hands `handler` back with how the run ended. Termination
-/// signals reach the handler as [`Happened::terminated`].
+/// turn ends it or the platform fails; hands `handler` back with how the run ended. The first
+/// termination signal reaches the handler as [`Happened::terminated`]; a second, half a second or
+/// more later, ends the process with [`EXIT_TERMINATED`].
 ///
 /// On Linux, it needs a Wayland compositor, which `WAYLAND_DISPLAY` names; elsewhere, it has no
 /// layer yet, and fails at once.

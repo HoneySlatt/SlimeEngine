@@ -10,9 +10,17 @@
 //! steps and makes its requests; a device lost is replaced and a surface given up made again,
 //! within their budget (`recovery`); a frame is drawn if the pacing says so, the signal asked just
 //! before its present.
+//!
+//! A panic in any call of the layer to the host, in the application's code, uwui's or the host's,
+//! is caught before it leaves the call: the application is called no more and never dropped, the
+//! device and the window still let go of, and the process ends with `EXIT_PANICKED`
+//! (`docs/adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md`). The run's
+//! crash report and marker are `crate::crash`'s.
 
 use std::error::Error;
 use std::fmt::{self, Write as _};
+use std::panic::{self, AssertUnwindSafe};
+use std::time::SystemTime;
 
 use uwui::host::{Event, Input, TargetId, TargetSize};
 use uwui::time::{EventTime, Instant};
@@ -20,11 +28,12 @@ use uwui::tree::Ui;
 use uwui_windowing::{Control, Drawn, Handler, Happened, Opening, Stopped, Window as Platform};
 
 use crate::app::{App, Look, Window, WindowSettings};
+use crate::crash::{self, Crashes};
 use crate::gpu::{Gpu, Loss};
 use crate::pacing::{Next, Pacing};
 use crate::recovery::{Budget, MAX_RECOVERIES, Remake, WINDOW};
-use crate::session::{Session, StartError};
-use crate::{EXIT_HOST_FAILED, EXIT_START_FAILED};
+use crate::session::{Session, StartError, Unwound};
+use crate::{EXIT_HOST_FAILED, EXIT_PANICKED, EXIT_START_FAILED};
 
 /// Why the host stopped.
 #[derive(Debug)]
@@ -37,6 +46,16 @@ impl fmt::Display for HostError {
 }
 
 impl Error for HostError {}
+
+impl fmt::Display for Failure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Device(error) | Self::Run(error) => write!(f, "{error}"),
+            Self::Start(error) => write!(f, "the application did not start: {error}"),
+            Self::Panicked(message) => write!(f, "a panic: {message}"),
+        }
+    }
+}
 
 /// `what` failed, by `cause`.
 fn failed(what: &str, cause: impl fmt::Display) -> HostError {
@@ -52,11 +71,19 @@ enum Failure {
     Start(StartError),
     /// The host failed during the run.
     Run(HostError),
+    /// A panic on the host's thread, with its message.
+    Panicked(String),
 }
 
 /// Runs `app` in a window of `settings`, in `look`, until it ends: the process's exit status.
 pub(crate) fn run<A: App>(look: Look, settings: WindowSettings, app: A) -> i32 {
+    let version = settings.version.clone();
     let mut window = Window::new(settings);
+    // Before the window opens, so that a crash before the first frame is found too.
+    let crashes = Crashes::start(window.app_id(), version.as_deref(), SystemTime::now());
+    if crashes.is_some() {
+        crash::install_hook();
+    }
     // The settings' requests are the opening's.
     let requests = window.take_requests();
     let opening = Opening {
@@ -67,8 +94,9 @@ pub(crate) fn run<A: App>(look: Look, settings: WindowSettings, app: A) -> i32 {
         fullscreen: requests.fullscreen == Some(true),
     };
     let host = Host {
-        waiting: Some((look, window, app)),
+        waiting: Some(Unwound::new((look, window, app))),
         session: None,
+        crashes,
         gpu: None,
         pacing: Pacing::default(),
         drawn: Drawn {
@@ -84,13 +112,22 @@ pub(crate) fn run<A: App>(look: Look, settings: WindowSettings, app: A) -> i32 {
     let Host {
         waiting,
         session,
-        failure,
+        crashes,
+        mut failure,
         ..
     } = host;
     // The application's last call, after a failure too, so that it may keep its work: the window
-    // is gone, its device perhaps lost.
-    if let Some(session) = session {
-        session.stop();
+    // is gone, its device perhaps lost. Never after a panic, when the session is gone.
+    if let Some(mut session) = session
+        && let Err(payload) = panic::catch_unwind(AssertUnwindSafe(|| session.stop()))
+    {
+        failure = Some(Failure::Panicked(crash::message(&*payload)));
+        forget_panicked(session, payload);
+    }
+    match (crashes, &failure) {
+        (Some(crashes), Some(Failure::Panicked(message))) => crashes.panicked(message),
+        (Some(crashes), _) => crashes.end(),
+        (None, _) => {}
     }
     match (failure, ran) {
         (Some(Failure::Device(error)), _) => {
@@ -110,6 +147,10 @@ pub(crate) fn run<A: App>(look: Look, settings: WindowSettings, app: A) -> i32 {
             report("uwui's desktop host stopped", &error);
             EXIT_HOST_FAILED
         }
+        (Some(Failure::Panicked(message)), _) => {
+            report("uwui's desktop host ended on a panic", &HostError(message));
+            EXIT_PANICKED
+        }
         // The layer failed before the window opened: the application never started.
         (None, Err(error)) if waiting.is_some() => {
             report("uwui's desktop host cannot start", &error);
@@ -123,6 +164,14 @@ pub(crate) fn run<A: App>(look: Look, settings: WindowSettings, app: A) -> i32 {
     }
 }
 
+/// Lets go of what a panic left without running any of its code: the application's value, which
+/// panicked, is never dropped, nor the panic's payload, whose drop may panic again. The process ends
+/// soon after.
+fn forget_panicked<T>(value: T, payload: Box<dyn std::any::Any + Send>) {
+    std::mem::forget(value);
+    std::mem::forget(payload);
+}
+
 /// Tells `error` and its causes on the standard error, which the application's log may not hold.
 fn report(what: &str, error: &dyn Error) {
     let mut told = format!("{what}: {error}");
@@ -132,14 +181,19 @@ fn report(what: &str, error: &dyn Error) {
         cause = error.source();
     }
     tracing::error!("{told}");
-    eprintln!("{told}");
+    crash::tell(&told);
 }
 
 /// The host: the application, before and while it runs, its device and its frames' pacing.
+///
+/// The application, waiting or running, is held in an [`Unwound`], so that a panic that leaves a
+/// call never drops it, one of the layer's own code included.
 struct Host<A> {
     /// The look, the window and the application until the window opens.
-    waiting: Option<(Look, Window, A)>,
-    session: Option<Session<A>>,
+    waiting: Option<Unwound<(Look, Window, A)>>,
+    session: Option<Unwound<Session<A>>>,
+    /// The run's crash directory, where the environment gives one.
+    crashes: Option<Crashes>,
     /// The window's device, from its opening until it closes.
     gpu: Option<Gpu>,
     pacing: Pacing,
@@ -156,9 +210,69 @@ struct Host<A> {
 
 impl<A: App> Handler for Host<A> {
     fn opened(&mut self, platform: &mut Platform<'_>, drawn: Drawn) -> Result<(), Stopped> {
-        let Some((look, window, app)) = self.waiting.take() else {
+        self.guarded(|host| host.open(platform, drawn))
+            .unwrap_or(Err(Stopped))
+    }
+
+    fn turn(&mut self, platform: &mut Platform<'_>, happened: Happened) -> Control {
+        self.guarded(|host| match host.turn_of(platform, happened) {
+            Ok(control) => control,
+            Err(error) => {
+                host.failure = Some(Failure::Run(error));
+                Control::Exit
+            }
+        })
+        .unwrap_or(Control::Exit)
+    }
+
+    fn closing(&mut self) {
+        // The device goes before the window's handles, after a panic too.
+        let gpu = self.gpu.take();
+        if let Err(payload) = panic::catch_unwind(AssertUnwindSafe(|| drop(gpu))) {
+            self.ended_on_panic(payload);
+        }
+    }
+}
+
+impl<A: App> Host<A> {
+    /// What `call` gives, run on the host unless a panic ended the run; none when it panics, which
+    /// ends the run: the application, waiting or running, is let go of without a call nor a drop.
+    fn guarded<R>(&mut self, call: impl FnOnce(&mut Self) -> R) -> Option<R> {
+        if matches!(self.failure, Some(Failure::Panicked(_))) {
+            return None;
+        }
+        match panic::catch_unwind(AssertUnwindSafe(|| call(self))) {
+            Ok(given) => Some(given),
+            Err(payload) => {
+                self.ended_on_panic(payload);
+                None
+            }
+        }
+    }
+
+    /// A panic of `payload` ends the run: the application, waiting or running, is let go of
+    /// without a call nor a drop. The first panic is the run's failure; a failure before it is
+    /// told, since the panic's status replaces its own.
+    fn ended_on_panic(&mut self, payload: Box<dyn std::any::Any + Send>) {
+        match self.failure.take() {
+            Some(Failure::Panicked(first)) => self.failure = Some(Failure::Panicked(first)),
+            earlier => {
+                if let Some(earlier) = earlier {
+                    let told = format!("uwui's desktop host had failed before a panic: {earlier}");
+                    tracing::error!("{told}");
+                    crash::tell(&told);
+                }
+                self.failure = Some(Failure::Panicked(crash::message(&*payload)));
+            }
+        }
+        forget_panicked((self.waiting.take(), self.session.take()), payload);
+    }
+
+    /// The window opened: its device made, the application started.
+    fn open(&mut self, platform: &mut Platform<'_>, drawn: Drawn) -> Result<(), Stopped> {
+        if self.waiting.is_none() {
             return Err(Stopped);
-        };
+        }
         let (display, surface) = platform.raw_handles();
         #[expect(unsafe_code, reason = "the device draws on the window's raw handles")]
         // SAFETY: the layer keeps the handles live until `closing` returns, and drops the host
@@ -171,36 +285,36 @@ impl<A: App> Handler for Host<A> {
                 return Err(Stopped);
             }
         };
+        if let Some(crashes) = &mut self.crashes {
+            crashes.set_gpu(gpu.described());
+        }
         self.gpu = Some(gpu);
         self.drawn = drawn;
-        match Session::start(look, window, app, platform.waker(), platform.now()) {
-            Ok(session) => self.session = Some(session),
+        let (waker, now) = (platform.waker(), platform.now());
+        let Some(waiting) = self.waiting.take() else {
+            return Err(Stopped);
+        };
+        // The session guards the application as soon as it takes it.
+        let (look, window, app) = waiting.into_inner();
+        match Session::new(look, window, app, waker, now) {
+            Ok(session) => self.session = Some(Unwound::new(session)),
             Err(error) => {
                 self.failure = Some(Failure::Start(error));
                 return Err(Stopped);
             }
+        }
+        // Held by the host before the application's first call, so that a panic in it never drops
+        // the application.
+        if let Some(Err(error)) = self.session.as_mut().map(|session| session.start()) {
+            self.session = None;
+            self.failure = Some(Failure::Start(error));
+            return Err(Stopped);
         }
         // The first frame runs at once, the window's size given.
         self.pacing.host_changed();
         Ok(())
     }
 
-    fn turn(&mut self, platform: &mut Platform<'_>, happened: Happened) -> Control {
-        match self.turn_of(platform, happened) {
-            Ok(control) => control,
-            Err(error) => {
-                self.failure = Some(Failure::Run(error));
-                Control::Exit
-            }
-        }
-    }
-
-    fn closing(&mut self) {
-        self.gpu = None;
-    }
-}
-
-impl<A: App> Host<A> {
     /// A turn of the loop: the application's run, given what `happened`.
     fn turn_of(
         &mut self,
@@ -326,6 +440,9 @@ impl<A: App> Host<A> {
                 .restore()
                 .map_err(|cause| failed("no new GPU device replaces the lost one", cause))?;
             tracing::warn!("the GPU's device was lost; a new one replaces it");
+            if let Some(crashes) = &mut self.crashes {
+                crashes.set_gpu(gpu.described());
+            }
             self.gpu = Some(gpu);
             // The new device's surface is new too.
             self.remake.made();

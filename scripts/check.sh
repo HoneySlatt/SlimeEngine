@@ -333,8 +333,9 @@ if runs windowed; then
     # An application on uwui alone, on its own Wayland layer: at rest after its start, none of its
     # threads waking in 10 s, then ended by SIGTERM through its closing (ADR-0270, ADR-0271); its
     # device and its surface lost on purpose, each drawn again (ADR-0305); then drawn at the
-    # compositor's scale. One test at a time: each test of rest watches a window alone in its
-    # compositor.
+    # compositor's scale; a panic and a killed run leaving their report and marker, and a second
+    # termination ending it (ADR-0306). One test at a time: each test of rest watches a window
+    # alone in its compositor.
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 120 cargo test --locked -p uwui-desktop --test rest -- --test-threads=1 ||
         { cat "$runtime/slime-check.log"; exit 1; }

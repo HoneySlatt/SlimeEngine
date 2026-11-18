@@ -22,11 +22,13 @@ pub struct Look {
 }
 
 /// How the window opens: its title, its identity, its size, its minimum size and whether it fills
-/// the screen. Sizes are in logical pixels.
+/// the screen; and the application's version, which its crash reports name. Sizes are in logical
+/// pixels.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WindowSettings {
     title: String,
     app_id: String,
+    pub(crate) version: Option<String>,
     size: [u32; 2],
     min_size: Option<[u32; 2]>,
     fullscreen: bool,
@@ -37,11 +39,13 @@ impl WindowSettings {
     ///
     /// The identity names the application to the system, which groups its windows and finds its
     /// icon and its name by it: on Wayland, the window's app id, which matches the application's
-    /// desktop file, by reverse domain name by convention, `org.example.Notes`.
+    /// desktop file, by reverse domain name by convention, `org.example.Notes`. It names the
+    /// application's crash directory too ([`run`](crate::run)).
     pub fn new(title: impl Into<String>, app_id: impl Into<String>) -> Self {
         Self {
             title: title.into(),
             app_id: app_id.into(),
+            version: None,
             size: [800, 600],
             min_size: None,
             fullscreen: false,
@@ -67,6 +71,15 @@ impl WindowSettings {
     #[must_use]
     pub fn fullscreen(mut self, fullscreen: bool) -> Self {
         self.fullscreen = fullscreen;
+        self
+    }
+
+    /// The application's version, which its crash reports name, as Cargo gives it to the
+    /// application's crate: `.version(env!("CARGO_PKG_VERSION"))`. None by default, which the
+    /// reports say.
+    #[must_use]
+    pub fn version(mut self, version: impl Into<String>) -> Self {
+        self.version = Some(version.into());
         self
     }
 }
@@ -109,6 +122,7 @@ impl Window {
         let WindowSettings {
             title,
             app_id,
+            version: _,
             size,
             min_size,
             fullscreen,
@@ -247,7 +261,9 @@ pub enum Close {
     /// It closes: the run ends, through [`App::stop`].
     #[default]
     Allow,
-    /// It stays open, as an editor with unsaved work asks first.
+    /// It stays open, as an editor with unsaved work asks first. A termination signal asks once:
+    /// any signal after it, half a second or more later, ends the process at once, without
+    /// another call ([`EXIT_TERMINATED`](crate::EXIT_TERMINATED)).
     Keep,
 }
 
@@ -274,7 +290,10 @@ pub trait App {
     fn step(&mut self, ui: &mut Ui, window: &mut Window);
 
     /// The person or the system asked the window to close: its button, a shortcut of the system,
-    /// or a termination signal, SIGTERM, SIGINT or SIGHUP. By default, it closes.
+    /// or a termination signal, SIGTERM, SIGINT or SIGHUP. By default, it closes. Only the first
+    /// termination signal is asked: one after it, half a second or more later, however late, ends
+    /// the process at once, so that an application that keeps its window or no longer returns
+    /// still ends ([`EXIT_TERMINATED`](crate::EXIT_TERMINATED)).
     fn close_requested(&mut self, ui: &mut Ui, window: &mut Window) -> Close {
         let _ = (ui, window);
         Close::Allow
@@ -284,6 +303,15 @@ pub trait App {
     /// failed, its connection to the compositor broken, or its device or its surface lost more
     /// often than it makes them again, the window then perhaps gone. The last call, so that the
     /// application may keep its work; the interface is still whole. By default, nothing.
+    ///
+    /// Never called after a panic on the host's thread, in the application's code or in uwui's:
+    /// the state that panicked is never handed back to be kept, where it could write over the last
+    /// good copy of the person's work. The application is called no more, its value never dropped,
+    /// and the process ends with [`EXIT_PANICKED`](crate::EXIT_PANICKED)
+    /// (`docs/adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md`). What
+    /// survives a panic is what the application kept before, as an editor's journal of its steps.
+    /// Nor is it called when a second termination signal ends the process at once
+    /// ([`EXIT_TERMINATED`](crate::EXIT_TERMINATED)).
     fn stop(&mut self, ui: &mut Ui) {
         let _ = ui;
     }

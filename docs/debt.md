@@ -1118,14 +1118,6 @@ A review of uwui's architecture of 2026-11-17, read-only too, added these:
 - **No family's messages are described, and nothing holds a family to its version.**
   A message changed under the same version reads differently at each end, without an error.
   Followed at [M6d.9a2c](stage-6d.md#m6d9a2c--waiting) ([ADR-0295](adr/0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md)).
-- **A termination asked twice does not end uwui's desktop host.**
-  A signal only asks the application to close (`crates/uwui-windowing/src/wake.rs`, `crates/uwui-desktop/src/host.rs`): an application that keeps its window, or hangs in `step`, ends only when killed; the engine ends at a second signal (`crates/slime-app/src/signal.rs`).
-  Followed at M6d.7a2b3.
-- **What a panic of an application leaves is not said.**
-  A panic in `App::step` ends the run without `App::stop`, which `App`'s rustdoc does not say (`crates/uwui-desktop/src/app.rs`); calling `stop` on the state that panicked could write it over good data.
-  Since Rust 1.81, a panic that leaves an `extern "C"` function aborts the process: Win32's and AppKit's callbacks are such functions.
-  The rule is [ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md): no `stop` after a panic, the run ending with its error, a panic caught in a platform's callback.
-  Followed at M6d.7a2b3, which builds it with its test; Win32's and AppKit's callbacks catch theirs as M6d.7c and M6d.7d write them.
 - **A windowed run that panics is checked under Wayland alone** ([ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)).
   `slime-app`'s windowed driver catches a panic in each call that the event loop makes of it (`crates/slime-app/src/windowed.rs`); `windowed_lifecycle.rs` checks it in a headless Weston.
   On Windows, while the user resizes or moves the window, the loop does not ask the driver whether to end until the user lets go: a panic then leaves the window on screen, undrawn, until that moment, which nobody has seen.
@@ -1134,6 +1126,13 @@ A review of uwui's architecture of 2026-11-17, read-only too, added these:
 - **A panic's message is read from its payload in two places** (`crates/slime-reflect/src/support.rs`, `crates/slime-app/src/error.rs`), and uwui's desktop host makes a third.
   The three crates share no dependency where one helper could live; the standard library gives none for a payload that `catch_unwind` caught.
   Followed by D1, which consolidates the rule on errors.
+- **uwui's crash reports hold no lines of the log.**
+  uwui's desktop host keeps no log: it emits `tracing`'s events, which the application sends where it chooses (`crates/uwui-desktop/src/crash.rs`), so a report cannot say what came before the panic.
+  The owner's choice ([ADR-0306](adr/0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md)); followed when uwui keeps a log ([`uwui-needs.md`](uwui-needs.md)).
+- **uwui's desktop host writes again what the engine's files and signals do.**
+  Its crash directory finds the user's state directory, writes the tally beside and renames it, and holds its marker by a lock (`crates/uwui-desktop/src/crash.rs`), as `slime-files` does (`directories.rs`, `write.rs`, `held.rs`); its second termination signal follows `crates/slime-app/src/signal.rs` (`crates/uwui-windowing/src/wake.rs`); one copy under each licence.
+  Its tally's write does not sync its directory, which `slime-files` does: a power cut just after may leave one run uncounted.
+  Followed when the engine stands on uwui's host, at a port ([ADR-0306](adr/0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md)).
 - **uwui's desktop host takes no image from a program.**
   uwui holds images' keys alone, the program their textures (`crates/uwui-render/src/lib.rs`); the host gives `uwui-render` none, and its `App` has no way to give one.
   When it takes them, a program gives each with its source, a file or its encoded bytes, which the host decodes and makes again after a lost device, the program told nothing ([ADR-0305](adr/0305-uwuis-desktop-host-makes-its-device-and-surface-again-a-programs-images-made-again-from-their-source.md)).

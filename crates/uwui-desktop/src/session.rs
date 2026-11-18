@@ -4,6 +4,7 @@
 
 use std::error::Error;
 use std::fmt;
+use std::ops::{Deref, DerefMut};
 use std::task::Waker;
 
 use uwui::DocumentErrors;
@@ -40,6 +41,53 @@ impl Error for StartError {
     }
 }
 
+/// A value that a panic's unwinding forgets rather than drops: an application's state after a
+/// panic, whose `Drop` is its code too, which may write the state that panicked
+/// (`docs/adr/0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md`).
+/// Dropped as any value otherwise.
+pub(crate) struct Unwound<T>(Option<T>);
+
+impl<T> Unwound<T> {
+    pub(crate) fn new(value: T) -> Self {
+        Self(Some(value))
+    }
+
+    /// The value, which leaves the guard.
+    pub(crate) fn into_inner(mut self) -> T {
+        self.0
+            .take()
+            .expect("an unwound value is held until it leaves")
+    }
+}
+
+impl<T> Deref for Unwound<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        self.0
+            .as_ref()
+            .expect("an unwound value is held until it leaves")
+    }
+}
+
+impl<T> DerefMut for Unwound<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        self.0
+            .as_mut()
+            .expect("an unwound value is held until it leaves")
+    }
+}
+
+impl<T> Drop for Unwound<T> {
+    fn drop(&mut self) {
+        if std::thread::panicking()
+            && let Some(value) = self.0.take()
+        {
+            std::mem::forget(value);
+        }
+    }
+}
+
 /// An application's run: its interface, its window and the application, until it ends.
 pub(crate) struct Session<A> {
     pub(crate) ui: Ui,
@@ -50,15 +98,18 @@ pub(crate) struct Session<A> {
 }
 
 impl<A: App> Session<A> {
-    /// Makes the interface in `look`, given `waker` and the host's time `now`, and starts `app` in
-    /// `window`.
-    pub(crate) fn start(
+    /// Makes the interface in `look`, given `waker` and the host's time `now`, for `app` in
+    /// `window`, which [`start`](Self::start) then starts: the host holds the session before the
+    /// application's first call, and a panic as the interface is made forgets the application,
+    /// so that a panic never drops it.
+    pub(crate) fn new(
         look: Look,
-        mut window: Window,
-        mut app: A,
+        window: Window,
+        app: A,
         waker: Waker,
         now: Instant,
     ) -> Result<Self, StartError> {
+        let app = Unwound::new(app);
         let Look {
             fonts,
             sheets,
@@ -76,13 +127,19 @@ impl<A: App> Session<A> {
                 source: FrameSource::Started,
             },
         );
-        app.start(&mut ui, &mut window).map_err(StartError::App)?;
         Ok(Self {
             ui,
             window,
-            app,
+            app: app.into_inner(),
             ending: false,
         })
+    }
+
+    /// Starts the application: its first call.
+    pub(crate) fn start(&mut self) -> Result<(), StartError> {
+        self.app
+            .start(&mut self.ui, &mut self.window)
+            .map_err(StartError::App)
     }
 
     /// The application's step, after the events that came and before a frame.
@@ -108,7 +165,7 @@ impl<A: App> Session<A> {
     }
 
     /// Ends the run: the application's last call.
-    pub(crate) fn stop(mut self) {
+    pub(crate) fn stop(&mut self) {
         self.app.stop(&mut self.ui);
     }
 }
@@ -170,13 +227,37 @@ mod tests {
     }
 
     fn start(app: &mut Told) -> Result<Session<&mut Told>, StartError> {
-        Session::start(
+        let mut session = Session::new(
             look(),
             Window::new(WindowSettings::new("a window", "org.example.Test")),
             app,
             Waker::noop().clone(),
             Instant::from_nanos(7),
-        )
+        )?;
+        session.start()?;
+        Ok(session)
+    }
+
+    /// Writes down whether it was dropped.
+    struct Dropped<'a>(&'a std::cell::Cell<bool>);
+
+    impl Drop for Dropped<'_> {
+        fn drop(&mut self) {
+            self.0.set(true);
+        }
+    }
+
+    #[test]
+    fn a_panics_unwinding_forgets_what_it_guards() {
+        let dropped = std::cell::Cell::new(false);
+        let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guarded = Unwound::new(Dropped(&dropped));
+            panic!("unwinds");
+        }));
+        assert!(unwound.is_err());
+        assert!(!dropped.get(), "a panic's unwinding dropped the value");
+        drop(Unwound::new(Dropped(&dropped)));
+        assert!(dropped.get(), "a value was not dropped without a panic");
     }
 
     #[test]
@@ -197,7 +278,7 @@ mod tests {
         let mut look = look();
         look.sheets
             .push(StyleSheet::from_text("broken.style.kdl", "button {"));
-        let error = Session::start(
+        let error = Session::new(
             look,
             Window::new(WindowSettings::new("a window", "org.example.Test")),
             &mut app,

@@ -11,13 +11,21 @@
 //! scrolls; *Remove* takes its last row away; *About* opens a modal dialog, which its button or
 //! Escape closes. Closing the window, or a termination signal, asks the application, which lets it
 //! close. It writes `started` once it starts, `added <the row's name>` at each row that *Add*
-//! makes, `closing asked` when asked to close and `stopped` as it ends, which
-//! `crates/uwui-desktop/tests/rest.rs` reads.
+//! makes, `closing asked` when asked to close, `stopped` as it ends and `dropped` as its value
+//! goes, which `crates/uwui-desktop/tests/rest.rs` reads.
 //!
-//! With `--commands`, it reads lines on its standard input, the tests' door to the host's losses:
-//! `lose device` loses the window's GPU device on purpose, `lose surface` gives its surface up
-//! (`Window::lose_device`, `Window::lose_surface`); it writes `losing the device` or `losing the
-//! surface` as it asks.
+//! With `--commands`, it reads lines on its standard input, the tests' door to the host's losses,
+//! crashes and ends; it writes a line as it takes each:
+//!
+//! - `lose device` loses the window's GPU device on purpose, `lose surface` gives its surface up
+//!   (`Window::lose_device`, `Window::lose_surface`): `losing the device`, `losing the surface`.
+//! - `panic` panics in its step: `panicking`. The host ends the run without `stop`, and writes a
+//!   crash report in the user's state directory.
+//! - `keep` keeps its window open when asked to close from now on: `keeping its window`. A second
+//!   termination signal, half a second after the first, still ends it.
+//!
+//! `--panic-in start` panics in its start, before it writes `started`; `--panic-in stop`, in its
+//! stop, before it writes `stopped`.
 
 use std::error::Error;
 use std::io::BufRead;
@@ -49,6 +57,10 @@ struct Application {
     dialog: Option<(ElementId, ElementId)>,
     /// Whether it reads commands on its standard input, and their lines once it started.
     commands: Commands,
+    /// Whether it keeps its window open when asked to close.
+    keeps: bool,
+    /// The call that panics, `start` or `stop`, with `--panic-in`.
+    panic_in: Option<String>,
 }
 
 /// The lines of its standard input, with `--commands`.
@@ -70,6 +82,9 @@ struct Buttons {
 
 impl App for Application {
     fn start(&mut self, ui: &mut Ui, _: &mut Window) -> Result<(), Box<dyn Error>> {
+        if self.panic_in.as_deref() == Some("start") {
+            panic!("the application was made to panic in its start");
+        }
         self.rows = (1..=40).map(|row| format!("Row {row}")).collect();
         self.root = Some(ui.add_root("main", RootSettings::on(TargetId::MAIN), |s| {
             s.direction(FlexDirection::Column)
@@ -104,6 +119,14 @@ impl App for Application {
                     "lose surface" => {
                         println!("losing the surface");
                         window.lose_surface();
+                    }
+                    "panic" => {
+                        println!("panicking");
+                        panic!("the application was made to panic by its command");
+                    }
+                    "keep" => {
+                        println!("keeping its window");
+                        self.keeps = true;
                     }
                     other => eprintln!("unknown command: {other:?}"),
                 }
@@ -148,11 +171,24 @@ impl App for Application {
 
     fn close_requested(&mut self, _: &mut Ui, _: &mut Window) -> Close {
         println!("closing asked");
-        Close::Allow
+        if self.keeps {
+            Close::Keep
+        } else {
+            Close::Allow
+        }
     }
 
     fn stop(&mut self, _: &mut Ui) {
+        if self.panic_in.as_deref() == Some("stop") {
+            panic!("the application was made to panic in its stop");
+        }
         println!("stopped");
+    }
+}
+
+impl Drop for Application {
+    fn drop(&mut self) {
+        println!("dropped");
     }
 }
 
@@ -302,14 +338,21 @@ fn main() {
         themes: look::themes(Colors::Dark, Density::Comfortable),
     };
     let window = WindowSettings::new("uwui application", "dev.uwui.Application")
+        .version(env!("CARGO_PKG_VERSION"))
         .size(720, 480)
         .min_size(480, 320);
     let mut application = Application::default();
-    for argument in std::env::args().skip(1) {
-        match argument.as_str() {
-            "--commands" => application.commands = Commands::Asked,
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    let mut given = arguments.iter().map(String::as_str);
+    while let Some(argument) = given.next() {
+        match (
+            argument,
+            argument.eq("--panic-in").then(|| given.next()).flatten(),
+        ) {
+            ("--commands", _) => application.commands = Commands::Asked,
+            (_, Some(call @ ("start" | "stop"))) => application.panic_in = Some(call.to_owned()),
             _ => {
-                eprintln!("usage: application [--commands]");
+                eprintln!("usage: application [--commands] [--panic-in start|stop]");
                 std::process::exit(2);
             }
         }
