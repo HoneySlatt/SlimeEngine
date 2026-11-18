@@ -487,7 +487,7 @@ impl Field for String {
         }
         let text = string.text();
         // `$$` writes a text that starts with `$`.
-        Ok(text.strip_prefix('$').unwrap_or(&text).to_owned())
+        Ok(text.trim_prefix('$').to_owned())
     }
 }
 

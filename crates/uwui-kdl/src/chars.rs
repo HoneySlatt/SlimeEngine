@@ -80,7 +80,7 @@ pub(crate) enum Bare {
 /// What `word`, a run of identifier characters, is, by KDL's `identifier-string`: an identifier
 /// may not start like a number, nor be a keyword.
 pub(crate) fn bare(word: &str) -> Bare {
-    let unsigned = word.strip_prefix(['+', '-']).unwrap_or(word);
+    let unsigned = word.trim_prefix(['+', '-']);
     let starts_with_digit = |text: &str| text.starts_with(|c: char| c.is_ascii_digit());
     if starts_with_digit(unsigned) {
         Bare::Number

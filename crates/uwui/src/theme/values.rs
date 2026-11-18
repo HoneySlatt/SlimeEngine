@@ -351,7 +351,7 @@ fn written(group: Group, node: &Node<'_, '_>) -> Result<Written, Refusal> {
             }
             let text = string.text();
             // `$$` writes a text that starts with `$`.
-            let text = text.strip_prefix('$').unwrap_or(&text);
+            let text = text.trim_prefix('$');
             Ok(Written::Value(ThemeValue::Text(text.to_owned())))
         }
         (Group::Length, _) => number(&entry, group).map(|n| Written::Value(ThemeValue::Length(n))),

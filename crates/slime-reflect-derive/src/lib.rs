@@ -113,7 +113,7 @@ fn doc(attributes: &[Attribute]) -> String {
             },
             _ => None,
         })
-        .map(|line| line.strip_prefix(' ').unwrap_or(&line).to_owned())
+        .map(|line| line.trim_prefix(' ').to_owned())
         .collect();
     lines.join("\n").trim().to_owned()
 }

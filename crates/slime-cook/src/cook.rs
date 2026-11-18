@@ -588,7 +588,7 @@ fn cook_image(
 
 /// `path`, inside `root`, relative to it, with `/` between its directories on every platform.
 fn relative(root: &Path, path: &Path) -> String {
-    let inside = path.strip_prefix(root).unwrap_or(path);
+    let inside = path.trim_prefix(root);
     inside
         .components()
         .map(|component| component.as_os_str().to_string_lossy())

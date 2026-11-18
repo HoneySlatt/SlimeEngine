@@ -47,7 +47,7 @@ pub(crate) fn written(text: &str) -> Option<Written<'_>> {
         _ => {}
     }
     let negative = text.starts_with('-');
-    let unsigned = text.strip_prefix(['+', '-']).unwrap_or(text);
+    let unsigned = text.trim_prefix(['+', '-']);
     let (radix, rest) = [("0x", 16), ("0o", 8), ("0b", 2)]
         .into_iter()
         .find_map(|(prefix, radix)| Some((radix, unsigned.strip_prefix(prefix)?)))

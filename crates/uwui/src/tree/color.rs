@@ -128,7 +128,7 @@ pub(crate) fn hex(color: LinearColor) -> String {
 /// `#rrggbbaa`, the `#` optional, either case; none for another text.
 pub(crate) fn parse_hex(text: &str) -> Option<LinearColor> {
     let digits = text.trim();
-    let digits = digits.strip_prefix('#').unwrap_or(digits);
+    let digits = digits.trim_prefix('#');
     if !digits.chars().all(|digit| digit.is_ascii_hexdigit()) {
         return None;
     }

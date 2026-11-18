@@ -124,7 +124,7 @@ impl Keyboard {
     ///
     /// When libxkbcommon cannot compile it: the keyboard then keeps its last keymap.
     pub(crate) fn set_keymap(&mut self, text: &[u8]) -> Result<(), KeyboardError> {
-        let text = text.strip_suffix(&[0]).unwrap_or(text);
+        let text = text.trim_suffix(&[0]);
         // SAFETY: the context is live; the buffer is `text`, of its length, which libxkbcommon
         // reads during the call alone; the keymap returned is checked for null.
         let keymap = unsafe {
