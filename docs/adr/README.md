@@ -378,7 +378,7 @@ the ADR linking to it.
 | [0292](0292-a-quick-check-without-nix-when-contributions-open.md) | A quick check without Nix, when contributions open | Accepted |
 | [0293](0293-actions-declared-once-in-uwuis-core-undo-and-the-journal-the-programs.md) | Actions declared once in uwui's core; undo and the journal the program's | Accepted; supersedes in part 0218 |
 | [0294](0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md) | The element's contract designed by E1, before M6d.10, on a prototype thrown away | Accepted; supersedes in part 0283 |
-| [0295](0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md) | Each family's messages described and held to its version, from M6d.9a2c | Accepted; supersedes in part 0278 |
+| [0295](0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md) | Each family's messages described and held to its version, from M6d.9a2c | Accepted; supersedes in part 0278; superseded in part by 0308 |
 | [0296](0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md) | `slime-color` stays in the engine, uwui gets a colour of its own; `slime-input` leaves with uwui | Accepted; supersedes in part 0181 and 0276 |
 | [0297](0297-one-crate-of-safe-files-and-the-editors-journal-versioned-built-by-s1.md) | One crate of safe files, and the editor's journal versioned, built by S1 | Accepted |
 | [0298](0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md) | A panic ends a run without `stop`: the same rule in both hosts | Accepted |
@@ -391,3 +391,4 @@ the ADR linking to it.
 | [0305](0305-uwuis-desktop-host-makes-its-device-and-surface-again-a-programs-images-made-again-from-their-source.md) | uwui's desktop host makes its device and its surface again; a program's images made again from their source | Accepted |
 | [0306](0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md) | uwui's crash reports: a marker held by a lock, the hours counted; a panic ends with 101 | Accepted; amends 0270 |
 | [0307](0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md) | M6d.7a2c cut in two, the host measured first; the blank window on winit in a package of its own | Accepted |
+| [0308](0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md) | M6d.9a2c cut in four; each family's messages described in lines read from its types, a kept copy for each version | Accepted; supersedes in part 0295 |

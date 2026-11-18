@@ -2,7 +2,9 @@
 
 - Status: Accepted; supersedes in part
   [0278](0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md) (when each
-  family's description and its test are built)
+  family's description and its test are built); superseded in part by
+  [0308](0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)
+  (the rule on a family's description, made precise)
 - Date: 2026-11-17
 
 ## Context

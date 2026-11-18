@@ -159,7 +159,9 @@ in git.
   [R1](#r1--rust-1100), the toolchain
   bumped ([ADR-0304](adr/0304-rust-1100-in-a-milestone-of-its-own-after-s1-new-crate-versions-three-days-old.md)),
   done on the same day; then
-  [M6d.9a2c](#m6d9a2c--waiting),
+  [M6d.9a2c](#m6d9a2c--waiting), cut in four on 2026-11-18
+  ([ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)):
+  [M6d.9a2c1](#m6d9a2c1--each-family-described) in progress,
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
@@ -3208,18 +3210,67 @@ The first part of M6d.9a2b, started on 2026-11-15, designed in [ADR-0274](adr/02
 ### M6d.9a2c — Waiting
 
 - **Goal.** An agent waits for a change of the interface, or for the editor's next steps.
-- **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `slime-editor`, `uwui-mcp`,
-  `slime-mcp`; its parts in `uwui` and `slime-app` timed against M6d.7.
-- **Delivers.** `interface/wait` and the journal's `wait` and `end`; `interface` 4 and `editing`
-  3; the tools that wait, each under 60 s, giving `after`. First, each family's messages described
-  in a file kept with its code, and the test that holds it to its version
-  ([ADR-0295](adr/0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md)).
+- **Cut in four** at its start, on 2026-11-18 ([ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)): each family
+  described first; the journal's wait, then uwui's waits, then the interface's wait on the wire.
+  A program at rest with a wait in flight runs no frame and wakes no thread; a connection holds
+  fewer waits than its places in flight; tests never wait the tools' bound.
 - **Debt settled.** An agent that follows the editor's steps by reading its journal again
-  ([`debt.md`](debt.md)).
-- **Done when.** A tool waits for a dialog to close and for the next step, each seen once; a
-  frame with no wait in flight costs as before; the test of each family fails on a copy whose
-  message gains a field without its version raised; CI is green.
-- **Measured.** From a change to the waiting tool's answer; a still frame's counters.
+  ([`debt.md`](debt.md)), at M6d.9a2c2.
+
+### M6d.9a2c1 — Each family described
+
+The first part of M6d.9a2c, started on 2026-11-18, designed in [ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md).
+
+- **Goal.** Each family's messages, and the core's own, described in a file kept with its code,
+  and held to its version by a test
+  ([ADR-0295](adr/0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md)).
+- **Crates.** `uwui-agent`, `slime-channel`.
+- **Delivers.** The lines of `interface`, `play`, `world`, `editing` and the core, read from their
+  types through `schemars`; each family's description and a kept copy of its current version; the
+  test, and the command that writes the descriptions again; `cancel` and `subscribe` typed, read as
+  before; the check that refuses a change to a kept copy. No version raised, no behaviour changed.
+- **Done when.** Each family's test fails on a copy whose message changes without its description,
+  and on one whose request gains a field, or whose field is removed with its description written
+  again, without its version raised; a field added to a reply, or a comment reworded, passes; CI
+  is green, on Windows too.
+
+### M6d.9a2c2 — The journal that waits
+
+- **Goal.** An agent waits for the editor's next steps.
+- **Crates.** `slime-channel`, `slime-app`, `slime-editor`, `slime-mcp`.
+- **Delivers.** `editing/journal`'s `wait`, answered once the journal grows past its cursor, and
+  `end`, a cursor at the journal's end; `editing` 3, its kept copy; the wait held in `slime-app`'s
+  channel as a request in flight, bounded and cancelled; `slime-mcp`'s journal tool waiting under
+  60 s, giving `after`.
+- **Done when.** A tool waits for the next step and sees each step once; a wait is answered stale
+  when a level opens, and refused once a write of the journal failed; a program at rest with a
+  wait in flight runs no frame for 10 s; a connection's reads pass while it waits; CI is green.
+- **Measured.** From a step to the tool's answer.
+
+### M6d.9a2c3 — Waits in uwui
+
+- **Goal.** uwui keeps a wait on its elements across frames, at the cost of what changed.
+- **Crates.** `uwui`.
+- **Delivers.** A wait on a target's elements, a role, a name and a state, present or absent,
+  checked at a frame's end on the elements that changed, through one reader of meaning for each
+  target that the waits share; each wait keeping the elements that it matched; counters of the
+  elements that the checks visit. No change on the wire.
+- **Done when.** A still frame visits no element for the waits; a change visits the elements that
+  changed, not the tree; an element removed, a dialog closed, ends a wait for its absence; CI is
+  green.
+- **Measured.** The counters, in a still frame and after a change.
+
+### M6d.9a2c4 — The interface that waits
+
+- **Goal.** An agent waits for a change of the interface.
+- **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `uwui-mcp`, `slime-mcp`; timed
+  against M6d.7.
+- **Delivers.** `interface/wait`, `interface` 4, its kept copy; `slime-app` holding it; `uwui-mcp`'s
+  interface tool waiting under 60 s, giving `after`; the in-memory carrier of `uwui-mcp`'s tests
+  holding a request in flight.
+- **Done when.** A tool waits for a dialog to close, seen once; a still frame's counters as before;
+  a program at rest with a wait in flight runs no frame for 10 s; CI is green, closing M6d.9a2.
+- **Measured.** From a change to the waiting tool's answer, on the editor; a still frame's counters.
 
 ### M6d.9a3a — Attaching, and the person's consent
 
