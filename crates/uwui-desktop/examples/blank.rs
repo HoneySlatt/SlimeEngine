@@ -91,6 +91,8 @@ impl Handler for Blank {
     }
 
     fn turn(&mut self, window: &mut Window<'_>, happened: Happened) -> Control {
+        // A frame's work counts from its turn's start, as the host's.
+        let start = window.now();
         if happened.close_asked || happened.terminated {
             return Control::Exit;
         }
@@ -135,7 +137,6 @@ impl Handler for Blank {
             }
         }
         if self.wanted && !self.awaiting {
-            let start = window.now();
             let Some(gpu) = &mut self.gpu else {
                 return Control::Exit;
             };

@@ -28,13 +28,16 @@ use uwui::time::Instant;
 /// The file is a JSON array of events in the Chrome Trace Event format, without its closing
 /// bracket, its times in microseconds since the Unix epoch:
 ///
-/// - `frame`, from a frame's start to the end of its image's present, its arguments `wheel` the
+/// - `frame`, from the start of the turn that draws a frame, its input and the application's step
+///   among it, to the end of its image's present: the work that a frame drawn just in time leaves
+///   before the compositor composes; its arguments `wheel` the
 ///   notches of the wheel that the frame took since the frame before, and `image` its image's
 ///   number, counted from 0 as the platform layer counts them;
 /// - `shown`, an instant event when the image numbered by its argument `image` showed, where the
 ///   platform tells it (on Wayland, `wp_presentation`): nothing for an image that never showed;
-/// - `missed`, from the time given to a frame to when its image numbered `image` showed, half a
-///   period or more later: the frame missed the refresh that it was drawn for; the host's alone;
+/// - `missed`, from the refresh that a frame drawn just in time aimed at to its image's signal, half
+///   a period or more later: the frame missed that refresh; its argument `image`; the host's
+///   alone;
 /// - `input to present`, from the time of the oldest input that no image followed yet to the end
 ///   of the present of the next image. An input's time is the platform's own where it gives one,
 ///   placed on the host's clock, else its reception: on Wayland, the compositor's, to the
@@ -118,8 +121,8 @@ impl Trace {
         self.waiting = None;
     }
 
-    /// A frame started at `start` and its image numbered `image`'s present ended at `end`: writes
-    /// the frame, and the interval from the oldest input that waited.
+    /// A frame whose turn started at `start` and whose image numbered `image`'s present ended at
+    /// `end`: writes the frame, and the interval from the oldest input that waited.
     ///
     /// # Errors
     ///
@@ -150,14 +153,14 @@ impl Trace {
         self.file.write_all(event.as_bytes())
     }
 
-    /// The image numbered `image` showed at `shown`, half a period or more after the time `given`
-    /// to its frame.
+    /// The frame of the image numbered `image`, drawn just in time, aimed at the refresh `aimed`,
+    /// and its image's signal came at `signal`, half a period or more later.
     ///
     /// # Errors
     ///
     /// When the file refuses the write.
-    pub(crate) fn missed(&mut self, image: u64, given: Instant, shown: Instant) -> io::Result<()> {
-        let mut event = self.complete("missed", SHOWN, given, shown);
+    pub(crate) fn missed(&mut self, image: u64, aimed: Instant, signal: Instant) -> io::Result<()> {
+        let mut event = self.complete("missed", SHOWN, aimed, signal);
         with_args(&mut event, &format!("\"image\":{image}"));
         self.file.write_all(event.as_bytes())
     }

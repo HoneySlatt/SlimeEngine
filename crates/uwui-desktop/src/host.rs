@@ -31,7 +31,7 @@ use uwui_windowing::{Control, Drawn, Handler, Happened, Opening, Stopped, Window
 use crate::app::{App, Look, Window, WindowSettings};
 use crate::crash::{self, Crashes};
 use crate::gpu::{Gpu, Loss};
-use crate::pacing::{Next, Pacing};
+use crate::pacing::{Missed, Next, Pacing};
 use crate::recovery::{Budget, MAX_RECOVERIES, Remake, WINDOW};
 use crate::session::{Session, StartError, Unwound};
 use crate::trace::Trace;
@@ -343,9 +343,15 @@ impl<A: App> Host<A> {
         mut happened: Happened,
     ) -> Result<Control, HostError> {
         // A frame drawn at this turn counts its work from here.
-        self.pacing.woke(platform.now());
+        let woke = platform.now();
+        self.pacing.woke(woke);
         // Before the signal, so that the frames that it lets run predict from the latest.
         self.presentations(std::mem::take(&mut happened.presentations));
+        if let Some(at) = happened.signal.take()
+            && let Some(missed) = self.pacing.signalled(at)
+        {
+            self.missed(missed);
+        }
         let (Some(session), Some(gpu)) = (&mut self.session, &mut self.gpu) else {
             return Ok(Control::Exit);
         };
@@ -356,7 +362,8 @@ impl<A: App> Host<A> {
             close_asked,
             terminated,
             woken,
-            signal,
+            // Taken above.
+            signal: _,
             presentations: _,
         } = happened;
         // An event of the window, a wake or a termination signal asks from outside: it runs a
@@ -375,9 +382,6 @@ impl<A: App> Host<A> {
             if session.ending() {
                 return Ok(Control::Exit);
             }
-        }
-        if let Some(at) = signal {
-            self.pacing.signalled(at);
         }
         let now = platform.now();
         // The inputs' own times, which an input that waited behind a long frame keeps.
@@ -430,7 +434,7 @@ impl<A: App> Host<A> {
             ui.next_frame_due(TargetId::MAIN),
         );
         if next == Next::Frame {
-            self.frame(platform, now)?;
+            self.frame(platform, now, woke)?;
             let Some(session) = &self.session else {
                 return Ok(Control::Exit);
             };
@@ -533,34 +537,32 @@ impl<A: App> Host<A> {
     }
 
     /// The images whose presentation the platform told: to the pacing, which predicts the next
-    /// frames' times from them, and to the trace, with the frames that missed their refresh.
+    /// frames' times from them, and to the trace.
     fn presentations(&mut self, presentations: Vec<uwui_windowing::Presentation>) {
         for presentation in presentations {
-            let missed =
-                self.pacing
-                    .presented(presentation.image, presentation.shown, presentation.refresh);
-            if let Some(missed) = missed {
-                tracing::debug!(
-                    image = presentation.image,
-                    late = ?missed.shown.saturating_duration_since(missed.given),
-                    "a frame missed the refresh that it was drawn for"
-                );
-            }
-            let Some(trace) = &mut self.trace else {
-                continue;
-            };
-            let written = match (presentation.shown, missed) {
-                (Some(shown), missed) => trace.shown(presentation.image, shown).and_then(|()| {
-                    missed.map_or(Ok(()), |missed| {
-                        trace.missed(presentation.image, missed.given, missed.shown)
-                    })
-                }),
-                (None, _) => Ok(()),
-            };
-            if let Err(error) = written {
+            self.pacing
+                .presented(presentation.image, presentation.shown, presentation.refresh);
+            if let (Some(trace), Some(shown)) = (&mut self.trace, presentation.shown)
+                && let Err(error) = trace.shown(presentation.image, shown)
+            {
                 tell_trace_stopped("the trace stops: its file refuses its writes", &error);
                 self.trace = None;
             }
+        }
+    }
+
+    /// A frame drawn just in time missed the refresh that it aimed at: in the log and the trace.
+    fn missed(&mut self, missed: Missed) {
+        tracing::debug!(
+            image = missed.image,
+            late = ?missed.signal.saturating_duration_since(missed.aimed),
+            "a frame drawn just in time missed the refresh that it aimed at"
+        );
+        if let Some(trace) = &mut self.trace
+            && let Err(error) = trace.missed(missed.image, missed.aimed, missed.signal)
+        {
+            tell_trace_stopped("the trace stops: its file refuses its writes", &error);
+            self.trace = None;
         }
     }
 
@@ -572,7 +574,12 @@ impl<A: App> Host<A> {
     }
 
     /// Draws a frame, started at `now`, and presents it with the platform's signal asked.
-    fn frame(&mut self, platform: &mut Platform<'_>, now: Instant) -> Result<(), HostError> {
+    fn frame(
+        &mut self,
+        platform: &mut Platform<'_>,
+        now: Instant,
+        woke: Instant,
+    ) -> Result<(), HostError> {
         let (Some(session), Some(gpu)) = (&mut self.session, &mut self.gpu) else {
             return Ok(());
         };
@@ -622,7 +629,7 @@ impl<A: App> Host<A> {
         let ready = platform.now();
         self.pacing.drew(now, ready, image);
         if let Some(trace) = &mut self.trace
-            && let Err(error) = trace.presented(now, ready, image)
+            && let Err(error) = trace.presented(woke, ready, image)
         {
             tell_trace_stopped("the trace stops: its file refuses its writes", &error);
             self.trace = None;
