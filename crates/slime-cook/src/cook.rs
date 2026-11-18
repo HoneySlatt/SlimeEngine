@@ -596,9 +596,9 @@ fn relative(root: &Path, path: &Path) -> String {
         .join("/")
 }
 
-/// Writes `bytes` to `path`, whole or not at all ([`crate::write`]).
+/// Writes `bytes` to `path`, whole or not at all ([`slime_files::write`]).
 fn write(path: &Path, bytes: &[u8]) -> Result<(), CookError> {
-    crate::write(path, bytes).map_err(|source| CookError::Io {
+    slime_files::write(path, bytes).map_err(|source| CookError::Io {
         path: path.to_owned(),
         source,
     })

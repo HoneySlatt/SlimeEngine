@@ -35,21 +35,19 @@ pub(crate) fn opened(levels: &[PathBuf], opened: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-/// Writes `levels` to `file`, whole or not at all, its directory made if it has none.
+/// Writes `levels` to `file`, whole or not at all, its directory made if it has none
+/// ([`slime_files::write`]).
 ///
 /// # Errors
 ///
 /// When the directory cannot be made or the file written.
 pub(crate) fn write(file: &Path, levels: &[PathBuf]) -> io::Result<()> {
-    if let Some(directory) = file.parent() {
-        fs::create_dir_all(directory)?;
-    }
     let mut text = String::new();
     for level in levels {
         text.push_str(&level.display().to_string());
         text.push('\n');
     }
-    slime_cook::write(file, text.as_bytes())
+    slime_files::write(file, text.as_bytes())
 }
 
 #[cfg(test)]

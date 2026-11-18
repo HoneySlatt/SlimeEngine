@@ -1163,8 +1163,8 @@ A review of the engine's architecture of 2026-11-17, read-only too, added these:
   `World::new_id` adds four characters of base 36 to a name, unique within one world alone (`crates/slime-world/src/write_back.rs`); two branches that each add k entities of one name meet about k² / 36⁴ times, which a scene file then holds as one key written twice.
   Followed at Stage 6c's rest, before the tool that merges levels: longer identities for new entities, the old ones read as they are; Stage 7's seeded randomness leaves them to the editor.
 - **Six public functions return their errors as text.**
-  `slime_app::HeldFile::hold`, three of `slime-assets` and three of the editor's window return `Result<_, String>`, against [ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md); a caller cannot tell their cases apart.
-  Followed by each milestone that touches one of them, `HeldFile`'s at S1a; a check once none is left.
+  Three of `slime-assets` and three of the editor's window return `Result<_, String>`, against [ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md); a caller cannot tell their cases apart.
+  Followed by each milestone that touches one of them; a check once none is left.
 - **The cooker never removes what no source makes any more.**
   The directory of cooked data grows with every change of a source (`crates/slime-cook/src/cook.rs`).
   Followed at Stage 7's importer of audio, which changes the cooker.

@@ -402,10 +402,10 @@ impl Model {
         let Some(file) = file else {
             return;
         };
-        let written = file
-            .parent()
-            .map_or(Ok(()), std::fs::create_dir_all)
-            .and_then(|()| std::fs::write(&file, if blender { BLENDER } else { DEFAULT_KEYS }));
+        let written = slime_files::write(
+            &file,
+            if blender { BLENDER } else { DEFAULT_KEYS }.as_bytes(),
+        );
         if let Err(error) = written {
             self.shared.borrow_mut().notices.push(Notice {
                 failure: true,

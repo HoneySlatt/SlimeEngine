@@ -1349,6 +1349,7 @@ dependencies = [
  "slime-assets",
  "slime-color",
  "slime-devui",
+ "slime-files",
  "slime-gfx",
  "slime-platform",
  "slime-reflect",
@@ -3136,6 +3137,7 @@ dependencies = [
  "png",
  "slime-assets",
  "slime-color",
+ "slime-files",
  "slime-reflect",
  "slime-serialize",
  "slime-tasks",
@@ -3172,6 +3174,7 @@ dependencies = [
  "slime-color",
  "slime-cook",
  "slime-devui",
+ "slime-files",
  "slime-gfx",
  "slime-platform",
  "slime-reflect",
@@ -3205,6 +3208,10 @@ dependencies = [
  "tracing",
  "uwui",
 ]
+
+[[package]]
+name = "slime-files"
+version = "0.6.0"
 
 [[package]]
 name = "slime-gfx"

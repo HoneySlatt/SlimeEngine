@@ -140,7 +140,7 @@ impl Default for Lighting {
 
 /// The editor's directory of journals in the user's data directory, if the environment gives one.
 pub(crate) fn journals() -> Option<PathBuf> {
-    slime_app::data_directory().map(|directory| directory.join(DIRECTORY))
+    slime_files::data_directory().map(|directory| directory.join(DIRECTORY))
 }
 
 /// The options of a program of the editor.
@@ -175,19 +175,19 @@ pub(crate) struct Options {
 /// does not hold.
 ///
 /// Its journal is `slime-editor/<the level's asset ID>.journal` in the user's data directory
-/// ([`slime_app::data_directory`]), or `<asset ID>.2.journal` and on for a copy of the level, which
+/// ([`slime_files::data_directory`]), or `<asset ID>.2.journal` and on for a copy of the level, which
 /// keeps its asset ID, unless `--journal` names another file, for the level that it opens first;
-/// one program at a time holds it ([`slime_app::HeldFile`]), and a journal of another level's file
+/// one program at a time holds it ([`slime_files::HeldFile`]), and a journal of another level's file
 /// is refused. When the journal holds steps that the level's file does not, which a crash or a quit
 /// without writing leaves, the editor recovers them as it opens the level
 /// ([`Editor::recover`](crate::Editor::recover)), with its history, and goes on with the same
 /// journal; `--discard` starts from the file instead, the journal set aside beside it, as
-/// `<journal>.discarded`, or `.discarded.2` and on ([`slime_app::set_aside`]). A journal that
+/// `<journal>.discarded`, or `.discarded.2` and on ([`slime_files::set_aside`]). A journal that
 /// cannot be read or played again stops the start, kept as it was, with a message that names
 /// `--discard`, and one that cannot be written stops the program.
 ///
 /// The levels that it opened last, which its File menu lists, are kept in `slime-editor/<program's
-/// name>.recent` in the user's state directory ([`slime_app::state_directory`]); the first run,
+/// name>.recent` in the user's state directory ([`slime_files::state_directory`]); the first run,
 /// which finds none, tells the user one hint. The keys that the user chose, Blender's way or not,
 /// are kept in `slime-editor/keys` there, for every program of the editor; the window's layout in
 /// `slime-editor/<program's name>.layout.kdl`, written once it stands still and as the window
@@ -215,19 +215,19 @@ pub fn run(program: &Program) -> ExitCode {
         }
     };
     let shared = Shared::default();
-    let recent = slime_app::state_directory().map(|directory| {
+    let recent = slime_files::state_directory().map(|directory| {
         directory
             .join(DIRECTORY)
             .join(format!("{}.recent", program.name))
     });
     // One choice of keys for every program of the editor: a person's hands are the same.
     shared.borrow_mut().keys =
-        slime_app::state_directory().map(|directory| directory.join(DIRECTORY).join("keys"));
+        slime_files::state_directory().map(|directory| directory.join(DIRECTORY).join("keys"));
     // One file of speeds for every program, by level.
     shared.borrow_mut().speeds =
-        slime_app::state_directory().map(|directory| directory.join(DIRECTORY).join("speeds"));
+        slime_files::state_directory().map(|directory| directory.join(DIRECTORY).join("speeds"));
     // A layout for each program, the project's.
-    shared.borrow_mut().layout = slime_app::state_directory().map(|directory| {
+    shared.borrow_mut().layout = slime_files::state_directory().map(|directory| {
         directory
             .join(DIRECTORY)
             .join(format!("{}.layout.kdl", program.name))

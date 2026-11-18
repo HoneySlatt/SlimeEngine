@@ -80,14 +80,14 @@ IDs, and what is wrong with their metadata; `metadata` reads and writes metadata
 of a `Metadata` value, through `slime-serialize`; `ids` makes new IDs and derives those of
 sub-assets and textures; `image` decodes images; `texture::cook_texture` makes a cooked texture of
 an image for a role; `gltf_import::GltfFile` opens and imports a glTF file; `cook` (the module and
-its function) cooks a directory, and `watch` cooks it again at each change; `write` writes a file
-whole or not at all, as the cooker writes its own, which the editor writes its levels through
-(`slime-editor`). Their rustdoc gives the formats and the rules.
+its function) cooks a directory, and `watch` cooks it again at each change. Their rustdoc gives
+the formats and the rules.
 
 ## Dependencies
 
 [`slime-assets`](../slime-assets/README.md), for the asset ID and the cooked formats;
 [`slime-color`](../slime-color/README.md), for the sRGB transfer function of the mipmaps;
+[`slime-files`](../slime-files/README.md), which writes its files whole or not at all;
 [`slime-serialize`](../slime-serialize/README.md), which reads and writes metadata files and
 encodes scene files, and [`slime-reflect`](../slime-reflect/README.md), which describes what
 metadata files hold; [`slime-world`](../slime-world/README.md), which reads the layout of the scene

@@ -1,0 +1,15 @@
+[package]
+name = "slime-files"
+description = "SlimeEngine's safe files: written whole or not at all, held by one program, set aside, in the user's directories."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# None: the standard library alone, so that every crate, tool and game can write files through it
+# (docs/adr/0297-one-crate-of-safe-files-and-the-editors-journal-versioned-built-by-s1.md).
+[dependencies]

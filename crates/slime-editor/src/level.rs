@@ -86,7 +86,7 @@ impl Level {
             return Err(EditError::Changed(self.file.clone()));
         }
         let (text, left_out) = self.written(world)?;
-        slime_cook::write(&self.file, text.as_bytes()).map_err(|error| EditError::Io {
+        slime_files::write(&self.file, text.as_bytes()).map_err(|error| EditError::Io {
             path: self.file.clone(),
             error,
         })?;

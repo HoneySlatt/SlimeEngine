@@ -4,8 +4,8 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use slime_app::HeldFile;
 use slime_assets::AssetId;
+use slime_files::HeldFile;
 use slime_serialize::ReadError;
 use slime_world::{
     Command, CommandTextError, DocumentError, Entity, PersistentId, Renaming, SceneError,
@@ -890,7 +890,7 @@ impl Editor {
     /// Writes the level back to its scene file from `world`, as [`World::write_scene`] writes it,
     /// with the comments of the file as the editor opened or last wrote it, which go back before
     /// what they preceded ([`slime_serialize::keep_comments`]); whole or not at all, through a file
-    /// beside it that is renamed ([`slime_cook::write`]). Returns what the file could not hold as
+    /// beside it that is renamed ([`slime_files::write`]). Returns what the file could not hold as
     /// the world holds it ([`Written::left_out`](slime_world::Written::left_out)). The history
     /// stays: a step undone after the level is written changes the level since.
     ///

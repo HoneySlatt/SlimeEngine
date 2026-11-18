@@ -325,15 +325,6 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
 - `error_chain(&error)`: an error's message followed by the message of each of its causes
   (`error: cause: cause of cause`), the line `run` logs for a failed run. A program that does not
   use `run`, as the `offscreen` example, logs its errors with it.
-- `data_directory()`: the user's data directory, where a program keeps the files that it writes for
-  the user, a game's saves or an editor's journals; `state_directory()`, the user's state
-  directory, where it keeps what it remembers of the user's work, an editor's recent levels.
-  `HeldFile::hold(path)` holds a file for this
-  program alone, through the lock of a file beside it, which the system lets go however the program
-  ends: one copy of a game writes its save, one editor its journal. `set_aside(file, why)` renames a
-  file that cannot be used, beside it, as `<file>.<why>`, or `<file>.<why>.2` and on, never over a
-  file set aside before: a save that a game cannot read, a journal that an editor discards
-  (`docs/adr/0135-the-editors-program.md`).
 - The `development` feature: a run whose environment gives a token (`slime_channel::TOKEN_ENV_VAR`)
   listens on `127.0.0.1`, writes where on its standard output, and answers, at the start of each
   frame, the requests of the tools that connect with the token: its state, the host's controls, its

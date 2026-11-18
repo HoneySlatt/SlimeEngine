@@ -203,12 +203,12 @@ pub fn scan(root: &Path, mode: Mode) -> Result<Scan, ScanError> {
             None => {
                 let id = new_asset_id();
                 let metadata = metadata_path(&path);
-                crate::write(&metadata, metadata::write(id).as_bytes()).map_err(|source| {
-                    ScanError::Io {
+                slime_files::write(&metadata, metadata::write(id).as_bytes()).map_err(
+                    |source| ScanError::Io {
                         path: metadata.clone(),
                         source,
-                    }
-                })?;
+                    },
+                )?;
                 result.created.push(metadata);
                 id
             }

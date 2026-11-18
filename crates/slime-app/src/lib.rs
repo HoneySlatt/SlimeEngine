@@ -5,7 +5,6 @@ mod accessibility;
 mod app;
 #[cfg(feature = "development")]
 mod channel;
-mod data;
 mod diagnostics;
 mod drawing;
 mod error;
@@ -21,7 +20,6 @@ mod wake;
 mod windowed;
 
 pub use app::{AppConfig, run};
-pub use data::{HeldFile, data_directory, set_aside, state_directory};
 pub use diagnostics::{
     DEFAULT_LOG_FILTER, LOG_ENV_VAR, error_chain, init_diagnostics, since_start,
 };

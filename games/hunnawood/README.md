@@ -130,9 +130,10 @@ file.
 One copy of the game at a time holds the save: it locks a file beside it, `save.toml.lock`, while it
 runs, which the system lets go however the game ends, and leaves on the disk. Another copy started
 meanwhile with the same save says so, and starts a new run, which it does not save. A save is
-written beside the file, in a file of the game's process, `save.toml.<process id>.new`, to the
-disk, and renamed over it, so that the file is the save before or the new one, never part of one,
-nor a mix of two; a game killed while it writes leaves that file beside the save. The log says what
+written beside the file, in a file of its own, `save.toml.<process id>-<count>.part`, to the disk,
+and renamed over it, its directory then synced, so that the file is the save before or the new
+one, never part of one, nor a mix of two; a game killed while it writes leaves that file beside the
+save. `slime-files` writes it so, and its rustdoc says what each system promises. The log says what
 was saved or loaded, and where the run stands. When Windows ends the session, the game is stopped
 without quitting, and the run since the last F5 is lost (see the known debt in
 [`docs/debt.md`](../../docs/debt.md)).
@@ -417,7 +418,8 @@ spawning the zone cost, and, on a GPU, what building a frame of the zone's world
 The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`;
 `slime-devui` for the dev overlay and its world panel, engine tooling, and `uwui`, whose
 elements its panel of statistics is built of, both with the `development` feature; `slime-assets`, which reads the cooked
-zone; `slime-color`, for the colors of its lights and skies; `slime-world`, its world, and
+zone; `slime-color`, for the colors of its lights and skies; `slime-files`, which writes the save
+whole, holds it for one copy of the game, finds the user's data directory and sets a save aside; `slime-world`, its world, and
 `slime-world-render`, which draws it; `slime-reflect`, which describes its components, as every
 component is; `slime-serialize`, for the size of the largest save, up to which it reads its save,
 and whose tests encode with it the components of the zones they make, as the cooker does; and

@@ -195,7 +195,7 @@ pub(crate) fn kept(file: &Path, default: &LayoutFile) -> Kept {
             format!("The layout kept in {shown} cannot be read ({error}), and the default shows"),
         ),
     };
-    let (text, writable) = match slime_app::set_aside(file, why) {
+    let (text, writable) = match slime_files::set_aside(file, why) {
         Ok(aside) => {
             let set_aside = format!(
                 "{said}: the layout kept is set aside as {}",
@@ -304,11 +304,8 @@ fn migrated(file: &Path, default: &LayoutFile) -> Kept {
 /// why.
 pub(crate) fn keep(file: &Path, default: &str, layout: &Layout) -> Result<(), String> {
     let text = dock::write(layout, Some(default)).map_err(|error| error.to_string())?;
-    if let Some(directory) = file.parent() {
-        std::fs::create_dir_all(directory)
-            .map_err(|error| format!("{}: {error}", directory.display()))?;
-    }
-    slime_cook::write(file, text.as_bytes()).map_err(|error| format!("{}: {error}", file.display()))
+    slime_files::write(file, text.as_bytes())
+        .map_err(|error| format!("{}: {error}", file.display()))
 }
 
 /// Whether `panel` names a panel of the window.

@@ -7,12 +7,13 @@
 //! otherwise ([`reload`]); nor is one that an earlier version of the engine wrote, whose saves this
 //! one no longer reads, one that a later version of the game wrote, one that holds what this
 //! version does not know, which writing it back would lose, or one whose run cannot be played. One
-//! copy of the game at a time holds a save's file (`slime_app::HeldFile`).
+//! copy of the game at a time holds a save's file (`slime_files::HeldFile`), and writes it whole or
+//! not at all (`slime_files::write`).
 
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::File;
-use std::io::{self, Read as _, Write as _};
+use std::io::{self, Read as _};
 use std::path::{Path, PathBuf};
 
 use slime_serialize::MAX_SIZE;
@@ -35,7 +36,7 @@ pub const THIS_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The save's file when `--save` names none: `hunnawood/save.toml` in the user's data directory, if
 /// the environment gives one.
 pub fn default_file() -> Option<PathBuf> {
-    slime_app::data_directory().map(|directory| directory.join(DIRECTORY).join(FILE))
+    slime_files::data_directory().map(|directory| directory.join(DIRECTORY).join(FILE))
 }
 
 /// A new game of the zone and the hero as `scenes` resolves them, by day, in a world of its own,
@@ -91,7 +92,7 @@ pub enum NotResumed {
 
 impl NotResumed {
     /// The end of the name that a save not resumed for this reason is set aside under
-    /// (`slime_app::set_aside`).
+    /// (`slime_files::set_aside`).
     pub fn aside(&self) -> &'static str {
         match self {
             Self::Unreadable(_) => "unreadable",
@@ -286,41 +287,6 @@ pub fn read(file: &Path) -> io::Result<String> {
     Ok(text)
 }
 
-/// Writes `text` to `file`, its directory made if it has none, through a file beside it of this
-/// process's own, `<file>.<process id>.new`, written to the disk, then renamed over it: `file`
-/// holds the save before or the new one, never part of one, a power cut included, and never a mix
-/// of two writers'. The file beside it does not outlive an error; a process killed while it writes
-/// leaves it.
-///
-/// # Errors
-///
-/// As the file system's operations.
-pub fn write(file: &Path, text: &str) -> io::Result<()> {
-    if let Some(directory) = file.parent() {
-        std::fs::create_dir_all(directory)?;
-    }
-    let written = beside(file, &format!("{}.new", std::process::id()));
-    let renamed = File::create(&written)
-        .and_then(|mut new| {
-            new.write_all(text.as_bytes())?;
-            // On the disk before the rename, which a file system may otherwise put there first.
-            new.sync_all()
-        })
-        .and_then(|()| std::fs::rename(&written, file));
-    if renamed.is_err() {
-        let _ = std::fs::remove_file(&written);
-    }
-    renamed
-}
-
-/// The file beside `file` whose name is `file`'s and `.<extension>`.
-fn beside(file: &Path, extension: &str) -> PathBuf {
-    let mut name = file.as_os_str().to_owned();
-    name.push(".");
-    name.push(extension);
-    PathBuf::from(name)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -332,31 +298,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&directory);
         std::fs::create_dir_all(&directory).expect("a directory");
         directory
-    }
-
-    #[test]
-    fn a_save_is_written_whole_or_not_at_all_through_a_file_of_its_own() {
-        let directory = directory("written");
-        let file = directory.join("deep").join(FILE);
-        write(&file, "first").expect("written, its directory made");
-        // Another copy of the game, or an older version of it, half-way through its write: this
-        // one writes through a file of its own, and leaves the other's.
-        let others = beside(&file, "new");
-        std::fs::write(&others, "another writer's").expect("written");
-        write(&file, "second").expect("written over");
-        assert_eq!(std::fs::read_to_string(&file).expect("read"), "second");
-        assert_eq!(
-            std::fs::read_to_string(&others).expect("left"),
-            "another writer's"
-        );
-        let own = beside(&file, &format!("{}.new", std::process::id()));
-        assert!(!own.exists(), "the file written beside it is renamed");
-        // A file that cannot be written leaves nothing beside it: here, a directory in its place.
-        std::fs::remove_file(&file).expect("removed");
-        std::fs::create_dir(&file).expect("a directory");
-        assert!(write(&file, "third").is_err());
-        assert!(!own.exists());
-        std::fs::remove_dir_all(&directory).expect("removed");
     }
 
     #[test]

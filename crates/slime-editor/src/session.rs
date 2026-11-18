@@ -9,10 +9,11 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use slime_app::{AppError, HeldFile, Simulation, SimulationContext, Waker};
+use slime_app::{AppError, Simulation, SimulationContext, Waker};
 use slime_assets::{AssetId, AssetKind, CookedAssets};
 use slime_channel::page::Page;
 use slime_channel::{Edit, EditorHistory, OperationSummary, Reply};
+use slime_files::HeldFile;
 use slime_reflect::Reflect;
 use slime_render::glam::DVec3;
 use slime_world::{
@@ -175,7 +176,7 @@ impl Session {
         let discard_it =
             || format!("start with --discard to open the level from its file, {shown} set aside");
         if discard && fs::symlink_metadata(&journal).is_ok() {
-            let aside = slime_app::set_aside(&journal, "discarded")
+            let aside = slime_files::set_aside(&journal, "discarded")
                 .map_err(|error| format!("{shown} cannot be set aside: {error}"))?;
             tracing::info!(
                 journal = %aside.display(),

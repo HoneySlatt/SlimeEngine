@@ -10,9 +10,9 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use slime_app::HeldFile;
 use slime_channel::Fault;
 use slime_channel::page::{Listing, Page};
+use slime_files::HeldFile;
 use slime_reflect::{ReflectError, Value};
 use slime_serialize::{Composer, Document, Mode};
 use slime_world::{PersistentId, World};
@@ -77,7 +77,7 @@ impl Journal {
     pub(crate) fn resume(held: HeldFile, text: &str) -> Result<Self, EditError> {
         let path = held.path();
         if fs::read(path).ok().as_deref() != Some(text.as_bytes()) {
-            slime_cook::write(path, text.as_bytes()).map_err(|error| failed(path, &error))?;
+            slime_files::write(path, text.as_bytes()).map_err(|error| failed(path, &error))?;
         }
         let file = OpenOptions::new()
             .append(true)

@@ -19,6 +19,9 @@ slime-color.workspace = true
 # The engine's dev overlay, for the frame's statistics on F1 and the world panel on F2: tooling,
 # which the build for shipping leaves out (ADR-0152).
 slime-devui = { workspace = true, optional = true }
+# The save written whole or not at all and held by one copy of the game, in the user's data
+# directory, or set aside when it does not resume (ADR-0297).
+slime-files.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
 # Describes the game's components, as every component is (ADR-0080).

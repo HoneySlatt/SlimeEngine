@@ -9,8 +9,9 @@ use std::io;
 use std::path::Path;
 use std::time::Instant;
 
-use slime_app::{AppError, HeldFile, Simulation, SimulationContext};
+use slime_app::{AppError, Simulation, SimulationContext};
 use slime_assets::{CookedAssets, ManifestWatch};
+use slime_files::HeldFile;
 use slime_platform::KeyCode;
 use slime_world::{Loaded, SceneLibrary, World};
 
@@ -86,7 +87,7 @@ impl HunnaWood {
     /// Saves the run in `world` to `file`.
     fn save_to(&self, world: &World, file: &Path) -> Result<(), String> {
         let text = saves::save(world, &self.layout)?;
-        saves::write(file, &text).map_err(|error| error.to_string())
+        slime_files::write(file, text.as_bytes()).map_err(|error| error.to_string())
     }
 
     /// Loads the run of the save's file in place of the run in `world`, as F9 asks: the hero is
@@ -302,7 +303,7 @@ pub enum Resume {
 
 /// The run of the save in `file`, resumed in a new game of `scenes`, if the file holds one that can
 /// be resumed ([`saves::resume`]); logged either way. A save that is not resumed is set aside
-/// (`slime_app::set_aside`), so that the next save does not write over it, under a name that says
+/// (`slime_files::set_aside`), so that the next save does not write over it, under a name that says
 /// why ([`saves::NotResumed::aside`]): `unreadable`, `earlier-version`, `later-version`,
 /// `other-layout`, `unknown-content`, `unplayable`. What is not a file, a directory or a pipe, is
 /// neither read nor moved.
@@ -360,7 +361,7 @@ fn log_loaded(loaded: &Loaded) {
 /// Sets aside the save in `file`, which is not resumed for `why`, under a name that ends in `what`,
 /// and logs it: [`Resume::Nothing`] once it is, [`Resume::Keep`] if it cannot be.
 fn set_aside(file: &Path, what: &str, why: &str) -> Resume {
-    match slime_app::set_aside(file, what) {
+    match slime_files::set_aside(file, what) {
         Ok(aside) => {
             tracing::warn!(
                 "the save in {} is not resumed: {why}; it is set aside as {}",

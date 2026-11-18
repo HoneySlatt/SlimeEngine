@@ -255,7 +255,7 @@ fn the_steps_that_the_file_does_not_hold_are_counted_from_its_last_writing() {
     editor
         .keep_journal(
             &world,
-            slime_app::HeldFile::hold(journal.clone()).expect("held"),
+            slime_files::HeldFile::hold(journal.clone()).expect("held"),
         )
         .expect("kept");
     for name in ["e", "f"] {
@@ -421,7 +421,7 @@ fn a_recovered_editor_holds_the_level_the_history_and_the_selection_of_the_one_t
     let yard = Yard::new("journal");
     let journal = yard.directory.join("journal");
     let (mut world, mut editor) = yard.open();
-    let held = slime_app::HeldFile::hold(journal.clone()).expect("held");
+    let held = slime_files::HeldFile::hold(journal.clone()).expect("held");
     editor.keep_journal(&world, held).expect("kept");
     editor.select(vec![id("yard/gate")]);
     let torch = light_the_well(&mut world, &mut editor);
@@ -497,7 +497,7 @@ fn a_recovered_editor_holds_the_level_the_history_and_the_selection_of_the_one_t
     assert!(matches!(
         editor.keep_journal(
             &world,
-            slime_app::HeldFile::hold(yard.directory.join("late")).expect("held")
+            slime_files::HeldFile::hold(yard.directory.join("late")).expect("held")
         ),
         Err(EditError::Journal(_))
     ));
@@ -568,7 +568,7 @@ fn an_open_step_applies_live_is_cancelled_and_ends_as_one_journaled_step() {
     let yard = Yard::new("open");
     let journal = yard.directory.join("journal");
     let (mut world, mut editor) = yard.open();
-    let held = slime_app::HeldFile::hold(journal.clone()).expect("held");
+    let held = slime_files::HeldFile::hold(journal.clone()).expect("held");
     editor.keep_journal(&world, held).expect("kept");
     let named = well_s_name(&world);
     let before = read(&journal);
@@ -625,7 +625,7 @@ fn a_crash_during_a_gesture_loses_the_gesture_alone() {
     let yard = Yard::new("crash");
     let journal = yard.directory.join("journal");
     let (mut world, mut editor) = yard.open();
-    let held = slime_app::HeldFile::hold(journal.clone()).expect("held");
+    let held = slime_files::HeldFile::hold(journal.clone()).expect("held");
     editor.keep_journal(&world, held).expect("kept");
     rename_the_well(&mut world, &mut editor, "made");
     editor
@@ -669,7 +669,7 @@ fn what_is_copied_is_pasted_as_one_step_under_new_identities_each_time() {
     let yard = Yard::new("paste");
     let (mut world, mut editor) = yard.open();
     let journal = yard.directory.join("journal");
-    let held = slime_app::HeldFile::hold(journal.clone()).expect("held");
+    let held = slime_files::HeldFile::hold(journal.clone()).expect("held");
     editor.keep_journal(&world, held).expect("kept");
     let copied = editor
         .copy(&world, &[id("yard/gate"), id("yard/sign")])

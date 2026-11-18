@@ -30,8 +30,9 @@ use std::time::Instant;
 use hunnawood::saves;
 use hunnawood::simulation::{Resume, kept, log_run, resume_from};
 use hunnawood::{HunnaWood, Screen, assets};
-use slime_app::{AppConfig, HeldFile};
+use slime_app::AppConfig;
 use slime_assets::{CookedAssets, ManifestWatch};
+use slime_files::HeldFile;
 use slime_platform::WindowConfig;
 use slime_world::SceneLibrary;
 
@@ -82,7 +83,7 @@ fn main() -> ExitCode {
         .ok_or_else(|| {
             "the environment gives no data directory, and --save names no file".to_owned()
         })
-        .and_then(HeldFile::hold);
+        .and_then(|file| HeldFile::hold(file).map_err(|error| error.to_string()));
     let resumed = match &save_file {
         Ok(file) if !options.new => resume_from(file.path(), &mut scenes),
         Ok(_) => Resume::Nothing,

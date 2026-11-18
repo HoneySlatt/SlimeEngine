@@ -150,7 +150,8 @@ editor's other panels come with Stage 6c's next milestones.
 
 `slime-world`, whose commands, levels and identities the editor uses through their public API;
 `slime-serialize` and `slime-reflect`, for its journal and the comments of levels; `slime-cook`,
-whose metadata files give a level's asset ID, and which writes files whole or not at all;
+whose metadata files give a level's asset ID; `slime-files`, which writes its files whole or not
+at all, holds its journal, sets aside what it cannot read and finds the user's directories;
 `slime-app`, with its `development` feature, on which its program runs, `slime-channel`, whose
 requests it answers, and `slime-assets`, the cooked data of the prefabs that a level places; for its
 window, `uwui`, with the editor's look, which `slime-app`'s bridge draws, `slime-render`, the

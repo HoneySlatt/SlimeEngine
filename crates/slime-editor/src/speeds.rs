@@ -52,14 +52,11 @@ pub(crate) fn flown(speeds: &[(PathBuf, f64)], level: &Path, speed: f64) -> Vec<
 ///
 /// When the directory cannot be made or the file written.
 pub(crate) fn write(file: &Path, speeds: &[(PathBuf, f64)]) -> io::Result<()> {
-    if let Some(directory) = file.parent() {
-        fs::create_dir_all(directory)?;
-    }
     let mut text = String::new();
     for (level, speed) in speeds {
         text.push_str(&format!("{speed}\t{}\n", level.display()));
     }
-    slime_cook::write(file, text.as_bytes())
+    slime_files::write(file, text.as_bytes())
 }
 
 #[cfg(test)]
