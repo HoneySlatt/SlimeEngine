@@ -390,3 +390,4 @@ the ADR linking to it.
 | [0304](0304-rust-1100-in-a-milestone-of-its-own-after-s1-new-crate-versions-three-days-old.md) | Rust 1.100 in a milestone of its own after S1; new crate versions three days old | Accepted |
 | [0305](0305-uwuis-desktop-host-makes-its-device-and-surface-again-a-programs-images-made-again-from-their-source.md) | uwui's desktop host makes its device and its surface again; a program's images made again from their source | Accepted |
 | [0306](0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md) | uwui's crash reports: a marker held by a lock, the hours counted; a panic ends with 101 | Accepted; amends 0270 |
+| [0307](0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md) | M6d.7a2c cut in two, the host measured first; the blank window on winit in a package of its own | Accepted |
