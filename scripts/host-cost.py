@@ -21,10 +21,16 @@ For each program, built in release, it measures:
 - its input to present: from the moment the tool sends a notch of the wheel to the end of the
   present of the first image that took it, each image's notches counted in its trace, the oldest
   notch of each image counted. Inputs apart, 100 notches 100 ms apart, the program at rest between
-  them, each of which must have an image of its own; then inputs in a row, 1,000 notches 180 a second,
-  its frames running. The notches go down and up in turn over the window's list, so that each
-  changes what the three programs show. The same measure for the three programs, which an input
-  that waits behind a long frame does not escape;
+  them, each of which must have an image of its own; inputs in a row, 1,000 notches 180 a second,
+  fewer than the display's refreshes, so that the program may rest a little between them; and
+  inputs in motion, 1,000 notches 400 a second, more than the display's refreshes, so that every
+  refresh finds an input waiting and the frames run without a rest. The notches go down and up in
+  turn over the window's list, so that each changes what the three programs show. The same measure
+  for the three programs, which an input that waits behind a long frame does not escape;
+- its input to shown: the same, to when the first image at or after the one that took it showed,
+  as its trace says where its platform tells it (`shown`, from `wp_presentation`); winit's program
+  tells none. And the frames that missed the refresh that their time was predicted for (`missed`),
+  which only the host traces;
 - its binary's size, as built and stripped.
 
 The input reaches the window through the compositor, as a person's does, through the virtual
@@ -79,6 +85,8 @@ SETTLE = 60.0
 OVER_THE_LIST = (960, 600)
 # The notches of the wheel in a row, a second: a mouse's wheel turned fast.
 IN_A_ROW = 180
+# The notches of the wheel in motion, a second: more than the display's 240 refreshes.
+IN_MOTION = 400
 # Above these, other programs disturbed a measure: cores of the processor, the GPU's busy share.
 DISTURBING_CORES = 0.5
 DISTURBING_GPU = 10.0
@@ -353,7 +361,7 @@ def events(path):
             complete.append(json.loads(line.rstrip(",")))
         except json.JSONDecodeError:
             pass
-    return [event for event in complete if event.get("ph") == "X"]
+    return [event for event in complete if event.get("ph") in ("X", "i")]
 
 
 def frames(trace):
@@ -501,15 +509,34 @@ def wheel(devices, notches, every):
     return sent
 
 
+def shown_times(trace):
+    """When each image showed, by its number, in nanoseconds since the Unix epoch."""
+    return {
+        event["args"]["image"]: round(event["ts"] * 1000)
+        for event in trace
+        if event["name"] == "shown"
+    }
+
+
 def inputs_to_present(trace, sent, name):
     """For each image that took notches of the wheel, the interval in milliseconds from its oldest
-    notch's sending to the end of its present, with that notch's index in `sent`: the notches are
+    notch's sending to the end of its present, and to when the first image at or after it showed,
+    none where the trace tells no image shown, with that notch's index in `sent`: the notches are
     taken in the order they were sent, which each frame's count follows."""
     intervals = []
+    shown = shown_times(trace)
+    # For each frame, when the first image at or after its own showed: an image never shown is
+    # replaced by the next that is.
+    images = [frame.get("args", {}).get("image") for frame in frames(trace)]
+    first_shown = [None] * len(images)
+    later = None
+    for index in range(len(images) - 1, -1, -1):
+        later = shown.get(images[index], later)
+        first_shown[index] = later
     taken = 0
     # Notches that one image took together, which the notches apart must never be.
     together = []
-    for frame in frames(trace):
+    for index, frame in enumerate(frames(trace)):
         count = frame.get("args", {}).get("wheel", 0)
         if count == 0:
             continue
@@ -517,7 +544,8 @@ def inputs_to_present(trace, sent, name):
             fail(f"{name}'s trace takes {taken + count} notches of the wheel, more than the "
                  f"{len(sent)} sent")
         end = round((frame["ts"] + frame["dur"]) * 1000)
-        intervals.append((taken, (end - sent[taken]) / 1e6))
+        to_shown = None if first_shown[index] is None else (first_shown[index] - sent[taken]) / 1e6
+        intervals.append((taken, (end - sent[taken]) / 1e6, to_shown))
         if count > 1:
             together.append(taken)
         taken += count
@@ -555,17 +583,35 @@ def measure(name, binary, sway, devices, work, given):
         apart = wheel(devices, 100, 0.1)
         run.settle()
         in_a_row = wheel(devices, 1000, 1 / IN_A_ROW)
+        run.settle()
+        in_motion = wheel(devices, 1000, 1 / IN_MOTION)
         if run.process.poll() is not None:
             fail(f"{name} ended before its inputs did: see {run.log.name}")
     finally:
         run.stop()
-    intervals, together = inputs_to_present(events(run.trace), apart + in_a_row, name)
+    trace = events(run.trace)
+    intervals, together = inputs_to_present(trace, apart + in_a_row + in_motion, name)
     # Each notch apart has an image of its own: else one went unanswered, the wheel turning where
     # the program shows nothing that it moves.
     if any(index < len(apart) for index in together):
         fail(f"{name} took notches apart, 100 ms from each other, in one image: one went "
              f"unanswered; see {run.trace}")
-    apart_intervals = [interval for index, interval in intervals if index < len(apart)]
+    bounds = {
+        "apart": (0, len(apart)),
+        "in a row": (len(apart), len(apart) + len(in_a_row)),
+        "in motion": (len(apart) + len(in_a_row), len(apart) + len(in_a_row) + len(in_motion)),
+    }
+
+    def scenario(which, to_shown):
+        low, high = bounds[which]
+        found = [
+            (shown if to_shown else present)
+            for index, present, shown in intervals
+            if low <= index < high
+        ]
+        # A program whose platform tells no image shown has no such figure.
+        return None if to_shown and None in found else found
+
     size = binary.stat().st_size
     stripped = work / f"{slug}.stripped"
     subprocess.run(["strip", "-o", str(stripped), str(binary)], check=True)
@@ -573,11 +619,11 @@ def measure(name, binary, sway, devices, work, given):
         "start": starts,
         "memory": memory,
         "rest": rest,
-        "apart": apart_intervals,
-        "in a row": [interval for index, interval in intervals if index >= len(apart)],
-        "in a row sent": len(in_a_row),
+        **{which: scenario(which, False) for which in bounds},
+        **{f"{which} shown": scenario(which, True) for which in bounds},
         "binary": (size / 1e6, stripped.stat().st_size / 1e6),
-        "frame work": [event["dur"] / 1000 for event in frames(events(run.trace))],
+        "frame work": [event["dur"] / 1000 for event in frames(trace)],
+        "missed": sum(1 for event in trace if event["name"] == "missed"),
         "load": load.end(given.gpu),
     }
 
@@ -592,13 +638,19 @@ def table(figures):
         return percentile(sorted(values), 0.99)
 
     def latency(values):
+        if values is None:
+            return "not told"
         return (
             f"{statistics.median(values):.2f} / {p99(values):.2f} / {max(values):.2f} ms "
             f"({len(values)} images)"
         )
 
     def own(value_of, unit, digits=1):
-        first, second = value_of(application), value_of(blank)
+        try:
+            first, second = value_of(application), value_of(blank)
+        except TypeError:
+            # A figure that one of the two lacks.
+            return "—"
         if first is None or second is None:
             return "—"
         return f"{first - second:+.{digits}f} {unit}"
@@ -648,6 +700,28 @@ def table(figures):
             f"Input to present, in a row ({IN_A_ROW} a second): median / 99th / longest",
             lambda f: latency(f["in a row"]),
             own(lambda f: p99(f["in a row"]), "ms at the 99th", 2),
+        ),
+        (
+            f"Input to present, in motion ({IN_MOTION} a second): median / 99th / longest",
+            lambda f: latency(f["in motion"]),
+            own(lambda f: p99(f["in motion"]), "ms at the 99th", 2),
+        ),
+        *(
+            (
+                f"Input to shown, {label}: median / 99th / longest",
+                lambda f, which=which: latency(f[f"{which} shown"]),
+                own(lambda f, which=which: p99(f[f"{which} shown"]), "ms at the 99th", 2),
+            )
+            for which, label in (
+                ("apart", "apart"),
+                ("in a row", f"in a row ({IN_A_ROW} a second)"),
+                ("in motion", f"in motion ({IN_MOTION} a second)"),
+            )
+        ),
+        (
+            "Frames that missed their predicted refresh",
+            lambda f: str(f["missed"]),
+            "",
         ),
         (
             "A frame's work, start to present: median / 99th",
