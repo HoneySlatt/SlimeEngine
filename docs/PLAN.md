@@ -24,7 +24,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     whole; M6d.9a2 cut in three ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)): done,
     [M6d.9a2a](stage-6d.md#m6d9a2a--the-library) and [M6d.9a2b](stage-6d.md#m6d9a2b--the-engine-on-the-library),
     then [V1](stage-6d.md#v1--uwuis-documents-versioned); S1 cut in three ([ADR-0303](adr/0303-s1-cut-in-three-safe-files-the-editors-journal-saves-migrated.md)),
-    [S1a](stage-6d.md#s1a--safe-files) in progress;
+    [S1a](stage-6d.md#s1a--safe-files) in progress; after S1c, [R1](stage-6d.md#r1--rust-1100);
     after M6d.9b, [E1](stage-6d.md#e1--the-elements-contract), the element's contract designed
     before M6d.10a ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six: done,
@@ -60,6 +60,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [V1 — uwui's documents versioned](stage-6d.md#v1--uwuis-documents-versioned) | Done |
 | [S1a to S1c — Saves migrated from layout 5](stage-6d.md#s1--saves-migrated-from-layout-5) | S1a in progress |
+| [R1 — Rust 1.100](stage-6d.md#r1--rust-1100) | Planned |
 | [E1 — The element's contract](stage-6d.md#e1--the-elements-contract) | Planned |
 | [M6d.10a — What the move needs](stage-6d.md#m6d10a--what-the-move-needs) | Planned |
 | [D1 — The decisions consolidated](stage-6d.md#d1--the-decisions-consolidated) | Planned |
@@ -74,7 +75,8 @@ From two outside reviews, kept by the owner on 2026-11-10; each joins its milest
 - Stage 7's planning: the very modest laptop measured on
   [ADR-0216](adr/0216-light-geometry-and-the-gpus-floor.md)'s common floor before the renderer
   stands on it; one memory budget for every load and renderer ([`debt.md`](debt.md));
-  the simulation's parallel run tried on one case before its systems.
+  the simulation's parallel run tried on one case before its systems; profile-guided optimisation,
+  and an allocator of its own where a profile shows its cost, a buffer reused first ([ADR-0304](adr/0304-rust-1100-in-a-milestone-of-its-own-after-s1-new-crate-versions-three-days-old.md)).
 - uwui's first stage: a channel's capacity, and its messages told apart, last value, kept events,
   large changes in parts ([ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md)).
 - A milestone that fixes a huge text's costs in a field, the owner's choice of 2026-11-13
@@ -84,15 +86,10 @@ From two outside reviews, kept by the owner on 2026-11-10; each joins its milest
   apart from its path; themes' parts tried on hard components; few concepts to start with; early
   trials of mobile and web life cycles.
 
-From the review of the architecture of 2026-11-16, its items in
-[`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10):
+From the review of the architecture of 2026-11-16 ([`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10)):
 
 - M6d.10b: the milestone that versions agents' families by major and minor
   ([ADR-0278](adr/0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md)).
-- Stage 7's design session: the simulation's contract, its questions in Stage 7's entry
-  ([ADR-0287](adr/0287-the-simulations-contract-designed-at-stage-7-its-questions-written-now.md)).
-- For the owner: the contributor licence agreement, with the lawyer
-  ([ADR-0289](adr/0289-a-private-channel-for-vulnerabilities-now-the-rest-when-contributions-open.md)).
 
 ## Checks by hand waiting for the owner
 

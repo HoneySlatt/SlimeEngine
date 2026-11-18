@@ -155,7 +155,8 @@ in git.
   [S1](#s1--saves-migrated-from-layout-5), cut in three on 2026-11-18
   ([ADR-0303](adr/0303-s1-cut-in-three-safe-files-the-editors-journal-saves-migrated.md)):
   [S1a](#s1a--safe-files), [S1b](#s1b--the-editors-journal) and
-  [S1c](#s1c--saves-migrated-and-a-panics-end); then
+  [S1c](#s1c--saves-migrated-and-a-panics-end); then [R1](#r1--rust-1100), the toolchain
+  bumped ([ADR-0304](adr/0304-rust-1100-in-a-milestone-of-its-own-after-s1-new-crate-versions-three-days-old.md)); then
   [M6d.9a2c](#m6d9a2c--waiting),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
@@ -3158,6 +3159,25 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
 - **Done when.** `scripts/check.sh` passes; a test reads layout 5's fixture through the reader of a
   layout 6 made for the test, then thrown away; a test's simulation that panics ends `run` with its
   error, its `stop` not called.
+
+### R1 — Rust 1.100
+
+Not a milestone of uwui's: the toolchain, on track A after S1c and before M6d.9a2c, arranged with
+track B between two of its parts ([ADR-0304](adr/0304-rust-1100-in-a-milestone-of-its-own-after-s1-new-crate-versions-three-days-old.md)).
+
+- **Goal.** The workspace on Rust 1.100, nothing broken by Cargo's new build directory.
+- **Crates.** Every crate, `rust-toolchain.toml`, the workspace's `Cargo.toml`, `.cargo/config.toml`,
+  new, `scripts/check.sh`; track B's tests that find their binaries, with track B's go.
+- **Delivers.** The toolchain and `rust-version` at 1.100, its new warnings fixed; each test or
+  script that assumes where Cargo puts its binaries (`std::env::current_exe()`,
+  `target/<profile>/deps`) checked, those that break finding them through Cargo; the six
+  `strip_prefix(…).unwrap_or(original)` written with `trim_prefix`, behaviour unchanged; Cargo's
+  lint of unused dependencies run on Linux and Windows, what it finds removed, an error in
+  `scripts/check.sh` if its results hold across features and targets, else its reason in
+  [`debt.md`](debt.md); `registry.global-min-publish-age` at three days, the way to an exception in
+  `CONTRIBUTING.md`.
+- **Done when.** `scripts/check.sh` passes on 1.100; CI is green on Linux and Windows; the build
+  and test times beside 1.99's in [`measurements.md`](measurements.md).
 
 ### E1 — The element's contract
 
