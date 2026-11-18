@@ -2218,21 +2218,26 @@ run ─▶ uwui_windowing::run, the layer: connects (WAYLAND_DISPLAY), makes the
           sheets, themes), App::start
      ─▶ each turn of the loop:
           the layer: the compositor's events dispatched: a configure acknowledged, a closing
-            asked, a frame callback come, the scale preferred, a token of activation used; the
+            asked, a frame callback come, the images shown (wp_presentation_feedback.presented,
+            on the host's clock), the scale preferred, a token of activation used; the
             pointer's, each finger's and the keyboard's events with their times anchored on the
             host's clock (anchor), each key through libxkbcommon (xkb), its repeat due (repeat);
             the window drawn at its scale: the viewport's destination or the buffer's scale asked
           ─▶ Handler::turn(Happened), the host:
+            Happened::presentations ─▶ Pacing::presented (period, lag, a frame that missed) and
+              the trace's `shown` and `missed`
             a termination signal or a closing ─▶ App::close_requested ─▶ Allow ends the run
             an event of the window, a wake of another thread (eventfd) ─▶ Pacing::asked_from_outside
             the images sized round(logical × scale)
-            the person's input ─▶ Ui::event, the pointer's last move held while a frame waits; the
+            the person's input ─▶ Ui::event, the pointer's last move held while a frame waits for
+              its signal or its start just in time; the
               cursor's shape that the outputs ask ─▶ Window::set_cursor ─▶ wp_cursor_shape_v1
             App::step, then the window's requests (title, minimum size, fullscreen, activation)
             Pacing::next(now, changed or Ui::needs_frame, Ui::next_frame_due):
-              Frame ─▶ acquire the image, Ui::set_target_size, Ui::set_frame_shown(on the grid),
-                       Ui::frame, uwui-render draws, Window::ask_signal (wl_surface.frame),
-                       present (the driver's commit carries the callback)
+              WaitUntil(start just in time), while the signal is in, or Frame ─▶ acquire the image,
+                       Ui::set_target_size, Ui::set_frame_shown(predicted), Ui::frame, uwui-render
+                       draws, Window::ask_signal (wl_surface.frame and wp_presentation.feedback),
+                       present (the driver's commit carries both)
             ─▶ Control::Wait(deadline) or Control::Exit
           the layer waits: poll on the socket, the eventfd and a timerfd on CLOCK_BOOTTIME, armed
             for the earliest of the host's deadline and the key's repeat
@@ -2242,13 +2247,15 @@ run ─▶ uwui_windowing::run, the layer: connects (WAYLAND_DISPLAY), makes the
 ```
 
 The pacing follows [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md):
-nothing runs at rest; the first frame after a rest starts at once; while frames run, each waits for
-the frame callback of the one before; a window whose callback does not come, hidden, draws nothing
-for its own changes, and an event of the window or a wake runs a frame once the callback is late,
-as
-[ADR-0187](adr/0187-a-hidden-window-at-rest.md) says. The time given is on the grid of the
-callbacks, its period measured from their gaps. Frames are not yet drawn just in time, nor timed by
-the presentations' feedback (M6d.7a2c).
+nothing runs at rest; while frames run, each waits for the frame callback of the one before, then
+starts just in time, the callback plus the period less its work and a margin, or at once when that
+time has passed, as for the first frame after a rest
+([ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)); a window whose callback does not come, hidden, draws nothing for its own changes,
+and an event of the window or a wake runs a frame once the callback is late, as
+[ADR-0187](adr/0187-a-hidden-window-at-rest.md) says. The time given is predicted from the images
+shown that `wp_presentation` tells, its period theirs, else measured from the callbacks' gaps;
+where a compositor tells no presentation, frames start on the callback and the time given is on its
+grid.
 
 ### The development channel
 

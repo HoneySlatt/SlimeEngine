@@ -66,14 +66,19 @@ the refresh that their time was predicted for.
 
 - Where the platform tells when images show, a frame starts at the signal's time plus the display's
   period, less the frame's work and a margin, or at once if that time has passed. The work is the
-  longest of the latest frames', from their start to the end of their present. The margin covers
-  what the compositor spends between composing and signalling: an image that shows a refresh or
-  more after the time predicted for it widens the margin, and the host traces it (`missed`); images
-  shown on time in a row narrow it slowly back; it never exceeds a period. Its figures are in the
-  rustdoc of `uwui-desktop`'s `pacing`.
+  longest of the latest frames', from the start of the turn that draws them to the end of their
+  present. The margin covers what the compositor spends between composing and signalling: an image
+  drawn just in time that shows half a period or more after the time predicted for it widens the
+  margin, and the host traces it (`missed`); images shown on time in a row narrow it back; it never
+  exceeds a period. A frame started at once after a rest, or an image shown much later, as a hidden
+  window's, says nothing of the margin. Its figures are in the rustdoc of `uwui-desktop`'s
+  `pacing`.
 - So the first frame after a rest longer than a period starts at once: an input at rest reaches the
   screen within one frame's work. After a shorter rest, it starts just in time, which reaches the
   same refresh.
+- The time given is predicted from the frame's usual work and the usual lag of recent frames that
+  came as it does, in step with the signal or after a rest, which compositors that compose at once
+  when idle show sooner.
 - Where the platform tells no presentation, the frame starts on the signal.
 - Built on Wayland at M6d.7a2c2, on each other platform at its part of M6d.7.
 
@@ -99,6 +104,15 @@ On the first frame after a rest:
 - **At once after any rest, however short:** ADR-0271's words, a lower input to present for inputs
   that come a little apart, but the image waits at the compositor for the same refresh, and inputs
   that come meanwhile miss it; and what counts as a rest needs a rule of its own.
+
+## Validation and reconsideration
+
+- Measured in a headless sway at 240 Hz alone, which composes a late image when it comes and tells
+  no period: a real display, sway's and niri's on the owner's machine, under a variable refresh
+  too, is checked by hand, the frames that miss counted in a trace. Many there, or a margin that
+  stays wide, reopen the margin's rule and the lags'.
+- The budget in motion is reconsidered if a platform's pacing passes under a refresh plus the
+  frame's work, as one that composes at an input's commit would.
 
 ## Consequences
 

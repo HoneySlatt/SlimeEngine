@@ -90,8 +90,9 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   nanoseconds: `Instant`, a time of the host's clock, which counts a suspend, and `RootTime`, a
   time of a root's clock, which cannot be mixed. Before each frame of each target, when it shows
   and where that time comes from (`Ui::set_frame_shown`), which that target's motions read: the
-  frame's start, as the engine gives it, or on the grid of the platform's signals, as uwui's
-  desktop host does (`FrameSource`); with each input event, when it came (`host::Event`), its
+  frame's start, as the engine gives it, predicted from the platform's presentations, as uwui's
+  desktop host does on Wayland, or on the grid of the platform's signals where it reads none
+  (`FrameSource`); with each input event, when it came (`host::Event`), its
   reception or the platform's own time anchored on the host's clock (`EventSource`); each root's clock, its time and its speed, by
   default the host's at speed 1, read at its target's frame's time (`Ui::set_root_clock`). What follows which clock is `RootClock`'s: in short, what
   answers a person follows the host's, the rest its root's, which a paused game holds, and a layer

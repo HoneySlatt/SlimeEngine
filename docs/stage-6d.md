@@ -203,8 +203,9 @@ in git.
   [M6d.7a2b2](#m6d7a2b2--a-lost-device-and-a-lost-surface) and
   [M6d.7a2b3](#m6d7a2b3--crashes-and-panics), on 2026-11-18, M6d.7a2b whole; then
   [M6d.7a2c](#m6d7a2c--frames-and-the-host-measured), cut in two on 2026-11-18 ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)):
-  done, [M6d.7a2c1](#m6d7a2c1--the-host-measured), on 2026-11-18; next,
-  [M6d.7a2c2](#m6d7a2c2--frames-in-step-with-the-display).
+  done, [M6d.7a2c1](#m6d7a2c1--the-host-measured) and
+  [M6d.7a2c2](#m6d7a2c2--frames-in-step-with-the-display), on 2026-11-18, M6d.7a2 whole, CI
+  pending; next, [M6d.7b](#m6d7b--x11).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2403,7 +2404,7 @@ The second part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-
 - **Cut in three** on 2026-11-15, the owner's choice ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): Wayland's input and window; the
   host made robust; frames and the host measured, last, on the host as the first two leave it. The
   "Done when" above is met at M6d.7a2c.
-- **Done** on 2026-11-18 with M6d.7a2c2. In motion, its "Done when" reads as the budget that
+- **Done** on 2026-11-18 with M6d.7a2c2, CI pending. In motion, its "Done when" reads as the budget that
   [ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md) set on 2026-11-18, the owner's choice: the input reaches the next image, within a
   refresh plus the frame's work; no pacing in step with the display meets 4.17 ms there.
 
@@ -2681,13 +2682,16 @@ The second part of M6d.7a2c ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-mea
   first figures, in uwui's repository.
 - **Result.** Done on 2026-11-18, CI pending ([ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)):
   - Wayland's layer asks `wp_presentation`'s feedback with each image and tells the host when it
-    showed, on the host's clock, with the display's period. The host reads the period rather than
-    measuring it, gives the interface the time predicted from the presentations
+    showed, on the host's clock, with the display's period where the compositor tells it, which a
+    headless sway does not: there the host still measures it. It gives the interface the time
+    predicted from the presentations
     (`FrameSource::Predicted`), and traces when each image showed and the frames that missed the
     refresh predicted for them.
   - Frames are drawn just in time where the compositor tells presentations: a frame starts at the
     signal plus the period, less the longest of the latest frames' work and a margin that a late
-    image widens, or at once when that time has passed, as after a rest longer than a period.
+    image widens, or at once when that time has passed, as after a rest longer than a period. The
+    time predicted reads the frames' usual work, and the usual lag of frames in step and of frames
+    after a rest apart, as a compositor that composes at once when idle shows them sooner.
   - `scripts/host-cost.py` measures input to shown beside input to present, and inputs in motion,
     400 notches a second: at 180 a second, the host on the GPU rested between inputs, and its
     figures in a row were inputs at rest.

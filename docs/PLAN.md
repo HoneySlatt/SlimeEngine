@@ -180,11 +180,11 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
   --example application` on the owner's desktop: its window, its bar or none, the pointer on its
   buttons, list and dialog, then at rest; closed by its window's button, then by Ctrl+C; typing
   with the owner's layout: dead keys, Compose, a key held, the I-beam over its field; sharp on
-  displays of two scales; its list scrolled fast, variable refresh on and off, smooth.
+  displays of two scales; its list scrolled fast, variable refresh on and off, smooth, no `missed` in its `UWUI_TRACE`.
 - **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
   left by Alt and Tab, Alt held or mid-drag: no bar in focus, nothing dropped; *Hunna Wood*'s
   button that loses the surface, on Direct3D 12: drawn again.
 
 ## Known debt
 
-The known debt still open, 233 items, is in [`debt.md`](debt.md).
+The known debt still open, 234 items, is in [`debt.md`](debt.md).
