@@ -16,8 +16,8 @@
 //!   narrows by as much after [`ON_TIME_TO_NARROW`] such frames on time in a row. A frame that did
 //!   not wait for its start, or whose signal comes much later, as a hidden window's, counts
 //!   neither way, nor does an image shown later than predicted: that is the prediction's. A frame
-//!   drawn at its signal because its start had already passed is judged too, so that a margin as
-//!   wide as a period narrows back. The pointers' moves are held until the frame starts. Where the
+//!   drawn at its signal because its start had already passed counts when on time, so that a
+//!   margin as wide as a period narrows back, but never as missed: its work may outlast a period. The pointers' moves are held until the frame starts. Where the
 //!   platform tells nothing, the frame starts on the signal.
 //! - *The first frame after a rest* starts at once when that time has passed, as it has after a
 //!   rest longer than a period, so that an input at rest reaches the screen within one frame's
@@ -145,9 +145,9 @@ pub(crate) struct Pacing {
     /// When the frame wanted starts just in time, while the host waits for it.
     waiting_start: Option<Instant>,
     /// The refresh that the frame about to be drawn aims at, once it waited for its start.
-    aiming: Option<Instant>,
-    /// The image drawn just in time whose signal is awaited, and the refresh that it aimed at.
-    aimed: Option<(u64, Instant)>,
+    aiming: Option<Aim>,
+    /// The image drawn just in time whose signal is awaited, and its aim.
+    aimed: Option<(u64, Aim)>,
     /// What the frames drawn just in time that missed their refresh added to [`MARGIN`].
     widened: Duration,
     /// The frames drawn just in time on time in a row since the margin last changed.
@@ -170,6 +170,15 @@ struct InFlight {
     /// When its present ended.
     ready: Instant,
     cadence: Cadence,
+}
+
+/// The refresh that a frame drawn just in time aims at, and whether missing it says something of
+/// the margin: a frame that waited for its start may miss; one drawn at its signal because its
+/// start had passed, whose work alone may outlast a period, only counts when on time.
+#[derive(Clone, Copy, Debug)]
+struct Aim {
+    at: Instant,
+    may_miss: bool,
 }
 
 /// A frame drawn just in time that missed the refresh that it aimed at: its image's signal came
@@ -279,8 +288,8 @@ impl Pacing {
     /// Whether the frame drawn just in time whose image's signal came at `now` made the refresh
     /// that it aimed at: the margin narrows after enough that did, widens for one that did not.
     fn judge_aim(&mut self, now: Instant) -> Option<Missed> {
-        let ((image, aimed), period) = (self.aimed.take()?, self.period()?);
-        let late = now.saturating_duration_since(aimed);
+        let ((image, aim), period) = (self.aimed.take()?, self.period()?);
+        let late = now.saturating_duration_since(aim.at);
         if late > period * MAX_LAG {
             // A signal much later, as a hidden window's: nothing of the margin.
             return None;
@@ -293,11 +302,15 @@ impl Pacing {
             }
             return None;
         }
+        if !aim.may_miss {
+            // No margin would have started it sooner than its signal.
+            return None;
+        }
         self.widened = (self.widened + MARGIN_STEP).min(period);
         self.on_time = 0;
         Some(Missed {
             image,
-            aimed,
+            aimed: aim.at,
             signal: now,
         })
     }
@@ -314,11 +327,10 @@ impl Pacing {
         // Whether the frame is drawn just in time: the host waited for its start, or the start had
         // passed when the signal came and the frame is drawn at the signal's own turn, so that a
         // margin as wide as a period is still judged, and narrows.
-        let waited = start.is_some()
-            && (self.waiting_start == start
-                || self.signal.is_some_and(|signal| {
-                    !signal.waited && start.is_some_and(|start| start <= signal.at)
-                }));
+        let waited = start.is_some() && self.waiting_start == start;
+        let at_its_signal = self
+            .signal
+            .is_some_and(|signal| !signal.waited && start.is_some_and(|start| start <= signal.at));
         let next = match (self.awaiting, self.redraw) {
             // A frame drawn in part is drawn again after its wait, none sooner.
             (_, Some((redraw, _))) if now < redraw => Next::WaitUntil(redraw),
@@ -346,7 +358,10 @@ impl Pacing {
         let waits_for_start = wanted && start.is_some_and(|start| next == Next::WaitUntil(start));
         self.waiting_start = start.filter(|_| waits_for_start);
         self.aiming = match (next, self.signal, self.period()) {
-            (Next::Frame, Some(signal), Some(period)) if waited => Some(signal.at + period),
+            (Next::Frame, Some(signal), Some(period)) if waited || at_its_signal => Some(Aim {
+                at: signal.at + period,
+                may_miss: waited,
+            }),
             _ => None,
         };
         if next != Next::Frame
@@ -868,6 +883,28 @@ mod tests {
             compositor,
         );
         assert_eq!((misses, pacing.margin(PERIOD)), (0, MARGIN));
+    }
+
+    #[test]
+    fn frames_whose_work_outlasts_a_period_are_not_counted_missed() {
+        // Frames of 9 ms at 240 Hz, as the example's on lavapipe: each starts at its signal and
+        // misses its refresh, which no margin could help.
+        let compositor = Compositor { lag: 0 };
+        let mut pacing = Pacing::default();
+        let mut signal = micros(9_500);
+        let mut misses = 0;
+        for image in 0..200 {
+            let (_, _, next, missed) = one_frame(
+                &mut pacing,
+                signal,
+                Duration::from_millis(9),
+                image,
+                compositor,
+            );
+            misses += u32::from(missed);
+            signal = next;
+        }
+        assert_eq!(misses, 0);
     }
 
     #[test]
