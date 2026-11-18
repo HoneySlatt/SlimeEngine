@@ -105,7 +105,7 @@ Where to start reading: [at the end](#where-to-start-reading).
 │                        and the benchmarks' figures; the scripts that fetch DXC and the sample
 │                        game's source assets, and write their credits; subset-fonts.sh, the
 │                        fonts of uwui's tests; screen-reader-check.sh, an interface read
-│                        through AT-SPI as a screen reader does; cooker-dependencies.sh, CI's
+│                        through AT-SPI as a screen reader does; cooked-zone-key.sh, CI's
 │                        key of the cooked zone; frame-pacing.py, a trace's frames and inputs;
 │                        start-times.sh, the starts; input-to-present.sh, input to present
 ├── AGENTS.md            rules for every contributor
@@ -2427,9 +2427,10 @@ the headless samples on a Windows runner.
 The rules every change keeps; each links to where it is enforced or told whole.
 
 - Crates depend one way ([above](#dependency-rules)). uwui's crates depend on no engine crate,
-  and no engine crate on `uwui-desktop`: `scripts/check.sh` checks both with `cargo tree`. That
-  the engine's core builds without a window or a GPU is checked by review alone
-  ([`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10)).
+  and no engine crate on `uwui-desktop`; the engine's data layer, from `slime-files` and
+  `slime-color` to `slime-world`, builds without wgpu, winit or uwui: `scripts/check.sh` checks
+  all three with `cargo tree`. That `slime-app` builds the GPU, the window and uwui in every
+  build is debt ([`debt.md`](debt.md#left-by-the-review-of-the-architecture-before-m6d10)).
 - The world has one writer at a time, on the main thread: the simulation's step, the editor's
   session, or the development channel's requests, taken at a frame's start within a share of it
   ([above](#the-development-channel)). Every write goes through `&mut World`.

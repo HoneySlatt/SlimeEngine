@@ -193,6 +193,19 @@ if runs lint; then
         exit 1
     fi
 
+    step "The engine's data layer and its safe files build without the GPU, the window or uwui (AGENTS.md, ADR-0297)"
+    # The engine runs headless: these crates are what a server or a tool without a window builds.
+    # Every edge but tests', on every platform and with every feature; the tree is read first, so
+    # that a failure of cargo stops the check rather than passing it.
+    data_dependencies=$(cargo tree --locked -p slime-files -p slime-color -p slime-reflect \
+        -p slime-serialize -p slime-assets -p slime-world -e normal,build --target all \
+        --all-features --prefix none)
+    if grep -E '^(uwui[a-z-]*|winit|wgpu[a-z-]*|naga|ash|raw-window-handle|slime-(gfx|platform|render|app)) ' \
+        <<< "$data_dependencies"; then
+        echo "the engine's data layer depends on the crates above: it builds without the GPU, the window or uwui"
+        exit 1
+    fi
+
     step "uwui's desktop host and the engine pull nothing of each other; uwui no windowing library nor wgpu; the host's layer neither uwui nor wgpu (ADR-0226, ADR-0270, ADR-0279)"
     # Every edge, on every platform and with every feature, at any depth. The trees are read first,
     # so that a failure of cargo stops the check rather than passing it.

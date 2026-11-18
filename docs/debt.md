@@ -1092,9 +1092,6 @@ How the engine follows uwui is [ADR-0276](adr/0276-the-engine-follows-uwui-by-on
   `drain` (`crates/slime-render/src/loads.rs`) scans every waiting task under one lock of the process, and a load makes a task per mesh and per texture: a cost that grows with the square of the tasks waiting, inferred, not measured.
   The lane and the task pool are the process's: tests that load take turns.
   Followed at Stage 10a, whose cells load thousands of assets.
-- **Nothing checks that the engine's core stays off the GPU and the window.**
-  `scripts/check.sh` checks uwui's crates and hosts by `cargo tree`; that the engine runs headless (`AGENTS.md`) is checked by review alone.
-  Followed at [S1a](stage-6d.md#s1a--safe-files), which adds `slime-files` below them: a `cargo tree` check that `slime-files`, `slime-color`, `slime-reflect`, `slime-serialize`, `slime-assets` and `slime-world` build without wgpu, winit or uwui, which needs no exception since `slime-color` stays in the engine ([ADR-0296](adr/0296-slime-color-stays-in-the-engine-uwui-its-own-colour-slime-input-leaves-with-uwui.md)).
 - **An `expect` on what comes from outside is found by review alone** ([ADR-0291](adr/0291-a-panic-says-why-no-bare-unwrap-outside-tests.md)).
   `clippy::unwrap_used` refuses a bare `unwrap()` outside tests; an `expect("…")` names its invariant, and no lint tells an invariant from an input.
   The tests of damaged files catch what review misses ([ADR-0102](adr/0102-a-damaged-file-gives-an-error.md)).
@@ -1147,10 +1144,6 @@ A review of uwui's architecture of 2026-11-17, read-only too, added these:
 
 A review of the engine's architecture of 2026-11-17, read-only too, added these:
 
-- **The cooked zone's key in CI misses a crate that the cooker is built from.**
-  The key lists the cooker's crates of the workspace by hand, three times in `.github/workflows/ci.yml` and once in `compositors.yml`, without `crates/slime-tasks`, which `slime-cook` depends on; `scripts/cooker-dependencies.sh` names those crates by their versions alone, all the same.
-  A change of `slime-tasks` that changes the cooked bytes leaves CI on a zone cooked before it.
-  Followed at [S1a](stage-6d.md#s1a--safe-files), whose `slime-files` the cooker comes to depend on: the key's crates taken from `cargo tree -p slime-cook`, written once.
 - **The process's threads and queues have no end and, most, no bound.**
   `slime-tasks`' pool starts its threads once for the process and never stops them, its count fixed, its two queues unbounded (`crates/slime-tasks/src/lib.rs`); the renderer's lane of loads, `Context`'s commands and the asset cache's loads are unbounded too.
   The development channel's thread that accepts connections outlives its `Listener` (`crates/slime-channel/src/listener.rs`), and the threads that read standard input, the system's dialogs and Play's log are not joined.
