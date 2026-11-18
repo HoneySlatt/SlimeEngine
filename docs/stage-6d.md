@@ -194,9 +194,10 @@ in git.
   [M6d.7a2](#m6d7a2--wayland-whole-and-the-host-measured), cut in three on 2026-11-15 ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): done,
   [M6d.7a2a](#m6d7a2a--waylands-input-and-window), on 2026-11-17; then
   [M6d.7a2b](#m6d7a2b--the-host-made-robust), cut in three on 2026-11-17 ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)): done,
-  [M6d.7a2b1](#m6d7a2b1--the-seam-and-the-pointers) and
-  [M6d.7a2b2](#m6d7a2b2--a-lost-device-and-a-lost-surface), on 2026-11-18; next,
-  [M6d.7a2b3](#m6d7a2b3--crashes-and-panics).
+  [M6d.7a2b1](#m6d7a2b1--the-seam-and-the-pointers),
+  [M6d.7a2b2](#m6d7a2b2--a-lost-device-and-a-lost-surface) and
+  [M6d.7a2b3](#m6d7a2b3--crashes-and-panics), on 2026-11-18, M6d.7a2b whole; next,
+  [M6d.7a2c](#m6d7a2c--frames-and-the-host-measured).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2561,6 +2562,36 @@ The third part of M6d.7a2b ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platfor
 - **Done when.** A program made to crash, run headless with its own `XDG_STATE_HOME`, leaves its
   report, and the next start finds its marker; a program made to panic ends in error, `stop` not
   called; CI is green.
+- **Result.** Done on 2026-11-18, CI green
+  ([ADR-0306](adr/0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md)),
+  which closes M6d.7a2b's "Done when":
+  - The host's core gained `crash`, each application's crash directory under the user's state
+    directory: a session's marker that each run holds by a file's lock and removes at its end,
+    which the next start finds, tells and counts when no live run holds it; a crash report
+    written once the host caught a panic that ends the run, from what its panic hook kept, the
+    hook writing nothing; the hours of use, the runs and the crashes counted in `hours`, the
+    owner's choice; no lines of the log, which the host does not keep, the owner's choice
+    ([`debt.md`](debt.md)). What fails there is told, and the run goes on.
+  - ADR-0298's rule: a panic in any call of the layer to the host, and in `App::stop`, ends the run
+    with `EXIT_PANICKED`, 101, the application called no more and never dropped, held in a guard
+    that a panic's unwinding forgets; the device and the window still let go of.
+  - A second termination signal, half a second or more after the first, ends the process with
+    `EXIT_TERMINATED`, 130, as the engine does.
+  - The example takes `panic` and `keep` on its input and `--panic-in start|stop`; three `rest`
+    tests check a panic's report and marker, the next start finding it, a killed run's marker
+    found, the tally, panics in the start and the stop, and a second termination, each run with its
+    own `XDG_STATE_HOME`. A panic in `closing`, or as the interface is made, has no door: checked
+    by review alone.
+  - The closing review found the panic hook able to panic and abort, a panic in `closing`
+    followed by `stop`, a report written for a panic that the application caught, the marker not
+    writable on Windows through a second handle, thirteen smaller defects and ten details; each
+    fixed but one detail, the frames of the hook at the backtrace's head; the report's writing
+    moved out of the hook, the start's and stop's panics put under a test. Whether a termination
+    signal after an application kept its window should ask it again is left to the owner.
+  - A start costs 0.07 ms, a clean end 0.56 ms; the seven `rest` tests take 32 s in Weston; every
+    job of CI within its 20 minutes, a panic's report and marker checked on Windows by the unit
+    tests
+    ([`measurements.md`](measurements.md#m6d7a2b3-crashes-and-panics-in-uwuis-desktop-host)).
 
 ### M6d.7a2c — Frames and the host measured
 

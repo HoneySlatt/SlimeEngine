@@ -4690,3 +4690,29 @@ end's time is the disk's sync, once the window has closed. A first measure, befo
 fixes, saw one end take 7.6 ms. The seven `rest` tests took 31.9 s in a headless Weston on
 lavapipe, within `scripts/check.sh windowed`'s 120 s: the three new ones, panics in the step, the
 start and the stop, a run killed, and a window kept open, 1.4 s together.
+
+GitHub's hosted runners, on 2026-11-18, each run green, on `fcf6ad2c`, which holds the milestone;
+`c0ab080c` before it failed `windows (tests)` alone, a test of the report reading its panic's file
+with `/` where Windows writes `\`:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 53 s |
+| `check (headless)` | 12 min 37 s |
+| `check (windowed)` | 13 min 25 s |
+| `check (game)` | 12 min 48 s |
+| `check (gles)` | 3 min 14 s |
+| `windows (tests)` | 13 min 15 s |
+| `windows (render)` | 6 min 31 s |
+| `windows (game)` | 7 min 46 s |
+| `windows-release` | 10 min 43 s |
+| `compositors (weston)` | 13 min 39 s |
+| `compositors (sway)` | 18 min 44 s |
+| `compositors (kwin)` | 17 min 2 s |
+| `compositors (mutter)` | 12 min 15 s |
+| `compositors (x11)` | 11 min 39 s |
+| Docs' `links`, on `c0ab080c` | 21 s |
+
+Every job stays within its limit of 20 minutes; `compositors (sway)`, the longest, has 1 min 16 s
+of margin. `windows (tests)` runs the crash directory's unit tests on Windows: a marker named
+through the handle that holds its lock, there too.
