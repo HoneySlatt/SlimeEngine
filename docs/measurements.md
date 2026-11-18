@@ -4639,3 +4639,32 @@ GitHub's hosted runners, on 2026-11-18, each run green, on `9ca50783`, which hol
 Every job stays within its limit of 20 minutes; `compositors (mutter)`, the longest, has 2 min 36 s
 of margin. Each compositor's job runs the new test once, some 17 s; the series found the
 application drawn again after both losses in Weston, sway, KWin and Mutter.
+
+## S1c, saves migrated and a panic's end
+
+How long CI's jobs took, on GitHub's hosted runners, on 2026-11-18, on `56548f9d`, which holds the
+milestone. The compositors' jobs ran, since `slime-app` changed.
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 19 s |
+| `check (headless)` | 17 min 8 s |
+| `check (windowed)` | 10 min 20 s |
+| `check (game)` | 15 min 56 s |
+| `check (gles)` | 3 min 9 s |
+| `windows (tests)` | 11 min 5 s |
+| `windows (render)` | 7 min 19 s |
+| `windows (game)` | 11 min 2 s |
+| `windows-release` | 11 min 56 s |
+| `compositors (weston)` | 13 min 50 s |
+| `compositors (mutter)` | 14 min 58 s |
+| `compositors (sway)` | 15 min 39 s |
+| `compositors (x11)` | 18 min 56 s |
+| `compositors (kwin)` | 19 min 48 s |
+
+Every job stays within its limit of 20 minutes, but `compositors (kwin)` has 12 s of margin, and
+`compositors (x11)` 1 min 4 s. `compositors (kwin)` took 7 min 28 s more than on `9ca50783`: the
+milestone changed `slime-world` and `slime-serialize`, which the cooked zone's key holds, so the
+zone was cooked again, about 3 min, and its build started colder, 6 min to the first binary. A run
+whose cooker's crates do not change takes neither; the next runs tell whether the margin comes
+back.
