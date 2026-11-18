@@ -157,7 +157,8 @@ in git.
   [S1a](#s1a--safe-files), [S1b](#s1b--the-editors-journal) and
   [S1c](#s1c--saves-migrated-and-a-panics-end), all three done on the same day, S1 whole; then
   [R1](#r1--rust-1100), the toolchain
-  bumped ([ADR-0304](adr/0304-rust-1100-in-a-milestone-of-its-own-after-s1-new-crate-versions-three-days-old.md)); then
+  bumped ([ADR-0304](adr/0304-rust-1100-in-a-milestone-of-its-own-after-s1-new-crate-versions-three-days-old.md)),
+  done on the same day; then
   [M6d.9a2c](#m6d9a2c--waiting),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
@@ -3434,6 +3435,44 @@ track B between two of its parts ([ADR-0304](adr/0304-rust-1100-in-a-milestone-o
   `CONTRIBUTING.md`.
 - **Done when.** `scripts/check.sh` passes on 1.100; CI is green on Linux and Windows; the build
   and test times beside 1.99's in [`measurements.md`](measurements.md).
+- **Result.** Done on 2026-11-18.
+  - Rust and `rust-version` at 1.100.0, rust-overlay moved in `flake.lock` to give it. Clippy 1.100
+    found two things, fixed: a loop that indexed the text field's offset, and a needless boolean in
+    `slime-app`'s `waiting`.
+  - Cargo 1.100 puts each test program in a directory of its own,
+    `<profile>/build/<package>/<hash>/out/`, no longer `<profile>/deps/`; programs and examples stay
+    in `<profile>/` and `<profile>/examples/`. Of the 25 uses of `std::env::current_exe()`, three
+    broke, the rest restarting their own program, reading its name or naming a final program:
+    - Windows CI put DXC in `target/debug/deps`, where no test runs any more, and the tests fell back
+      to FXC without failing. `scripts/test-directories.sh` asks cargo where it built them, and each
+      part of the Windows job names its packages once, for that step and its tests.
+    - Play's `profile` in `slime-editor` read `out` as a test program's profile: it reads the new
+      place, and a test checks the running test program's own path.
+    - `uwui-desktop`'s `rest` test, with track B's go, takes the nearest ancestor that holds its
+      example.
+    The last two still read Cargo's build directory rather than asking Cargo, as ADR-0304 asks:
+    Cargo tells no program its own profile, and the second waits for a check that cargo can run
+    inside `cargo test`; both in [`debt.md`](debt.md).
+  - Eight `strip_prefix(…).unwrap_or(original)` or `strip_suffix` written with `trim_prefix` and
+    `trim_suffix`: the six that ADR-0304 counted, and `Path::trim_prefix` in `slime-cook` and
+    `[u8]::trim_suffix` in `uwui-windowing`, found by the same search; behaviour unchanged, as
+    std writes each so.
+  - Cargo's lint of unused dependencies found none, on Linux and Windows, with default, all and no
+    features, per package and for the workspace. `scripts/check.sh lint` makes Cargo's lints errors
+    (`CARGO_BUILD_WARNINGS=deny`) on its four clippy runs that build every target: a `[dependencies]`
+    entry that neither the library nor a program uses fails, as one unused on purpose showed.
+    Dev-dependencies stay unchecked.
+  - `registry.global-min-publish-age` at three days in `.cargo/config.toml`; on the day, it held
+    back six versions that `cargo update` would have taken. CONTRIBUTING.md gives the exception.
+  - Checked on Linux, whole; on Windows, by CI: DXC is put beside each test program that cargo
+    names, and the samples' logs show it loaded; the tests log nothing, so that they load it is not
+    shown ([`debt.md`](debt.md)).
+  - The closing review found the new script hiding the compiler's errors, the lint's rule told
+    wrongly, the two lookups above not recorded against the ADR, and smaller points; all settled,
+    the lookups and the Windows tests that pass without DXC written in [`debt.md`](debt.md).
+  - Measured ([figures](measurements.md#r1-rust-1100)): the workspace's build, its tests' build
+    and their run take as long on 1.100 as on 1.99, within the gap between two runs; every CI job
+    within its 20 minutes, the zone cooked again since its key holds the toolchain.
 
 ### E1 — The element's contract
 

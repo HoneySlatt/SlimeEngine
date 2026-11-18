@@ -4716,3 +4716,53 @@ with `/` where Windows writes `\`:
 Every job stays within its limit of 20 minutes; `compositors (sway)`, the longest, has 1 min 16 s
 of margin. `windows (tests)` runs the crash directory's unit tests on Windows: a marker named
 through the handle that holds its lock, there too.
+
+## R1, Rust 1.100
+
+The workspace's build and tests on Rust 1.99.0, at `702ef958`, beside Rust 1.100.0, at `41bf2126`,
+which holds the milestone ([R1](stage-6d.md#r1--rust-1100)). Each run archived its commit into a
+directory of its own and built it in that commit's own development shell, from an empty target
+directory, with the default debug settings: `cargo build --workspace --locked`, then
+`cargo test --workspace --locked --no-run`, then the tests run, `cargo test --workspace --locked`,
+on lavapipe, as `scripts/measure.sh` takes its first figures. Two runs of each toolchain, in turn,
+on the owner's AMD Ryzen 7 5800X, 16 logical CPUs, an NVMe disk, on 2026-11-18. The machine was not
+at rest: another project's checks ran for part of the time, and the one-minute load average, taken
+every 30 s, went from 4.5 to 28, 14.8 at the median, these builds' own included. The figures
+compare the two toolchains, run in turn under the same load, not the engine against its budgets.
+
+| Step | 1.99.0 | 1.100.0 |
+|---|---|---|
+| The workspace from nothing | 80.1 s, 67.1 s | 71.1 s, 71.1 s |
+| Then its tests' build | 108.9 s, 95.3 s | 100.4 s, 96.2 s |
+| Then the tests' run | 133.2 s, 135.5 s | 135.7 s, 122.6 s |
+| The target directory after | 30.34 GB | 30.20 GB |
+
+No step moves beyond the gap between two runs of one toolchain: Rust 1.100 builds and tests the
+workspace as fast as 1.99. Cargo's new build directory takes 0.5 % less disk.
+
+GitHub's hosted runners, on 2026-11-18, each run green, on `41bf2126`, beside `fcf6ad2c`, the last
+run on 1.99:
+
+| Job | 1.99.0 | 1.100.0 |
+|---|---|---|
+| `check (lint)` | 7 min 53 s | 9 min 5 s |
+| `check (headless)` | 12 min 37 s | 13 min 6 s |
+| `check (windowed)` | 13 min 25 s | 10 min 30 s |
+| `check (game)` | 12 min 48 s | 11 min 41 s |
+| `check (gles)` | 3 min 14 s | 3 min 42 s |
+| `windows (tests)` | 13 min 15 s | 13 min 3 s |
+| `windows (render)` | 6 min 31 s | 7 min 35 s |
+| `windows (game)` | 7 min 46 s | 10 min 48 s |
+| `windows-release` | 10 min 43 s | 12 min 20 s |
+| `compositors (weston)` | 13 min 39 s | 18 min 59 s |
+| `compositors (sway)` | 18 min 44 s | 15 min 49 s |
+| `compositors (kwin)` | 17 min 2 s | 14 min 48 s |
+| `compositors (mutter)` | 12 min 15 s | 14 min 12 s |
+| `compositors (x11)` | 11 min 39 s | 14 min 51 s |
+
+Every job stays within its limit of 20 minutes; `compositors (weston)`, the longest, has 1 min 1 s
+of margin. The cooked zone's key holds `rust-toolchain.toml` (`scripts/cooked-zone-key.sh`): the
+jobs that read the zone cooked it again, 4 min 31 s in `windows (game)`, which explains its 3 min
+more, and part of the compositors'. The Windows jobs now build their tests in the step that puts
+DXC beside them, 5 min 29 s in `windows (game)`, time that their tests' step no longer takes. The
+next runs, the zone cooked, tell what the toolchain itself costs.
