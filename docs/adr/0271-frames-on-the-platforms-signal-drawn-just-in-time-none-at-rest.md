@@ -4,7 +4,8 @@
   platform's signal, the schedule a cap), [0187](0187-a-hidden-window-at-rest.md) (the rule for
   uwui's desktop host and, from M6c.Q2f, the engine's windowed loop) and
   [0227](0227-the-time-that-motion-reads.md) (the time that the desktop host and the engine's
-  windowed loop give their interfaces)
+  windowed loop give their interfaces); superseded in part by
+  [0309](0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md) (frames drawn just in time, and the first frame after a rest)
 - Date: 2026-11-15
 
 ## Context

@@ -117,13 +117,12 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The `widgets` example, which [ADR-0180](adr/0180-one-canvas-and-the-frameworks-foundations.md) names, moves two progress bars without end and draws 60 frames a second.
   Since M6d.7a1, `uwui-desktop`'s `application` example is checked at rest in Weston, sway, KWin and Mutter, none of its threads waking in 10 s ([`compositors.md`](compositors.md)).
   Its rest is measured on Wayland since M6d.7a2c1: no frame, no wake-up, no time on the processor ([`measurements.md`](measurements.md#m6d7a2c1-uwuis-desktop-host-measured)); under X11 and Xwayland, from M6d.7b, which brings the host's X11 layer.
-- **uwui's desktop host measures the display's period rather than reading it** ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
-  The time on the grid adds whole periods to the last frame callback; the period is the median of the callbacks' gaps while frames follow each other, and before any is measured the frame's start is given.
-  ADR-0227 asks for the display's rate first: the outputs are bound for their scale alone, and a program whose frames all miss one refresh measures twice the period.
-  Followed at M6d.7a2c, whose presentations' times give the refresh of the display that shows the window.
 - **uwui's desktop host shows the compositor's cursor where `wp_cursor_shape_v1` is missing** ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
   The interface's shapes, the I-beam over a field and the arrows over a splitter, show only through that protocol, which sway, KWin and Mutter give; elsewhere the cursor is whatever the compositor last showed.
   Drawing a theme's images needs `wayland-cursor`, a dependency put to the owner once a compositor of the field lacks the protocol.
+- **uwui's desktop host's frames drawn just in time are measured in a headless sway alone** ([ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)).
+  Its margin, its prediction and the frames that miss are measured where wlroots' headless output composes on a timer, and composes a late image when it comes rather than at the next refresh as a display does.
+  A real display, under a variable refresh too, is checked by hand on the owner's machine ([`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-owner)).
 - **uwui's desktop host follows no global that comes during its run** ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
   A seat added later gives no pointer, touch or keyboard, and an output plugged later is not bound: where the compositor prefers no scale for the surface, as Weston, a window moved onto it keeps the scale of the outputs known at its start.
   Followed at M6d.7e, whose several windows follow the outputs and the seats.
@@ -146,7 +145,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   At 144 or 165 Hz, the default 60 frames a second last 2 or 3 refreshes in turn: judder in motion.
   A game can raise `AppConfig::max_frame_rate` to the display's rate, which the engine does not report, or choose `PresentMode::Fifo`, one image per refresh, which can stall (next item).
   Frames wait for the frame callbacks, but are not aligned on them; to reconsider when a renderer draws real scenes.
-  Decided by [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md): frames on each platform's signal, drawn just in time; built for the engine at M6c.Q2f, for uwui's desktop host platform by platform: on Wayland's frame callbacks since M6d.7a1, just in time at M6d.7a2c.
+  Decided by [ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md): frames on each platform's signal, drawn just in time; built for the engine at M6c.Q2f, for uwui's desktop host platform by platform: on Wayland's frame callbacks since M6d.7a1, just in time since M6d.7a2c2.
 - **Without Mailbox, presenting can still stall the loop.**
   Windows that do not offer it, and applications that choose `PresentMode::Fifo`, wait for the display: one frame per second for a hidden window on niri.
   In a headless Weston with lavapipe, `acquire` waits for Weston's frame callbacks as long as the machine's load makes it.

@@ -6,7 +6,8 @@
   [0186](0186-counters-and-ratios-in-ci.md) (M6c.Q2d cut in two, memory and power in M6c.Q2e);
   amended by [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md)
   (input given in a headless sway; the budgets of a level opened and of a game to control; the
-  editor's rate of frames), then by [0215](0215-the-engine-measured-against-the-market.md) (latency timed to the photon too)
+  editor's rate of frames), then by [0215](0215-the-engine-measured-against-the-market.md) (latency timed to the photon too); superseded in part by
+  [0309](0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md) (the editor's and applications' input to present)
 - Date: 2026-11-06
 
 ## Context

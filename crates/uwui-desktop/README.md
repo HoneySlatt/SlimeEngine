@@ -25,8 +25,11 @@ MIT OR Apache-2.0.
   Wayland's window alone yet; its input, its times, its scale and its signal of frames are the
   layer's ([its README](../uwui-windowing/README.md)).
 - Holds a *core* that knows no platform, tested without a window on every platform:
-  - `pacing`: nothing runs at rest; the first frame after a rest starts at once; while frames run,
-    one per refresh, each on the signal that the image before asked; a window whose signal does
+  - `pacing`: nothing runs at rest; while frames run, one per refresh, each on the signal that the
+    image before asked, drawn just in time where the layer tells when images show: it starts at the
+    signal plus the period, less the frame's work and a margin that a frame shown late widens, or at
+    once when that time has passed, as for the first frame after a rest
+    ([ADR-0309](../../docs/adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)); a window whose signal does
     not come holds its frames, an event of the window or a wake from another thread running one
     once the signal is late ([ADR-0187](../../docs/adr/0187-a-hidden-window-at-rest.md)); the time given to the
     interface predicted from the presentations that the layer tells (`FrameSource::Predicted`):
@@ -69,7 +72,7 @@ MIT OR Apache-2.0.
   [ADR-0307](../../docs/adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)),
   which `scripts/host-cost.py` reads.
 
-What waits for its milestone: frames drawn just in time (M6d.7a2c2); X11 (M6d.7b), Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
+What waits for its milestone: X11 (M6d.7b), Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
 it has no layer and ends; a bar drawn by uwui where the compositor draws none, Weston and Mutter
 (M6d.7e); the clipboard, input methods and screen readers (M6d.8).
 [`debt.md`](../../docs/debt.md) holds the rest.

@@ -106,7 +106,7 @@ scripts/input-to-present.sh [--gpu]                       # measure their input 
 nix develop .#compositors -c scripts/compositors.sh weston|sway|kwin|mutter|x11  # run the editor and the game in a headless compositor of the series, against docs/compositors.md (ADR-0195, ADR-0240)
 XDG_STATE_HOME=<a directory> cargo run -p uwui-desktop --example application  # an application on uwui alone, on uwui's desktop host, on Wayland; it keeps its crash directory in that state directory, else the user's (ADR-0270, ADR-0306)
 cargo test -p uwui-desktop --test rest                    # that example at rest, its losses, its panics and its ends, in the Wayland compositor that WAYLAND_DISPLAY names, each run in a state directory of its own; build the examples `application` and `blank` first (ADR-0271)
-scripts/host-cost.py [--gpu] [--starts <count>] [--keep <directory>]  # measure uwui's desktop host above a blank window on its layer and one on winit: start, memory, binary, rest, input to present, in a headless sway at 240 Hz (ADR-0307)
+scripts/host-cost.py [--gpu] [--starts <count>] [--keep <directory>]  # measure uwui's desktop host above a blank window on its layer and one on winit: start, memory, binary, rest, input to present and to shown, in a headless sway at 240 Hz (ADR-0307, ADR-0309)
 scripts/resources.sh [--gpu] [--heaptrack] [--undos <count>] [--plays <count>]  # measure the editor's and the game's memory, video memory and the GPU's power in a headless Weston (ADR-0193)
 scripts/canvas-cost.sh [--gpu] [--runs <count>]           # measure what the renderer costs an interface against the canvas alone (ADR-0180)
 UWUI_DESCRIBE=write cargo test -p uwui-agent -p slime-channel --lib described  # write the families' descriptions again, and the kept copy of a version raised (ADR-0308)
@@ -451,7 +451,8 @@ and after a change of its code, and the size of its binary.
 window on its platform layer, the same on winit and the host's example `application`, run in turn
 in one headless sway at 240 Hz, each with directories of its own. Their start, read from the trace
 that `UWUI_TRACE` asks for, their memory, binary and rest; their input to present, from each notch
-of the wheel that it sends through wlroots' virtual pointer to the image that took it. The last
+of the wheel that it sends through wlroots' virtual pointer to the image that took it, and their
+input to shown, to when that image showed, inputs apart, in a row and in motion. The last
 column is what the example adds above the blank window; a program that other work disturbed is
 marked so. It builds what it runs, in release, and keeps the traces in `target/host-cost/`.
 

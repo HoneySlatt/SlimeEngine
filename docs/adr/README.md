@@ -258,7 +258,7 @@ the ADR linking to it.
 | [0172](0172-regions-of-tabs.md) | Regions of tabs | Accepted; amends 0153 and 0155 |
 | [0173](0173-the-platforms-of-applications.md) | The platforms of applications | Accepted; amends 0015, 0098, 0100 and 0170; amended by 0181, 0190 and 0213 |
 | [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) | Layouts kept, floating panels and closed panels | Accepted; amends 0150 and 0155; amended by 0241 |
-| [0175](0175-the-quality-bar.md) | The quality bar | Accepted; amends 0104, 0110, 0114, 0123, 0137, 0138, 0140 and 0155; amended by 0185, 0186, 0189, 0190, 0191, 0192, 0193 and 0215 |
+| [0175](0175-the-quality-bar.md) | The quality bar | Accepted; superseded in part by 0309; amends 0104, 0110, 0114, 0123, 0137, 0138, 0140 and 0155; amended by 0185, 0186, 0189, 0190, 0191, 0192, 0193 and 0215 |
 | [0176](0176-fuzzing-and-crash-reports.md) | Fuzzing and crash reports | Accepted; amends 0096 and 0102; amended by 0215 |
 | [0177](0177-audits-and-releases.md) | Audits and releases | Accepted; amends 0097 and 0155 |
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180, 0181, 0194 and 0203 |
@@ -272,7 +272,7 @@ the ADR linking to it.
 | [0186](0186-counters-and-ratios-in-ci.md) | Counters and ratios in CI | Accepted; amends 0005, 0104 and 0175; amended by 0189 |
 | [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021; amended by 0227, 0264 and 0271 |
 | [0188](0188-a-light-check-for-documentation.md) | A light check for documentation | Accepted; amends 0007 |
-| [0189](0189-first-measures-of-time.md) | First measures of time | Accepted; amends 0104, 0175 and 0186; amended by 0191 and 0215 |
+| [0189](0189-first-measures-of-time.md) | First measures of time | Accepted; superseded in part by 0309; amends 0104, 0175 and 0186; amended by 0191 and 0215 |
 | [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181; amended by 0194, 0197, 0199, 0202, 0203, 0205, 0209, 0211, 0212, 0213, 0218, 0220, 0222, 0225, 0226, 0227, 0234 and 0235 |
 | [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) | Input given in sway, two budgets of a start, and the editor's rate | Accepted; amends 0175 and 0189; amended by 0200 |
 | [0192](0192-the-budget-of-a-cold-start.md) | The budget of a cold start | Accepted; amends 0175 |
@@ -354,7 +354,7 @@ the ADR linking to it.
 | [0268](0268-each-target-its-size-from-its-host-a-root-fills-it-stacked-roots-take-where-they-act.md) | Each target its size from its host; a root fills it; stacked roots take where they act | Accepted; amends 0140, 0142, 0249, 0251, 0256, 0258 and 0264 |
 | [0269](0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md) | uwui's MCP library reaches a program through its host's carrier; faults as tools' errors; changes followed by requests that wait; M6d.9a2 cut in three | Accepted; superseded in part by 0310; amends 0209, 0246, 0260, 0261 and 0265; amended by 0272 and 0274 |
 | [0270](0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md) | uwui's desktop host on a windowing layer of its own, its application's side, its crashes; M6d.7 cut in six | Accepted; amends 0181, 0227 and 0249; amended by 0273, 0279 and 0306 |
-| [0271](0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md) | Frames on the platform's signal, drawn just in time, none at rest | Accepted; amends 0021, 0187 and 0227 |
+| [0271](0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md) | Frames on the platform's signal, drawn just in time, none at rest | Accepted; superseded in part by 0309; amends 0021, 0187 and 0227 |
 | [0272](0272-the-carriers-families-and-its-connections-state-join-it-at-their-first-reader.md) | A carrier's families served and its connection's state join it at their first reader | Accepted; amends 0269; amended by 0274 |
 | [0273](0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md) | M6d.7a2 cut in three; Wayland's keyboard, cursor, scale and activation in the host | Accepted; amends 0270 |
 | [0274](0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md) | The engine's families typed on the core's way; a family not served refused as it is sent; a tool's name taken twice an error; M6d.9a2b cut in two | Accepted; amends 0269 and 0272 |
@@ -392,4 +392,5 @@ the ADR linking to it.
 | [0306](0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md) | uwui's crash reports: a marker held by a lock, the hours counted; a panic ends with 101 | Accepted; amends 0270 |
 | [0307](0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md) | M6d.7a2c cut in two, the host measured first; the blank window on winit in a package of its own | Accepted |
 | [0308](0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md) | M6d.9a2c cut in four; each family's messages described in lines read from its types, a kept copy for each version | Accepted; supersedes in part 0295 |
+| [0309](0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md) | Input to shown measured beside input to present; in motion, an input reaches the next image | Accepted; supersedes in part 0175, 0189 and 0271 |
 | [0310](0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md) | The journal's wait answered once the simulation ran, through a read of its own; its tool gives `end` | Accepted; supersedes in part 0269 |

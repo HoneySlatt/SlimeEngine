@@ -405,9 +405,11 @@ as the box of what is selected ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the
 [ADR-0129](adr/0129-drawing-for-the-editor.md)).
 
 **Drawn just in time (frame).** A frame of uwui's desktop host that starts as late as its measured
-work allows before the compositor takes its image, so that an input that comes before it reaches
-that image while frames run, and frames stay in step with the display
-([ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)).
+work allows before the compositor takes its image, at the signal plus the period less its work and
+a margin, or at once when that time has passed: an input that comes before it reaches that image
+while frames run, and frames stay in step with the display
+([ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md),
+[ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)).
 
 **Drag and drop (interface).** An element made draggable, pressed and moved past a few pixels, is
 carried onto another made a *target of drops*, which a release over it gives the element, and where
@@ -801,8 +803,14 @@ commits (`slime_input::Ime`, [ADR-0145](adr/0145-text-edited.md)).
 
 **Input to present.** The time from a person's input reaching the window, a key, a button, the
 pointer, its raw motion, the wheel or the *input method*, to the end of the present of the next image, measured
-inside the engine; the compositor and the display add more. A trace holds each interval
-([ADR-0175](adr/0175-the-quality-bar.md), [ADR-0189](adr/0189-first-measures-of-time.md)).
+inside the program; the compositor and the display add more. A trace holds each interval. An
+input is *at rest* when no frame runs as it comes, *in motion* when frames run; in motion, its
+budget is the next image ([ADR-0189](adr/0189-first-measures-of-time.md),
+[ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)).
+
+**Input to shown.** The time from the same input to when its image showed, as the platform tells it
+(Wayland's `wp_presentation`): what *input to present* leaves out of the compositor's time, measured
+beside it where the platform tells it ([ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)).
 
 **Instance (render).** One thing the renderer draws: a *mesh*, a *material* and a transform from
 the mesh's space to world space (`slime_render::Instance`). A render *scene* is a flat list of
