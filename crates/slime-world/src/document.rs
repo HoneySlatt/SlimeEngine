@@ -28,12 +28,34 @@ const NEXT_CREATED: &str = "next_created";
 /// The count of the entities created outside scenes that the start of the run reached, after which
 /// the run's are numbered.
 const START: &str = "start";
-/// The layout of saves that this program writes, and the only one that it reads
-/// (`docs/adr/0125-saves-per-scene.md`): 5, the differences of each entity from its base. 1 was
-/// that of the saves of 0.3, 2 of 0.4, 3 of those written since P1, 4 of those of M6a.7a: each
-/// held what differs from a start world that the game made again. A change of the layout comes
-/// with its upgrade from the one before, from 5 on (`docs/adr/0288-saves-migrated-from-their-layout-5-on.md`).
-const LAYOUT_VERSION: u64 = 5;
+/// The earliest layout of saves that this program reads: 5, the differences of each entity from
+/// its base (`docs/adr/0125-saves-per-scene.md`). 1 was that of the saves of 0.3, 2 of 0.4, 3 of
+/// those written since P1, 4 of those of M6a.7a: each held what differs from a start world that the
+/// game made again, and none is read (`docs/adr/0288-saves-migrated-from-their-layout-5-on.md`).
+const EARLIEST_LAYOUT: u64 = 5;
+
+/// What brings a save of a layout to the next one: its fields, as its text holds them, given at
+/// their layout and returned at the next, as a parsed text holds them too
+/// (`slime_serialize::Document::upgrade` says which kinds), or why the save cannot be brought
+/// there. It never panics on what a save holds: a damaged save is refused through its error.
+type LayoutUpgrade = fn(Vec<(String, Value)>) -> Result<Vec<(String, Value)>, String>;
+
+/// The upgrades of the saves' layouts, in order: the first brings a save of [`EARLIEST_LAYOUT`] to
+/// the next layout, each one after it the layout that the one before gives. The reader of saves
+/// reads every layout from the earliest to [`LAYOUT_VERSION`], each upgraded to the next in turn,
+/// then reads the save at its own layout.
+///
+/// The rule of a change of the layout (`docs/adr/0288-saves-migrated-from-their-layout-5-on.md`):
+/// whatever changes how the world is written in a save, a section's name, place or meaning, comes
+/// with its upgrade from the layout before, added last here, which makes the layout written the
+/// next one; and with a fixture of the layout before, written by the writer before the change, in
+/// `tests/reference/saves/`, loaded by the tests. A change of a component's type is the type's own
+/// version and upgrade ([`Reflect::upgrade`]), not the layout's.
+const LAYOUT_UPGRADES: &[LayoutUpgrade] = &[];
+
+/// The layout of saves that this program writes, the latest it reads: one past the earliest for
+/// each upgrade.
+const LAYOUT_VERSION: u64 = EARLIEST_LAYOUT + LAYOUT_UPGRADES.len() as u64;
 /// The scenes spawned under keys, the last under each, by their keys: their asset IDs, names and
 /// contents.
 const SCENES: &str = "scenes";
@@ -105,14 +127,16 @@ pub enum DocumentError {
         .0.join(", ")
     )]
     UnkeyedAtStart(Vec<String>),
-    /// The save is of another layout than the one that this program reads: one that an earlier
-    /// version of the engine wrote, which it no longer reads, or a later version
-    /// (`docs/adr/0125-saves-per-scene.md`).
+    /// The save is of a layout that this program does not read: one that the engine wrote before
+    /// 0.5, of layouts 1 to 4, which it no longer reads, or a later one
+    /// (`docs/adr/0125-saves-per-scene.md`,
+    /// `docs/adr/0288-saves-migrated-from-their-layout-5-on.md`).
     #[error("{}", layout_refused(*found, *read))]
     Layout {
         /// The layout that the save says: 1 for one that says none, as those of 0.3.
         found: u64,
-        /// The layout that this program reads.
+        /// The latest layout that this program reads, the one that it writes: it reads every
+        /// layout from 5 to it.
         read: u64,
     },
     /// The world was never settled ([`World::settle`]): a save cannot tell what the game made at
@@ -130,18 +154,29 @@ pub enum DocumentError {
     },
 }
 
-/// Why a save of the layout `found` is refused by a program that reads the layout `read`.
+/// Why a save of the layout `found` is refused by a program that reads the layouts from
+/// [`EARLIEST_LAYOUT`] to `read`.
 fn layout_refused(found: u64, read: u64) -> String {
     let wrote = if found < read {
         "an earlier version of the engine wrote, and which this program no longer reads"
     } else {
         "a later version of the engine wrote"
     };
-    format!("a save of layout {found}, which {wrote}: this program reads saves of layout {read}")
+    let reads = if read == EARLIEST_LAYOUT {
+        format!("layout {read}")
+    } else {
+        format!("layouts {EARLIEST_LAYOUT} to {read}")
+    };
+    format!("a save of layout {found}, which {wrote}: this program reads saves of {reads}")
 }
 
-/// Checks that `document` is a save of the layout that this program reads.
-fn check_layout(document: &mut Document<'_>) -> Result<(), DocumentError> {
+/// Brings `document`, a save, to the layout that `upgrades` end at, the latest that this program
+/// reads ([`LAYOUT_UPGRADES`]), from its own if it is one that the program reads, through each
+/// upgrade from its layout on, in turn.
+fn upgrade_layout(
+    document: &mut Document<'_>,
+    upgrades: &[LayoutUpgrade],
+) -> Result<(), DocumentError> {
     // A save that says no layout is one of 0.3, of layout 1; a document that holds nothing is none.
     let found = match document
         .read(&[LAYOUT], "u64", None)
@@ -155,11 +190,29 @@ fn check_layout(document: &mut Document<'_>) -> Result<(), DocumentError> {
         }
         _ => 1,
     };
-    if found != LAYOUT_VERSION {
+    let latest = EARLIEST_LAYOUT + upgrades.len() as u64;
+    if !(EARLIEST_LAYOUT..=latest).contains(&found) {
         return Err(DocumentError::Layout {
             found,
-            read: LAYOUT_VERSION,
+            read: latest,
         });
+    }
+    for (from, upgrade) in (found..).zip(&upgrades[(found - EARLIEST_LAYOUT) as usize..]) {
+        document
+            .upgrade(|fields| {
+                let mut fields = upgrade(fields).map_err(|reason| {
+                    Problem::Invalid(format!(
+                        "a save of layout {from} that cannot be brought to layout {}: {reason}",
+                        from + 1
+                    ))
+                })?;
+                // Each upgrade finds the layout that it is given written, as the save would say.
+                fields.retain(|(name, _)| name != LAYOUT);
+                let to = i64::try_from(from + 1).expect("a layout is a small number");
+                fields.insert(0, (LAYOUT.to_owned(), Value::Int(to)));
+                Ok(fields)
+            })
+            .map_err(DocumentError::Read)?;
     }
     Ok(())
 }
@@ -550,6 +603,15 @@ impl World {
     /// from the scenes as they are now, and settled ([`World::settle`]); a world never settled is
     /// settled first (`docs/adr/0125-saves-per-scene.md`).
     ///
+    /// A save of any layout from 5 to the one that [`World::save`] writes is read, brought to the
+    /// latest through each layout's upgrade in turn; those of layouts 1 to 4, which the engine
+    /// wrote before 0.5, are refused, for the game to set them aside
+    /// (`docs/adr/0288-saves-migrated-from-their-layout-5-on.md`). A change of the layout comes
+    /// with its upgrade from the one before and with a fixture of the one before, loaded by the
+    /// tests: the rule is on the reader's table of upgrades, `LAYOUT_UPGRADES` in
+    /// `crates/slime-world/src/document.rs`. The errors and warnings of a save that was upgraded
+    /// name their path at the latest layout, and no line.
+    ///
     /// - The scenes that the save names under keys: one that this world holds is kept, its content
     ///   compared; one that it lacks, or holds another scene in place of, is spawned, resolved
     ///   through `scenes` as it is now, in place of this world's, as when a run changed level: what
@@ -600,14 +662,15 @@ impl World {
     ///
     /// # Errors
     ///
-    /// [`DocumentError::Layout`] if the save is of another layout than the one that this program
-    /// reads, as the saves that the engine wrote before 0.5 are; [`DocumentError::Read`] if the
-    /// save is not one: not TOML, of a later version of the format or of a type, too large, or with
-    /// a section that is not what a save holds; [`DocumentError::NotCreated`] if it creates an
-    /// entity, or places a placement, under an identity that a world does not give to the entities
-    /// it creates; [`DocumentError::IdentityInUse`] if it creates or places one under an identity
-    /// that an entity of the world has, or twice. All of it is read before the world changes, which
-    /// is unchanged then, but settled if it never was.
+    /// [`DocumentError::Layout`] if the save is of a layout that this program does not read: one
+    /// that the engine wrote before 0.5, or a later one; [`DocumentError::Read`] if the save is not
+    /// one: not TOML, of a later version of the format or of a type, too large, with a section that
+    /// is not what a save holds, or refused by the upgrade of its layout;
+    /// [`DocumentError::NotCreated`] if it creates an entity, or places a placement, under an
+    /// identity that a world does not give to the entities it creates;
+    /// [`DocumentError::IdentityInUse`] if it creates or places one under an identity that an
+    /// entity of the world has, or twice. All of it is read before the world changes, which is
+    /// unchanged then, but settled if it never was.
     ///
     /// # Panics
     ///
@@ -617,6 +680,18 @@ impl World {
         text: &str,
         scenes: &mut SceneLibrary,
         prepare: &mut dyn FnMut(&mut World, &str),
+    ) -> Result<Loaded, DocumentError> {
+        self.load_through(text, scenes, prepare, LAYOUT_UPGRADES)
+    }
+
+    /// [`World::load`], by a reader whose layouts `upgrades` give, as [`LAYOUT_UPGRADES`] gives
+    /// this program's: a test reads through a later layout than the engine's.
+    fn load_through(
+        &mut self,
+        text: &str,
+        scenes: &mut SceneLibrary,
+        prepare: &mut dyn FnMut(&mut World, &str),
+        upgrades: &[LayoutUpgrade],
     ) -> Result<Loaded, DocumentError> {
         // What the game made is the base of what the save changes.
         if self.settled.is_none() {
@@ -632,7 +707,10 @@ impl World {
             };
             Document::parse(&apart.registry, text, Mode::Lenient)
                 .map_err(DocumentError::Read)
-                .and_then(|mut document| apart.world.read(&apart.registry, &mut document, scenes))
+                .and_then(|mut document| {
+                    upgrade_layout(&mut document, upgrades)?;
+                    apart.world.read(&apart.registry, &mut document, scenes)
+                })
         };
         let (mut save, mut loaded) = read?;
         // The scenes that the save spawned, prepared as the game prepares those it spawns, then
@@ -698,16 +776,25 @@ impl World {
     ///
     /// [`DocumentError::Read`] if the text is not a document: larger than a reader reads, not TOML,
     /// of a later version of the format; or if what it says of itself is not text;
-    /// [`DocumentError::Layout`] if it is a save of another layout than the one that this program
-    /// reads. It reads nothing else, and so accepts a save that [`World::load`] would refuse, of a
-    /// later version of a type.
+    /// [`DocumentError::Layout`] if it is a save of a layout that this program does not read, as
+    /// [`World::load`] says; a save of an earlier layout that it reads is upgraded first, as
+    /// loading upgrades it. It reads nothing else, and so accepts a save that [`World::load`] would
+    /// refuse, of a later version of a type.
     pub fn about(text: &str) -> Result<BTreeMap<String, String>, DocumentError> {
+        Self::about_through(text, LAYOUT_UPGRADES)
+    }
+
+    /// [`World::about`], by a reader whose layouts `upgrades` give.
+    fn about_through(
+        text: &str,
+        upgrades: &[LayoutUpgrade],
+    ) -> Result<BTreeMap<String, String>, DocumentError> {
         let mut registry = Registry::new();
         registry.register::<String>();
         registry.register::<u64>();
         let mut document =
             Document::parse(&registry, text, Mode::Lenient).map_err(DocumentError::Read)?;
-        check_layout(&mut document)?;
+        upgrade_layout(&mut document, upgrades)?;
         let mut about = BTreeMap::new();
         for key in document.keys(&[ABOUT]) {
             let read = document
@@ -894,16 +981,15 @@ impl World {
         Ok((save, loaded))
     }
 
-    /// Reads all that refuses the save `document` if it is wrong, without changing the world: its
-    /// layout, its scenes, what the world that made it spawned while it ran, the numbers of the
-    /// entities that it creates, its count, the entities and components that it removes, and the
-    /// parents.
+    /// Reads all that refuses the save `document`, brought to the latest layout, if it is wrong,
+    /// without changing the world: its sections, its scenes, what the world that made it spawned
+    /// while it ran, the numbers of the entities that it creates, its count, the entities and
+    /// components that it removes, and the parents.
     fn read_layout(
         &self,
         document: &mut Document<'_>,
         loaded: &mut Loaded,
     ) -> Result<(Save, Plan), DocumentError> {
-        check_layout(document)?;
         sections(document)?;
         let renumbering = match document
             .read(&[START, "created"], "u64", None)
@@ -2179,6 +2265,11 @@ impl World {
         differences
     }
 }
+
+/// The fixture of layout 5, read by this program and through later layouts made for its test.
+#[cfg(test)]
+#[path = "layouts_tests.rs"]
+mod layouts_tests;
 
 #[cfg(test)]
 mod tests {

@@ -38,6 +38,8 @@ comments of the levels that it writes again (`crates/slime-editor`,
   them, their IDs unless it says otherwise; without, a reference to an entity is refused.
   `Document::keys`, `is_table` and `error_at` let a program read a document's layout itself, and
   place what it finds wrong at its line and column, as a world reads a scene file;
+  `Document::upgrade` brings a document of an earlier layout to the reader's before it is read, as
+  a world reads a save of an earlier layout, after which its errors name their path and no line;
   `Composer::table` makes a table that holds nothing yet, and `Composer::without_defaults` leaves
   out the fields that hold their defaults, as a world writes a scene file.
 - `encode` and `Document::parse_binary`: the same documents in the engine's binary encoding,

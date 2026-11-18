@@ -319,6 +319,9 @@ pub struct Document<'a> {
     placed: Cell<usize>,
     /// The place of each key of each table that a lookup went through, by the keys of the table.
     index: RefCell<HashMap<Vec<String>, HashMap<String, usize>>>,
+    /// Whether the document's values were brought to a later layout ([`Document::upgrade`]),
+    /// which places its errors nowhere.
+    upgraded: bool,
 }
 
 impl<'a> Document<'a> {
@@ -401,6 +404,7 @@ impl<'a> Document<'a> {
             left_out: 0,
             placed: Cell::new(0),
             index: RefCell::default(),
+            upgraded: false,
         };
         read.format()?;
         read.versions()?;
@@ -507,6 +511,50 @@ impl<'a> Document<'a> {
             }
         };
         fields.iter().map(|(name, _)| name.clone()).collect()
+    }
+
+    /// Replaces the document's values by what `upgrade` makes of them: how a reader that reads the
+    /// layout of its documents itself, such as a world reading a save, brings a document of an
+    /// earlier layout to its own before reading it, one layout at a time. `upgrade` is given the
+    /// root's fields as the document holds them, `$format` and `$versions` taken out; the types'
+    /// versions that the document says still apply to what it gives back. It gives them back as a
+    /// parsed text holds them, each key once: tables as [`Value::Struct`], arrays as
+    /// [`Value::List`], integers as [`Value::Int`], floats as [`Value::F64`], strings and booleans
+    /// as [`Value::Text`] and [`Value::Bool`]; a reading refuses another kind, a `Value::UInt` read
+    /// as a `u64` among them. Errors and warnings placed afterwards name their path alone, no line
+    /// or byte: a part that the upgrade moved has no place in what was read, and another part of it
+    /// may hold the same path; those placed before keep their place.
+    ///
+    /// ```
+    /// use slime_reflect::{Registry, Value};
+    /// use slime_serialize::{Document, Mode};
+    ///
+    /// let mut registry = Registry::new();
+    /// registry.register::<f32>();
+    /// // Layout 1 wrote the porch's lamp as `porch`; the reader's layout writes it under `lamps`.
+    /// let mut document =
+    ///     Document::parse(&registry, "porch = 30.0\n", Mode::Strict).expect("TOML");
+    /// document
+    ///     .upgrade(|fields| {
+    ///         Ok(vec![("lamps".to_owned(), Value::Struct(fields))])
+    ///     })
+    ///     .expect("upgraded");
+    /// let porch = document.read(&["lamps", "porch"], "f32", None).expect("a number");
+    /// assert_eq!(porch, Some(Value::F32(30.0)));
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// The problem that `upgrade` returns, at the document's root; the document then holds nothing.
+    pub fn upgrade(
+        &mut self,
+        upgrade: impl FnOnce(Vec<(String, Value)>) -> Result<Vec<(String, Value)>, Problem>,
+    ) -> Result<(), ReadError> {
+        self.upgraded = true;
+        self.index.get_mut().clear();
+        let root = std::mem::take(&mut self.root);
+        self.root = upgrade(root).map_err(|problem| self.error_at(&[], problem))?;
+        Ok(())
     }
 
     /// Whether the document holds a table at `place`: the root, for an empty `place`.
@@ -681,7 +729,7 @@ impl<'a> Document<'a> {
             failure.problem,
             ReadProblem::Value(Problem::UnknownField { .. } | Problem::DuplicateField(_))
         );
-        if self.placed.get() >= PLACED {
+        if self.upgraded || self.placed.get() >= PLACED {
             return ReadError::new(None, failure.path, failure.problem);
         }
         self.placed.set(self.placed.get() + 1);

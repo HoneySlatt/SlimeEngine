@@ -198,8 +198,11 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   through a `SceneLibrary` the scenes that it lacks, which a callback prepares, what the run created
   numbered after the world's count, and says what it set aside, what it did not know
   (`Loaded::warnings`) and which scenes changed since
-  (`docs/adr/0101-saves-and-identities-that-never-mislead.md`); a save that an earlier version of
-  the engine wrote is refused (`DocumentError::Layout`). `World::carry` carries a run into a start
+  (`docs/adr/0101-saves-and-identities-that-never-mislead.md`); a save of any layout from 5 to the
+  one it writes is read, each upgraded to the next in turn; one that the engine wrote before 0.5,
+  or a later one, is refused (`DocumentError::Layout`,
+  `docs/adr/0288-saves-migrated-from-their-layout-5-on.md`). A fixture of each layout from 5 on
+  is frozen in `tests/reference/saves/` and loaded by the tests. `World::carry` carries a run into a start
   world made from changed files, as hot reload does; `World::first_difference` compares two worlds
   as saves see them (`docs/adr/0093-saves-and-hot-reload-with-placements.md`,
   `docs/adr/0125-saves-per-scene.md`). `World::insert_component_value` and `remove_component_value`

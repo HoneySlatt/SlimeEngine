@@ -1,0 +1,54 @@
+"$versions" = { "test::Lamp" = 2 }
+about = { "made on" = "the fixture's run" }
+layout = 5
+next_created = 3
+start = { created = 1 }
+
+[adopted]
+companion = { former = "level/companion", scene = "00000000-0000-0000-0000-000000000034" }
+
+[scenes]
+camp = { scene = "00000000-0000-0000-0000-000000000033", name = "camp", content = "5a36235016ee8805" }
+level = { scene = "00000000-0000-0000-0000-000000000035", name = "cave", content = "45226519f52669ba" }
+
+[spawned]
+"created/2" = { scene = "00000000-0000-0000-0000-000000000036", name = "torch", content = "4bdfa7ca506e08b9" }
+
+[removed]
+entities = ["camp/stump"]
+
+[removed.components]
+"camp/tent" = ["Name"]
+
+[parents]
+"camp/log" = ["hero"]
+"created/2" = ["camp/fire"]
+
+[added."camp/fire"]
+"test::Lamp" = { power = 60.0 }
+
+[added.hero]
+"test::Gaze" = { at = "camp/fire" }
+
+[changed."camp/log"]
+Name = "charred log"
+
+[changed."camp/log".Transform]
+translation = { y = 0.5 }
+
+[created.companion]
+parent = ["hero"]
+components = { Name = "companion" }
+
+[created."created/1"]
+parent = ["hero"]
+components = { Name = "pack" }
+
+[unloaded.level.00000000-0000-0000-0000-000000000034.removed]
+entities = ["level/companion"]
+
+[unloaded.level.00000000-0000-0000-0000-000000000034.added."level/chest".Transform]
+translation = { x = 0.0, y = 1.0, z = 0.0 }
+rotation = { x = 0.0, y = 0.0, z = 0.0, w = 1.0 }
+scale = 1.0
+stretch = { x = 1.0, y = 1.0, z = 1.0 }

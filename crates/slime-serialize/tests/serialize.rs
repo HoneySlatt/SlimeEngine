@@ -389,6 +389,43 @@ fn lamps() -> Registry {
 }
 
 #[test]
+fn a_document_upgraded_reads_its_types_at_their_versions_and_places_its_errors_nowhere() {
+    let registry = lamps();
+    // Layout 1 held the porch's lamp at the root; the reader's layout holds it under `lamps`. The
+    // lamp is of its type's version 1, which the document says.
+    let text = "\"$versions\" = { \"test::Lamp\" = 1 }\n\
+                [porch]\nwatts = 60.0\ntint = [1.0, 0.5, 0.25]\nlit = true\n\n\
+                [gate]\nwatts = \"bright\"\ntint = [1.0, 1.0, 1.0]\nlit = false\n";
+    let mut document = Document::parse(&registry, text, Mode::Strict).expect("TOML");
+    document
+        .upgrade(|fields| Ok(vec![("lamps".to_owned(), Value::Struct(fields))]))
+        .expect("upgraded");
+    assert_eq!(document.keys(&[]), ["lamps"]);
+    assert_eq!(document.keys(&["lamps"]), ["porch", "gate"]);
+    let porch = document
+        .read(&["lamps", "porch"], "test::Lamp", None)
+        .expect("a lamp of version 1, upgraded")
+        .expect("held");
+    let porch = Lamp::from_value(&porch).expect("a lamp");
+    assert_eq!((porch.power, porch.lit), (60.0, true));
+    // An error of the document upgraded names its path, and no line: the text holds the gate's
+    // lamp elsewhere.
+    let error = document
+        .read(&["lamps", "gate"], "test::Lamp", None)
+        .expect_err("a power that is not a number");
+    assert_eq!(error.line_and_column(), None);
+    assert_eq!(error.path().to_string(), "lamps.gate.power");
+    // An upgrade that refuses refuses the document at its root, which then holds nothing.
+    let mut document = Document::parse(&registry, text, Mode::Strict).expect("TOML");
+    let refused = document
+        .upgrade(|_| Err(Problem::Invalid("no lamps".to_owned())))
+        .expect_err("refused");
+    assert_eq!(refused.to_string(), "no lamps");
+    assert_eq!(refused.line_and_column(), None);
+    assert!(document.keys(&[]).is_empty());
+}
+
+#[test]
 fn a_value_of_an_earlier_version_is_read_through_its_upgrade() {
     let registry = lamps();
     let lamp = Lamp {

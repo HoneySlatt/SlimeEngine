@@ -878,7 +878,9 @@ yet.
 **Layout (document).** How a *save* or a *scene file* lays out its sections and keys, which a
 reader reads before their values (`slime_world::outline` reads a scene file's); its `layout` key
 gives the version of that layout: `layout = 5` for the saves that hold each entity's differences
-from its *base*, the only layout of saves read, and 1 for scene files
+from its *base*, the earliest layout of saves read, each later one read through its upgrade from
+the one before ([ADR-0288](adr/0288-saves-migrated-from-their-layout-5-on.md)), and 1 for scene
+files
 ([ADR-0091](adr/0091-scene-documents-and-placements.md),
 [ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md),
 [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md),
@@ -1992,7 +1994,9 @@ the component, and leaves out only what the run created that holds it, or is und
 **Upgrade.** The function that brings a value of a reflected type from one version of the type to
 the next, on the value as a *document* holds it, before the type reads it; a type past version 1
 names one, `#[reflect(upgrade = ...)]`, and a reader applies them in turn
-([ADR-0086](adr/0086-serialization.md)).
+([ADR-0086](adr/0086-serialization.md)). The *layout* of saves has upgrades too, each from a layout
+to the next, on the save's fields as its text holds them, before the save is read
+(`Document::upgrade`, [ADR-0288](adr/0288-saves-migrated-from-their-layout-5-on.md)).
 
 **Uploader.** The one owner of the copies to the GPU of what loads bring
 (`slime_gfx::Uploader`): the threads that load write textures and vertices into *staging buffers*,
