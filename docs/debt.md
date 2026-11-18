@@ -990,10 +990,8 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Followed at [M6c.Q4](stage-6c.md#m6cq4--fuzzing-and-crash-reports), which reshapes the journal's recovery.
 - **A selection made just before a crash is lost** ([ADR-0134](adr/0134-the-editors-core.md)).
   The journal writes a selection made apart from a step with the entry that follows it.
-- **A journal whose last entry a crash of the system tore is not recovered, nor one that a crash cut just after the level was written** ([ADR-0135](adr/0135-the-editors-program.md)).
+- **A journal whose last entry a crash of the system tore is not recovered** ([ADR-0135](adr/0135-the-editors-program.md)).
   The program stops; `--discard` sets the journal aside with every step that it holds, those before the tear included, which only a journal mended by hand plays again.
-  `Editor::write` renames the level's file into place, then adds the journal's `written` entry (`crates/slime-editor/src/editor.rs`).
-  A crash between the two leaves a file that the journal does not know: `Editor::recover` refuses it as changed apart from the editor, and the start stops the same way (`crates/slime-editor/src/session.rs`).
   It misses [ADR-0215](adr/0215-the-engine-measured-against-the-market.md)'s rule that no work is lost after a crash.
   [M6c.Q4](stage-6c.md#m6cq4--fuzzing-and-crash-reports) keeps a journal that a torn write does not stop, and a test in CI kills the editor at random ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
 - **Two editors of one level, each with a journal of its own, do not see each other's changes** ([ADR-0135](adr/0135-the-editors-program.md)).
@@ -1165,7 +1163,4 @@ A review of the engine's architecture of 2026-11-17, read-only too, added these:
 - **The cooker never removes what no source makes any more.**
   The directory of cooked data grows with every change of a source (`crates/slime-cook/src/cook.rs`).
   Followed at Stage 7's importer of audio, which changes the cooker.
-- **A crash between a level's write and its journal's mark refuses the next start.**
-  The editor renames the level's file, then journals `# written`; a crash between leaves a journal that reads as unwritten, whose replay differs from the file, and the next start is refused until `--discard`, though the file holds the work (inferred from `crates/slime-editor/src/editor.rs`, not tested).
-  Followed at [S1b](stage-6d.md#s1b--the-editors-journal), which changes the journal.
 

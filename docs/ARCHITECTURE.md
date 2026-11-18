@@ -1530,11 +1530,13 @@ editor.write(world)
 ```
 
 Before a command of a step is applied, the editor refuses it if it would change what is not under
-the level's root. The journal, when the editor keeps one, starts with the level's entry, its key,
-its file's whole path and its text, then holds each step as made, undone and done again, each
-selection made apart from a step, and each writing of the level; `Editor::recover` opens the level
-from the journal's text and plays every entry again, the writings without writing, then checks that
-the file is what the journal last wrote. The editor writes its level only while the file is the text
+the level's root. The journal, when the editor keeps one, starts with the line that names its
+format's version, then the level's entry, its key, its file's whole path and its text, then holds
+each step as made, undone and done again, each selection made apart from a step, and each writing
+of the level; `Editor::recover` refuses a later version, opens the level from the journal's text
+and plays every entry again, the writings without writing, then checks that the file is what the
+journal last wrote, or what writing the level played again gives, a writing whose entry a crash
+lost. The editor writes its level only while the file is the text
 that it read or last wrote, and never over another program's changes. A tool reads the journal by
 pages of whole lines, each read from the file by seek on the editor's thread, within the entries
 that the journal wrote whole; each journal made or resumed draws a number of the process that binds its

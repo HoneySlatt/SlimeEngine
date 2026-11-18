@@ -34,8 +34,11 @@ editor's other panels come with Stage 6c's next milestones.
   level as it is before any step; `Editor::recover` opens the level from the journal and plays it
   again: what recovers an editor that crashed, with its history and its selection, and what
   replays a session of tests or of an agent. `Editor::keep_journal`'s documentation describes a
-  journal's entries. A tool reads the journal by pages through the development channel
-  (`slime_channel::Edit::Journal`), each read by seek on the editor's thread
+  journal's entries; its first line names its format's version (`Editor::JOURNAL_VERSION`), and
+  a later version is refused, and left as it is (`EditError::LaterJournal`). A level written
+  whose journal's `# written` entry a crash lost is recovered as written. A tool reads the
+  journal by pages through the development channel (`slime_channel::Edit::Journal`), each read by
+  seek on the editor's thread
   (`docs/adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md`).
 - `Editor::unwritten`: how many steps the level's file does not hold, which the window's title
   and status bar show.
@@ -63,8 +66,9 @@ editor's other panels come with Stage 6c's next milestones.
   demand (`AppConfig::on_demand`). It opens the level, keeps its journal in the user's data
   directory, one per level's file, held by this program alone, and recovers it as it starts when it
   holds steps that the level's file does not; a journal that it cannot read, play again or write
-  stops it. It opens another level by `file.open`, given a path, or by `file.choose` (Ctrl+O), which
-  opens the system's dialog behind a modal layer where the path can be typed too, and runs
+  stops it, and one of a later version is left as it is. It opens another level by `file.open`,
+  given a path, or by `file.choose` (Ctrl+O), which opens the system's dialog behind a modal layer
+  where the path can be typed too, and runs
   `file.open` with the file chosen; started by a tool, it opens no dialog, and the layer waits for
   the path (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`). It keeps the levels
   opened last in the user's state directory for the File menu, and tells one hint at its first run.

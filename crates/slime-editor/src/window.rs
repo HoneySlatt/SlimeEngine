@@ -3628,7 +3628,7 @@ mod tests {
         assert!(
             yard.board
                 .as_deref()
-                .is_some_and(|text| text.starts_with("# do")),
+                .is_some_and(|text| text.starts_with("# journal 1\n# do")),
             "the copy on the system's clipboard"
         );
     }

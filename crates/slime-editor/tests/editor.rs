@@ -464,7 +464,7 @@ fn a_recovered_editor_holds_the_level_the_history_and_the_selection_of_the_one_t
     assert!(editor.undo(&mut world).expect("undone"));
     let expected = level(&mut world, &editor);
     let text = read(&journal);
-    assert!(text.starts_with("# level\n"), "{text}");
+    assert!(text.starts_with("# journal 1\n# level\n"), "{text}");
 
     // The editor crashed: the file holds what it last wrote, the journal what it did since.
     let (mut again, mut recovered) = yard.recover(&text).expect("recovered");
@@ -512,6 +512,180 @@ fn a_recovered_editor_holds_the_level_the_history_and_the_selection_of_the_one_t
         ),
         "an undo of no step"
     );
+}
+
+/// A journal of the yard, of two steps, the level written after the first: its text.
+fn two_steps_written_after_the_first(yard: &Yard, name: &str) -> String {
+    let journal = yard.directory.join(name);
+    let (mut world, mut editor) = yard.open();
+    editor
+        .keep_journal(
+            &world,
+            slime_files::HeldFile::hold(journal.clone()).expect("held"),
+        )
+        .expect("kept");
+    rename_the_well(&mut world, &mut editor, "a");
+    editor.write(&mut world).expect("written");
+    rename_the_well(&mut world, &mut editor, "b");
+    read(&journal)
+}
+
+#[test]
+fn a_journal_names_its_version_first_and_one_without_it_reads_as_version_1() {
+    let yard = Yard::new("versions");
+    let journal = two_steps_written_after_the_first(&yard, "journal");
+    let (version, entries) = journal.split_once('\n').expect("its first line");
+    assert_eq!(version, format!("# journal {}", Editor::JOURNAL_VERSION));
+    assert_eq!(Editor::JOURNAL_VERSION, 1);
+    let crlf = format!("{version}\r\n{entries}");
+    for text in [journal.as_str(), entries, &crlf] {
+        let (_, recovered) = yard.recover(text).expect("version 1");
+        assert_eq!(
+            recovered.done().collect::<Vec<_>>(),
+            ["Name the well a", "Name the well b"],
+            "{text}"
+        );
+        assert_eq!(recovered.unwritten(), 1);
+    }
+
+    // A later version is refused whatever its line holds after it, and nothing more is read.
+    for (later, expected) in [
+        ("# journal 2\n", 2),
+        ("# journal 2 more\n", 2),
+        ("# journal 3\nnot a journal\n", 3),
+    ] {
+        let refused = yard.recover(&format!("{later}{entries}"));
+        assert!(
+            matches!(refused, Err(EditError::LaterJournal { version }) if version == expected),
+            "{later:?}: {refused:?}",
+            refused = refused.as_ref().err()
+        );
+    }
+    let message = yard
+        .recover(&format!("# journal 2\n{entries}"))
+        .err()
+        .expect("refused")
+        .to_string();
+    assert!(message.contains("version 2, later than 1"), "{message}");
+
+    // A version written wrongly, or a version's line past the first, is no journal.
+    for wrong in [
+        "# journal\n",
+        "# journal 0\n",
+        "# journal one\n",
+        "# journal -1\n",
+        "# journal 1 more\n",
+        "# journal 99999999999999999999999\n",
+    ] {
+        let refused = yard.recover(&format!("{wrong}{entries}"));
+        assert!(
+            matches!(&refused, Err(EditError::Journal(why)) if why.starts_with("line 1:")),
+            "{wrong:?}: {:?}",
+            refused.as_ref().err()
+        );
+    }
+    let twice = format!("{journal}# journal 1\n");
+    let line = twice.lines().count();
+    let refused = yard.recover(&twice);
+    assert!(
+        matches!(&refused, Err(EditError::Journal(why)) if why.starts_with(&format!("line {line}:"))),
+        "{:?}",
+        refused.as_ref().err()
+    );
+}
+
+/// A journal of version 1 as the editor wrote it before journals named their version, its level's
+/// whole path left to fill: two steps, neither written.
+const VERSION_1_UNNAMED: &str = include_str!("reference/journals/version-1-unnamed.journal");
+
+#[test]
+fn a_journal_of_version_1_written_before_versions_were_named_is_recovered() {
+    let yard = Yard::new("fixture");
+    // The whole path as the engine's notation writes a text.
+    let whole = fs::canonicalize(yard.file()).expect("the yard's whole path");
+    let quoted = whole
+        .display()
+        .to_string()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
+    let journal = VERSION_1_UNNAMED.replace("{yard}", &quoted);
+    let (world, recovered) = yard.recover(&journal).expect("version 1");
+    assert_eq!(
+        recovered.done().collect::<Vec<_>>(),
+        ["Name the well a", "Name the well b"]
+    );
+    assert_eq!(recovered.unwritten(), 2);
+    assert_eq!(well_s_name(&world), "b");
+}
+
+#[test]
+fn a_level_written_whose_journal_lost_its_mark_is_recovered_as_written() {
+    let yard = Yard::new("mark");
+    let journal = yard.directory.join("journal");
+    let (mut world, mut editor) = yard.open();
+    editor
+        .keep_journal(
+            &world,
+            slime_files::HeldFile::hold(journal.clone()).expect("held"),
+        )
+        .expect("kept");
+    rename_the_well(&mut world, &mut editor, "a");
+    rename_the_well(&mut world, &mut editor, "b");
+    editor.undo(&mut world).expect("undone");
+    editor.write(&mut world).expect("written");
+    let expected = level(&mut world, &editor);
+    drop(editor);
+    // A crash once the level's file was renamed, before the journal's mark.
+    let marked = read(&journal);
+    let unmarked = marked.strip_suffix("# written\n").expect("the mark last");
+    let (mut again, recovered) = yard.recover(unmarked).expect("recovered");
+    assert_eq!(recovered.unwritten(), 0);
+    assert_eq!(recovered.done().collect::<Vec<_>>(), ["Name the well a"]);
+    assert_eq!(recovered.undone().collect::<Vec<_>>(), ["Name the well b"]);
+    assert_eq!(level(&mut again, &recovered), expected);
+    // Going on with its journal, the editor adds the mark lost.
+    fs::write(&journal, unmarked).expect("the mark lost");
+    let mut world = Yard::world();
+    let held = slime_files::HeldFile::hold(journal.clone()).expect("held");
+    let mut recovered = Editor::recover(
+        &mut world,
+        Yard::scenes(),
+        &yard.file(),
+        "yard",
+        unmarked,
+        Some(held),
+    )
+    .expect("recovered");
+    assert_eq!(read(&journal), marked);
+    // It writes on as the one that crashed would: the file is what it last wrote.
+    recovered.redo(&mut world).expect("redone");
+    recovered.write(&mut world).expect("written again");
+    // A journal that a crash of the system cut at its last line's end goes on from a line of its
+    // own.
+    drop(recovered);
+    let whole = read(&journal);
+    let cut = whole.strip_suffix('\n').expect("a line's end");
+    fs::write(&journal, cut).expect("cut");
+    let mut world = Yard::world();
+    let held = slime_files::HeldFile::hold(journal.clone()).expect("held");
+    let mut recovered = Editor::recover(
+        &mut world,
+        Yard::scenes(),
+        &yard.file(),
+        "yard",
+        cut,
+        Some(held),
+    )
+    .expect("recovered");
+    assert_eq!(read(&journal), whole);
+    rename_the_well(&mut world, &mut recovered, "c");
+    drop(recovered);
+    let (_, again) = yard.recover(&read(&journal)).expect("recovered again");
+    assert_eq!(again.unwritten(), 1);
+    // A file that holds neither what the journal last wrote nor what it would write is another
+    // program's.
+    fs::write(yard.file(), YARD_FILE.replace("well\" }", "pond\" }")).expect("changed by hand");
+    assert!(matches!(yard.recover(unmarked), Err(EditError::Changed(_))));
 }
 
 /// A level whose directory cannot be synced is written, and written again: the file holds what
@@ -708,8 +882,19 @@ fn what_is_copied_is_pasted_as_one_step_under_new_identities_each_time() {
     let copied = editor
         .copy(&world, &[id("yard/gate"), id("yard/sign")])
         .expect("copied");
-    assert!(copied.starts_with("# do\n"), "{copied}");
+    assert!(copied.starts_with("# journal 1\n# do\n"), "{copied}");
     assert!(copied.contains("# command\n"), "{copied}");
+    // A copy without its version's line is of version 1, as a journal is; a later one is refused.
+    let unnamed = copied.split_once('\n').expect("its first line").1;
+    let named = editor
+        .paste(&mut world, "Paste", unnamed)
+        .expect("pasted without its version");
+    assert!(editor.undo(&mut world).expect("undone"));
+    assert!(world.find(&named[0]).is_none());
+    assert!(matches!(
+        editor.paste(&mut world, "Paste", &format!("# journal 2\n{unnamed}")),
+        Err(EditError::Paste(_))
+    ));
     let first = editor.paste(&mut world, "Paste", &copied).expect("pasted");
     let second = editor
         .paste(&mut world, "Paste", &copied)

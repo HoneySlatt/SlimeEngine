@@ -31,4 +31,6 @@ crates/uwui/tests/texts/*.txt text eol=lf
 crates/uwui/tests/reference/verdicts/*.txt text eol=lf
 # The layouts that the editor kept in TOML before they were KDL, kept as fixtures as it wrote them.
 crates/slime-editor/tests/reference/layouts/* text eol=lf
+# The editor's journals of earlier versions, kept as fixtures as it wrote them, LF endings included.
+crates/slime-editor/tests/reference/journals/* text eol=lf
 crates/uwui-kdl/tests/kdl-suite/** -text

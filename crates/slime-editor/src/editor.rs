@@ -102,6 +102,11 @@ impl Written {
 }
 
 impl Editor {
+    /// The version of the journal's format that this editor writes, and the last that it reads
+    /// ([`Editor::keep_journal`]): a journal of a later version is refused
+    /// ([`EditError::LaterJournal`]).
+    pub const JOURNAL_VERSION: u64 = 1;
+
     /// Opens the level of the scene file `file` into `world`, its scene spawned under `key`, as the
     /// game that plays it spawns it, so that the identities that the editor gives are the game's.
     /// The file's asset ID is read from its metadata file, `<file>.meta`, as the cooker reads it,
@@ -218,12 +223,17 @@ impl Editor {
     /// any step, as the editor opened it or last wrote it; each entry is handed to the system as it
     /// is made, so that a crash of the editor loses none.
     ///
-    /// A journal is text: entries, each a line that names it, then a document of the engine's
-    /// notation, empty for some. The engine's writer writes no comment, so that each line that
-    /// starts with `#` starts an entry:
+    /// A journal is text: its first line names its format's version, `# journal 1`
+    /// ([`Editor::JOURNAL_VERSION`]); then entries, each a line that names it, then a document of
+    /// the engine's notation, empty for some. The engine's writer writes no comment, so that each
+    /// line that starts with `#` starts an entry. The version is a whole number from 1, alone on
+    /// its line; one later than this editor's is refused whatever else the line holds, so that a
+    /// later format may write more there ([`EditError::LaterJournal`]). A journal without the
+    /// version's line is of version 1, as journals were written before they named it; a change of
+    /// the entries comes with a new version.
     ///
-    /// - `# level`, the first: the level's `key`, its `file`, by its whole path, and the `text`
-    ///   of the file;
+    /// - `# level`, the first entry: the level's `key`, its `file`, by its whole path, and the
+    ///   `text` of the file;
     /// - `# do`: a step, its `label`, and the `selection` after it, if it chose one; then each of
     ///   its commands, a line `# command` and the command's text ([`Command::write`]);
     /// - `# undo` and `# redo`: the last step done undone, and the last step undone done again;
@@ -240,7 +250,7 @@ impl Editor {
                 "a journal starts from the level before any step, which it may undo".to_owned(),
             ));
         }
-        self.journal = Some(Journal::open(file, &journal::level(world, &self.level)?)?);
+        self.journal = Some(Journal::open(file, &journal::start(world, &self.level)?)?);
         self.journaled = Vec::new();
         Ok(())
     }
@@ -303,7 +313,9 @@ impl Editor {
     /// outermost of them with what is below them: the commands that create them again, as
     /// [`World::creating_commands`] gives them, written as a step of the journal writes them, after
     /// a line `# do` that names the step `Copy` and selects `roots`, each command after a line
-    /// `# command` (`docs/adr/0162-creating-copying-and-arranging.md`). [`Editor::paste`] reads it.
+    /// `# command` (`docs/adr/0162-creating-copying-and-arranging.md`). Its first line names the
+    /// journal's version, as a journal's does, so that an editor of another version tells a copy
+    /// it cannot read. [`Editor::paste`] reads it.
     ///
     /// # Errors
     ///
@@ -337,7 +349,7 @@ impl Editor {
                     .map_err(|error| text_error(index, error))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        journal::step(world, "Copy", Some(roots), &texts)
+        Ok(journal::version_line() + &journal::step(world, "Copy", Some(roots), &texts)?)
     }
 
     /// Pastes `text`, as [`Editor::copy`] writes it, as one step labelled `label`: each entity that
@@ -348,7 +360,8 @@ impl Editor {
     ///
     /// # Errors
     ///
-    /// [`EditError::Paste`] for text that is not one step as [`Editor::copy`] writes it, or whose
+    /// [`EditError::Paste`] for text that is not one step as [`Editor::copy`] writes it, with or
+    /// without its version's line, a copy of a later version among them, or whose
     /// commands change what they do not create ([`Renaming::of_commands`]); as
     /// [`Editor::apply_text`] otherwise, the level left as it was.
     ///
@@ -916,17 +929,25 @@ impl Editor {
     /// journal comes back so, with its history, and a session of tests or of an agent is played
     /// again. With `keep`, a file that this program holds, the editor goes on with the journal
     /// there once every entry is played: `journal` is written there whole first, unless the file
-    /// holds it already, as the journal's own file does.
+    /// holds it already, as the journal's own file does, ended by a line's end if a crash cut it.
+    ///
+    /// A level's file that holds, byte for byte, what writing the level played again gives is the
+    /// level written, whose journal lost its `# written` entry: an editor that crashed between the
+    /// two left it so. The level is taken as written, and the entry is added to the journal that
+    /// the editor goes on with, written whole with it.
     ///
     /// # Errors
     ///
+    /// [`EditError::LaterJournal`] if `journal` is of a later version than this editor reads;
     /// [`EditError::Journal`] if `journal` is not a journal, does not start with the level's entry,
-    /// or is the journal of another key or of another file; [`EditError::Changed`] if the level's
-    /// file is not the text that the journal last wrote, or opened if it wrote none: the file
-    /// changed apart from the editor; [`EditError::Replay`] for an entry that cannot be played, a
-    /// step that the world refuses, an undo or a redo of a step that the history does not hold; and
-    /// the errors of [`Editor::open`]. The world holds what was played then, and a program that
-    /// recovers starts again from a new world; `keep` is not written to then.
+    /// or is the journal of another key or of another file, or if `keep` cannot be written;
+    /// [`EditError::Changed`] if the level's file is neither the text that the journal last wrote,
+    /// or opened if it wrote none, nor what writing the level played again gives: the file changed
+    /// apart from the editor; [`EditError::Replay`] for an entry that cannot be played, a step
+    /// that the world refuses, an undo or a redo of a step that the history does not hold; and the
+    /// errors of [`Editor::open`]. The world holds what was played then, and a program that
+    /// recovers starts again from a new world; `keep` is not written to then, nor when it cannot
+    /// be written whole.
     ///
     /// # Panics
     ///
@@ -977,11 +998,30 @@ impl Editor {
                 })?;
             editor.recovered += 1;
         }
-        if editor.level.text != on_disk {
-            return Err(EditError::Changed(file.to_owned()));
+        let mark_lost = editor.level.text != on_disk;
+        if mark_lost {
+            if !matches!(editor.level.written(world), Ok((text, _)) if text == on_disk) {
+                return Err(EditError::Changed(file.to_owned()));
+            }
+            editor.level.text = on_disk;
+            editor.written.written();
+            tracing::info!(
+                level = %file.display(),
+                "the level's file holds what its journal's steps give: written before a crash lost \
+                 the journal's `# written` entry"
+            );
         }
         if let Some(keep) = keep {
-            editor.journal = Some(Journal::open(keep, journal)?);
+            // Written whole: the journal, ended by a line's end that a crash of the system may
+            // have cut, then the mark lost, so that what follows starts on a line of its own.
+            let mut kept = journal.to_owned();
+            if !kept.is_empty() && !kept.ends_with('\n') {
+                kept.push('\n');
+            }
+            if mark_lost {
+                kept.push_str("# written\n");
+            }
+            editor.journal = Some(Journal::open(keep, &kept)?);
             editor.journaled.clone_from(&editor.selection);
         }
         Ok(editor)
@@ -1155,6 +1195,17 @@ pub enum EditError {
     /// The journal cannot be written, or read as a journal of the level.
     #[error("the journal: {0}")]
     Journal(String),
+    /// The journal is of a later version of its format than [`Editor::JOURNAL_VERSION`], the last
+    /// that this editor reads: a later editor wrote it, and this one reads nothing more of it.
+    #[error(
+        "the journal is of its format's version {version}, later than {}, the last that this \
+         editor reads",
+        Editor::JOURNAL_VERSION
+    )]
+    LaterJournal {
+        /// The journal's version.
+        version: u64,
+    },
     /// An entry of a journal cannot be played again ([`Editor::recover`]).
     #[error("the journal's entry at line {line}: {error}")]
     Replay {

@@ -1,0 +1,12 @@
+# level
+key = "yard"
+file = "{yard}"
+text = "# The yard: two lamps, a well, and a sign that points at it.\n\n[assets]\nlamp = { id = \"00000000-0000-0000-0000-000000000002\", path = \"lamp.scene\" }\n\n[entities]\n# By the gate.\ngate = { prefab = \"lamp\" }\nporch = { prefab = \"lamp\" } # to light the door\nwell = { components = { Name = \"well\" } }\nsign = { components = { Name = \"sign\", \"test::Aim\" = { at = \"well\" } } }\n\n# The gate's lamp, a step east.\n[changed.gate.Transform]\ntranslation = { x = 4.0 }\n"
+# do
+label = "Name the well a"
+# command
+SetProperty = { entity = "yard/well", component = "Name", path = "0", value = "a" }
+# do
+label = "Name the well b"
+# command
+SetProperty = { entity = "yard/well", component = "Name", path = "0", value = "b" }

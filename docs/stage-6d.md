@@ -3251,6 +3251,42 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
   level's write and its journal's mark no longer refusing the next start.
 - **Done when.** `scripts/check.sh` passes; the journal's tests read version 1 with and without its
   line, and refuse version 2; a test of the crash between the write and the mark starts again.
+- **Result.** Done on 2026-11-18:
+  - A journal's first line is `# journal 1` (`Editor::JOURNAL_VERSION`); one without it reads as
+    version 1. A later version is refused whatever its line holds after the number, nothing more
+    of it read (`EditError::LaterJournal`, both versions named); a version written wrongly, or the
+    line past the first, is no journal. A copy on the clipboard carries the line too, so that an
+    editor of another version tells a copy it cannot read.
+  - The editor's program reads a journal's version and level from its text up to a byte that is
+    not UTF-8, and refuses a later journal before anything writes it, left as it is; `--discard`
+    sets it aside. In the user's directory of journals, this level's own journal is taken first;
+    else the first later journal, as it may be its own, so that what it holds is not passed by.
+    A journal torn inside a character past its first entry, skipped there before, is now found and
+    refused as not text.
+  - `Editor::recover` takes a level's file that holds, byte for byte, what writing the level played
+    again gives as written: the `# written` entry that a crash lost, which the journal it goes on
+    with then holds, written whole with it, after a line's end if a crash cut the last one. Chosen
+    over an entry before the write, which would have changed the entries for what the file already
+    tells. It makes ADR-0134's rule of recovery precise, which refused any file but the one last
+    written; D1 carries it into the editor's topic.
+  - Tested: version 1 with its line, without it, with CRLF, and a fixture of version 1 as written
+    before versions were named; versions 2 and 3 refused, and six versions written wrongly; copies
+    with and without the line, and a later one refused; a lost entry recovered by the core and by
+    the program's start; a later journal refused and kept, given by `--journal` or found in the
+    directory, its bytes UTF-8 or not; a later journal of a copy that does not hide this level's
+    own; a level whose directory cannot be synced written twice without `EditError::Changed`, on
+    Unix, which guards S1a's fix.
+  - The quality bar: "a file of an older version" now lists the journal, read through its fixture;
+    "a crash or a full disk while a file is written" stays met, a torn journal still refused;
+    "no work lost after a crash" loses one case, the crash between a write and its entry.
+  - The closing review found a later journal of one copy hiding another copy's own, a later journal
+    that is not UTF-8 passed by, a debt item and the architecture's page left stale, the wrong ADR
+    in a fragment, copies without the version, no fixture of version 1, and smaller points; all
+    settled.
+  - Measured: no budget's figure moves; recovering a lost entry writes the scene once more.
+  - Left for later: the lost entry is recognised only while the scene's writer gives the same text
+    twice; an identity drawn at random as the level is written, which no editor path is known to
+    reach, would make the start stop as before.
 
 ### S1c — Saves migrated, and a panic's end
 

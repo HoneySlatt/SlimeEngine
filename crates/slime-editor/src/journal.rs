@@ -17,7 +17,7 @@ use slime_reflect::{ReflectError, Value};
 use slime_serialize::{Composer, Document, Mode};
 use slime_world::{PersistentId, World};
 
-use crate::editor::EditError;
+use crate::editor::{EditError, Editor};
 use crate::level::Level;
 
 /// The list that a journal's cursors name, which has no filter.
@@ -197,8 +197,25 @@ fn journal(error: ReflectError) -> EditError {
     EditError::Journal(error.to_string())
 }
 
-/// The entry of `level`: its key, its file by its whole path, and its file's text.
-pub(crate) fn level(world: &World, level: &Level) -> Result<String, EditError> {
+/// The first line of a journal, or of a copy, that names its format's version
+/// ([`Editor::JOURNAL_VERSION`]).
+pub(crate) fn version_line() -> String {
+    format!("# journal {}\n", Editor::JOURNAL_VERSION)
+}
+
+/// The text of `bytes`, a journal's, up to its first byte that is not UTF-8, which a crash of the
+/// system may leave: enough to read its version and its first entry.
+pub(crate) fn readable(bytes: &[u8]) -> &str {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => text,
+        Err(error) => std::str::from_utf8(&bytes[..error.valid_up_to()])
+            .expect("text up to its first byte that is not UTF-8"),
+    }
+}
+
+/// The start of a journal of `level`: the line that names the journal's version, then the level's
+/// entry, its key, its file by its whole path, and its file's text.
+pub(crate) fn start(world: &World, level: &Level) -> Result<String, EditError> {
     let mut composer = Composer::new(world.registry());
     let file = level.whole.display().to_string();
     for (name, value) in [
@@ -210,7 +227,11 @@ pub(crate) fn level(world: &World, level: &Level) -> Result<String, EditError> {
             .put(&[name], "String", &Value::Text(value.to_owned()))
             .map_err(journal)?;
     }
-    Ok(format!("# level\n{}", composer.finish().map_err(journal)?))
+    Ok(format!(
+        "{}# level\n{}",
+        version_line(),
+        composer.finish().map_err(journal)?
+    ))
 }
 
 /// The entries of a step: its label, the selection after it if it chose one, and the texts of its
@@ -266,17 +287,77 @@ pub(crate) fn unwritten(journal: &str) -> bool {
 }
 
 /// The key and the file of the level that `journal` is the journal of, as its first entry says;
-/// `None` if it does not start with the level's entry, readable, whatever follows.
-pub(crate) fn level_of(world: &World, journal: &str) -> Option<(String, String)> {
+/// `None` if it does not start with the level's entry, readable, whatever follows, or if its
+/// version's line is written wrongly.
+///
+/// # Errors
+///
+/// [`EditError::LaterJournal`] for a journal of a later version, whose level this editor cannot
+/// read.
+pub(crate) fn level_of(
+    world: &World,
+    journal: &str,
+) -> Result<Option<(String, String)>, EditError> {
+    let start = match entries_start(journal) {
+        Ok((start, _)) => start,
+        Err(later @ EditError::LaterJournal { .. }) => return Err(later),
+        Err(_) => return Ok(None),
+    };
+    let rest = &journal[start..];
     // The first entry alone: the line that names the next one ends it.
-    let end = journal
+    let end = rest
         .match_indices("\n# ")
         .map(|(at, _)| at + 1)
         .next()
-        .unwrap_or(journal.len());
-    match entries(world, &journal[..end]).ok()?.into_iter().next()? {
-        (_, Entry::Level { key, file, .. }) => Some((key, file)),
-        _ => None,
+        .unwrap_or(rest.len());
+    Ok(
+        match entries(world, &rest[..end])
+            .ok()
+            .and_then(|entries| entries.into_iter().next())
+        {
+            Some((_, Entry::Level { key, file, .. })) => Some((key, file)),
+            _ => None,
+        },
+    )
+}
+
+/// The byte where the entries of `journal` start, and the number of lines before it: past its
+/// first line when that line names the journal's version, `# journal 1`; at its start when it
+/// names none, as a journal of version 1 may, written before journals named their version
+/// (`docs/adr/0297-one-crate-of-safe-files-and-the-editors-journal-versioned-built-by-s1.md`).
+///
+/// The version is a whole number from 1, alone on the line, read first: one above
+/// [`Editor::JOURNAL_VERSION`] is a later version whatever else the line holds, so that a later
+/// format may write more there.
+///
+/// # Errors
+///
+/// [`EditError::LaterJournal`] for a later version; [`EditError::Journal`] for a version that is
+/// not a whole number from 1, or a line that holds more than its version.
+fn entries_start(journal: &str) -> Result<(usize, usize), EditError> {
+    let first = journal.split_inclusive('\n').next().unwrap_or_default();
+    let Some(words) = first.strip_prefix("# ").map(str::split_ascii_whitespace) else {
+        return Ok((0, 0));
+    };
+    let mut words = words.peekable();
+    if words.next() != Some("journal") {
+        return Ok((0, 0));
+    }
+    let version = words
+        .next()
+        .filter(|word| word.bytes().all(|byte| byte.is_ascii_digit()))
+        .and_then(|word| word.parse::<u64>().ok())
+        .filter(|version| *version >= 1);
+    match version {
+        Some(version) if version > Editor::JOURNAL_VERSION => {
+            Err(EditError::LaterJournal { version })
+        }
+        Some(_) if words.peek().is_none() => Ok((first.len(), 1)),
+        _ => Err(EditError::Journal(format!(
+            "line 1: `# journal` names the version of the journal's format, a whole number from 1, \
+             alone: `# journal {}`",
+            Editor::JOURNAL_VERSION
+        ))),
     }
 }
 
@@ -302,31 +383,33 @@ pub(crate) enum Entry<'t> {
     Written,
 }
 
-/// The entries of `text`, a journal, each with the number of the line that names it.
+/// The entries of `text`, a journal, each with the number of the line that names it, after the
+/// line that names its version, if it has one (`entries_start`).
 ///
 /// # Errors
 ///
-/// [`EditError::Journal`] for text that is not a journal: a line before the first entry, an entry
-/// of an unknown kind, a command out of a step, or a document that is not the entry's.
+/// [`EditError::LaterJournal`] for a journal of a later version, of which nothing more is read;
+/// [`EditError::Journal`] for text that is not a journal: a version written wrongly or out of the
+/// first line, a line before the first entry, an entry of an unknown kind, a command out of a
+/// step, or a document that is not the entry's.
 pub(crate) fn entries<'t>(
     world: &World,
     text: &'t str,
 ) -> Result<Vec<(usize, Entry<'t>)>, EditError> {
     let wrong = |line: usize, why: &str| EditError::Journal(format!("line {line}: {why}"));
+    let (start, lines_before) = entries_start(text)?;
     // Each entry's kind, the line that names it, and the bounds of the text that follows it.
     let mut parts: Vec<(&str, usize, usize, usize)> = Vec::new();
-    let mut offset = 0;
-    for (index, content) in text.split_inclusive('\n').enumerate() {
+    let mut offset = start;
+    for (index, content) in text[start..].split_inclusive('\n').enumerate() {
+        let line = lines_before + index + 1;
         if let Some(kind) = content.strip_prefix("# ") {
             if let Some(last) = parts.last_mut() {
                 last.3 = offset;
             }
-            parts.push((kind.trim(), index + 1, offset + content.len(), text.len()));
+            parts.push((kind.trim(), line, offset + content.len(), text.len()));
         } else if parts.is_empty() && !content.trim().is_empty() {
-            return Err(wrong(
-                index + 1,
-                "a journal starts with an entry, `# level`",
-            ));
+            return Err(wrong(line, "a journal starts with an entry, `# level`"));
         }
         offset += content.len();
     }
@@ -381,6 +464,12 @@ pub(crate) fn entries<'t>(
                 commands: Vec::new(),
             },
             "select" => Entry::Select(selection()?.unwrap_or_default()),
+            version if version.split_ascii_whitespace().next() == Some("journal") => {
+                return Err(wrong(
+                    line,
+                    "`# journal` names the journal's version on its first line alone",
+                ));
+            }
             other => return Err(wrong(line, &format!("`# {other}` is not an entry"))),
         };
         entries.push((line, entry));

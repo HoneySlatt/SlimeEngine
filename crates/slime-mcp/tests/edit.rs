@@ -226,6 +226,7 @@ fn main() {
         "read whole by pages"
     );
     assert!(pages > 1, "{pages} pages");
+    assert!(read.starts_with("# journal 1\n# level\n"), "{read:?}");
     for entry in [
         "# level\n",
         "# do\n",

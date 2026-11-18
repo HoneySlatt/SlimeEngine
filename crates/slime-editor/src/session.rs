@@ -137,8 +137,16 @@ impl Session {
             .map_err(|error| format!("{}: {error}", metadata.display()))?;
         let directory = self.journals.as_deref().ok_or(NO_DATA_DIRECTORY)?;
         Ok(journal_in(directory, &id.to_string(), whole, |file| {
-            let text = fs::read_to_string(file).ok()?;
-            journal::level_of(world, &text).map(|(_, file)| file)
+            // Read up to a byte that is not UTF-8, which a crash of the system may leave past the
+            // first entry: the journal is still found, and opening it refuses it.
+            let Ok(bytes) = fs::read(file) else {
+                return Whose::Unknown;
+            };
+            match journal::level_of(world, journal::readable(&bytes)) {
+                Ok(Some((_, file))) => Whose::Level(file),
+                Ok(None) => Whose::Unknown,
+                Err(_) => Whose::Later,
+            }
         }))
     }
 
@@ -183,29 +191,50 @@ impl Session {
                 "the journal is set aside, and the level opened from its file"
             );
         }
-        let kept = match fs::read(&journal) {
-            Ok(bytes) => Some(String::from_utf8(bytes).map_err(|_| {
-                format!(
-                    "the journal {shown} is not text, which a crash may leave; {}",
-                    discard_it()
-                )
-            })?),
+        let bytes = match fs::read(&journal) {
+            Ok(bytes) => Some(bytes),
             Err(error) if error.kind() == io::ErrorKind::NotFound => None,
             Err(error) => {
                 return Err(format!("{shown} cannot be read: {error}; {}", discard_it()).into());
             }
         };
-        if let Some(text) = &kept
-            && let Some((key, file)) = journal::level_of(world, text)
-            && (key != self.program.key || file != whole.display().to_string())
-        {
-            return Err(format!(
-                "the journal {shown} is the journal of {file}, not of {}: give the journal of this \
-                 level with --journal",
-                whole.display()
-            )
-            .into());
+        // Its version and its level read first, from its text up to a byte that is not UTF-8, so
+        // that a later journal is told as later, whatever it holds after its first line.
+        if let Some(bytes) = &bytes {
+            match journal::level_of(world, journal::readable(bytes)) {
+                // Refused before anything writes it: a journal whose steps are all written is
+                // started anew below.
+                Err(later) => {
+                    return Err(format!(
+                        "{shown}: {later}; a later editor wrote it, and it is left as it is: open \
+                         the level with that editor, give another journal with --journal, or {}",
+                        discard_it()
+                    )
+                    .into());
+                }
+                Ok(Some((key, file)))
+                    if key != self.program.key || file != whole.display().to_string() =>
+                {
+                    return Err(format!(
+                        "the journal {shown} is the journal of {file}, not of {}: give the journal \
+                         of this level with --journal",
+                        whole.display()
+                    )
+                    .into());
+                }
+                Ok(_) => {}
+            }
         }
+        let kept = bytes
+            .map(|bytes| {
+                String::from_utf8(bytes).map_err(|_| {
+                    format!(
+                        "the journal {shown} is not text, which a crash may leave; {}",
+                        discard_it()
+                    )
+                })
+            })
+            .transpose()?;
         let editor = match kept.filter(|text| journal::unwritten(text)) {
             Some(text) => {
                 let editor = Editor::recover(
@@ -231,7 +260,8 @@ impl Session {
                 tracing::info!(
                     entries = editor.recovered(),
                     done = editor.done().len(),
-                    "the editor recovered what its journal holds and the level's file does not"
+                    unwritten = editor.unwritten(),
+                    "the editor recovered its journal, which held steps unwritten or unmarked"
                 );
                 editor
             }
@@ -1260,28 +1290,45 @@ impl Session {
     }
 }
 
+/// Whose a journal found in a directory of journals is, as [`journal_in`] reads it.
+pub(crate) enum Whose {
+    /// The level's of that whole path, as its first entry says.
+    Level(String),
+    /// A journal of a later version, whose level this editor cannot read.
+    Later,
+    /// One that cannot be read: another level's, or one torn in its first entry.
+    Unknown,
+}
+
 /// The journal of the level whose whole path is `whole` and whose asset ID is `id`, in `directory`:
-/// `<id>.journal`, `<id>.2.journal` and on, the first that does not exist or whose level is that
-/// file, as `level_of` reads it from a journal's first entry; one that cannot be read is another
-/// level's, and kept. A copy of a level, which has its asset ID, has a journal of its own so.
+/// among `<id>.journal`, `<id>.2.journal` and on, up to the first that does not exist, the one that
+/// `whose` says is that level's; else the first of a later version, which may be its own and
+/// whose opening is refused, so that what it holds is not passed by; else that first free name.
+/// One that cannot be read is another level's, and kept. A copy of a level, which has its asset ID,
+/// has a journal of its own so.
 pub(crate) fn journal_in(
     directory: &Path,
     id: &str,
     whole: &Path,
-    level_of: impl Fn(&Path) -> Option<String>,
+    whose: impl Fn(&Path) -> Whose,
 ) -> PathBuf {
     let whole = whole.display().to_string();
     let candidate = |count: u32| match count {
         1 => directory.join(format!("{id}.journal")),
         _ => directory.join(format!("{id}.{count}.journal")),
     };
-    (1..)
-        .map(candidate)
-        .find(|journal| {
-            fs::symlink_metadata(journal).is_err()
-                || level_of(journal).as_deref() == Some(whole.as_str())
-        })
-        .expect("a journal's name is free past every journal")
+    let mut later = None;
+    for journal in (1..).map(candidate) {
+        if fs::symlink_metadata(&journal).is_err() {
+            return later.unwrap_or(journal);
+        }
+        match whose(&journal) {
+            Whose::Level(level) if level == whole => return journal,
+            Whose::Later if later.is_none() => later = Some(journal),
+            _ => {}
+        }
+    }
+    unreachable!("a journal's name is free past every journal")
 }
 
 /// The request that the development channel's `edit` makes.
@@ -1584,6 +1631,21 @@ mod tests {
 
         /// A session of the yard, started with `arguments` and its journal.
         fn start(&self, arguments: &[&str]) -> Result<(Host, Session), String> {
+            let mut arguments: Vec<OsString> = arguments.iter().map(OsString::from).collect();
+            arguments.extend(["--journal".into(), self.journal().into_os_string()]);
+            self.start_with(arguments)
+        }
+
+        /// The journal that a session of the yard keeps without `--journal`, in its directory of
+        /// journals: its asset ID's.
+        fn journal_in_journals(&self) -> PathBuf {
+            self.directory
+                .join("journals")
+                .join("00000000-0000-0000-0000-000000000001.journal")
+        }
+
+        /// A session of the yard, started with `arguments` alone.
+        fn start_with(&self, arguments: Vec<OsString>) -> Result<(Host, Session), String> {
             let program = Program {
                 name: "editor",
                 level: self.directory.join("yard.scene"),
@@ -1596,8 +1658,6 @@ mod tests {
                 build: None,
                 layout: None,
             };
-            let mut arguments: Vec<OsString> = arguments.iter().map(OsString::from).collect();
-            arguments.extend(["--journal".into(), self.journal().into_os_string()]);
             let options = crate::program::parse(&program, arguments)
                 .expect("options")
                 .expect("not --help");
@@ -1753,6 +1813,118 @@ mod tests {
         };
         assert!(why.contains("--discard"), "{why}");
         assert_eq!(fs::read(yard.journal()).expect("kept"), journal);
+    }
+
+    #[test]
+    fn a_crash_between_the_level_s_write_and_its_journal_s_mark_starts_again() {
+        let yard = Yard::new("mark-lost");
+        let (mut host, mut session) = yard.start(&[]).expect("started");
+        step(
+            &mut host,
+            &mut session,
+            "Rename",
+            "[SetProperty]\nentity = \"yard/well\"\ncomponent = \"Name\"\npath = \"0\"\nvalue = \"old well\"\n",
+        );
+        edit(&mut host, &mut session, &Edit::Write).expect("written");
+        drop(session);
+        // The editor crashed once the level's file was renamed, before its journal's mark.
+        let marked = fs::read_to_string(yard.journal()).expect("the journal");
+        let unmarked = marked
+            .strip_suffix("# written\n")
+            .expect("the mark last")
+            .to_owned();
+        fs::write(yard.journal(), &unmarked).expect("the mark lost");
+        let level = fs::read(yard.directory.join("yard.scene")).expect("the yard");
+        let (mut host, mut session) = yard.start(&[]).expect("started again");
+        assert_eq!(
+            done(&mut host, &mut session),
+            (vec!["Rename".to_owned()], 1)
+        );
+        match edit(&mut host, &mut session, &Edit::History).expect("the history") {
+            Reply::History { history } => assert_eq!(history.unwritten, 0),
+            reply => panic!("{reply:?}"),
+        }
+        assert_eq!(fs::read_to_string(yard.journal()).expect("marked"), marked);
+        assert_eq!(
+            fs::read(yard.directory.join("yard.scene")).expect("kept"),
+            level
+        );
+        drop(session);
+        // Marked again: the level opens from its file, its journal anew.
+        let (mut host, mut session) = yard.start(&[]).expect("started again");
+        assert_eq!(done(&mut host, &mut session), (Vec::new(), 0));
+    }
+
+    #[test]
+    fn a_journal_of_a_later_version_stops_the_start_and_stays_as_it_was() {
+        let yard = Yard::new("later");
+        // Whatever a later editor writes after its version, all of it written, or bytes that are
+        // not UTF-8.
+        let later: &[u8] = b"# journal 2 more\n# level\nkey = \"yard\"\n# written\n";
+        let not_text: &[u8] = b"# journal 2\n\xC3";
+        for (later, journal, arguments) in [
+            (later, yard.journal(), None),
+            (later, yard.journal_in_journals(), Some(Vec::new())),
+            (not_text, yard.journal(), None),
+            (not_text, yard.journal_in_journals(), Some(Vec::new())),
+        ] {
+            let _ = fs::remove_dir_all(yard.directory.join("journals"));
+            for file in [
+                yard.journal(),
+                yard.journal().with_extension("journal.discarded"),
+            ] {
+                let _ = fs::remove_file(file);
+            }
+            fs::create_dir_all(journal.parent().expect("a directory")).expect("made");
+            fs::write(&journal, later).expect("a later journal");
+            let started = match arguments.clone() {
+                None => yard.start(&[]),
+                Some(arguments) => yard.start_with(arguments),
+            };
+            let Err(why) = started else {
+                panic!("a later journal started");
+            };
+            assert!(
+                why.contains("version 2, later than 1") && why.contains("--discard"),
+                "{why}"
+            );
+            assert_eq!(fs::read(&journal).expect("kept"), later);
+            // Set aside when asked, whole.
+            let mut discard = arguments
+                .unwrap_or_else(|| vec!["--journal".into(), yard.journal().into_os_string()]);
+            discard.push("--discard".into());
+            yard.start_with(discard).expect("set aside");
+            let mut aside = journal.into_os_string();
+            aside.push(".discarded");
+            assert_eq!(fs::read(aside).expect("set aside"), later);
+        }
+    }
+
+    #[test]
+    fn a_later_journal_of_another_copy_does_not_hide_this_level_s_own() {
+        let yard = Yard::new("later-beside");
+        let (mut host, mut session) = yard.start_with(Vec::new()).expect("started");
+        step(
+            &mut host,
+            &mut session,
+            "Light",
+            "[Create]\nentity = \"yard/torch-0rdx\"\nparent = \"yard\"\n",
+        );
+        drop(session);
+        // The yard's journal second among its asset ID's, a later editor's journal of a copy first.
+        let own = yard.journal_in_journals().with_extension("2.journal");
+        fs::rename(yard.journal_in_journals(), &own).expect("moved");
+        let later = "# journal 2\n# level\n";
+        fs::write(yard.journal_in_journals(), later).expect("a later journal");
+        let journal = fs::read(&own).expect("the yard's");
+        let (mut host, mut session) = yard.start_with(Vec::new()).expect("recovered");
+        assert_eq!(done(&mut host, &mut session), (vec!["Light".to_owned()], 1));
+        drop(session);
+        assert_eq!(fs::read(&own).expect("kept"), journal);
+        assert_eq!(
+            fs::read_to_string(yard.journal_in_journals()).expect("kept"),
+            later
+        );
     }
 
     #[test]
@@ -2144,10 +2316,16 @@ mod tests {
             std::env::temp_dir().join(format!("slime-editor-copies-{}", std::process::id()));
         let _ = fs::remove_dir_all(&directory);
         fs::create_dir_all(&directory).expect("a directory");
-        let level_of = |journal: &Path| fs::read_to_string(journal).ok();
-        let (a, b) = (
+        // A journal here holds the level it names, or `later`.
+        let level_of = |journal: &Path| match fs::read_to_string(journal) {
+            Ok(text) if text == "later" => Whose::Later,
+            Ok(text) => Whose::Level(text),
+            Err(_) => Whose::Unknown,
+        };
+        let (a, b, c) = (
             Path::new("/levels/a/yard.scene"),
             Path::new("/levels/b/yard.scene"),
+            Path::new("/levels/c/yard.scene"),
         );
         let first = journal_in(&directory, "id", a, level_of);
         assert_eq!(first, directory.join("id.journal"));
@@ -2157,6 +2335,12 @@ mod tests {
         assert_eq!(second, directory.join("id.2.journal"));
         fs::write(&second, "/levels/b/yard.scene").expect("the journal of b");
         assert_eq!(journal_in(&directory, "id", b, level_of), second);
+        // A later editor wrote a's journal anew: b still finds its own past it; a level without a
+        // journal is given the later one, whose opening refuses it, rather than a name that would
+        // pass it by.
+        fs::write(&first, "later").expect("a later journal");
+        assert_eq!(journal_in(&directory, "id", b, level_of), second);
+        assert_eq!(journal_in(&directory, "id", c, level_of), first);
         fs::remove_dir_all(&directory).expect("removed");
     }
 }

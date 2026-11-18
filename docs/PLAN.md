@@ -24,7 +24,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     whole; M6d.9a2 cut in three ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)): done,
     [M6d.9a2a](stage-6d.md#m6d9a2a--the-library) and [M6d.9a2b](stage-6d.md#m6d9a2b--the-engine-on-the-library),
     then [V1](stage-6d.md#v1--uwuis-documents-versioned); S1 cut in three ([ADR-0303](adr/0303-s1-cut-in-three-safe-files-the-editors-journal-saves-migrated.md)),
-    [S1a](stage-6d.md#s1a--safe-files) done, next [S1b](stage-6d.md#s1b--the-editors-journal); after S1c, [R1](stage-6d.md#r1--rust-1100);
+    S1a and [S1b](stage-6d.md#s1b--the-editors-journal) done, next [S1c](stage-6d.md#s1c--saves-migrated-and-a-panics-end); after it, [R1](stage-6d.md#r1--rust-1100);
     after M6d.9b, [E1](stage-6d.md#e1--the-elements-contract), the element's contract designed
     before M6d.10a ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six, M6d.7a2 in three, M6d.7a2b
@@ -56,7 +56,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.9a2c to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a2c--waiting) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [V1 — uwui's documents versioned](stage-6d.md#v1--uwuis-documents-versioned) | Done |
-| [S1a to S1c — Saves migrated from layout 5](stage-6d.md#s1--saves-migrated-from-layout-5) | S1a done, S1b next |
+| [S1a to S1c — Saves migrated from layout 5](stage-6d.md#s1--saves-migrated-from-layout-5) | S1a and S1b done, S1c next |
 | [R1 — Rust 1.100](stage-6d.md#r1--rust-1100) | Planned |
 | [E1 — The element's contract](stage-6d.md#e1--the-elements-contract) | Planned |
 | [M6d.10a — What the move needs](stage-6d.md#m6d10a--what-the-move-needs) | Planned |
