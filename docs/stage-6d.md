@@ -3236,7 +3236,7 @@ The first part of M6d.9a2c, started on 2026-11-18, designed in [ADR-0308](adr/03
   and on one whose request gains a field, or whose field is removed with its description written
   again, without its version raised; a field added to a reply, or a comment reworded, passes; CI
   is green, on Windows too.
-- **Result.** Done on 2026-11-18, CI pending ([ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)):
+- **Result.** Done on 2026-11-18, CI green on `79f9faf6` ([ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)):
   - `uwui_agent::description`: a family's messages read from their types' JSON Schema, through
     `schemars`, into one line for each message, value and field; `check`, which holds a family to
     its description and to the kept copy of its version. The walk fails on what it cannot read.
@@ -3259,6 +3259,8 @@ The first part of M6d.9a2c, started on 2026-11-18, designed in [ADR-0308](adr/03
     cancelled, and untested branches; a second review found a tagged case holding a type losing its
     fields, a check that one slip in the history would fail for good, labels that a path cannot
     hold, and documents behind; all fixed.
+  - Measured ([`measurements.md`](measurements.md#m6d9a2c1-each-family-described)): CI's jobs each
+    within 20 minutes.
   - Left for later ([`debt.md`](debt.md)): the lines written by hand, and fields read or written by
     functions of their own, which the test does not see.
 

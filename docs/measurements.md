@@ -4834,3 +4834,28 @@ GitHub's hosted runners, on 2026-11-18, each run green, on `b44f5f31`, which hol
 Every job stays within its limit of 20 minutes; `windows (tests)`, the longest, has 3 min 3 s of
 margin. The eight `rest` tests take 33 s in a headless Weston on lavapipe, within
 `scripts/check.sh windowed`'s 120 s.
+
+## M6d.9a2c1, each family described
+
+How long CI's jobs took, on GitHub's hosted runners, on 2026-11-18, on `79f9faf6`, which holds the
+milestone's `195eca22`; the compositors' workflow does not run on these crates.
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 58 s |
+| `check (headless)` | 12 min 32 s |
+| `check (windowed)` | 10 min 35 s |
+| `check (game)` | 9 min 6 s |
+| `check (gles)` | 3 min 14 s |
+| `windows (tests)` | 13 min 21 s |
+| `windows (render)` | 7 min 8 s |
+| `windows (game)` | 7 min 29 s |
+| `windows-release` | 17 min 0 s |
+
+Every job stays within its limit of 20 minutes. `check (lint)` now checks out the whole history,
+for the check of the families' kept copies: its checkout took 4 s, the check itself under a
+second. `windows-release`, the longest, has 3 min of margin: its build of the examples and the
+game took 10 min 32 s, against 10 min 43 s to 13 min 52 s for the whole job on the runs before. No
+cache holds its build, which builds every crate each run, and the milestone adds only a few lines
+to what a program compiles, the rest being tests: the gap is taken for the runner's; the next runs
+tell.
