@@ -2,6 +2,7 @@
 //! comments (`docs/adr/0134-the-editors-core.md`).
 
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use slime_assets::AssetId;
@@ -86,12 +87,31 @@ impl Level {
             return Err(EditError::Changed(self.file.clone()));
         }
         let (text, left_out) = self.written(world)?;
-        slime_files::write(&self.file, text.as_bytes()).map_err(|error| EditError::Io {
+        write_whole(&self.file, text.as_bytes()).map_err(|error| EditError::Io {
             path: self.file.clone(),
             error,
         })?;
         self.text = text;
         Ok(left_out)
+    }
+}
+
+/// Writes `bytes` to `file` whole or not at all ([`slime_files::write`]), as the editor writes every
+/// file it keeps: a level, a journal's start, a layout, the keys, the speeds, the recent levels. A
+/// file written whose directory cannot be synced is written, and the log says that a power cut may
+/// bring back what it held before: an editor that took it as not written would refuse the level that
+/// it wrote as changed by another program.
+///
+/// # Errors
+///
+/// When the file is not written, the file system's error.
+pub(crate) fn write_whole(file: &Path, bytes: &[u8]) -> io::Result<()> {
+    match slime_files::write(file, bytes) {
+        Err(error) if error.is_written() => {
+            tracing::warn!("{error}");
+            Ok(())
+        }
+        written => written.map_err(io::Error::from),
     }
 }
 

@@ -304,7 +304,7 @@ fn migrated(file: &Path, default: &LayoutFile) -> Kept {
 /// why.
 pub(crate) fn keep(file: &Path, default: &str, layout: &Layout) -> Result<(), String> {
     let text = dock::write(layout, Some(default)).map_err(|error| error.to_string())?;
-    slime_files::write(file, text.as_bytes())
+    crate::level::write_whole(file, text.as_bytes())
         .map_err(|error| format!("{}: {error}", file.display()))
 }
 

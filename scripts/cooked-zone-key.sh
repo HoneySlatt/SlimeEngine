@@ -19,6 +19,12 @@ tree=$(cargo tree --locked -p slime-cook --edges normal,build,features --prefix 
 # (docs/ARCHITECTURE.md, "Repository layout"). A package listed again is marked `(*)`.
 mapfile -t crates < <(sed -nE 's/^([a-z0-9_-]+) v[^ ]+( \(proc-macro\))? \(([A-Za-z]:)?[\/\\].*/\1/p' <<< "$tree" |
     LC_ALL=C sort -u)
+# A change of cargo's output that this reading misses would leave every crate's sources out of the
+# key without a word: the cooker's own crate stands for them all.
+if ! printf '%s\n' "${crates[@]}" | grep -qx slime-cook; then
+    echo "the cooker's crates cannot be read from cargo tree's output" >&2
+    exit 1
+fi
 sources=()
 for crate in "${crates[@]}"; do
     if [ ! -f "crates/$crate/Cargo.toml" ]; then

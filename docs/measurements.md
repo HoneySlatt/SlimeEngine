@@ -4530,3 +4530,21 @@ Every job stays within its limit of 20 minutes; `windows (tests)`, the longest, 
 margin. `windows-release` took 6 min 36 s more and `check (headless)` 3 min 6 s more, where this
 part adds two small crates and moves code; the runners' spread, seen at M6d.7a2a under X11, is as
 large, and one run cannot tell them apart. Followed at the next part's run.
+
+## S1a, safe files
+
+What syncing a file's directory adds to a write whole, which `slime_files::write` now does after
+its rename: `write` beside the same write without the directory's sync, alternated, 300 writes of
+4 KiB and 100 of 1 MiB. Run by `TMPDIR=<a folder on the disk> cargo test --release -p slime-files
+write_timed -- --ignored --nocapture`, on the development machine's NVMe disk, btrfs, on
+2026-11-18. **Disturbed:** other sessions built and ran meanwhile, a load average of 30; to
+measure again at rest.
+
+| Write | Without the directory synced, median (p90) | With it, median (p90) |
+|---|---|---|
+| 4 KiB, a save, a level, a layout | 0.99 ms (3.4 ms) | 3.4 ms (4.7 ms) |
+| 1 MiB, a cooked texture | 5.3 ms (7.0 ms) | 7.5 ms (9.5 ms) |
+
+The sync adds about 2.2 to 2.4 ms a file; a first run of the same system calls from Python, as
+disturbed, gave 2.6 to 2.9 ms. A fresh cook of *Hunna Wood*'s zone writes 176 files: about half a
+second more, beside its minutes. Writes made on a frame's thread pay it: [`debt.md`](debt.md).

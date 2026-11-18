@@ -522,7 +522,9 @@ no adapter for screen readers ([ADR-0146](docs/adr/0146-screen-readers.md)), no 
 `slime-app`'s bridge and the engine's tests that opens `slime-gfx`'s door to wgpu, and no engine
 crate but `slime-color` among `uwui-render`'s dependencies
 ([ADR-0244](docs/adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)), no GL backend of
-wgpu in the workspace's tree but through `uwui-render`'s `gles` feature, no engine crate but
+wgpu in the workspace's tree but through `uwui-render`'s `gles` feature, no wgpu, windowing
+library nor uwui in the trees of the engine's data layer, from `slime-files` to `slime-world`
+([ADR-0297](docs/adr/0297-one-crate-of-safe-files-and-the-editors-journal-versioned-built-by-s1.md)), no engine crate but
 `slime-color` and `slime-input` in uwui's desktop host's tree, no crate of the workspace that
 depends on that host, and no windowing library nor wgpu in `uwui`'s tree
 ([ADR-0226](docs/adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)), `lychee` (links

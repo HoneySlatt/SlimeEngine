@@ -130,10 +130,9 @@ file.
 One copy of the game at a time holds the save: it locks a file beside it, `save.toml.lock`, while it
 runs, which the system lets go however the game ends, and leaves on the disk. Another copy started
 meanwhile with the same save says so, and starts a new run, which it does not save. A save is
-written beside the file, in a file of its own, `save.toml.<process id>-<count>.part`, to the disk,
-and renamed over it, its directory then synced, so that the file is the save before or the new
-one, never part of one, nor a mix of two; a game killed while it writes leaves that file beside the
-save. `slime-files` writes it so, and its rustdoc says what each system promises. The log says what
+written whole or not at all by `slime_files::write`, whose rustdoc says how and what each system
+promises: the file is the save before or the new one, never part of one, nor a mix of two; a game
+killed while it writes leaves a file of its own beside the save. The log says what
 was saved or loaded, and where the run stands. When Windows ends the session, the game is stopped
 without quitting, and the run since the last F5 is lost (see the known debt in
 [`docs/debt.md`](../../docs/debt.md)).

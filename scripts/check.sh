@@ -193,6 +193,9 @@ if runs lint; then
         exit 1
     fi
 
+    # The windowing libraries and the GPU's, which the data layer and uwui's core both build without.
+    window_and_gpu='winit|wgpu|wgpu-core|wgpu-hal|wgpu-types|naga|ash|raw-window-handle|wayland-client|wayland-backend|wayland-protocols|wayland-sys|xkbcommon-dl|x11rb|x11-dl|smithay-client-toolkit|objc2-app-kit'
+
     step "The engine's data layer and its safe files build without the GPU, the window or uwui (AGENTS.md, ADR-0297)"
     # The engine runs headless: these crates are what a server or a tool without a window builds.
     # Every edge but tests', on every platform and with every feature; the tree is read first, so
@@ -200,7 +203,7 @@ if runs lint; then
     data_dependencies=$(cargo tree --locked -p slime-files -p slime-color -p slime-reflect \
         -p slime-serialize -p slime-assets -p slime-world -e normal,build --target all \
         --all-features --prefix none)
-    if grep -E '^(uwui[a-z-]*|winit|wgpu[a-z-]*|naga|ash|raw-window-handle|slime-(gfx|platform|render|app)) ' \
+    if grep -E "^($window_and_gpu|uwui[a-z-]*|slime-(gfx|platform|render|app)) " \
         <<< "$data_dependencies"; then
         echo "the engine's data layer depends on the crates above: it builds without the GPU, the window or uwui"
         exit 1
@@ -253,8 +256,7 @@ if runs lint; then
         echo "a crate of the workspace but uwui-desktop depends on uwui-windowing, which is public nowhere"
         exit 1
     fi
-    if grep -E '^(winit|wgpu|wgpu-core|wgpu-hal|wgpu-types|naga|ash|raw-window-handle|wayland-client|wayland-backend|wayland-protocols|wayland-sys|xkbcommon-dl|x11rb|x11-dl|smithay-client-toolkit|objc2-app-kit) ' \
-        <<< "$uwui_dependencies"; then
+    if grep -E "^($window_and_gpu) " <<< "$uwui_dependencies"; then
         echo "uwui depends on the windowing libraries or the GPU's above: only its hosts and its renderer may"
         exit 1
     fi

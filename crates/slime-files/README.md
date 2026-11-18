@@ -9,9 +9,11 @@ directories
 ## Role
 
 - `write`: a file written whole or not at all, through a file beside it forced to the disk and
-  renamed, its directory synced where the system allows it. A game's saves, the editor's levels,
-  journals' first entries, layouts, keys, speeds and recent levels, and the cooker's metadata files
-  and cooked data are written so.
+  renamed, its directory synced where the system allows it; `WriteError` tells a file not written
+  from one written whose directory could not be synced. A game's saves, the editor's levels,
+  layouts, keys, speeds, recent levels and the start of each journal, and the cooker's metadata
+  files and cooked data are written so. A journal's later entries are appended to it, as a log is,
+  by the editor.
 - `HeldFile`: a file that one program at a time holds, a game's save or an editor's journal,
   through the lock of a file beside it; `HoldError` says why one cannot be held.
 - `set_aside`: a file that does not read, moved under a name of its own, never written over.

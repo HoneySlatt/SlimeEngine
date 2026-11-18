@@ -56,7 +56,7 @@ pub(crate) fn write(file: &Path, speeds: &[(PathBuf, f64)]) -> io::Result<()> {
     for (level, speed) in speeds {
         text.push_str(&format!("{speed}\t{}\n", level.display()));
     }
-    slime_files::write(file, text.as_bytes())
+    crate::level::write_whole(file, text.as_bytes())
 }
 
 #[cfg(test)]

@@ -34,7 +34,7 @@ pub(crate) struct Journal {
     file: File,
     held: HeldFile,
     /// Its number in the process, which its cursors hold: one made anew, by
-    /// [`Journal::create`] or [`Journal::resume`], has another, which makes them stale.
+    /// [`Journal::open`], has another, which makes them stale.
     number: u64,
     /// The bytes of the file that it wrote in whole entries: a page reads no further.
     written: u64,
@@ -55,29 +55,16 @@ pub(crate) struct JournalPage {
 }
 
 impl Journal {
-    /// A journal written to the file `held`, which starts empty. It appends to its file, as a
-    /// resumed journal does, so that a file cut apart from the editor stays shorter than what
-    /// the journal wrote, rather than holding zeros up to where the journal writes next.
-    pub(crate) fn create(held: HeldFile) -> Result<Self, EditError> {
-        let path = held.path();
-        let file = File::create(path)
-            .and_then(|_| OpenOptions::new().append(true).open(path))
-            .map_err(|error| failed(path, &error))?;
-        Ok(Self {
-            file,
-            held,
-            number: NUMBERS.fetch_add(1, Ordering::Relaxed),
-            written: 0,
-            torn: false,
-        })
-    }
-
-    /// The journal `text` going on in the file `held`: `text` is written there first, whole or not
-    /// at all, unless the file holds it already.
-    pub(crate) fn resume(held: HeldFile, text: &str) -> Result<Self, EditError> {
+    /// The journal `text` going on in the file `held`, a new journal's first entry or a journal
+    /// recovered: `text` is written there first, whole or not at all, unless the file holds it
+    /// already, so that a crash meanwhile leaves no part of an entry. Later entries are appended,
+    /// so that a file cut apart from the editor stays shorter than what the journal wrote, rather
+    /// than holding zeros up to where the journal writes next.
+    pub(crate) fn open(held: HeldFile, text: &str) -> Result<Self, EditError> {
         let path = held.path();
         if fs::read(path).ok().as_deref() != Some(text.as_bytes()) {
-            slime_files::write(path, text.as_bytes()).map_err(|error| failed(path, &error))?;
+            crate::level::write_whole(path, text.as_bytes())
+                .map_err(|error| failed(path, &error))?;
         }
         let file = OpenOptions::new()
             .append(true)

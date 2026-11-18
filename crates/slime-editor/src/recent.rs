@@ -36,7 +36,7 @@ pub(crate) fn opened(levels: &[PathBuf], opened: &Path) -> Vec<PathBuf> {
 }
 
 /// Writes `levels` to `file`, whole or not at all, its directory made if it has none
-/// ([`slime_files::write`]).
+/// ([`level::write_whole`](crate::level::write_whole)).
 ///
 /// # Errors
 ///
@@ -47,7 +47,7 @@ pub(crate) fn write(file: &Path, levels: &[PathBuf]) -> io::Result<()> {
         text.push_str(&level.display().to_string());
         text.push('\n');
     }
-    slime_files::write(file, text.as_bytes())
+    crate::level::write_whole(file, text.as_bytes())
 }
 
 #[cfg(test)]

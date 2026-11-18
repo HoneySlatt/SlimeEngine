@@ -596,11 +596,13 @@ fn relative(root: &Path, path: &Path) -> String {
         .join("/")
 }
 
-/// Writes `bytes` to `path`, whole or not at all ([`slime_files::write`]).
+/// Writes `bytes` to `path`, whole or not at all ([`slime_files::write`]). A file written whose
+/// directory cannot be synced fails the cook too: the cooker reads the directories that it writes,
+/// so one that refuses to be opened is broken, and a cook that failed is cooked again.
 fn write(path: &Path, bytes: &[u8]) -> Result<(), CookError> {
-    slime_files::write(path, bytes).map_err(|source| CookError::Io {
+    slime_files::write(path, bytes).map_err(|error| CookError::Io {
         path: path.to_owned(),
-        source,
+        source: error.into(),
     })
 }
 

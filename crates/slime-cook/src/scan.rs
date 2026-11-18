@@ -204,9 +204,10 @@ pub fn scan(root: &Path, mode: Mode) -> Result<Scan, ScanError> {
                 let id = new_asset_id();
                 let metadata = metadata_path(&path);
                 slime_files::write(&metadata, metadata::write(id).as_bytes()).map_err(
-                    |source| ScanError::Io {
+                    // Refused whole, as the cooker's own files are (`cook::write`).
+                    |error| ScanError::Io {
                         path: metadata.clone(),
-                        source,
+                        source: error.into(),
                     },
                 )?;
                 result.created.push(metadata);

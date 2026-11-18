@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 pub use aside::set_aside;
 pub use directories::{data_directory, state_directory};
 pub use held::{HeldFile, HoldError};
-pub use write::write;
+pub use write::{WriteError, write};
 
 /// The file beside `file` whose name is `file`'s and `.<extension>`.
 fn beside(file: &Path, extension: &str) -> PathBuf {

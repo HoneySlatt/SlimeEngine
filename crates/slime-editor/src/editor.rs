@@ -240,9 +240,7 @@ impl Editor {
                 "a journal starts from the level before any step, which it may undo".to_owned(),
             ));
         }
-        let mut journal = Journal::create(file)?;
-        journal.add(&journal::level(world, &self.level)?)?;
-        self.journal = Some(journal);
+        self.journal = Some(Journal::open(file, &journal::level(world, &self.level)?)?);
         self.journaled = Vec::new();
         Ok(())
     }
@@ -983,7 +981,7 @@ impl Editor {
             return Err(EditError::Changed(file.to_owned()));
         }
         if let Some(keep) = keep {
-            editor.journal = Some(Journal::resume(keep, journal)?);
+            editor.journal = Some(Journal::open(keep, journal)?);
             editor.journaled.clone_from(&editor.selection);
         }
         Ok(editor)

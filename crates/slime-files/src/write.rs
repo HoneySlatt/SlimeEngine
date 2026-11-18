@@ -1,8 +1,9 @@
 //! A file written whole or not at all.
 
+use std::fmt;
 use std::fs::{self, File};
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::beside;
@@ -14,31 +15,39 @@ static NEXT_PART: AtomicU64 = AtomicU64::new(0);
 /// Writes `bytes` to `path` whole or not at all: `path` holds what it held before, or `bytes`,
 /// never a part of them, when the program is stopped or the power cut half-way.
 ///
-/// The bytes go to a file beside it, `<path>.<process>-<count>.part`, forced to the disk, which is
-/// then renamed to `path`; its directory is then synced, so that the new name is on the disk too
-/// once `write` returns, where the system allows it:
+/// The bytes go to a file beside it, forced to the disk, which is then renamed to `path`; its
+/// directory is then synced, so that the new name is on the disk too once `write` returns, where the
+/// system allows it:
 ///
-/// - On Linux and the other Unix systems, the directory is synced. A file system that cannot sync
-///   a directory, which refuses it as an invalid or unsupported request, gives no error.
-/// - On Windows, the directory is flushed through a handle open for writing, which NTFS alone
-///   turns into its names on the disk (Microsoft's MS-FSA, 2.1.5.7); a directory whose handle the
-///   system refuses gives no error. Microsoft promises no more for a rename: NTFS logs it, so a
-///   crash leaves the old file or the new one whole, but a power cut just after `write` returns
-///   may bring the old one back. `std::fs::rename` asks for no write-through.
+/// - On Linux and the other Unix systems, the directory is synced, as POSIX asks for a rename to
+///   last.
+/// - On Windows, the directory is flushed through a handle open for writing, the request that
+///   Microsoft's MS-FSA (2.1.5.7) describes as persisting a directory's structure, on NTFS alone.
+///   Microsoft promises nothing more of a rename's durability: a power cut just after `write`
+///   returns may bring the old file back, whole. `std::fs::rename` asks for no write-through.
+/// - A file system that refuses to sync a directory as an invalid or unsupported request, as some
+///   network and FUSE ones do, gives no error.
 ///
-/// Directories missing above `path` are made, and each directory that holds a new one synced.
-/// Two processes, or two threads, that write the same file at once each write a file of their
-/// own; the last renamed wins. The file beside it does not outlive an error; a crash or a power
-/// cut half-way leaves it beside `path`, where nothing reads it.
+/// Directories missing above `path` are made, each synced into the one that holds it. Two
+/// processes, or two threads, that write the same file at once each write a file of their own; the
+/// last renamed wins. The file beside it does not outlive an error; a crash or a power cut half-way
+/// leaves it beside `path`, where nothing reads it. A symbolic link at `path` is replaced by the
+/// file, not followed, and the file takes a new file's permissions, not those of the file it
+/// replaces.
 ///
 /// # Errors
 ///
-/// The file system's error, when a directory cannot be made, the file beside it created, written,
-/// forced to the disk or renamed, `path` as it was; or when its directory cannot be synced, `path`
-/// already holding `bytes`, which a power cut may then undo.
-pub fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+/// [`WriteError::NotWritten`] when a directory cannot be made, or the file beside it created,
+/// written, forced to the disk or renamed: `path` as it was. [`WriteError::NotSynced`] when the
+/// file is renamed but its directory cannot be synced: `path` holds `bytes`, which a power cut may
+/// still undo.
+pub fn write(path: &Path, bytes: &[u8]) -> Result<(), WriteError> {
+    let not_written = |source| WriteError::NotWritten {
+        path: path.to_owned(),
+        source,
+    };
     let directory = parent(path);
-    make_directories(directory)?;
+    make_directories(directory).map_err(not_written)?;
     let part = beside(
         path,
         &format!(
@@ -56,13 +65,81 @@ pub fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
         .and_then(|()| fs::rename(&part, path));
     if let Err(error) = written {
         let _ = fs::remove_file(&part);
-        return Err(error);
+        return Err(not_written(error));
     }
-    sync_directory(directory)
+    sync_directory(directory).map_err(|source| WriteError::NotSynced {
+        path: path.to_owned(),
+        source,
+    })
+}
+
+/// Why [`write()`] did not write a file whole and durably.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum WriteError {
+    /// The file is not written: it holds what it held before, or does not exist.
+    NotWritten {
+        /// The file.
+        path: PathBuf,
+        /// The file system's error.
+        source: io::Error,
+    },
+    /// The file is written, but its directory cannot be synced: a power cut may still bring back
+    /// what it held before. A caller takes the file as written, and may tell the user.
+    NotSynced {
+        /// The file.
+        path: PathBuf,
+        /// The file system's error.
+        source: io::Error,
+    },
+}
+
+impl WriteError {
+    /// Whether the file holds the bytes given, though not durably ([`WriteError::NotSynced`]).
+    pub fn is_written(&self) -> bool {
+        matches!(self, Self::NotSynced { .. })
+    }
+
+    /// The file system's error.
+    pub fn io_error(&self) -> &io::Error {
+        match self {
+            Self::NotWritten { source, .. } | Self::NotSynced { source, .. } => source,
+        }
+    }
+}
+
+impl fmt::Display for WriteError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotWritten { path, source } => {
+                write!(f, "{} cannot be written: {source}", path.display())
+            }
+            Self::NotSynced { path, source } => write!(
+                f,
+                "{} is written, but its directory cannot be synced, so that a power cut may bring \
+                 back what it held before: {source}",
+                path.display()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for WriteError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self.io_error())
+    }
+}
+
+/// An error of [`write()`] as the file system's, its kind kept, for callers that return
+/// [`io::Error`].
+impl From<WriteError> for io::Error {
+    fn from(error: WriteError) -> Self {
+        Self::new(error.io_error().kind(), error)
+    }
 }
 
 /// The directory that holds `path`: `.` for a bare name.
-fn parent(path: &Path) -> &Path {
+pub(crate) fn parent(path: &Path) -> &Path {
     match path.parent() {
         Some(parent) if !parent.as_os_str().is_empty() => parent,
         _ => Path::new("."),
@@ -70,7 +147,7 @@ fn parent(path: &Path) -> &Path {
 }
 
 /// Makes `directory` and those missing above it, each synced into the one that holds it.
-fn make_directories(directory: &Path) -> io::Result<()> {
+pub(crate) fn make_directories(directory: &Path) -> io::Result<()> {
     if directory.is_dir() {
         return Ok(());
     }
@@ -87,11 +164,9 @@ fn make_directories(directory: &Path) -> io::Result<()> {
     }
 }
 
-/// Forces `directory`'s names to the disk, where the system allows it.
-#[cfg(unix)]
+/// Forces `directory`'s names to the disk, where the system allows it ([`write()`]).
 fn sync_directory(directory: &Path) -> io::Result<()> {
-    match File::open(directory).and_then(|directory| directory.sync_all()) {
-        // EINVAL: a file system that cannot sync a directory, as some network and FUSE ones.
+    match open_directory(directory).and_then(|directory| directory.sync_all()) {
         Err(error)
             if matches!(
                 error.kind(),
@@ -104,31 +179,23 @@ fn sync_directory(directory: &Path) -> io::Result<()> {
     }
 }
 
-/// Forces `directory`'s names to the disk, where the system allows it: through a handle of the
-/// directory open for writing, which `FlushFileBuffers` needs, and which only
-/// `FILE_FLAG_BACKUP_SEMANTICS` opens. A directory whose handle the system refuses, as one where
-/// the user may not add files, is not synced.
+/// `directory`, open so that it can be synced.
+#[cfg(unix)]
+fn open_directory(directory: &Path) -> io::Result<File> {
+    File::open(directory)
+}
+
+/// `directory`, open so that it can be synced: for writing, which `FlushFileBuffers` needs, with
+/// `FILE_FLAG_BACKUP_SEMANTICS`, without which Windows opens no directory.
 #[cfg(windows)]
-fn sync_directory(directory: &Path) -> io::Result<()> {
+fn open_directory(directory: &Path) -> io::Result<File> {
     use std::os::windows::fs::OpenOptionsExt;
     /// Opens a directory rather than refusing it (`CreateFileW`'s flags).
     const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
-    match File::options()
+    File::options()
         .write(true)
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
         .open(directory)
-        .and_then(|directory| directory.sync_all())
-    {
-        Err(error) if error.kind() == io::ErrorKind::PermissionDenied => Ok(()),
-        synced => synced,
-    }
-}
-
-/// Forces `directory`'s names to the disk where the system allows it: on a system neither Unix nor
-/// Windows, which the engine does not build for yet, nothing.
-#[cfg(not(any(unix, windows)))]
-fn sync_directory(_directory: &Path) -> io::Result<()> {
-    Ok(())
 }
 
 #[cfg(test)]
@@ -184,7 +251,10 @@ mod tests {
         let file = directory.join("save.toml");
         fs::create_dir(&file).expect("a directory");
         fs::write(file.join("inside"), "kept").expect("written");
-        assert!(write(&file, b"lost").is_err());
+        assert!(matches!(
+            write(&file, b"lost"),
+            Err(WriteError::NotWritten { .. })
+        ));
         assert_eq!(names(&directory), ["save.toml"]);
         assert_eq!(
             fs::read_to_string(file.join("inside")).expect("kept"),
@@ -193,7 +263,8 @@ mod tests {
         // A file where a directory above it would be: nothing is made.
         let blocked = directory.join("blocked");
         fs::write(&blocked, "a file").expect("written");
-        assert!(write(&blocked.join("save.toml"), b"lost").is_err());
+        let error = write(&blocked.join("save.toml"), b"lost").expect_err("not written");
+        assert!(!error.is_written(), "{error}");
         assert_eq!(fs::read_to_string(&blocked).expect("kept"), "a file");
         fs::remove_dir_all(&directory).expect("removed");
     }
@@ -219,8 +290,79 @@ mod tests {
     }
 
     #[test]
-    fn a_bare_name_is_written_in_the_current_directory() {
+    fn a_bare_name_lies_in_the_current_directory() {
         assert_eq!(parent(Path::new("save.toml")), Path::new("."));
         assert_eq!(parent(Path::new("saves/save.toml")), Path::new("saves"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_file_whose_directory_cannot_be_synced_is_written_and_says_so() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory = crate::test_directory("unsynced");
+        let file = directory.join("save.toml");
+        // A directory that its user may add files to but not read, so not open to sync.
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o300)).expect("its mode");
+        let readable = fs::read_dir(&directory).is_ok();
+        let written = write(&file, b"after");
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).expect("its mode");
+        // A user whom no mode stops, as root, opens it all the same.
+        if !readable {
+            let error = written.expect_err("not synced");
+            assert!(error.is_written(), "{error}");
+            assert!(error.to_string().contains("is written, but"), "{error}");
+            let io: io::Error = error.into();
+            assert_eq!(io.kind(), io::ErrorKind::PermissionDenied);
+        }
+        assert_eq!(fs::read(&file).expect("read"), b"after");
+        fs::remove_dir_all(&directory).expect("removed");
+    }
+
+    #[test]
+    fn a_directory_of_the_test_s_own_is_synced() {
+        // On Windows, the only check that the handle of a directory opens as `open_directory` asks.
+        let directory = crate::test_directory("synced");
+        sync_directory(&directory).expect("synced");
+        fs::remove_dir_all(&directory).expect("removed");
+    }
+
+    /// What syncing the directory adds to a write whole, by size: `docs/measurements.md`, "S1a,
+    /// safe files". Run at rest: `cargo test --release -p slime-files write_timed -- --ignored
+    /// --nocapture`, with `TMPDIR` on the disk to measure.
+    #[test]
+    #[ignore = "a measure, run by hand at rest"]
+    fn write_timed() {
+        let directory = crate::test_directory("timed");
+        for (size, count) in [(4096, 300), (1 << 20, 100)] {
+            let bytes = vec![7u8; size];
+            let mut times = [Vec::new(), Vec::new()];
+            for index in 0..count {
+                let file = directory.join(format!("{}", index % 50));
+                // Alternated, so that both see the same load.
+                for (synced, times) in times.iter_mut().enumerate() {
+                    let start = std::time::Instant::now();
+                    if synced == 1 {
+                        write(&file, &bytes).expect("written");
+                    } else {
+                        let part = beside(&file, "part");
+                        let mut written = File::create(&part).expect("created");
+                        written.write_all(&bytes).expect("written");
+                        written.sync_all().expect("synced");
+                        fs::rename(&part, &file).expect("renamed");
+                    }
+                    times.push(start.elapsed());
+                }
+            }
+            for (synced, times) in times.iter_mut().enumerate() {
+                times.sort();
+                println!(
+                    "{size} bytes, directory synced {}: median {:?}, 90th percentile {:?}",
+                    synced == 1,
+                    times[times.len() / 2],
+                    times[times.len() * 9 / 10]
+                );
+            }
+        }
+        fs::remove_dir_all(&directory).expect("removed");
     }
 }

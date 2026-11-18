@@ -433,6 +433,10 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Its UV sphere orders its faces otherwise in each process.
   The hero kept on the mirror is the one the game reads.
   Running the scripts on one thread, with `--factory-startup` and a pinned version of Blender, and removing the PNG files' text, would make them reproducible.
+- **A file written during play or editing stops the frame while it is written** ([ADR-0297](adr/0297-one-crate-of-safe-files-and-the-editors-journal-versioned-built-by-s1.md)).
+  `slime_files::write` syncs the file, then its directory, on the caller's thread: *Hunna Wood*'s save on F5, in its simulation's step, and the editor's level, its speeds at the end of each flight and its layout, on the editor's main thread.
+  The directory's sync more than doubles a small write ([`measurements.md`](measurements.md#s1a-safe-files), measured under load), against ADR-0297's assumption that it is cheap beside the write; whether it costs a game's main thread or the editor's frame of 4.17 ms is to be measured again at rest, then put to the owner, as ADR-0297 says.
+  Followed by that measure; writing off the frame's thread is Stage 7's job system's.
 - **A save cut short may load in part** (ADR-0087).
   A save is a document of sections: one cut at a section's boundary is still a document, and loads what it holds without an error.
   *Hunna Wood* writes its saves whole or not at all (ADR-0088), as every game that writes saves must.

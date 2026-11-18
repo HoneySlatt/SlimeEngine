@@ -5,7 +5,7 @@ use std::fs::{File, TryLockError};
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::beside;
+use crate::{beside, write};
 
 /// A file that this program holds, so that one program at a time writes it, a game's save or an
 /// editor's journal: no other holds it while this one does. It holds the lock of a file beside it,
@@ -22,20 +22,20 @@ pub struct HeldFile {
 }
 
 impl HeldFile {
-    /// Holds the file `path`, its directory made if it has none.
+    /// Holds the file `path`, its directory made if it has none, as [`write`](fn@crate::write) makes
+    /// it, each directory made synced into the one that holds it.
     ///
     /// # Errors
     ///
     /// [`HoldError::Held`] when another program holds it; [`HoldError::Io`] when its directory or
-    /// its lock file cannot be made, or the lock taken, as on a file system without locks.
+    /// its lock file cannot be made, a directory made synced, or the lock taken, as on a file system
+    /// without locks.
     pub fn hold(path: PathBuf) -> Result<Self, HoldError> {
         let cannot = |source: io::Error| HoldError::Io {
             path: path.clone(),
             source,
         };
-        if let Some(directory) = path.parent() {
-            std::fs::create_dir_all(directory).map_err(cannot)?;
-        }
+        write::make_directories(write::parent(&path)).map_err(cannot)?;
         let lock = File::options()
             .write(true)
             .create(true)

@@ -402,7 +402,7 @@ impl Model {
         let Some(file) = file else {
             return;
         };
-        let written = slime_files::write(
+        let written = crate::level::write_whole(
             &file,
             if blender { BLENDER } else { DEFAULT_KEYS }.as_bytes(),
         );

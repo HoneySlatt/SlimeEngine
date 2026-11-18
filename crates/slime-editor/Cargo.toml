@@ -21,7 +21,7 @@ slime-color.workspace = true
 # Levels are read through the cooker's metadata files (ADR-0134), and cooked data missing at the
 # start is cooked from the program's sources.
 slime-cook.workspace = true
-# Levels, journals, layouts, keys, speeds and recent levels written whole, journals held, and
+# Levels, journals' starts, layouts, keys, speeds and recent levels written whole, journals held, and
 # the user's directories (ADR-0297).
 slime-files.workspace = true
 # The dev overlay's world panel, which the window shows as the hierarchy and the inspector until

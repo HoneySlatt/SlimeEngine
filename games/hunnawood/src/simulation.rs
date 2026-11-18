@@ -84,10 +84,17 @@ impl HunnaWood {
         }
     }
 
-    /// Saves the run in `world` to `file`.
+    /// Saves the run in `world` to `file`. A save written whose directory cannot be synced is saved,
+    /// the log saying that a power cut may bring back the save before it.
     fn save_to(&self, world: &World, file: &Path) -> Result<(), String> {
         let text = saves::save(world, &self.layout)?;
-        slime_files::write(file, text.as_bytes()).map_err(|error| error.to_string())
+        match slime_files::write(file, text.as_bytes()) {
+            Err(error) if error.is_written() => {
+                tracing::warn!("{error}");
+                Ok(())
+            }
+            written => written.map_err(|error| error.to_string()),
+        }
     }
 
     /// Loads the run of the save's file in place of the run in `world`, as F9 asks: the hero is
