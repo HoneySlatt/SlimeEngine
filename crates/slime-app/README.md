@@ -181,6 +181,11 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
     other methods return nothing: one that hits an error it cannot handle passes it to
     `exit_with_error`, which stops the run as an exit request does, both `stop` methods included,
     and makes `run` return it (`docs/adr/0043-application-errors-during-a-run.md`).
+  - A panic, in the game's code or in the engine's that the run calls, ends the run at once:
+    neither `stop` is called, nor any other method of the game's, and `run` returns
+    `RunError::Panicked`, so that the state that panicked is never saved over the last good save;
+    a panic inside the windowing layer itself is not caught
+    (`docs/adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md`).
   - `render(ctx, target)` is not called in frames where the window cannot show a new image: while
     it is minimized, or when its next image is not ready in time on Vulkan (on Direct3D 12, the
     engine waits up to one second for it, then draws the frame late; on Windows with Vulkan, wgpu

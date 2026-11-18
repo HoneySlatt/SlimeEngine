@@ -51,7 +51,7 @@ mod linux {
     use slime_world::World;
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
-    const SCENARIOS: [&str; 19] = [
+    const SCENARIOS: [&str; 20] = [
         "calls",
         "spans",
         "start-error",
@@ -67,6 +67,7 @@ mod linux {
         "loss-returned-by-render",
         "error-in-render",
         "panic-in-render",
+        "panic-in-update",
         "rests",
         "surface-lost",
         "surface-lost-again",
@@ -82,8 +83,8 @@ mod linux {
     /// `loss-returned-by-render` scenarios lose the GPU device and the `lost-unrecorded` scenario
     /// makes it invalid, from which the `lost-again` scenario loses it at every frame and the
     /// `lost-soon-after-each-restore` scenario at every other frame, and in which the
-    /// `error-in-render` scenario stops the run with an error and the `panic-in-render` scenario
-    /// panics.
+    /// `error-in-render` scenario stops the run with an error, the `panic-in-render` scenario
+    /// panics, and in whose `update` the `panic-in-update` scenario panics.
     const STOP_FRAME: u64 = 5;
 
     /// Frames of the `calls` and `spans` scenarios, and those in which the presentation asks for an
@@ -150,6 +151,9 @@ mod linux {
                 && [SETTLED, UNDRAWN_FRAMES - 1].contains(&frame.index())
             {
                 println!("memory {} {}", frame.index(), resident_kib());
+            }
+            if self.scenario == "panic-in-update" && frame.index() == STOP_FRAME {
+                panic!("the hero fell through the floor");
             }
         }
 
@@ -479,8 +483,12 @@ mod linux {
             let output = command.output().expect("child test process runs");
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
-            if scenario == "panic-in-render" {
-                check_panic_in_render(output.status, &stdout, &stderr);
+            if let Some(message) = match scenario {
+                "panic-in-render" => Some(("render", "the frame cannot be drawn")),
+                "panic-in-update" => Some(("update", "the hero fell through the floor")),
+                _ => None,
+            } {
+                check_panicked(output.status, &stdout, &stderr, message);
                 println!("scenario {scenario} ... ok");
                 continue;
             }
@@ -1151,22 +1159,41 @@ mod linux {
         );
     }
 
-    /// A panic in `render`, after the frame drew into the window's image, ends the process as a
-    /// panic does, with exit status 101, not as an abort: the image that the panic leaves held is
-    /// released before the window's surface is dropped.
-    fn check_panic_in_render(status: std::process::ExitStatus, stdout: &str, stderr: &str) {
-        assert_eq!(
-            status.code(),
-            Some(101),
-            "the child ends as a panic does: {status}\n{stdout}\n{stderr}"
+    /// A run that panicked in `STOP_FRAME` with `message`, in the call of the game's that `call`
+    /// names, the presentation's `render`, after the frame drew into the window's image, or the
+    /// simulation's `update`: the run returns the panic's error, no call of the game's after it,
+    /// its `stop` methods included, and the process ends as it chooses (ADR-0298). Nothing
+    /// aborts: the image that the panic leaves held is released before the window's surface is
+    /// dropped.
+    fn check_panicked(
+        status: std::process::ExitStatus,
+        stdout: &str,
+        stderr: &str,
+        (call, message): (&str, &str),
+    ) {
+        assert!(
+            status.success(),
+            "the run returns, and the child exits: {status}\n{stdout}\n{stderr}"
+        );
+        let lines: Vec<&str> = stdout.lines().collect();
+        assert!(
+            lines.contains(&format!("result Panicked({message:?})").as_str()),
+            "the panic's error is returned: {stdout}"
         );
         assert!(
-            stderr.contains("the frame cannot be drawn"),
-            "the panic is the presentation's: {stderr}"
+            stderr.contains(&format!("panic: {message}")),
+            "the panic hook logged it: {stderr}"
         );
         assert!(
             !stderr.contains("aborting") && !stderr.contains("in use by a SurfaceTexture"),
-            "nothing panics again while the first panic unwinds: {stderr}"
+            "nothing panics again after the first panic: {stderr}"
+        );
+        let calls = calls(&lines);
+        let stop_frame = STOP_FRAME.to_string();
+        assert_eq!(
+            calls.last().map(|last| &last[..2]),
+            Some(&[call, stop_frame.as_str()][..]),
+            "the call that panicked is the game's last: {stdout}"
         );
     }
 

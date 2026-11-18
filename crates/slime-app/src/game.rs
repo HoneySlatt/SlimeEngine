@@ -27,7 +27,7 @@ use crate::host::{Context, SimulationContext};
 ///    [`fixed_step`](Self::fixed_step) once per fixed step of game time due in that frame (zero or
 ///    more times), then [`update`](Self::update) once; the host then computes the world's
 ///    transforms, and the presentation reads the world;
-/// 3. [`stop`](Self::stop), once, after the last frame, if the run started.
+/// 3. [`stop`](Self::stop), once, after the last frame, if the run started and did not panic.
 ///
 /// Each method receives the world, which it changes, and a [`SimulationContext`]: the input, both
 /// times, and the run's stop.
@@ -96,8 +96,13 @@ pub trait Simulation {
         let _ = (ctx, world);
     }
 
-    /// Called once, after the last frame, however the run stopped, unless it did not start or the
-    /// process ends before the run stops (see [`run`](crate::run)): a game saves its run here.
+    /// Called once, after the last frame, however the run stopped, unless it did not start, it
+    /// panicked, or the process ends before the run stops (see [`run`](crate::run)): a game saves
+    /// its run here. After a panic, in the game's code or the engine's, it is not called, so that
+    /// the state that panicked is never written over the last good save: the run returns
+    /// [`RunError::Panicked`](crate::RunError::Panicked), and a player loses what they did since
+    /// their last save
+    /// (`docs/adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md`).
     fn stop(&mut self, ctx: &mut SimulationContext<'_>, world: &mut World) {
         let _ = (ctx, world);
     }
@@ -203,7 +208,7 @@ impl Simulation for () {}
 ///    (phase 5), then, when the window can show a new image, [`render`](Self::render), which draws
 ///    it without the world (phase 6): the two calls of `docs/adr/0111-the-frame-contract.md`;
 /// 3. [`stop`](Self::stop), once, after the last frame, before the simulation's stop, if the run
-///    started.
+///    started and did not panic.
 ///
 /// Between frames, it receives each event of the window ([`on_event`](Self::on_event)), and the
 /// loss of the GPU device ([`gpu_lost`](Self::gpu_lost), [`gpu_restored`](Self::gpu_restored)).
@@ -407,10 +412,11 @@ pub trait Presentation {
     }
 
     /// Called once, after the last frame, however the run stopped, before the simulation's
-    /// [`Simulation::stop`], unless the run did not start or the process ends before it stops (see
-    /// [`run`](crate::run)). The window and the GPU still exist, but for a GPU lost that no new one
-    /// replaced after [`gpu_lost`](Self::gpu_lost); a presentation that keeps a clone of the window
-    /// should drop it here.
+    /// [`Simulation::stop`], unless the run did not start, it panicked, or the process ends before
+    /// it stops (see [`run`](crate::run)): after a panic, neither `stop` is called. The window and
+    /// the GPU still exist, but for a GPU lost that no new one replaced after
+    /// [`gpu_lost`](Self::gpu_lost); a presentation that keeps a clone of the window should drop it
+    /// here.
     fn stop(&mut self, ctx: &mut Context) {
         let _ = ctx;
     }

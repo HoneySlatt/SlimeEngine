@@ -131,7 +131,10 @@ impl Host {
     }
 
     /// Stops `simulation`: applies the commands queued since the last frame, which no frame will,
-    /// then calls its [`Simulation::stop`], so that what it saves holds them.
+    /// then calls its [`Simulation::stop`], so that what it saves holds them. A host catches no
+    /// panic: after one in [`Host::start`] or a frame, its driver does not call this, as
+    /// [`run`](crate::run) does not
+    /// (`docs/adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md`).
     pub fn stop(&mut self, simulation: &mut impl Simulation) {
         self.apply_commands(simulation);
         let (mut ctx, world) = self.simulation_context();

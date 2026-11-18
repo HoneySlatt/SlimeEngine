@@ -1,9 +1,10 @@
 //! The game's rules as a simulation that a host runs (`slime_app::Simulation`,
 //! `docs/adr/0107-the-execution-model.md`): the hero walks at each fixed step of game time where
 //! the keys held ask, relative to where the player looks; the keys pressed rest by the campfire,
-//! start again, save and load the run, and quit; the run is saved when the game stops, and, with
-//! `--watch`, carried into the scenes that change on disk. It has no GPU and no window: a test runs
-//! it with a host of its own, without either.
+//! start again, save and load the run, and quit; the run is saved when the game stops, never after
+//! a panic, which leaves the last save as it was, and, with `--watch`, carried into the scenes that
+//! change on disk. It has no GPU and no window: a test runs it with a host of its own, without
+//! either.
 
 use std::io;
 use std::path::Path;
@@ -259,7 +260,8 @@ impl Simulation for HunnaWood {
     }
 
     fn stop(&mut self, _ctx: &mut SimulationContext<'_>, world: &mut World) {
-        // However the run stops: Escape, the window closed, a signal, an error.
+        // However the run stops: Escape, the window closed, a signal, an error; never after a
+        // panic, which leaves the last save as it was (ADR-0298).
         self.save_run(world);
     }
 

@@ -101,7 +101,9 @@ fails keeps what is drawn; the log says why. The same option reads the renderer'
 does not compile leaves the frames as they were, and the log says where it fails
 ([ADR-0077](../../docs/adr/0077-hot-reload-of-shaders.md)).
 
-The game resumes its save when it starts, and saves the run when it quits, however it quits; F5
+The game resumes its save when it starts, and saves the run when it quits, however it quits, but
+after a panic, which ends it without saving, the last save left as it was
+([ADR-0298](../../docs/adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)); F5
 saves the run, and F9 loads the save in place of the run, the hero at once where the save puts it
 ([ADR-0088](../../docs/adr/0088-saving-and-resuming-a-run.md)). `--new` starts a new run, whose
 first save, on F5 or on quitting, writes over the save, as after R. The save is one file,
@@ -141,8 +143,10 @@ without quitting, and the run since the last F5 is lost (see the known debt in
 resting by the campfire, which every later version must resume: a test resumes it and walks on to
 the terrace, and `scripts/check.sh` starts the game from a copy of it. It was made by the walk that
 the game's tests script to the portal (`walk_to_the_portal_at_night`), when the engine's saves took
-their layout of 0.5 ([ADR-0125](../../docs/adr/0125-saves-per-scene.md)). A change of the zone's
-layout makes it a save of another layout, which the test then refuses: make it again at the same
+their layout of 0.5 ([ADR-0125](../../docs/adr/0125-saves-per-scene.md)); a later layout of the
+engine's saves reads it through its upgrades, and the engine keeps its own fixture of each layout
+([ADR-0288](../../docs/adr/0288-saves-migrated-from-their-layout-5-on.md)). A change of the zone's
+layout makes it a save made on another layout of the zone, which the test then refuses: make it again at the same
 place, with `cargo run -p hunnawood -- --new --save games/hunnawood/fixtures/save.toml`, resting by
 the campfire and walking to the portal, then quitting without moving, which saves it, and say so in
 the commit. [`fixtures/save-0.3.toml`](fixtures/save-0.3.toml) is the fixture of 0.3, made on the
@@ -226,7 +230,7 @@ identity.
 |---|---|
 | `main.rs` | The program: the command line, the world built before the window opens, a new run or the save resumed, and the rules and the screen run with `slime_app::run` |
 | `lib.rs` | The library: its modules, and the two parts that a host runs |
-| `simulation.rs` | The rules as a simulation (`slime_app::Simulation`): the hero walked at each fixed step as the keys held ask, where the player looks turned on real time, rest, restart, saving with F5 and when the game stops, loading with F9, Escape, and with `--watch` the run carried into the scenes that changed; a save resumed from its file, or set aside |
+| `simulation.rs` | The rules as a simulation (`slime_app::Simulation`): the hero walked at each fixed step as the keys held ask, where the player looks turned on real time, rest, restart, saving with F5 and when the game stops, never after a panic, loading with F9, Escape, and with `--watch` the run carried into the scenes that changed; a save resumed from its file, or set aside |
 | `screen.rs` | What the player sees as a presentation (`slime_app::Presentation`): the view made when the window opens and again with a new GPU device, with its settings, which a tool reads and changes, the camera, game time held until the zone is drawn, the dev overlay, in a build with the `development` feature, and its keys, F3 and F4, and with `--watch` the cooked data and the shaders loaded again |
 | `assets.rs` | Where the cooked data is, and the IDs of the zone's scene file and the hero, from their metadata files |
 | `saves.rs` | The save: where its file is, held by one copy of the game at a time, what it holds and how it is read and written, and a run resumed from it once it is checked; a run carried into the scenes that changed on disk, or started again when the zone's layout changed |

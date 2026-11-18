@@ -34,4 +34,23 @@ pub enum RunError {
     /// [`Presentation::gpu_restored`](crate::Presentation::gpu_restored) returned.
     #[error("the application stopped with an error")]
     App(#[source] AppError),
+    /// The run panicked, in the game's code or in the engine's, with this message: it ended at
+    /// once, no method of the game's called after the panic, a `stop` method included, so that the
+    /// state that panicked is never handed back to be kept
+    /// (`docs/adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md`). The panic
+    /// hook logged it, with its place, as it came.
+    #[error("the application panicked: {0}")]
+    Panicked(String),
+}
+
+impl RunError {
+    /// The error of a run that panicked with `payload`, what [`std::panic::catch_unwind`] caught.
+    pub(crate) fn panicked(payload: &(dyn std::any::Any + Send)) -> Self {
+        let message = payload
+            .downcast_ref::<&str>()
+            .map(|message| (*message).to_owned())
+            .or_else(|| payload.downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "without a message".to_owned());
+        Self::Panicked(message)
+    }
 }

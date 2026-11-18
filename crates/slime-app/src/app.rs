@@ -1,5 +1,6 @@
 //! Running a game: [`run`], the host of a game's program, and how it runs ([`AppConfig`]).
 
+use std::panic::{self, AssertUnwindSafe};
 use std::time::{Duration, Instant};
 
 use slime_gfx::{PresentMode, Surface};
@@ -164,6 +165,17 @@ impl Default for AppConfig {
 /// # Errors
 ///
 /// - [`RunError::Init`] if a `start` returns an error.
+/// - [`RunError::Panicked`] if the run panicked in a `start` method, a frame, an event, a `stop`
+///   method or the release of the window: in the game's code, or in the engine's that the run
+///   calls there. The panic is caught there; the run ends at once without calling `stop`, nor any
+///   other method of the game's, and lets go of what it holds; the panic hook has logged it
+///   (`docs/adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md`). It is
+///   returned rather than any error before it. What the game kept before stays, its last save
+///   written whole; nothing of the moment of the panic is written. The `simulation` and the
+///   `presentation` lent to the run then hold the state that panicked: their owner must not save
+///   it, nor let a `Drop` of theirs do so. A panic inside the windowing layer itself is not caught:
+///   in `slime_platform`'s making of the window, its translation of events and its accessibility
+///   adapter, or in the windowing library, as below.
 /// - [`RunError::App`] if the game passed an error to [`Context::exit_with_error`] or
 ///   [`SimulationContext::exit_with_error`](crate::SimulationContext::exit_with_error), from any
 ///   method; it is returned even when the GPU device or the window's surface was lost too, but for
@@ -237,6 +249,23 @@ fn run_headless(simulation: &mut impl Simulation, config: &AppConfig) -> Result<
         Duration::from_secs(1) / config.max_frame_rate
     });
     tracing::debug!(?config, "running headless");
+    // A panic ends the run where it is, without `stop`: the state that panicked is never handed
+    // back to be kept (ADR-0298). Nothing that the closure held is used after one but to drop it.
+    panic::catch_unwind(AssertUnwindSafe(|| {
+        run_headless_frames(simulation, config, &mut host, &mut frames, period)
+    }))
+    .unwrap_or_else(|payload| Err(RunError::panicked(&*payload)))
+}
+
+/// The frames of a headless run, from its `start` to its `stop`, at `period` when it runs on
+/// demand.
+fn run_headless_frames(
+    simulation: &mut impl Simulation,
+    config: &AppConfig,
+    host: &mut Host,
+    frames: &mut Frames,
+    period: Option<Duration>,
+) -> Result<(), RunError> {
     host.start(simulation).map_err(RunError::Init)?;
     let waker = host.context.waker();
     let mut due = Instant::now();
@@ -259,7 +288,7 @@ fn run_headless(simulation: &mut impl Simulation, config: &AppConfig) -> Result<
             }
             due = next_due(due, Instant::now(), period);
         }
-        frames.run_one(&mut host, simulation, &mut (), config.fixed_step, None);
+        frames.run_one(host, simulation, &mut (), config.fixed_step, None);
         wanted = host.context.take_frame_request() || frames.waiting();
     };
     tracing::info!(frames = frames.count(), "stopping: {reason}");

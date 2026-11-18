@@ -35,6 +35,8 @@ struct Recorder {
     exit_in_update_of_frame: Option<u64>,
     fail_in_update_of_frame: Option<u64>,
     fail_in_stop: bool,
+    panic_in_start: bool,
+    panic_in_update_of_frame: Option<u64>,
     /// The fraction of a fixed step left to run, as each `update` reads it.
     alphas: Vec<f64>,
 }
@@ -48,6 +50,9 @@ impl Simulation for Recorder {
         self.calls.push(Call::Start);
         if self.fail_in_start {
             return Err("no save file".into());
+        }
+        if self.panic_in_start {
+            panic!("the zone is not whole");
         }
         if self.exit_in_start {
             ctx.request_exit();
@@ -74,6 +79,9 @@ impl Simulation for Recorder {
             ctx.exit_with_error("the save file is corrupt");
             // Only the first error is returned.
             ctx.exit_with_error("the second error");
+        }
+        if self.panic_in_update_of_frame == Some(frame.index()) {
+            panic!("the hero fell through the floor at frame {}", frame.index());
         }
     }
 
@@ -252,6 +260,49 @@ fn an_error_in_stop_fails_a_run_that_ended_well() {
     };
     let result = run(&mut game, &mut (), &config(Some(1)));
     assert_eq!(app_error(result), "cannot write the save file");
+}
+
+#[test]
+fn a_panic_in_a_frame_ends_the_run_with_its_error_without_stop() {
+    // An exit asked before the panic, in the same frame, runs no `stop` either.
+    let mut game = Recorder {
+        exit_in_update_of_frame: Some(1),
+        fail_in_update_of_frame: Some(1),
+        panic_in_update_of_frame: Some(1),
+        ..Recorder::default()
+    };
+    let result = run(&mut game, &mut (), &config(None));
+    match result {
+        Err(RunError::Panicked(message)) => {
+            assert_eq!(message, "the hero fell through the floor at frame 1");
+        }
+        other => panic!("not the panic's error: {other:?}"),
+    }
+    assert_eq!(
+        game.calls,
+        [
+            Call::Start,
+            Call::FixedStep(STEP),
+            update(0),
+            Call::FixedStep(STEP),
+            update(1),
+        ],
+        "no stop, nor any call after the panic"
+    );
+}
+
+#[test]
+fn a_panic_in_start_ends_the_run_with_its_error_without_frames_or_stop() {
+    let mut game = Recorder {
+        panic_in_start: true,
+        ..Recorder::default()
+    };
+    let error = run(&mut game, &mut (), &config(None)).expect_err("the panic's error");
+    assert_eq!(
+        error.to_string(),
+        "the application panicked: the zone is not whole"
+    );
+    assert_eq!(game.calls, [Call::Start]);
 }
 
 /// Moves a hero 1 m along x at each fixed step and a marker in each `update`; records, in each

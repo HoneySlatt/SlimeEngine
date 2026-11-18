@@ -1,6 +1,7 @@
 //! The windowed driver: frames run from the callbacks of the platform's event loop, each time the
 //! windowing system lets the window draw.
 
+use std::panic::{self, AssertUnwindSafe};
 use std::time::{Duration, Instant};
 
 use slime_gfx::{Gpu, PresentMode, Surface};
@@ -75,6 +76,7 @@ pub(crate) fn run_windowed(
         started: false,
         stop: None,
         error: None,
+        panicked: false,
     };
     tracing::debug!(?config, "running with a window");
     slime_platform::run_event_loop(window, &mut driver)?;
@@ -147,6 +149,8 @@ struct WindowedDriver<'a, S, P> {
     stop: Option<&'static str>,
     /// Why the run failed, if it did.
     error: Option<RunError>,
+    /// Whether a call of the loop panicked, after which no code of the game's runs.
+    panicked: bool,
 }
 
 impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
@@ -518,6 +522,52 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
 
 impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
     fn window_created(&mut self, window: &Window) {
+        self.guarded((), |driver| driver.created(window));
+    }
+
+    fn event(&mut self, event: Event) {
+        self.guarded((), |driver| driver.handle(event));
+    }
+
+    fn redraw_requested(&mut self) {
+        self.guarded((), Self::redraw);
+    }
+
+    fn about_to_wait(&mut self) -> LoopControl {
+        self.guarded(LoopControl::Exit, Self::before_wait)
+    }
+
+    fn exiting(&mut self) {
+        self.guarded((), Self::stop_both);
+        // Released after a panic too: the guard lets them go, and catches what their drops raise.
+        self.panicked = false;
+        self.guarded((), Self::release);
+    }
+}
+
+impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
+    /// What `call` returns, `otherwise` once the run panicked, in `call` or before: a panic is
+    /// caught here, before it reaches the platform's loop, and ends the run without `stop`, nor any
+    /// other call of the game's, so that the state that panicked is never handed back to be kept
+    /// (ADR-0298). Nothing that `call` held is used after one but to drop it.
+    fn guarded<R>(&mut self, otherwise: R, call: impl FnOnce(&mut Self) -> R) -> R {
+        if self.panicked {
+            return otherwise;
+        }
+        match panic::catch_unwind(AssertUnwindSafe(|| call(self))) {
+            Ok(returned) => returned,
+            Err(payload) => {
+                self.panicked = true;
+                // The first panic is the run's error: one in the release that follows it is not.
+                if !matches!(self.error, Some(RunError::Panicked(_))) {
+                    self.error = Some(RunError::panicked(&*payload));
+                }
+                otherwise
+            }
+        }
+    }
+
+    fn created(&mut self, window: &Window) {
         self.host.context.set_window(Some(window.clone()));
         self.host.context.waker().set_window(window.waker());
         match self.start(window) {
@@ -534,7 +584,7 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         }
     }
 
-    fn event(&mut self, event: Event) {
+    fn handle(&mut self, event: Event) {
         if !self.started {
             return;
         }
@@ -596,7 +646,7 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         }
     }
 
-    fn redraw_requested(&mut self) {
+    fn redraw(&mut self) {
         self.end_rest();
         // The compositor's signal came.
         self.checked_hold = false;
@@ -611,7 +661,9 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         self.frame();
     }
 
-    fn about_to_wait(&mut self) -> LoopControl {
+    /// What the loop does once it delivered every pending event: the periodic work, and when it
+    /// wakes next, or that it ends.
+    fn before_wait(&mut self) -> LoopControl {
         // The loop left a wait: whether the machine slept meanwhile. The host's clock counted it,
         // so that what the interface waits for is due on time; the loop's waits end late by the
         // sleep's length, on a clock that stops during a suspend on Linux and as relative waits
@@ -638,7 +690,8 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         sooner(control, self.remake.next)
     }
 
-    fn exiting(&mut self) {
+    /// Stops the presentation and the simulation if both started, and takes the run's error.
+    fn stop_both(&mut self) {
         if self.started {
             let reason = self.stop.unwrap_or("the event loop ended");
             tracing::info!(frames = self.frames.count(), "stopping: {reason}");
@@ -662,8 +715,11 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         {
             self.error.get_or_insert(RunError::Gfx(error));
         }
-        // The surface keeps the window alive: release it, the GPU and the window while the
-        // connection to the windowing system is still open.
+    }
+
+    /// Releases the surface, the GPU and the window while the connection to the windowing system
+    /// is still open: the surface keeps the window alive.
+    fn release(&mut self) {
         self.surface = None;
         self.host.context.set_gpu(None, None);
         self.host.context.set_window(None);
