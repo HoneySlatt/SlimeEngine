@@ -44,7 +44,8 @@
 //! pacing of frames and the rest, the clock given to it (`pacing`), the budgets within which it
 //! makes a lost device and a lost surface again (`recovery`), and the application's run
 //! (`session`), and what it keeps of the runs that did not end well (`crash`); `host` drives them
-//! at each turn, and `gpu` draws each frame into the window's image.
+//! at each turn, `gpu` draws each frame into the window's image, and `trace` writes the frames and
+//! each input to present where [`TRACE_ENV_VAR`] asks.
 //! The layer gives Wayland's window alone yet: elsewhere [`run`] says that it has none and ends.
 //!
 //! No type of a platform's library appears in its public API.
@@ -59,8 +60,10 @@ mod host;
 mod pacing;
 mod recovery;
 mod session;
+mod trace;
 
 pub use app::{App, Close, Look, Window, WindowSettings};
+pub use trace::TRACE_ENV_VAR;
 
 /// The process's exit status when the host cannot start, a compositor or a GPU missing, or stops
 /// on a failure of its own: the connection to the compositor broken, the device or the surface lost

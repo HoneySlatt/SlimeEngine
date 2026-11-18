@@ -120,6 +120,12 @@ impl Pacing {
         self.pending = true;
     }
 
+    /// Whether a frame is owed whatever the interface wants: a change of the host's own, or a
+    /// frame drawn in part to draw again.
+    pub(crate) fn owes_frame(&self) -> bool {
+        self.pending || self.redraw.is_some()
+    }
+
     /// Whether the last image presented waits for its signal.
     pub(crate) fn awaiting(&self) -> bool {
         self.awaiting.is_some()
@@ -236,6 +242,20 @@ mod tests {
 
     fn at(millis: u64) -> Instant {
         Instant::from_nanos(millis * 1_000_000)
+    }
+
+    #[test]
+    fn a_frame_is_owed_for_a_change_of_the_host_or_a_redraw_until_one_is_drawn() {
+        let mut pacing = Pacing::default();
+        assert!(!pacing.owes_frame());
+        pacing.host_changed();
+        assert!(pacing.owes_frame());
+        pacing.drew(at(0));
+        assert!(!pacing.owes_frame());
+        pacing.not_presented(at(10));
+        assert!(pacing.owes_frame());
+        pacing.drew(at(200));
+        assert!(!pacing.owes_frame());
     }
 
     #[test]

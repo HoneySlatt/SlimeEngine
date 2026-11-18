@@ -9,7 +9,8 @@
 //! device; the person's input reaches the interface, the pointer's moves gathered; the application
 //! steps and makes its requests; a device lost is replaced and a surface given up made again,
 //! within their budget (`recovery`); a frame is drawn if the pacing says so, the signal asked just
-//! before its present.
+//! before its present. Where a trace is asked (`crate::trace`), each frame and each input to the
+//! present of the image after it are written.
 //!
 //! A panic in any call of the layer to the host, in the application's code, uwui's or the host's,
 //! is caught before it leaves the call: the application is called no more and never dropped, the
@@ -33,6 +34,7 @@ use crate::gpu::{Gpu, Loss};
 use crate::pacing::{Next, Pacing};
 use crate::recovery::{Budget, MAX_RECOVERIES, Remake, WINDOW};
 use crate::session::{Session, StartError, Unwound};
+use crate::trace::Trace;
 use crate::{EXIT_HOST_FAILED, EXIT_PANICKED, EXIT_START_FAILED};
 
 /// Why the host stopped.
@@ -106,6 +108,7 @@ pub(crate) fn run<A: App>(look: Look, settings: WindowSettings, app: A) -> i32 {
         held_moves: Vec::new(),
         devices: Budget::default(),
         remake: Remake::default(),
+        trace: None,
         failure: None,
     };
     let (host, ran) = uwui_windowing::run(opening, host);
@@ -172,6 +175,14 @@ fn forget_panicked<T>(value: T, payload: Box<dyn std::any::Any + Send>) {
     std::mem::forget(payload);
 }
 
+/// Tells that the trace stopped, `what`, by `error`, in the log and on the standard error, which a
+/// tool that waits for the trace reads.
+fn tell_trace_stopped(what: &str, error: &std::io::Error) {
+    let told = format!("uwui's desktop host: {what}: {error}");
+    tracing::warn!("{told}");
+    crash::tell(&told);
+}
+
 /// Tells `error` and its causes on the standard error, which the application's log may not hold.
 fn report(what: &str, error: &dyn Error) {
     let mut told = format!("{what}: {error}");
@@ -205,6 +216,8 @@ struct Host<A> {
     devices: Budget,
     /// When the surface given up is made again.
     remake: Remake,
+    /// The trace that the environment asks for, from the window's opening.
+    trace: Option<Trace>,
     failure: Option<Failure>,
 }
 
@@ -291,6 +304,14 @@ impl<A: App> Host<A> {
         self.gpu = Some(gpu);
         self.drawn = drawn;
         let (waker, now) = (platform.waker(), platform.now());
+        self.trace = match Trace::from_env(now) {
+            Some(Ok(trace)) => Some(trace),
+            Some(Err(error)) => {
+                tell_trace_stopped("the trace cannot be written", &error);
+                None
+            }
+            None => None,
+        };
         let Some(waiting) = self.waiting.take() else {
             return Err(Stopped);
         };
@@ -354,6 +375,16 @@ impl<A: App> Host<A> {
             self.pacing.signalled(at);
         }
         let now = platform.now();
+        // The inputs' own times, which an input that waited behind a long frame keeps.
+        if let Some(trace) = &mut self.trace
+            && let Some(oldest) = inputs.iter().map(|(time, _)| time.at).min()
+        {
+            let wheel = inputs
+                .iter()
+                .filter(|(_, input)| matches!(input, uwui_windowing::Input::Wheel(_)))
+                .count();
+            trace.input(oldest, u32::try_from(wheel).unwrap_or(u32::MAX));
+        }
         if let Some(configured) = configured {
             session
                 .window
@@ -405,6 +436,16 @@ impl<A: App> Host<A> {
                 ui.next_frame_due(TargetId::MAIN),
             );
         }
+        // Inputs that the interface answered with no frame are no input to present; a pointer's
+        // move held for the next frame, or a frame owed, still answers them.
+        if next != Next::Frame
+            && self.held_moves.is_empty()
+            && !self.pacing.owes_frame()
+            && let (Some(trace), Some(session)) = (&mut self.trace, &self.session)
+            && !session.ui.needs_frame(TargetId::MAIN)
+        {
+            trace.unanswered();
+        }
         Ok(Control::Wait(match next {
             Next::WaitUntil(deadline) => Some(deadline),
             Next::Wait => None,
@@ -447,6 +488,9 @@ impl<A: App> Host<A> {
             // The new device's surface is new too.
             self.remake.made();
             self.redraw_whole();
+            if let Some(trace) = &mut self.trace {
+                trace.unanswered();
+            }
             return Ok(());
         }
         if !gpu.surface_given_up() {
@@ -469,6 +513,9 @@ impl<A: App> Host<A> {
             Ok(()) => {
                 self.remake.made();
                 self.redraw_whole();
+                if let Some(trace) = &mut self.trace {
+                    trace.unanswered();
+                }
             }
             Err(cause) => {
                 tracing::warn!(%cause, "the window's surface cannot be made again yet");
@@ -536,6 +583,12 @@ impl<A: App> Host<A> {
         platform.ask_signal();
         gpu.present(drawn);
         self.pacing.drew(now);
+        if let Some(trace) = &mut self.trace
+            && let Err(error) = trace.presented(now, platform.now())
+        {
+            tell_trace_stopped("the trace stops: its file refuses its writes", &error);
+            self.trace = None;
+        }
         Ok(())
     }
 }
