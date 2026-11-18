@@ -21,7 +21,7 @@ For each program, built in release, it measures:
 - its input to present: from the moment the tool sends a notch of the wheel to the end of the
   present of the first image that took it, each image's notches counted in its trace, the oldest
   notch of each image counted. Inputs apart, 100 notches 100 ms apart, the program at rest between
-  them, each answered by an image of its own; then inputs in a row, 1,000 notches 180 a second,
+  them, each of which must have an image of its own; then inputs in a row, 1,000 notches 180 a second,
   its frames running. The notches go down and up in turn over the window's list, so that each
   changes what the three programs show. The same measure for the three programs, which an input
   that waits behind a long frame does not escape;
@@ -34,8 +34,8 @@ reaches the desktop nor the user's files. Drawn with lavapipe, as the checks are
 the machine's GPU, through sway's GL renderer (CONTRIBUTING.md, "Measuring").
 
 The machine's load is read before the build, and while each program is measured: the processor's
-cores that other programs used, and, with lavapipe, the GPU's busy share, which then comes from
-other programs alone; a process that ends meanwhile is not counted. A program that other work
+cores that other programs used, a process's children that ended counted in it; and the GPU's busy
+share, other programs' alone with lavapipe, and on the GPU while the measured program rests. A program that other work
 disturbed, above half a core or 10 % of the GPU, is marked so in the table: take it again on a
 machine at rest. It prints a section of
 docs/measurements.md; the traces and logs stay in `--keep`'s directory, target/host-cost/<time> by
@@ -79,9 +79,6 @@ SETTLE = 60.0
 OVER_THE_LIST = (960, 600)
 # The notches of the wheel in a row, a second: a mouse's wheel turned fast.
 IN_A_ROW = 180
-# The share of the notches apart that must each have an image of their own: fewer, and the program
-# did not answer the wheel where it turned.
-ANSWERED = 0.95
 # Above these, other programs disturbed a measure: cores of the processor, the GPU's busy share.
 DISTURBING_CORES = 0.5
 DISTURBING_GPU = 10.0
@@ -142,15 +139,20 @@ def gpu_busy():
 
 
 def processes():
-    """Each process's parent and its time on the processor so far, in clock ticks."""
+    """Each process's parent and its time on the processor so far, in clock ticks, its children's
+    that ended included, so that a build's short compilers count in the build that waits for them."""
     found = {}
     for stat in glob.glob("/proc/[0-9]*/stat"):
         try:
             fields = Path(stat).read_text(encoding="ascii").rsplit(")", 1)[1].split()
         except (OSError, IndexError):
             continue
-        # After the name: the state, the parent, ..., `utime` and `stime`, the 12th and 13th.
-        found[int(Path(stat).parent.name)] = (int(fields[1]), int(fields[11]) + int(fields[12]))
+        # After the name: the state, the parent, ..., `utime`, `stime`, `cutime` and `cstime`, the
+        # 12th to the 15th.
+        found[int(Path(stat).parent.name)] = (
+            int(fields[1]),
+            sum(int(ticks) for ticks in fields[11:15]),
+        )
     return found
 
 
@@ -174,7 +176,9 @@ class Load:
     def __init__(self):
         self.started = time.monotonic()
         self.ticks = others_ticks()
+        # The GPU's busy shares sampled, each with whether the measured program rested then.
         self.shares = []
+        self.resting = False
         self.done = threading.Event()
         self.sampler = threading.Thread(target=self.sample, daemon=True)
         self.sampler.start()
@@ -183,11 +187,12 @@ class Load:
         while not self.done.wait(0.5):
             share = gpu_busy()
             if share is not None:
-                self.shares.append(share)
+                self.shares.append((share, self.resting))
 
     def end(self, gpu):
-        """The cores that other programs used, their GPU's mean busy share, and whether they
-        disturbed the measure: the GPU's counts only with lavapipe, which leaves it to them."""
+        """The cores that other programs used, the GPU's mean busy share, and whether they
+        disturbed the measure. With lavapipe, the GPU is other programs' alone; on the GPU, only
+        its share while the measured program rests, and sway with it, is theirs."""
         self.done.set()
         self.sampler.join()
         elapsed = time.monotonic() - self.started
@@ -197,10 +202,9 @@ class Load:
             max(0, ticks - self.ticks.get(pid, 0)) for pid, ticks in others_ticks().items()
         )
         cores = used / os.sysconf("SC_CLK_TCK") / elapsed
-        share = statistics.fmean(self.shares) if self.shares else None
-        disturbed = cores > DISTURBING_CORES or (
-            not gpu and share is not None and share > DISTURBING_GPU
-        )
+        theirs = [share for share, resting in self.shares if resting or not gpu]
+        share = statistics.fmean(theirs) if theirs else None
+        disturbed = cores > DISTURBING_CORES or (share is not None and share > DISTURBING_GPU)
         return {"cores": cores, "gpu": share, "disturbed": disturbed}
 
 
@@ -238,6 +242,14 @@ class Sway:
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
+        try:
+            self.ready(work)
+        except BaseException:
+            self.stop()
+            raise
+
+    def ready(self, work):
+        """Waits for its sockets and its output at 240 Hz."""
         self.display = self.socket("wayland-*")
         self.ipc = self.runtime / self.socket("sway-ipc.*.sock")
         deadline = time.monotonic() + 5
@@ -495,6 +507,8 @@ def inputs_to_present(trace, sent, name):
     taken in the order they were sent, which each frame's count follows."""
     intervals = []
     taken = 0
+    # Notches that one image took together, which the notches apart must never be.
+    together = []
     for frame in frames(trace):
         count = frame.get("args", {}).get("wheel", 0)
         if count == 0:
@@ -504,10 +518,12 @@ def inputs_to_present(trace, sent, name):
                  f"{len(sent)} sent")
         end = round((frame["ts"] + frame["dur"]) * 1000)
         intervals.append((taken, (end - sent[taken]) / 1e6))
+        if count > 1:
+            together.append(taken)
         taken += count
     if taken != len(sent):
         fail(f"{name}'s trace took {taken} of the {len(sent)} notches of the wheel sent")
-    return intervals
+    return intervals, together
 
 
 def measure(name, binary, sway, devices, work, given):
@@ -531,7 +547,9 @@ def measure(name, binary, sway, devices, work, given):
         run.first_image()
         run.settle()
         memory = run.memory()
+        load.resting = True
         rest = run.rest()
+        load.resting = False
         devices.move_to(*OVER_THE_LIST)
         run.settle()
         apart = wheel(devices, 100, 0.1)
@@ -541,11 +559,13 @@ def measure(name, binary, sway, devices, work, given):
             fail(f"{name} ended before its inputs did: see {run.log.name}")
     finally:
         run.stop()
-    intervals = inputs_to_present(events(run.trace), apart + in_a_row, name)
+    intervals, together = inputs_to_present(events(run.trace), apart + in_a_row, name)
+    # Each notch apart has an image of its own: else one went unanswered, the wheel turning where
+    # the program shows nothing that it moves.
+    if any(index < len(apart) for index in together):
+        fail(f"{name} took notches apart, 100 ms from each other, in one image: one went "
+             f"unanswered; see {run.trace}")
     apart_intervals = [interval for index, interval in intervals if index < len(apart)]
-    if len(apart_intervals) < ANSWERED * len(apart):
-        fail(f"{name} answered {len(apart_intervals)} of the {len(apart)} notches apart with an "
-             f"image of their own: the wheel did not reach what it shows; see {run.trace}")
     size = binary.stat().st_size
     stripped = work / f"{slug}.stripped"
     subprocess.run(["strip", "-o", str(stripped), str(binary)], check=True)
@@ -651,7 +671,9 @@ def table(figures):
 def main():
     given = arguments()
     signal.signal(signal.SIGTERM, on_signal)
-    signal.signal(signal.SIGHUP, on_signal)
+    # A run under `nohup` keeps ignoring the hangup.
+    if signal.getsignal(signal.SIGHUP) is not signal.SIG_IGN:
+        signal.signal(signal.SIGHUP, on_signal)
     if not given.gpu and not os.environ.get("SLIME_LAVAPIPE_ICD"):
         fail("SLIME_LAVAPIPE_ICD is not set: run this in the development shell (nix develop)")
     for tool in ("sway", "swaymsg", "strip"):

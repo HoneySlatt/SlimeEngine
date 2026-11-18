@@ -4805,8 +4805,8 @@ On lavapipe, which draws on the processor, its memory counted in the process's:
 | Input to present, in a row: median / 99th / longest | 0.65 / 0.94 / 1.30 ms | 0.64 / 0.76 / 1.56 ms | 12.39 / 15.42 / 16.60 ms (722 images) | +14.47 ms at the 99th |
 | A frame's work, start to present: median / 99th | 0.61 / 1.09 ms | 0.59 / 1.00 ms | 7.63 / 8.72 ms | +7.03 ms |
 
-The two blank windows match within the runs' spread: uwui's layer costs no more than winit at its
-start, memory or input to present, and its binary is 1.8 MB smaller stripped. On the GPU the
+The two blank windows match within the runs' spread, at their start, memory and input to present;
+uwui's layer's binary is 1.8 MB smaller stripped. On the GPU the
 example stays under 1 ms from input to present, within the editor's budget of 4.17 ms; on
 lavapipe its frame's work, 7.6 ms, makes inputs in a row wait behind the frame being drawn. These
 figures are M6d.7a2c2's starting point, before its frames are drawn just in time.

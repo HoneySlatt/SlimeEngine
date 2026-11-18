@@ -114,6 +114,8 @@ impl ApplicationHandler for Blank {
                 let start = Instant::now();
                 match gpu.draw(self.inputs, || window.pre_present_notify()) {
                     Ok(true) => {
+                        // A wait for an image armed before ends with this one.
+                        event_loop.set_control_flow(ControlFlow::Wait);
                         if let Some(trace) = &mut self.trace
                             && let Err(error) = trace.presented(start, Instant::now())
                         {

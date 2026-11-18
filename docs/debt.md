@@ -99,10 +99,10 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   No program changes `AppConfig::max_frame_rate`, 60 by default: on a display at 240 Hz, an input during motion waits for the next frame of that schedule.
   Its input to present in motion passes its budget of one frame ([`measurements.md`](measurements.md#m6cq2d-ryzen-7-5800x-and-rx-6900-xt)).
   The editor and applications are to draw at the display's rate: uwui's desktop host from Stage 6d, the editor at M6c.Q2f, once Stage 6c resumes.
-- **An application on uwui rests on Wayland alone, and its rest is checked, not measured** ([measured at M6d.0b](measurements.md#m6d0b-a-program-on-uwuis-start-and-rest-measured-from-outside)).
+- **An application on uwui rests on Wayland alone** ([measured at M6d.0b](measurements.md#m6d0b-a-program-on-uwuis-start-and-rest-measured-from-outside)).
   The `widgets` example, which [ADR-0180](adr/0180-one-canvas-and-the-frameworks-foundations.md) names, moves two progress bars without end and draws 60 frames a second.
   Since M6d.7a1, `uwui-desktop`'s `application` example is checked at rest in Weston, sway, KWin and Mutter, none of its threads waking in 10 s ([`compositors.md`](compositors.md)).
-  Its wakes and its processor's time at rest are measured from outside by M6d.7a2c's tool; under X11 and Xwayland, from M6d.7b, which brings the host's X11 layer.
+  Its rest is measured on Wayland since M6d.7a2c1: no frame, no wake-up, no time on the processor ([`measurements.md`](measurements.md#m6d7a2c1-uwuis-desktop-host-measured)); under X11 and Xwayland, from M6d.7b, which brings the host's X11 layer.
 - **uwui's desktop host measures the display's period rather than reading it** ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
   The time on the grid adds whole periods to the last frame callback; the period is the median of the callbacks' gaps while frames follow each other, and before any is measured the frame's start is given.
   ADR-0227 asks for the display's rate first: the outputs are bound for their scale alone, and a program whose frames all miss one refresh measures twice the period.

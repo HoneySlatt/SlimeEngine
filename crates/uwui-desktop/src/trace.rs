@@ -32,8 +32,9 @@ use uwui::time::Instant;
 /// - `input to present`, from the time of the oldest input that no image followed yet to the end
 ///   of the present of the next image. An input's time is the platform's own where it gives one,
 ///   placed on the host's clock, else its reception: on Wayland, the compositor's, to the
-///   millisecond. An input that the interface answers with no image is not counted, nor one
-///   before the first image, nor one across a device or a surface made again.
+///   millisecond, so that an interval may read up to a millisecond long. An input that the
+///   interface answers with no image is not counted, nor one before the first image, nor one
+///   across a device or a surface made again.
 ///
 /// Each frame's times are read before its write to the file, which they do not include.
 pub const TRACE_ENV_VAR: &str = "UWUI_TRACE";
