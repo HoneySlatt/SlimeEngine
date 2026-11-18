@@ -4548,3 +4548,28 @@ measure again at rest.
 The sync adds about 2.2 to 2.4 ms a file; a first run of the same system calls from Python, as
 disturbed, gave 2.6 to 2.9 ms. A fresh cook of *Hunna Wood*'s zone writes 176 files: about half a
 second more, beside its minutes. Writes made on a frame's thread pay it: [`debt.md`](debt.md).
+
+How long CI's jobs took, on GitHub's hosted runners, on 2026-11-18, on `bec753e9`, which holds
+the milestone. Its new key cooked *Hunna Wood*'s zone again in `check (game)`, `windows (game)` and
+`windows-release`, and in the compositors' jobs.
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 6 s |
+| `check (headless)` | 14 min 31 s |
+| `check (windowed)` | 11 min 40 s |
+| `check (game)` | 11 min 36 s |
+| `check (gles)` | 3 min 12 s |
+| `windows (tests)` | 11 min 3 s |
+| `windows (render)` | 6 min 20 s |
+| `windows (game)` | 11 min 2 s |
+| `windows-release` | 15 min 11 s |
+| `compositors (weston)` | 15 min 16 s |
+| `compositors (sway)` | 15 min 12 s |
+| `compositors (kwin)` | 15 min 25 s |
+| `compositors (mutter)` | 14 min 20 s |
+| `compositors (x11)` | 16 min 18 s |
+
+Every job stays within its limit of 20 minutes; `compositors (x11)`, the longest, has 3 min 42 s of
+margin. On Windows, `slime-files`' tests open and sync a directory, and eight threads that write
+one file at once each write it whole.
