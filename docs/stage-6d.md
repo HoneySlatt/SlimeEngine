@@ -3361,6 +3361,9 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
   - *Hunna Wood* saved nothing after a panic before, and still does not: its last save stays, as
     F5 or the last quit wrote it, and the run since then is lost, as after a crash; the game now
     exits with a failure rather than as a panic does.
+  - The editor's window, dropped after a run that panicked, no longer writes the dock's layout
+    that waited to be: it forgets it first (`Window::after_panic`), since its `Drop` wrote it from
+    the state that panicked, during the unwinding before S1c.
   - Checked on Linux, under Wayland; on Windows and macOS, not checked: no program makes a windowed
     run panic, and those systems' event loops call the driver otherwise.
   - Tested: the fixture loads as the run that wrote it, and saves again as that run does; read

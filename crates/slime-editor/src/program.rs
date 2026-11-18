@@ -254,7 +254,13 @@ pub fn run(program: &Program) -> ExitCode {
         state.window = true;
         state.dialogs = std::env::var_os(slime_channel::TOKEN_ENV_VAR).is_none();
         drop(state);
-        slime_app::run(&mut session, &mut Window::new(shared), &config)
+        let mut window = Window::new(shared);
+        let ran = slime_app::run(&mut session, &mut window, &config);
+        // The window that panicked writes nothing of its state as it drops (ADR-0298).
+        if matches!(ran, Err(slime_app::RunError::Panicked(_))) {
+            window.after_panic();
+        }
+        ran
     };
     match ran {
         Ok(()) => ExitCode::SUCCESS,

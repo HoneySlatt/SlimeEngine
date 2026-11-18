@@ -1360,6 +1360,13 @@ impl Model {
         }
     }
 
+    /// Forgets the layout that settled and waits to be written, so that dropping the model writes
+    /// nothing: after a panic, it is of the state that panicked, which is never kept
+    /// (`docs/adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md`).
+    pub(crate) fn forget_layout(&mut self) {
+        self.layout_due = None;
+    }
+
     /// When the layout that settled is to be written, for the loop to wake then.
     pub(crate) fn layout_waits(&self) -> Option<Instant> {
         self.layout_due
@@ -2374,6 +2381,14 @@ pub(crate) struct Window {
 }
 
 impl Window {
+    /// After a run that panicked: the window, dropped, writes nothing of the state that panicked
+    /// ([`Model::forget_layout`]).
+    pub(crate) fn after_panic(&mut self) {
+        if let Some(model) = &mut self.model {
+            model.forget_layout();
+        }
+    }
+
     pub(crate) fn new(shared: Shared) -> Self {
         Self {
             shared,
@@ -5029,6 +5044,33 @@ mod tests {
     /// editor's and comes back by *Reset layout*; one that cannot be read leaves the layout kept
     /// against it alone; a layout that cannot be written is told once
     /// (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`).
+    #[test]
+    fn a_layout_that_waits_is_written_as_the_model_drops_but_not_once_forgotten() {
+        let mut yard = Yard::new("forgotten");
+        let file = yard.directory.join("state").join("editor.layout.kdl");
+        yard.shared.borrow_mut().layout = Some(file.clone());
+        yard.model = Model::new(yard.shared.clone());
+        yard.frame();
+        run_with(&mut yard, "view.move_panel", &["history", "float"]);
+        assert!(yard.model.layout_waits().is_some(), "to be written");
+        // After a panic: forgotten, and nothing written as the model drops.
+        yard.model.forget_layout();
+        drop(std::mem::replace(
+            &mut yard.model,
+            Model::new(yard.shared.clone()),
+        ));
+        assert!(!file.exists(), "nothing of the state that panicked written");
+        // Otherwise, the layout that waits is written as the model drops.
+        yard.frame();
+        run_with(&mut yard, "view.move_panel", &["history", "float"]);
+        assert!(yard.model.layout_waits().is_some(), "to be written");
+        drop(std::mem::replace(
+            &mut yard.model,
+            Model::new(yard.shared.clone()),
+        ));
+        assert!(file.exists(), "written as the model drops");
+    }
+
     #[test]
     fn a_project_s_default_shows_and_a_layout_unkept_is_told_once() {
         let mut yard = Yard::new("project-layout");
