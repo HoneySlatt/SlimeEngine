@@ -68,9 +68,11 @@ if runs lint; then
     cargo fmt --all --check
 
     step "Clippy"
-    # `CARGO_BUILD_WARNINGS=deny` fails on Cargo's own warnings too, as `-D warnings` on rustc's and
-    # clippy's: an unused dependency among them, which Cargo reports only when every target that may
-    # use it is built, as `--all-targets` builds them; dev-dependencies it does not check (ADR-0304).
+    # `CARGO_BUILD_WARNINGS=deny` makes Cargo's lints errors too, as `-D warnings` does rustc's and
+    # clippy's (ADR-0304): among them, a `[dependencies]` entry that neither the library nor a
+    # program uses, even if an example or a test does, which belongs in dev-dependencies, and a
+    # `[build-dependencies]` entry that the build script does not use. Dev-dependencies it does not
+    # check. CONTRIBUTING.md, "Dependencies", says what to do when it is wrong.
     CARGO_BUILD_WARNINGS=deny cargo clippy --workspace --all-targets --locked -- -D warnings
     # `--all-targets` leaves out the test targets marked `test = false`, so they are named here, in a
     # separate command: cargo ignores `--test` when `--all-targets` is given.

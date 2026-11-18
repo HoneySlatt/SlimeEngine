@@ -98,6 +98,8 @@ cargo run -p slime-benches -- --counters [<name>...]      # check the benchmarks
 cargo run -p slime-benches -- --write-counters [<name>...]  # write the counters that a change changed on purpose into benches/counters.txt
 scripts/measure.sh "<title>" >> docs/measurements.md      # time the build, run the benchmarks (ADR-0104)
 scripts/compile-times.sh [--runs <count>] [--cold-runs <count>] [--shipping-runs <count>]  # time the steps of compiling that the budgets name, on a copy of the working tree (ADR-0221)
+scripts/fetch-dxc.sh <directory>...                       # on Windows, put DXC beside the programs in each directory (ADR-0066)
+scripts/test-directories.sh <cargo test arguments>       # build the tests, print the directories of the programs built, as Windows CI does for DXC
 scripts/frame-pacing.py <trace.json>                      # the frames' pacing and the inputs to present in a trace written with SLIME_TRACE (ADR-0187, ADR-0189)
 scripts/start-times.sh [--gpu] [--cold] [--runs <count>]  # time the editor's and the game's starts in a headless Weston (ADR-0189)
 scripts/input-to-present.sh [--gpu]                       # measure their input to present, a person's input given in a headless sway (ADR-0191)
@@ -154,8 +156,8 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
   the log says so ([ADR-0066](docs/adr/0066-shipping-dxc-beside-the-programs.md)). From Git Bash,
   `scripts/fetch-dxc.sh target/debug/examples target/debug` downloads DXC and puts it beside the
   samples and the game that cargo builds; `scripts/test-directories.sh --workspace | xargs -d '\n'
-  scripts/fetch-dxc.sh` builds the tests and puts it beside each, where cargo says it put them, as
-  the Windows CI job does. Run the tests with the same arguments after, or cargo builds them again
+  scripts/fetch-dxc.sh` builds the tests and puts it beside each, and beside the programs they use,
+  where cargo says it put them, as the Windows CI job does. Run the tests with the same arguments after, or cargo builds them again
   elsewhere.
   `WGPU_DX12_COMPILER=fxc` asks for FXC, and `WGPU_DX12_COMPILER=dxc` for DXC wherever Windows
   finds `dxcompiler.dll`.
@@ -650,8 +652,8 @@ the allowed licenses; `cargo deny` enforces the license and advisory rules. Reco
 dependency in [`docs/dependencies.md`](docs/dependencies.md) in the same change that adds it, and
 declare its version once, in `[workspace.dependencies]` of the root `Cargo.toml`.
 
-Cargo does not choose a version published less than three days ago, as
-[`.cargo/config.toml`](.cargo/config.toml) asks
+Cargo does not choose a version of a crate published more recently than the age that
+[`.cargo/config.toml`](.cargo/config.toml) sets
 ([ADR-0304](docs/adr/0304-rust-1100-in-a-milestone-of-its-own-after-s1-new-crate-versions-three-days-old.md)):
 a broken or malicious release is often found and yanked within that time. The versions in
 `Cargo.lock` stay. For an urgent fix, a security advisory for one, take the newer version for that
@@ -663,8 +665,13 @@ CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE=allow cargo update -p <crate> --precise 
 
 `cargo deny` and review then check it as any other change of `Cargo.lock`.
 
-Cargo also warns about a dependency that no target uses; `scripts/check.sh lint` makes that an
-error. It does not check dev-dependencies.
+Cargo warns about a `[dependencies]` entry that neither the library nor a program of its package
+uses, even if an example, a test or a benchmark does: such an entry belongs in
+`[dev-dependencies]`, which Cargo does not check. `scripts/check.sh lint` makes this warning, and
+Cargo's other lints, errors. Cargo can be wrong about a dependency kept only to pin the version of
+another crate's dependency, or to turn on one of its features: for the first, Cargo's book moves
+it to `[target.'cfg(false)'.dependencies]`; for the second, ask in review before silencing the
+check.
 
 ## Review
 

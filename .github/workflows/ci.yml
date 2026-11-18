@@ -117,7 +117,7 @@ jobs:
       - name: Put DXC beside the tests and the samples
         run: |
           { scripts/test-directories.sh ${{ matrix.packages }} --locked; echo target/debug/examples; } |
-            xargs -d '\n' scripts/fetch-dxc.sh
+            xargs -r -d '\n' scripts/fetch-dxc.sh
       # The tests run one at a time: WARP's shader compiler crashes the process, now and then, when
       # several threads compile shaders at once, even on separate devices (an access violation in
       # d3d10warp.dll, which no test can catch; seen in other projects too). Without failing fast,

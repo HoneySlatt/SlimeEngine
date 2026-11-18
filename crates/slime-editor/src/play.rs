@@ -977,7 +977,8 @@ impl Drop for Cargo {
 /// built in: none for `debug`, cargo's default. The profile names the directory that holds the
 /// program, or its directory of examples; a test program lies deeper, in
 /// `<profile>/build/<package>/<hash>/out/`, where Cargo's build directory puts it since Cargo
-/// 1.100. That layout is Cargo's own, free to change: a test reads the running test program's path.
+/// 1.100. That layout is Cargo's own, free to change: a test reads the running test program's path
+/// (`docs/debt.md`).
 fn profile(own: &Path) -> Vec<String> {
     fn name(path: Option<&Path>) -> Option<&str> {
         path.and_then(Path::file_name)

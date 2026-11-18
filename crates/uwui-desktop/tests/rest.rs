@@ -189,8 +189,10 @@ fn at_rest(example: &Example) -> Result<(), String> {
 }
 
 /// The example, built in this test's profile. Cargo puts it in `<profile>/examples/`, as its book
-/// documents, and this test below the same `<profile>` directory, in a build directory whose layout
-/// Cargo keeps internal: the example is in the test's nearest ancestor that holds one.
+/// documents, and, with its default build directory, this test below the same `<profile>`
+/// directory, in a layout that Cargo keeps internal: the example is in the test's nearest ancestor
+/// that holds one. A build directory moved elsewhere (`build.build-dir`) finds none
+/// (`docs/debt.md`).
 fn example() -> PathBuf {
     let test = std::env::current_exe().expect("the test's path");
     let name = format!("examples/application{}", std::env::consts::EXE_SUFFIX);

@@ -992,6 +992,14 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   [M6c.Q4](stage-6c.md#m6cq4--fuzzing-and-crash-reports) keeps a journal that a torn write does not stop, and a test in CI kills the editor at random ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
 - **Two editors of one level, each with a journal of its own, do not see each other's changes** ([ADR-0135](adr/0135-the-editors-program.md)).
   The second to write the level is refused, the file changed apart from it, and its changes stay in its journal alone.
+- **Two lookups read Cargo's build directory, whose layout Cargo keeps internal** ([R1](stage-6d.md#r1--rust-1100), [ADR-0304](adr/0304-rust-1100-in-a-milestone-of-its-own-after-s1-new-crate-versions-three-days-old.md)).
+  ADR-0304 asks that a test or script find its programs through Cargo; Windows CI does (`scripts/test-directories.sh`), these two do not.
+  Play's `profile` in `slime-editor` reads a test program's profile from `<profile>/build/<package>/<hash>/out/`: Cargo tells no program its own profile; a test fails if the layout moves.
+  `uwui-desktop`'s `rest` test finds its example in its nearest ancestor that holds one: with `build.build-dir` set outside the target directory, it finds none and fails.
+  Asking cargo for the example's path, as `scripts/canvas-cost.sh` does, would settle the second, once cargo inside `cargo test` is shown not to wait on the build directory's lock.
+- **A Windows test that runs without DXC still passes** ([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)).
+  Direct3D 12 falls back to FXC with a warning in the log when no `dxcompiler.dll` lies beside the program (`slime-gfx`'s `gpu.rs`).
+  Cargo 1.100 moved the test programs, and the Windows jobs ran on FXC without failing until R1 asked cargo where they are; a check that the tests loaded DXC, as `windows-release` checks its programs, would catch the next move.
 
 ## Left by the audit of 0.4
 
