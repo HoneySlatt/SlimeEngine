@@ -59,8 +59,8 @@ The owner's decisions of 2026-11-18.
 
 **`scripts/host-cost.py` measures inputs in motion:** 400 notches of the wheel a second, more than
 the display's refreshes, so that every refresh finds an input waiting; its inputs apart and in a
-row stay. It gives input to present and input to shown for each, and counts the frames that missed
-the refresh that their time was predicted for.
+row stay. It gives input to present and input to shown for each, and counts the host's frames
+drawn just in time that missed the refresh that they aimed at.
 
 **Frames drawn just in time**, the rule whole, uwui's desktop host's:
 

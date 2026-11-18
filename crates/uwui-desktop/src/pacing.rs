@@ -15,12 +15,14 @@
 //!   the refresh it aimed at, whose image's signal comes half a period or more after it, and
 //!   narrows by as much after [`ON_TIME_TO_NARROW`] such frames on time in a row. A frame that did
 //!   not wait for its start, or whose signal comes much later, as a hidden window's, counts
-//!   neither way, nor does an image shown later than predicted: that is the prediction's. The pointers' moves are held until the frame starts. Where the platform tells nothing,
-//!   the frame starts on the signal.
+//!   neither way, nor does an image shown later than predicted: that is the prediction's. A frame
+//!   drawn at its signal because its start had already passed is judged too, so that a margin as
+//!   wide as a period narrows back. The pointers' moves are held until the frame starts. Where the
+//!   platform tells nothing, the frame starts on the signal.
 //! - *The first frame after a rest* starts at once when that time has passed, as it has after a
 //!   rest longer than a period, so that an input at rest reaches the screen within one frame's
-//!   work; after a shorter rest, it starts just in time, which reaches the same refresh with fresher
-//!   input (`docs/adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md`).
+//!   work; after a shorter rest, it starts just in time, which reaches the same refresh with
+//!   fresher input (`docs/adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md`).
 //! - *A window that holds its frames*, whose signal does not come, as a hidden one's on Wayland,
 //!   draws nothing for the interface's own changes. What asks from outside, an event of the window
 //!   or a wake of another thread, still runs a frame once the signal is [`SIGNAL_WAIT`] late; and
@@ -146,9 +148,9 @@ pub(crate) struct Pacing {
     aiming: Option<Instant>,
     /// The image drawn just in time whose signal is awaited, and the refresh that it aimed at.
     aimed: Option<(u64, Instant)>,
-    /// What the images shown late added to [`MARGIN`].
+    /// What the frames drawn just in time that missed their refresh added to [`MARGIN`].
     widened: Duration,
-    /// The images shown on time in a row since the margin last changed.
+    /// The frames drawn just in time on time in a row since the margin last changed.
     on_time: u32,
 }
 
@@ -309,8 +311,14 @@ impl Pacing {
             self.outside = false;
         }
         let start = self.just_in_time();
-        // Whether the host waited for this start: only such a frame is drawn just in time.
-        let waited = start.is_some() && self.waiting_start == start;
+        // Whether the frame is drawn just in time: the host waited for its start, or the start had
+        // passed when the signal came and the frame is drawn at the signal's own turn, so that a
+        // margin as wide as a period is still judged, and narrows.
+        let waited = start.is_some()
+            && (self.waiting_start == start
+                || self.signal.is_some_and(|signal| {
+                    !signal.waited && start.is_some_and(|start| start <= signal.at)
+                }));
         let next = match (self.awaiting, self.redraw) {
             // A frame drawn in part is drawn again after its wait, none sooner.
             (_, Some((redraw, _))) if now < redraw => Next::WaitUntil(redraw),
@@ -818,6 +826,48 @@ mod tests {
         let (_, _, _, missed) = one_frame(&mut pacing, after_start, longer, image, compositor);
         assert!(!missed);
         assert_eq!(pacing.margin(PERIOD), MARGIN);
+    }
+
+    #[test]
+    fn a_burst_of_misses_leaves_the_margin_wide_for_a_second_alone() {
+        // Six frames whose signal comes a period late, as a compositor that drops compositions
+        // under another program's load: the margin reaches the period, the starts fall before
+        // the signal, and frames drawn at it still narrow it back.
+        let compositor = Compositor { lag: 0 };
+        let (mut pacing, mut signal, mut image) = running(compositor);
+        for _ in 0..6 {
+            let start = match pacing.next(signal, true, None) {
+                Next::WaitUntil(start) => start,
+                _ => signal,
+            };
+            assert_eq!(pacing.next(start, true, None), Next::Frame);
+            pacing.woke(start);
+            pacing.shown(start);
+            pacing.drew(start, start + WORK, image);
+            let (shown, on_time) = compositor.takes(start + WORK);
+            pacing.presented(image, Some(shown), Some(PERIOD));
+            image += 1;
+            signal = on_time + PERIOD;
+            assert!(pacing.signalled(signal).is_some());
+        }
+        assert_eq!(pacing.margin(PERIOD), MARGIN + 6 * MARGIN_STEP);
+        assert!(pacing.just_in_time().is_some_and(|start| start <= signal));
+        // A frame drawn after a short rest, though its start passed before its signal, is not
+        // drawn at the signal: it is not judged.
+        assert_eq!(pacing.next(signal, false, None), Next::Wait);
+        let later = signal + Duration::from_millis(5);
+        let (_, _, next, missed) = one_frame(&mut pacing, later, WORK, image, compositor);
+        assert!(!missed);
+        assert_eq!(pacing.margin(PERIOD), MARGIN + 6 * MARGIN_STEP);
+        let (signal, image) = (next, image + 1);
+        let (_, _, misses) = in_motion(
+            &mut pacing,
+            signal,
+            image,
+            6 * ON_TIME_TO_NARROW,
+            compositor,
+        );
+        assert_eq!((misses, pacing.margin(PERIOD)), (0, MARGIN));
     }
 
     #[test]
