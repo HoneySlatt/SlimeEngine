@@ -136,8 +136,9 @@ pub struct Drawn {
 pub struct Presentation {
     /// The image's number, which [`Window::ask_signal`] gave as it was presented.
     pub image: u64,
-    /// When its light left the screen, on the host's clock; none if it never showed: a later
-    /// image replaced it, or the window did not show.
+    /// When its light left the screen, on the host's clock; none where the platform says that it
+    /// never showed: a later image replaced it, or the compositor discarded it. A hidden window's
+    /// image may be told much later, as the window shows again.
     pub shown: Option<Instant>,
     /// The display's period then, where the platform gives it: a display of variable refresh
     /// gives its shortest.

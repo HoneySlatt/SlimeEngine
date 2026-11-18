@@ -205,6 +205,30 @@ impl Told {
         self.anchor.reset();
     }
 
+    /// The image numbered `image` showed at the time that `wp_presentation_feedback.presented`
+    /// gives, its seconds in two halves, the display's period then `refresh` nanoseconds, zero
+    /// where the compositor does not know it. Nothing where the compositor's clock is not one that
+    /// the window reads: the host waits for no presentation.
+    fn presented(
+        &mut self,
+        image: u64,
+        (seconds_hi, seconds_lo, nanos): (u32, u32, u32),
+        refresh: u32,
+    ) {
+        let Some(clock) = self.presentation_clock else {
+            return;
+        };
+        let seconds = (u64::from(seconds_hi) << 32) | u64::from(seconds_lo);
+        let at = seconds
+            .saturating_mul(1_000_000_000)
+            .saturating_add(u64::from(nanos));
+        self.presentations.push(Presentation {
+            image,
+            shown: Some(clock.on_host(at)),
+            refresh: (refresh > 0).then(|| Duration::from_nanos(u64::from(refresh))),
+        });
+    }
+
     /// The time of an event that the compositor stamped `millis`, received at `received`.
     fn time(&mut self, millis: u32, received: Instant) -> EventTime {
         EventTime::anchored(self.anchor.time(millis, received))
@@ -763,21 +787,7 @@ impl Dispatch<wp_presentation_feedback::WpPresentationFeedback, u64> for Told {
                 tv_nsec,
                 refresh,
                 ..
-            } => {
-                let Some(clock) = told.presentation_clock else {
-                    return;
-                };
-                let seconds = (u64::from(tv_sec_hi) << 32) | u64::from(tv_sec_lo);
-                let nanos = seconds
-                    .saturating_mul(1_000_000_000)
-                    .saturating_add(u64::from(tv_nsec));
-                told.presentations.push(Presentation {
-                    image: *image,
-                    shown: Some(clock.on_host(nanos)),
-                    // Zero where the compositor does not know it.
-                    refresh: (refresh > 0).then(|| Duration::from_nanos(u64::from(refresh))),
-                });
-            }
+            } => told.presented(*image, (tv_sec_hi, tv_sec_lo, tv_nsec), refresh),
             wp_presentation_feedback::Event::Discarded => {
                 told.presentations.push(Presentation {
                     image: *image,
@@ -1027,6 +1037,48 @@ mod tests {
                 wl_keyboard::KeyState::Released
             }),
         }
+    }
+
+    #[test]
+    fn each_image_shown_is_told_on_the_hosts_clock_with_its_period() {
+        let mut told = Told::new();
+        // Before the compositor names its clock, nothing is told.
+        told.presented(0, (0, 5, 0), 4_166_666);
+        assert!(told.presentations.is_empty());
+        // `CLOCK_MONOTONIC`, as compositors give: a time 2 ms ago, its seconds in two halves.
+        told.presentation_clock = Clock::from_raw(1);
+        let monotonic = rustix::time::clock_gettime(rustix::time::ClockId::Monotonic);
+        let then = u64::try_from(monotonic.tv_sec).expect("seconds") * 1_000_000_000
+            + u64::try_from(monotonic.tv_nsec).expect("nanoseconds")
+            - 2_000_000;
+        let seconds = then / 1_000_000_000;
+        let halves = (
+            u32::try_from(seconds >> 32).expect("high half"),
+            u32::try_from(seconds & u64::from(u32::MAX)).expect("low half"),
+            u32::try_from(then % 1_000_000_000).expect("nanoseconds"),
+        );
+        told.presented(3, halves, 4_166_666);
+        // A refresh of zero is none: the compositor does not know it.
+        told.presented(4, halves, 0);
+        let [first, second] = told.presentations.as_slice() else {
+            panic!("two presentations: {:?}", told.presentations);
+        };
+        assert_eq!(
+            (first.image, first.refresh),
+            (3, Some(Duration::from_nanos(4_166_666)))
+        );
+        let ago = clock::now() - first.shown.expect("shown");
+        assert!(
+            ago >= Duration::from_millis(2) && ago < Duration::from_millis(50),
+            "{ago:?}"
+        );
+        assert_eq!((second.image, second.refresh), (4, None));
+        // Seconds above 32 bits keep their high half.
+        let mut far = Told::new();
+        far.presentation_clock = Clock::from_raw(1);
+        far.presented(5, (1, 0, 0), 0);
+        let shown = far.presentations[0].shown.expect("shown");
+        assert!(shown.as_nanos() > (1_u64 << 32) * 1_000_000_000 - 1_000_000_000_000);
     }
 
     #[test]

@@ -5,12 +5,12 @@
 //!
 //! The file is a JSON array of events in the Chrome Trace Event format, which Perfetto and
 //! Chrome's `chrome://tracing` open, as the engine's traces are. It is written as the run goes,
-//! one write after each frame's present and one as the platform tells when an image showed,
-//! without its closing bracket, so that a reader finds the frames of a program still running;
-//! nothing is written at rest. Its times are microseconds since
-//! the Unix epoch: the system's time read once as the trace opens, together with the host's clock,
-//! and followed on the host's clock after, so that a tool that noted when it started the program
-//! reads its start from the first frame's end.
+//! one write after each frame's present and one as the platform tells when an image showed, two
+//! where that image's frame missed its refresh, without its closing bracket, so that a reader finds
+//! the frames of a program still running; nothing is written at rest. Its times are microseconds
+//! since the Unix epoch: the system's time read once as the trace opens, together with the host's
+//! clock, and followed on the host's clock after, so that a tool that noted when it started the
+//! program reads its start from the first frame's end.
 //!
 //! The blank window on the platform layer, `examples/blank.rs`, writes its trace with this same
 //! file: it depends on nothing of the host's but this writer.

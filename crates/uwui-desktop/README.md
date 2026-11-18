@@ -98,7 +98,7 @@ it has no layer and ends; a bar drawn by uwui where the compositor draws none, W
 
 `cargo test -p uwui-desktop` runs the core's tests, on every platform, without a window. The
 `rest` tests, `test = false`, run the example in the Wayland compositor that `WAYLAND_DISPLAY` names. The first:
-an image presented, in its trace too, and at rest after its start; where the series gives input,
+an image presented, in its trace too with when it showed, and at rest after its start; where the series gives input,
 the pointer put on its button *Add*, whose hover draws frames, an input to present in its trace,
 and at rest again; its field clicked, `s` and `a`
 typed, and the row that *Add* makes named `sa`, at rest again; then ended by SIGTERM through its

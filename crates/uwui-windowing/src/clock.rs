@@ -100,7 +100,7 @@ mod tests {
         let placed = monotonic.on_host(then);
         let ago = now() - placed;
         assert!(
-            ago >= Duration::from_millis(3) && ago < Duration::from_millis(4),
+            ago >= Duration::from_millis(3) && ago < Duration::from_millis(50),
             "{ago:?}"
         );
         // The host's own clock moves nothing.

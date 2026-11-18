@@ -35,7 +35,8 @@
 //! read for the images it presented and their size, the scale preferred, the pointer's events and
 //! where its window lies, then written on the test's standard error, where
 //! `scripts/compositors.sh` reads who draws its bar; and its trace (`UWUI_TRACE`) beside it, which
-//! the first test reads for its frames and, where the series gives input, an input to present.
+//! the first test reads for its frames, an image shown, and, where the series gives input, an input
+//! to present.
 //!
 //! The examples are built first, `cargo build -p uwui-desktop --example application --example
 //! blank`;
@@ -213,12 +214,16 @@ fn example() -> PathBuf {
         })
 }
 
-/// How many complete events named `name` the trace `trace` holds: `frame`, `input to present`.
+/// How many events named `name` the trace `trace` holds, complete or instant: `frame`, `input to
+/// present`, `shown`.
 fn traced(trace: &str, name: &str) -> usize {
     let event = format!("{{\"name\":\"{name}\",");
     trace
         .lines()
-        .filter(|line| line.starts_with(&event) && line.contains("\"ph\":\"X\""))
+        .filter(|line| {
+            line.starts_with(&event)
+                && (line.contains("\"ph\":\"X\"") || line.contains("\"ph\":\"i\""))
+        })
         .count()
 }
 
@@ -558,6 +563,11 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
     assert!(
         traced(&example.read_trace(), "frame") > 0,
         "the example's trace holds no frame: {shown}"
+    );
+    // Every compositor of the series tells when an image showed (`wp_presentation`).
+    assert!(
+        traced(&example.read_trace(), "shown") > 0,
+        "the example's trace tells no image shown: {shown}"
     );
 
     // The output's middle, which the window covers in each compositor of the series: the window's
