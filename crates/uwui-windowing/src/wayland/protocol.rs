@@ -1,5 +1,6 @@
 //! What the compositor tells the window, gathered for the host's loop: xdg-shell's configures and
-//! closing, xdg-decoration's choice, the frame callbacks, the scale that the compositor prefers,
+//! closing, xdg-decoration's choice, the frame callbacks, when each image showed
+//! (`wp_presentation`), the scale that the compositor prefers,
 //! the tokens of activation, and the person's input with its times: the pointer's events, and the
 //! keyboard's through libxkbcommon (`crate::xkb`), with its repeat (`super::repeat`).
 
@@ -9,6 +10,8 @@ use std::os::fd::OwnedFd;
 use slime_input::{
     ButtonState, CursorShape, Modifiers, MouseButton, Pointer, PointerId, ScrollDelta,
 };
+use std::time::Duration;
+
 use uwui_time::{EventTime, Instant};
 use wayland_client::backend::ObjectId;
 use wayland_client::globals::GlobalListContents;
@@ -23,6 +26,7 @@ use wayland_protocols::wp::cursor_shape::v1::client::{
 use wayland_protocols::wp::fractional_scale::v1::client::{
     wp_fractional_scale_manager_v1, wp_fractional_scale_v1,
 };
+use wayland_protocols::wp::presentation_time::client::{wp_presentation, wp_presentation_feedback};
 use wayland_protocols::wp::viewporter::client::{wp_viewport, wp_viewporter};
 use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
 use wayland_protocols::xdg::decoration::zv1::client::{
@@ -31,10 +35,10 @@ use wayland_protocols::xdg::decoration::zv1::client::{
 use wayland_protocols::xdg::shell::client::{xdg_surface, xdg_toplevel, xdg_wm_base};
 
 use super::repeat::Repeat;
-use crate::Input;
 use crate::anchor::Anchor;
-use crate::clock;
+use crate::clock::{self, Clock};
 use crate::xkb::{self, Keyboard};
+use crate::{Input, Presentation};
 
 /// Linux's codes of the mouse's buttons (`linux/input-event-codes.h`), which Wayland gives.
 const BTN_LEFT: u32 = 0x110;
@@ -73,6 +77,10 @@ pub(super) struct Told {
     pub(super) close: bool,
     /// When the last frame callback came, if one did.
     pub(super) signal: Option<Instant>,
+    /// The clock of the presentations' times, once the compositor named one that Linux gives.
+    pub(super) presentation_clock: Option<Clock>,
+    /// The images whose presentation the compositor told since the loop last took them, in order.
+    pub(super) presentations: Vec<Presentation>,
     /// The person's input, in order, with its times.
     pub(super) inputs: Vec<(EventTime, Input)>,
     axis: Axis,
@@ -152,6 +160,8 @@ impl Told {
             pending: (None, false),
             close: false,
             signal: None,
+            presentation_clock: None,
+            presentations: Vec::new(),
             inputs: Vec::new(),
             axis: Axis::default(),
             anchor: Anchor::default(),
@@ -710,6 +720,73 @@ impl Dispatch<wl_callback::WlCallback, ()> for Told {
         // The callback's own time has an undefined base: its reception anchors the grid.
         if let wl_callback::Event::Done { .. } = event {
             told.signal = Some(clock::now());
+        }
+    }
+}
+
+impl Dispatch<wp_presentation::WpPresentation, ()> for Told {
+    fn event(
+        told: &mut Self,
+        _: &wp_presentation::WpPresentation,
+        event: wp_presentation::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wp_presentation::Event::ClockId { clk_id } = event {
+            told.presentation_clock = Clock::from_raw(clk_id);
+            if told.presentation_clock.is_none() {
+                tracing::info!(
+                    clk_id,
+                    "the compositor's presentations are on a clock that the window cannot read: \
+                     their times are not read"
+                );
+            }
+        }
+    }
+}
+
+/// Each feedback's data: its image's number.
+impl Dispatch<wp_presentation_feedback::WpPresentationFeedback, u64> for Told {
+    fn event(
+        told: &mut Self,
+        _: &wp_presentation_feedback::WpPresentationFeedback,
+        event: wp_presentation_feedback::Event,
+        image: &u64,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            wp_presentation_feedback::Event::Presented {
+                tv_sec_hi,
+                tv_sec_lo,
+                tv_nsec,
+                refresh,
+                ..
+            } => {
+                let Some(clock) = told.presentation_clock else {
+                    return;
+                };
+                let seconds = (u64::from(tv_sec_hi) << 32) | u64::from(tv_sec_lo);
+                let nanos = seconds
+                    .saturating_mul(1_000_000_000)
+                    .saturating_add(u64::from(tv_nsec));
+                told.presentations.push(Presentation {
+                    image: *image,
+                    shown: Some(clock.on_host(nanos)),
+                    // Zero where the compositor does not know it.
+                    refresh: (refresh > 0).then(|| Duration::from_nanos(u64::from(refresh))),
+                });
+            }
+            wp_presentation_feedback::Event::Discarded => {
+                told.presentations.push(Presentation {
+                    image: *image,
+                    shown: None,
+                    refresh: None,
+                });
+            }
+            // The output that the image showed on: the period comes with each presentation.
+            _ => {}
         }
     }
 }

@@ -18,7 +18,8 @@ onto it.
   platform sized it, `Handler::turn` at each turn with what `Happened`, and `Handler::closing` as
   the window closes; the host answers each turn with a `Control`, when to call it again, and makes
   its requests on the `Window`: its title, minimum size, fullscreen, activation, cursor, and the
-  platform's signal asked before each present.
+  platform's signal asked before each present, which numbers the image; `Happened` tells when
+  each image showed (`Presentation`), with the display's period, where the platform says it.
 - Gives a person's input as `Input`, in the window's physical pixels: each pointer named, the mouse
   pointer 0, each finger of a touch screen a pointer of its own, named anew at each touch; the
   wheel; the keys, modifiers and focus. Each event's time is the platform's, anchored on the host's
@@ -33,13 +34,14 @@ onto it.
 - Holds Wayland's layer, on Linux (`wayland`): its loop on `rustix`, one `poll` on the compositor's
   socket, an eventfd that wakes it and a timerfd on `CLOCK_BOOTTIME`, the host's clock (`clock`);
   an xdg-shell window, its bar through xdg-decoration where the compositor draws one; the frame
-  callback as the signal; the pointer, `wl_touch`'s fingers and the keyboard with its repeat,
+  callback as the signal; when each image showed, through `wp_presentation`, its time placed on
+  the host's clock from the compositor's (`clock`); the pointer, `wl_touch`'s fingers and the keyboard with its repeat,
   which Wayland leaves to its clients; the cursor's shapes through `wp_cursor_shape_v1`; the scale,
   fractional through a viewport, else an integer one; activation through `xdg_activation_v1`.
 - Holds the keyboard's code of libxkbcommon, Linux's (`xkb`): the compositor's keymap, its state,
   the compose tables of the person's locale, each key turned into `slime-input`'s `KeyEvent`.
 
-What waits for its milestone: the presentations' times (M6d.7a2c); X11 (M6d.7b), Windows (M6d.7c)
+What waits for its milestone: X11 (M6d.7b), Windows (M6d.7c)
 and macOS (M6d.7d), where `run` says that it has no layer; a stylus, through `zwp_tablet_v2`,
 with uwui's first stage; the clipboard and input methods (M6d.8).
 

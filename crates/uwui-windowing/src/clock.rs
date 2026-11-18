@@ -1,7 +1,8 @@
 //! The host's clock on Linux (`docs/adr/0227-the-time-that-motion-reads.md`): `CLOCK_BOOTTIME`,
 //! which counts the time that the machine spends suspended, so that what the interface waits ten
 //! minutes for is due ten minutes later, sleep or not; and the time suspended between two
-//! readings, from `CLOCK_MONOTONIC`, which stops during a suspend.
+//! readings, from `CLOCK_MONOTONIC`, which stops during a suspend; and the times of the clock that
+//! the compositor names for its presentations, placed on the host's.
 
 use std::time::Duration;
 
@@ -36,6 +37,31 @@ pub(crate) fn now() -> Instant {
     Instant::from_nanos(nanos(clock_gettime(ClockId::Boottime)))
 }
 
+/// A platform's clock, by Linux's number of it, as `wp_presentation` names the one of its times.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Clock(ClockId);
+
+impl Clock {
+    /// The clock of Linux's number `raw`; none for a number that names no clock that every Linux
+    /// gives.
+    pub(crate) fn from_raw(raw: u32) -> Option<Self> {
+        let raw = i32::try_from(raw).ok()?;
+        ClockId::try_from(raw).ok().map(Self)
+    }
+
+    /// The time `nanos` of this clock, placed on the host's: both clocks read together now, the
+    /// time moved by how far the host's runs ahead of this one. Off by the nanoseconds between the
+    /// two readings; a time of `CLOCK_MONOTONIC` before a suspend is placed as if none came between.
+    pub(crate) fn on_host(self, nanos_of_clock: u64) -> Instant {
+        let host = nanos(clock_gettime(ClockId::Boottime));
+        let this = nanos(clock_gettime(self.0));
+        Instant::from_nanos(
+            host.saturating_sub(this.saturating_sub(nanos_of_clock))
+                .saturating_add(nanos_of_clock.saturating_sub(this)),
+        )
+    }
+}
+
 impl Suspends {
     pub(crate) fn new() -> Self {
         Self { last: readings() }
@@ -64,5 +90,25 @@ mod tests {
         std::thread::sleep(Duration::from_millis(2));
         assert!(now() - first >= Duration::from_millis(2));
         assert!(suspends.take() < Duration::from_millis(1));
+    }
+
+    #[test]
+    fn a_time_of_another_clock_is_placed_on_the_hosts() {
+        // `CLOCK_MONOTONIC`, which compositors give: a time 3 ms ago is 3 ms ago on the host's.
+        let monotonic = Clock::from_raw(1).expect("Linux's monotonic clock");
+        let then = nanos(clock_gettime(ClockId::Monotonic)) - 3_000_000;
+        let placed = monotonic.on_host(then);
+        let ago = now() - placed;
+        assert!(
+            ago >= Duration::from_millis(3) && ago < Duration::from_millis(4),
+            "{ago:?}"
+        );
+        // The host's own clock moves nothing.
+        let host = Clock::from_raw(7).expect("Linux's boot time");
+        let at = nanos(clock_gettime(ClockId::Boottime));
+        assert_eq!(host.on_host(at).as_nanos().abs_diff(at) / 1_000_000, 0);
+        // A number that names no clock.
+        assert_eq!(Clock::from_raw(99), None);
+        assert_eq!(Clock::from_raw(u32::MAX), None);
     }
 }

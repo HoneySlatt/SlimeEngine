@@ -139,8 +139,8 @@ impl FrameShown {
 /// Where a frame's time comes from (`docs/adr/0227-the-time-that-motion-reads.md`).
 ///
 /// The platforms' own times, given by Apple and Android, predicted from past presentations on
-/// Wayland, Windows and X11, asked for, or ready under a variable refresh, come with the hosts that
-/// read them.
+/// Windows and X11, asked for, or ready under a variable refresh, come with the hosts that read
+/// them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum FrameSource {
@@ -158,6 +158,12 @@ pub enum FrameSource {
     /// frame callback of Wayland's for its signal
     /// (`docs/adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md`).
     OnGrid,
+    /// Predicted from the platform's past presentations: the refresh at which the frame's image
+    /// is expected to show, on the grid of the last image shown and the display's period that the
+    /// platform gave with it, after the frame's work and the lag that recent images showed. What
+    /// uwui's desktop host gives on Wayland, from `wp_presentation`
+    /// (`docs/adr/0227-the-time-that-motion-reads.md`).
+    Predicted,
 }
 
 /// The time at which an input event came, and where that time comes from: given with each event

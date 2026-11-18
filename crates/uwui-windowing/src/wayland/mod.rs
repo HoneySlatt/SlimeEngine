@@ -11,7 +11,8 @@
 //!   screen or not, its closing told to the host rather than done.
 //! - *Its bar*: asked of the compositor through xdg-decoration, which Weston and Mutter do not
 //!   give: there the window has none yet.
-//! - *Its frames' signal*: the compositor's frame callback.
+//! - *Its frames' signal*: the compositor's frame callback; and when each image showed, through
+//!   `wp_presentation`, its time placed on the host's clock, with the display's period.
 //! - *The pointer*: its moves, buttons and wheel, each with the compositor's time anchored on the
 //!   host's clock (`crate::anchor`); entering and leaving with their reception's. Its shape, through
 //!   `wp_cursor_shape_v1`, where the compositor gives it: elsewhere its own cursor shows.
@@ -24,8 +25,6 @@
 //!   else 1.
 //! - *Activation*: the start's `XDG_ACTIVATION_TOKEN`, and the host's requests, through
 //!   `xdg_activation_v1`.
-//!
-//! What waits for its milestone: the presentations' times (M6d.7a2c).
 
 mod protocol;
 mod repeat;
@@ -47,6 +46,7 @@ use wayland_client::{Connection, EventQueue, Proxy, QueueHandle};
 use wayland_protocols::wp::fractional_scale::v1::client::{
     wp_fractional_scale_manager_v1, wp_fractional_scale_v1,
 };
+use wayland_protocols::wp::presentation_time::client::wp_presentation;
 use wayland_protocols::wp::viewporter::client::{wp_viewport, wp_viewporter};
 use wayland_protocols::xdg::activation::v1::client::xdg_activation_v1;
 use wayland_protocols::xdg::decoration::zv1::client::{
@@ -133,6 +133,8 @@ struct Objects {
         wp_viewport::WpViewport,
     )>,
     activation: Option<xdg_activation_v1::XdgActivationV1>,
+    /// Where the compositor tells when each image showed.
+    presentation: Option<wp_presentation::WpPresentation>,
     seat: Option<wl_seat::WlSeat>,
     // Kept so that their objects live as long as the window's.
     _outputs: Vec<wl_output::WlOutput>,
@@ -222,6 +224,9 @@ impl Drop for Objects {
             fractional.destroy();
             viewport.destroy();
         }
+        if let Some(presentation) = self.presentation.take() {
+            presentation.destroy();
+        }
         self.toplevel.destroy();
         self.xdg_surface.destroy();
         self.surface.destroy();
@@ -246,6 +251,8 @@ pub(crate) struct Platform {
     /// The scale that the compositor prefers, and how the window draws now.
     scale: Scale,
     scaled: Scaled,
+    /// The number of the next image presented.
+    next_image: u64,
 }
 
 impl Platform {
@@ -302,6 +309,7 @@ impl Platform {
             logical,
             scale,
             scaled,
+            next_image: 0,
         };
         Ok((platform, scaled.drawn()))
     }
@@ -329,6 +337,14 @@ impl Platform {
             globals.bind(handle, 1..=1, ()).ok();
         let activation: Option<xdg_activation_v1::XdgActivationV1> =
             globals.bind(handle, 1..=1, ()).ok();
+        let presentation: Option<wp_presentation::WpPresentation> =
+            globals.bind(handle, 1..=2, ()).ok();
+        if presentation.is_none() {
+            tracing::info!(
+                "the compositor gives no wp_presentation: the window's frames start on its signal, \
+                 their time on its grid"
+            );
+        }
         // Each output's scale, which a compositor without a scale for the surface gives (version
         // 2); outputs that come later are not followed.
         let outputs: Vec<wl_output::WlOutput> = globals.contents().with_list(|list| {
@@ -380,6 +396,7 @@ impl Platform {
             decoration,
             fractional,
             activation,
+            presentation,
             seat,
             _outputs: outputs,
             _compositor: compositor,
@@ -427,6 +444,7 @@ impl Platform {
             terminated: self.asks.take_terminated(),
             woken: self.asks.take_woken(),
             signal: self.told.signal.take(),
+            presentations: std::mem::take(&mut self.told.presentations),
         })
     }
 
@@ -537,8 +555,14 @@ impl Platform {
         self.told.cursor.set(shape);
     }
 
-    pub(crate) fn ask_signal(&mut self) {
+    pub(crate) fn ask_signal(&mut self) -> u64 {
+        let image = self.next_image;
+        self.next_image += 1;
         self.objects.surface.frame(&self.handle, ());
+        if let Some(presentation) = &self.objects.presentation {
+            presentation.feedback(&self.objects.surface, &self.handle, image);
+        }
+        image
     }
 
     /// Asks the compositor for a token that activates the window, which comes back to the loop

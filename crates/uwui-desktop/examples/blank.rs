@@ -28,7 +28,7 @@ use uwui_windowing::{Control, Drawn, Handler, Happened, Input, Opening, Stopped,
 // The host's trace writer, the same file: the blank window depends on nothing else of the host's.
 #[expect(
     dead_code,
-    reason = "the blank window answers every input it takes, and never counts one unanswered"
+    reason = "the blank window answers every input it takes, and predicts no time that it could miss"
 )]
 #[path = "../src/trace.rs"]
 mod trace;
@@ -96,6 +96,17 @@ impl Handler for Blank {
         if happened.signal.is_some() {
             self.awaiting = false;
         }
+        if let Some(trace) = &mut self.trace {
+            for presentation in &happened.presentations {
+                if let Some(shown) = presentation.shown
+                    && let Err(error) = trace.shown(presentation.image, shown)
+                {
+                    eprintln!("the blank window: the trace stops: {error}");
+                    self.trace = None;
+                    break;
+                }
+            }
+        }
         if let Some(drawn) = happened.drawn
             && let Some(gpu) = &mut self.gpu
         {
@@ -128,18 +139,18 @@ impl Handler for Blank {
                 return Control::Exit;
             };
             match gpu.draw(self.inputs, || window.ask_signal()) {
-                Ok(true) => {
+                Ok(Some(image)) => {
                     self.wanted = false;
                     self.awaiting = true;
                     if let Some(trace) = &mut self.trace
-                        && let Err(error) = trace.presented(start, window.now())
+                        && let Err(error) = trace.presented(start, window.now(), image)
                     {
                         eprintln!("the blank window: the trace stops: {error}");
                         self.trace = None;
                     }
                 }
                 // No image now: tried again a signal's wait later, as the host does.
-                Ok(false) => return Control::Wait(Some(window.now() + SIGNAL_WAIT)),
+                Ok(None) => return Control::Wait(Some(window.now() + SIGNAL_WAIT)),
                 Err(error) => {
                     self.failure = Some(error);
                     return Control::Exit;
@@ -215,10 +226,14 @@ impl Gpu {
     }
 
     /// Clears the window's next image to the colour of `inputs` and presents it, `before_present`
-    /// called just before: whether an image was presented. An image refused as outdated is taken
-    /// again once the surface is configured again; one suboptimal is presented, the surface
-    /// configured again after.
-    fn draw(&mut self, inputs: u32, before_present: impl FnOnce()) -> Result<bool, String> {
+    /// called just before, which gives its number: the number, if an image was presented. An image
+    /// refused as outdated is taken again once the surface is configured again; one suboptimal is
+    /// presented, the surface configured again after.
+    fn draw(
+        &mut self,
+        inputs: u32,
+        before_present: impl FnOnce() -> u64,
+    ) -> Result<Option<u64>, String> {
         let mut configure = false;
         let mut image = None;
         for _ in 0..2 {
@@ -240,7 +255,7 @@ impl Gpu {
             break;
         }
         let Some(image) = image else {
-            return Ok(false);
+            return Ok(None);
         };
         let view = image
             .texture
@@ -261,13 +276,13 @@ impl Gpu {
             ..Default::default()
         });
         self.queue.submit([encoder.finish()]);
-        before_present();
+        let number = before_present();
         self.queue.present(image);
         // Configured once no image of it is held.
         if configure {
             self.surface.configure(&self.device, &self.config);
         }
-        Ok(true)
+        Ok(Some(number))
     }
 }
 

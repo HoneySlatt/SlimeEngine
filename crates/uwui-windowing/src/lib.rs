@@ -52,6 +52,7 @@ mod xkb;
 
 use std::fmt;
 use std::task::Waker;
+use std::time::Duration;
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use slime_input::{
@@ -130,6 +131,19 @@ pub struct Drawn {
     pub scale: f64,
 }
 
+/// When an image that the host presented showed, as the platform told it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Presentation {
+    /// The image's number, which [`Window::ask_signal`] gave as it was presented.
+    pub image: u64,
+    /// When its light left the screen, on the host's clock; none if it never showed: a later
+    /// image replaced it, or the window did not show.
+    pub shown: Option<Instant>,
+    /// The display's period then, where the platform gives it: a display of variable refresh
+    /// gives its shortest.
+    pub refresh: Option<Duration>,
+}
+
 /// What came since the host's last turn.
 #[derive(Debug, Default)]
 pub struct Happened {
@@ -149,6 +163,10 @@ pub struct Happened {
     /// When the platform's signal of frames last came, if it came: the image before may be
     /// followed by the next.
     pub signal: Option<Instant>,
+    /// When the images presented showed, in the order that they were presented, where the
+    /// platform tells it (on Wayland, `wp_presentation`, which every compositor of the series
+    /// gives). A platform may tell none for some images: the host never waits for one.
+    pub presentations: Vec<Presentation>,
 }
 
 /// What the layer does after a turn.
@@ -298,11 +316,13 @@ impl Window<'_> {
         }
     }
 
-    /// Asks the platform's signal of frames for the image presented next: called just before the
-    /// present, so that the signal rides on the image that it follows.
-    pub fn ask_signal(&mut self) {
+    /// Asks the platform's signal of frames for the image presented next, and when it shows
+    /// ([`Happened::presentations`]): called just before the present, so that both ride on the
+    /// image that they follow. The image's number: 0 for the window's first, then one more at each
+    /// call.
+    pub fn ask_signal(&mut self) -> u64 {
         #[cfg(target_os = "linux")]
-        self.platform.ask_signal();
+        return self.platform.ask_signal();
         #[cfg(not(target_os = "linux"))]
         match self.never {}
     }

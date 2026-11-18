@@ -340,8 +340,10 @@ impl<A: App> Host<A> {
     fn turn_of(
         &mut self,
         platform: &mut Platform<'_>,
-        happened: Happened,
+        mut happened: Happened,
     ) -> Result<Control, HostError> {
+        // Before the signal, so that the frames that it lets run predict from the latest.
+        self.presentations(std::mem::take(&mut happened.presentations));
         let (Some(session), Some(gpu)) = (&mut self.session, &mut self.gpu) else {
             return Ok(Control::Exit);
         };
@@ -353,6 +355,7 @@ impl<A: App> Host<A> {
             terminated,
             woken,
             signal,
+            presentations: _,
         } = happened;
         // An event of the window, a wake or a termination signal asks from outside: it runs a
         // frame even while the window holds its frames, once their signal is late (ADR-0187).
@@ -527,6 +530,38 @@ impl<A: App> Host<A> {
         Ok(())
     }
 
+    /// The images whose presentation the platform told: to the pacing, which predicts the next
+    /// frames' times from them, and to the trace, with the frames that missed their refresh.
+    fn presentations(&mut self, presentations: Vec<uwui_windowing::Presentation>) {
+        for presentation in presentations {
+            let missed =
+                self.pacing
+                    .presented(presentation.image, presentation.shown, presentation.refresh);
+            if let Some(missed) = missed {
+                tracing::debug!(
+                    image = presentation.image,
+                    late = ?missed.shown.saturating_duration_since(missed.given),
+                    "a frame missed the refresh that it was drawn for"
+                );
+            }
+            let Some(trace) = &mut self.trace else {
+                continue;
+            };
+            let written = match (presentation.shown, missed) {
+                (Some(shown), missed) => trace.shown(presentation.image, shown).and_then(|()| {
+                    missed.map_or(Ok(()), |missed| {
+                        trace.missed(presentation.image, missed.given, missed.shown)
+                    })
+                }),
+                (None, _) => Ok(()),
+            };
+            if let Err(error) = written {
+                tell_trace_stopped("the trace stops: its file refuses its writes", &error);
+                self.trace = None;
+            }
+        }
+    }
+
     /// The window's next image is drawn whole, even while the window holds its frames, once the
     /// signal of the image before is late if it has not come.
     fn redraw_whole(&mut self) {
@@ -580,11 +615,12 @@ impl<A: App> Host<A> {
             return Ok(());
         }
         // Asked before the present, whose commit carries it.
-        platform.ask_signal();
+        let image = platform.ask_signal();
         gpu.present(drawn);
-        self.pacing.drew(now);
+        let ready = platform.now();
+        self.pacing.drew(now, ready, image);
         if let Some(trace) = &mut self.trace
-            && let Err(error) = trace.presented(now, platform.now())
+            && let Err(error) = trace.presented(now, ready, image)
         {
             tell_trace_stopped("the trace stops: its file refuses its writes", &error);
             self.trace = None;

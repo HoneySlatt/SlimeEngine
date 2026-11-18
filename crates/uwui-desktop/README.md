@@ -29,8 +29,11 @@ MIT OR Apache-2.0.
     one per refresh, each on the signal that the image before asked; a window whose signal does
     not come holds its frames, an event of the window or a wake from another thread running one
     once the signal is late ([ADR-0187](../../docs/adr/0187-a-hidden-window-at-rest.md)); the time given to the
-    interface on the grid of the signals (`FrameSource::OnGrid`), its period measured from their
-    gaps.
+    interface predicted from the presentations that the layer tells (`FrameSource::Predicted`):
+    the first refresh after the frame's work, on the grid of the last image shown and the period
+    that the platform gave, plus the lag that recent images showed; where the layer tells none, on
+    the grid of the signals (`FrameSource::OnGrid`), its period measured from their gaps
+    ([ADR-0227](../../docs/adr/0227-the-time-that-motion-reads.md)).
   - `recovery`: the budgets within which it makes a lost device and a lost surface again, the
     engine's, adapted
     ([ADR-0264](../../docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md),
@@ -60,13 +63,13 @@ MIT OR Apache-2.0.
   where the surface offers it and Fifo elsewhere, and draws each frame's display list with
   `uwui-render` into the window's image. A lost device is replaced through the same wgpu
   instance, every object of the old one gone first.
-- Writes a trace of its frames and of each input to present where `UWUI_TRACE` names a file
+- Writes a trace of its frames, of when each image showed, of the frames that missed their
+  refresh, and of each input to present where `UWUI_TRACE` names a file
   (`trace`; its contract in `TRACE_ENV_VAR`'s rustdoc,
   [ADR-0307](../../docs/adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)),
   which `scripts/host-cost.py` reads.
 
-What waits for its milestone: the presentations' times and frames drawn
-just in time (M6d.7a2c2); X11 (M6d.7b), Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
+What waits for its milestone: frames drawn just in time (M6d.7a2c2); X11 (M6d.7b), Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
 it has no layer and ends; a bar drawn by uwui where the compositor draws none, Weston and Mutter
 (M6d.7e); the clipboard, input methods and screen readers (M6d.8).
 [`debt.md`](../../docs/debt.md) holds the rest.
