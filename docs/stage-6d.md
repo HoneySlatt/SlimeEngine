@@ -161,7 +161,8 @@ in git.
   done on the same day; then
   [M6d.9a2c](#m6d9a2c--waiting), cut in four on 2026-11-18
   ([ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)):
-  [M6d.9a2c1](#m6d9a2c1--each-family-described) in progress,
+  [M6d.9a2c1](#m6d9a2c1--each-family-described), done on the same day; next,
+  [M6d.9a2c2](#m6d9a2c2--the-journal-that-waits),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
@@ -3235,6 +3236,31 @@ The first part of M6d.9a2c, started on 2026-11-18, designed in [ADR-0308](adr/03
   and on one whose request gains a field, or whose field is removed with its description written
   again, without its version raised; a field added to a reply, or a comment reworded, passes; CI
   is green, on Windows too.
+- **Result.** Done on 2026-11-18, CI pending ([ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)):
+  - `uwui_agent::description`: a family's messages read from their types' JSON Schema, through
+    `schemars`, into one line for each message, value and field; `check`, which holds a family to
+    its description and to the kept copy of its version. The walk fails on what it cannot read.
+  - The descriptions and kept copies of `core` 2 and `interface` 3 in `crates/uwui-agent/families/`,
+    of `play` 1, `world` 2 and `editing` 2 in `crates/slime-channel/families/`; their tests, written
+    again by `UWUI_DESCRIBE=write`. The core's envelope, which two private types write, is lines
+    marked `(by hand)`.
+  - `cancel` and `subscribe` typed for their description, `cancel` read through its type from an
+    object alone, as before.
+  - Made precise while it ran, the owner's choice for the first: a new case of a choice named by
+    its tag or its constant passes in a request, as a new request does, and fails in a reply or an
+    event; and `scripts/check.sh` holds each kept copy to what it held when it was added, reading
+    the whole history, which CI's lint job fetches, rather than comparing with a base commit.
+  - Checked by hand on copies of the code: a message changed without its description fails; a
+    request's field added, its description written again, fails until the version is raised, then
+    passes; a reply's field changed fails in the three engine families; a reply's field added and
+    comments reworded pass; a field added to the core's `cancel` fails.
+  - The closing review found a message's root unchecked, new cases of choices caught in requests and
+    not in replies, `cancel` reading an array, a check that passed when git failed or a run was
+    cancelled, and untested branches; a second review found a tagged case holding a type losing its
+    fields, a check that one slip in the history would fail for good, labels that a path cannot
+    hold, and documents behind; all fixed.
+  - Left for later ([`debt.md`](debt.md)): the lines written by hand, and fields read or written by
+    functions of their own, which the test does not see.
 
 ### M6d.9a2c2 — The journal that waits
 
