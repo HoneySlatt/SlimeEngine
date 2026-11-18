@@ -4886,3 +4886,23 @@ the editor at rest, and the wait's answer leave within the frame's start: under 
 under the floor of a call that `game_state` takes, which comes while the editor draws the frame
 that the measure's last call asked for. A fourth run, which checks that the page answered holds the
 step, gave 0.69 ms. To measure again at rest ([`debt.md`](debt.md)).
+
+How long CI's jobs took, on GitHub's hosted runners, on 2026-11-18, on `40d9ae07`, the milestone's
+commit.
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 6 s |
+| `check (headless)` | 13 min 22 s |
+| `check (windowed)` | 13 min 22 s |
+| `check (game)` | 8 min 49 s |
+| `check (gles)` | 9 min 5 s |
+| `windows (tests)` | 13 min 19 s |
+| `windows (render)` | 6 min 0 s |
+| `windows (game)` | 7 min 36 s |
+| `windows-release` | 10 min 46 s |
+
+Every job stays within its limit of 20 minutes. `windows-release` is back to its range before
+M6d.9a2c1's 17 min 0 s, which supports taking that run as the runner's. `check (windowed)` and
+`check (headless)` grew by under 3 minutes, the session tests' waits among them; `check (gles)`
+by almost 6, where this milestone touches nothing that it builds alone: the next runs tell.
