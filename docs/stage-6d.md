@@ -2635,7 +2635,7 @@ The first part of M6d.7a2c ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-meas
   tests read the example's trace and run the blank window; the first figures are recorded on
   lavapipe, and on the GPU with the owner's go; CI is green.
 - **Measured.** The three programs' figures, the starting point of M6d.7a2c2.
-- **Result.** Done on 2026-11-18
+- **Result.** Done on 2026-11-18, CI green
   ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)):
   - The host's trace, `UWUI_TRACE`: each frame with the notches of the wheel it took, and each
     input to present from the input's own time; an input answered with no image, one before the

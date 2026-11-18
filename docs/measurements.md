@@ -4810,3 +4810,27 @@ uwui's layer's binary is 1.8 MB smaller stripped. On the GPU the
 example stays under 1 ms from input to present, within the editor's budget of 4.17 ms; on
 lavapipe its frame's work, 7.6 ms, makes inputs in a row wait behind the frame being drawn. These
 figures are M6d.7a2c2's starting point, before its frames are drawn just in time.
+
+GitHub's hosted runners, on 2026-11-18, each run green, on `b44f5f31`, which holds the milestone:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 10 min 45 s |
+| `check (headless)` | 13 min 5 s |
+| `check (windowed)` | 10 min 16 s |
+| `check (game)` | 9 min 20 s |
+| `check (gles)` | 4 min 16 s |
+| `windows (tests)` | 16 min 57 s |
+| `windows (render)` | 7 min 7 s |
+| `windows (game)` | 5 min 50 s |
+| `windows-release` | 16 min 30 s |
+| `compositors (weston)` | 11 min 38 s |
+| `compositors (sway)` | 15 min 39 s |
+| `compositors (kwin)` | 12 min 18 s |
+| `compositors (mutter)` | 12 min 4 s |
+| `compositors (x11)` | 13 min 45 s |
+| Docs' `links` | 20 s |
+
+Every job stays within its limit of 20 minutes; `windows (tests)`, the longest, has 3 min 3 s of
+margin. The eight `rest` tests take 33 s in a headless Weston on lavapipe, within
+`scripts/check.sh windowed`'s 120 s.
