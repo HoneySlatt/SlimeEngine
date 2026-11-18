@@ -342,6 +342,8 @@ impl<A: App> Host<A> {
         platform: &mut Platform<'_>,
         mut happened: Happened,
     ) -> Result<Control, HostError> {
+        // A frame drawn at this turn counts its work from here.
+        self.pacing.woke(platform.now());
         // Before the signal, so that the frames that it lets run predict from the latest.
         self.presentations(std::mem::take(&mut happened.presentations));
         let (Some(session), Some(gpu)) = (&mut self.session, &mut self.gpu) else {
@@ -402,7 +404,7 @@ impl<A: App> Host<A> {
             self.pacing.host_changed();
             self.remake.soon(now);
         }
-        for input in gather(inputs, &mut self.held_moves, self.pacing.awaiting()) {
+        for input in gather(inputs, &mut self.held_moves, self.pacing.holds_moves(now)) {
             give(session, platform, now, input);
         }
         session.step();
@@ -584,7 +586,7 @@ impl<A: App> Host<A> {
         };
         let Some(image) = image else {
             // No image now: tried again a signal's wait later, rather than at once.
-            self.pacing.missed(now);
+            self.pacing.no_image(now);
             return Ok(());
         };
         for held in std::mem::take(&mut self.held_moves) {
@@ -659,8 +661,8 @@ fn make_requests(window: &mut Window, platform: &mut Platform<'_>, gpu: &mut Gpu
 
 /// The person's input in the order that the interface takes it: the pointers' moves gathered,
 /// each pointer's last move held in `held`, in the order that the pointers first moved, and given
-/// only before the event that follows them; held while the frame `awaits` its signal, to be given
-/// before the next event or frame.
+/// only before the event that follows them; held while a frame `awaits` its signal or its start
+/// just in time, to be given before the next event or frame.
 fn gather(
     inputs: Vec<(EventTime, uwui_windowing::Input)>,
     held: &mut Vec<(EventTime, uwui_windowing::Input)>,
