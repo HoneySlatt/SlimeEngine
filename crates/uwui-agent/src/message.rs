@@ -44,6 +44,7 @@ pub enum Message {
 
 /// Why a request failed: an error of JSON-RPC's, its code and its message.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct Fault {
     /// What kind of failure: one of this type's constants, or a family's own.
     pub code: i64,
@@ -107,6 +108,7 @@ pub struct Frame {
 /// refused before they are read whole. A tool gives its own in its hello, so that the program
 /// answers what it cannot read with a fault rather than a line that the tool refuses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct Limits {
     /// The most bytes of a line, its `\n` not counted; a `\r` before it is, as the whitespace that
     /// JSON lets a line end with.

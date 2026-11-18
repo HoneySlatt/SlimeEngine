@@ -109,6 +109,7 @@ cargo test -p uwui-desktop --test rest                    # that example at rest
 scripts/host-cost.py [--gpu] [--starts <count>] [--keep <directory>]  # measure uwui's desktop host above a blank window on its layer and one on winit: start, memory, binary, rest, input to present, in a headless sway at 240 Hz (ADR-0307)
 scripts/resources.sh [--gpu] [--heaptrack] [--undos <count>] [--plays <count>]  # measure the editor's and the game's memory, video memory and the GPU's power in a headless Weston (ADR-0193)
 scripts/canvas-cost.sh [--gpu] [--runs <count>]           # measure what the renderer costs an interface against the canvas alone (ADR-0180)
+UWUI_DESCRIBE=write cargo test -p uwui-agent -p slime-channel --lib described  # write the families' descriptions again, and the kept copy of a version raised (ADR-0308)
 cargo test --release -p uwui-agent --test request_memory -- --nocapture  # measure what a request's line costs in memory as it is read (ADR-0250)
 cargo test --release -p slime-app --features development --test channel -- --ignored frames_with_agents --nocapture  # measure a run's frames with agents at the channel's bounds (ADR-0250)
 cargo test --release -p slime-editor --lib journal_pages_timed -- --ignored --nocapture  # measure a page of the editor's journal on the editor's thread, on Linux (ADR-0265)
@@ -539,7 +540,9 @@ library nor uwui in the trees of the engine's data layer, from `slime-files` to 
 ([ADR-0297](docs/adr/0297-one-crate-of-safe-files-and-the-editors-journal-versioned-built-by-s1.md)), no engine crate but
 `slime-color` and `slime-input` in uwui's desktop host's tree, no crate of the workspace that
 depends on that host, and no windowing library nor wgpu in `uwui`'s tree
-([ADR-0226](docs/adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)), `lychee` (links
+([ADR-0226](docs/adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)), each kept
+copy of a family's version holding, in the working tree, what it held when it was added
+([ADR-0308](docs/adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)), `lychee` (links
 between Markdown files), and the lengths of the two files that every agent reads at each
 session's start: `AGENTS.md`, at most 1,500 words, and `docs/PLAN.md`, at most 2,000; what does
 not fit goes to its home ([`AGENTS.md`](AGENTS.md#one-home-per-fact)).
@@ -644,6 +647,13 @@ owner's go.
    error, never a panic, a hang or memory exhausted, and the reader's tests damage its input,
    through the helper that every crate's tests share, `crates/slime-assets/tests/common/damage.rs`
    ([ADR-0102](docs/adr/0102-a-damaged-file-gives-an-error.md)).
+7. A change of the messages of uwui's core for agents or of one of its families writes their
+   description again, `families/<family>.txt` beside the crate's code, in the same change, with
+   the command that [Commands](#commands) gives. Where their test fails on what the version held,
+   as `uwui_agent::description` says, raise the family's version: the same command then writes its
+   new kept copy, `<family>.<version>.txt`. A kept copy is never edited, which `scripts/check.sh`
+   checks
+   ([ADR-0308](docs/adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)).
 
 ## Architecture decisions
 

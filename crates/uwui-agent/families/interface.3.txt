@@ -1,0 +1,96 @@
+# The messages of the family `interface`, version 3: one line for each message, value and field,
+# read from their types (`uwui_agent::description`). Written by the family's test with UWUI_DESCRIBE=write.
+reply done
+reply done . object
+reply elements
+reply elements . object
+reply elements elements array
+reply elements elements[] object
+reply elements elements[].actions array
+reply elements elements[].actions[] string
+reply elements elements[].bounds array|null maxItems=4 minItems=4 optional
+reply elements elements[].bounds[] integer format="uint32" minimum=0
+reply elements elements[].cut array optional
+reply elements elements[].cut[] string
+reply elements elements[].description string|null optional
+reply elements elements[].name string
+reply elements elements[].path string
+reply elements elements[].placeholder string|null optional
+reply elements elements[].role string
+reply elements elements[].states array
+reply elements elements[].states[] string
+reply elements elements[].target integer format="uint32" minimum=0
+reply elements elements[].value string|null optional
+reply elements next string|null optional
+reply image
+reply image . object
+reply image height integer format="uint32" minimum=0
+reply image width integer format="uint32" minimum=0
+reply style
+reply style . object
+reply style places array
+reply style places[] object
+reply style places[].column integer format="uint32" minimum=0
+reply style places[].declarations array
+reply style places[].declarations[] object
+reply style places[].declarations[].field string
+reply style places[].declarations[].state string|null optional
+reply style places[].declarations[].token string|null optional
+reply style places[].file string
+reply style places[].line integer format="uint32" minimum=0
+request interface/act
+request interface/act . object
+request interface/act action choice
+request interface/act action<kind="accept"> object
+request interface/act action<kind="accept">.kind string const="accept"
+request interface/act action<kind="cancel"> object
+request interface/act action<kind="cancel">.kind string const="cancel"
+request interface/act action<kind="command"> object
+request interface/act action<kind="command">.kind string const="command"
+request interface/act action<kind="command">.name string
+request interface/act action<kind="down"> object
+request interface/act action<kind="down">.kind string const="down"
+request interface/act action<kind="drop"> object
+request interface/act action<kind="drop">.at number format="float"
+request interface/act action<kind="drop">.kind string const="drop"
+request interface/act action<kind="drop">.onto string
+request interface/act action<kind="focus"> object
+request interface/act action<kind="focus">.kind string const="focus"
+request interface/act action<kind="left"> object
+request interface/act action<kind="left">.kind string const="left"
+request interface/act action<kind="next"> object
+request interface/act action<kind="next">.kind string const="next"
+request interface/act action<kind="press"> object
+request interface/act action<kind="press">.kind string const="press"
+request interface/act action<kind="previous"> object
+request interface/act action<kind="previous">.kind string const="previous"
+request interface/act action<kind="right"> object
+request interface/act action<kind="right">.kind string const="right"
+request interface/act action<kind="scroll"> object
+request interface/act action<kind="scroll">.kind string const="scroll"
+request interface/act action<kind="scroll">.x number format="float"
+request interface/act action<kind="scroll">.y number format="float"
+request interface/act action<kind="set_value"> object
+request interface/act action<kind="set_value">.kind string const="set_value"
+request interface/act action<kind="set_value">.value string
+request interface/act action<kind="up"> object
+request interface/act action<kind="up">.kind string const="up"
+request interface/act element string
+request interface/capture_element
+request interface/capture_element . object
+request interface/capture_element element string
+request interface/element_at
+request interface/element_at . object
+request interface/element_at target integer|null format="uint32" minimum=0 optional
+request interface/element_at x integer format="uint32" minimum=0
+request interface/element_at y integer format="uint32" minimum=0
+request interface/elements
+request interface/elements . object
+request interface/elements bytes integer|null format="uint64" minimum=0 optional
+request interface/elements cursor string|null optional
+request interface/elements limit integer|null format="uint64" minimum=0 optional
+request interface/elements name string
+request interface/elements role string
+request interface/style
+request interface/style . object
+request interface/style element string

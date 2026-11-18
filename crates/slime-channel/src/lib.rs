@@ -1,6 +1,8 @@
 #![doc = include_str!("../README.md")]
 
 mod client;
+#[cfg(test)]
+mod described_tests;
 mod error;
 mod listener;
 mod message;

@@ -79,6 +79,10 @@ tells how game time stands to a connection that subscribed to it. Only programs 
   the one message being written.
 - Who starts a game draws its token, 128 bits of the system's randomness, and gives it to the game
   in its environment only, never on its command line.
+- The messages of `play`, `world` and `editing` are described in `families/`, and held to their
+  versions by a test, as `uwui_agent::description` says
+  ([ADR-0308](../../docs/adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)). The replies, which the three
+  families share, go whole into each one's file: a reply's field removed raises all three.
 
 ## Entry points
 
@@ -147,6 +151,8 @@ The rustdoc holds the contracts: each request and its reply, the limits, the err
 - `uwui-agent`: the session that the channel carries.
 - `thiserror`: derives `ChannelError`'s `Display` and `Error` implementations.
 - `tracing`: the connections accepted and refused.
+- `schemars`, for the tests alone: the JSON Schema of the messages, which the families' test
+  describes.
 
 ## Must not
 

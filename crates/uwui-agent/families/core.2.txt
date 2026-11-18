@@ -1,0 +1,65 @@
+# The messages of the family `core`, version 2: one line for each message, value and field,
+# read from their types (`uwui_agent::description`). Written by the family's test with UWUI_DESCRIBE=write.
+# A line that ends with `(by hand)` is written by the test, where no type describes it.
+envelope message . object (by hand)
+envelope message bytes integer optional (by hand)
+envelope message error object optional (by hand)
+envelope message id integer|null optional (by hand)
+envelope message jsonrpc string const="2.0" (by hand)
+envelope message method string optional (by hand)
+envelope message params any optional (by hand)
+envelope message result any optional (by hand)
+reply error
+reply error . object
+reply error code integer format="int64"
+reply error message string
+reply hello
+reply hello . object
+reply hello core integer format="uint32" minimum=0
+reply hello events array default=[] optional
+reply hello events[] string
+reply hello in_flight object
+reply hello in_flight.bytes integer format="uint" minimum=0
+reply hello in_flight.requests integer format="uint" minimum=0
+reply hello program string
+reply hello refused array
+reply hello refused[] object
+reply hello refused[].family object
+reply hello refused[].family.name string
+reply hello refused[].family.version integer format="uint32" minimum=0
+reply hello refused[].reason string
+reply hello refused[].served integer|null format="uint32" minimum=0 optional
+reply hello served array
+reply hello served[] object
+reply hello served[].name string
+reply hello served[].version integer format="uint32" minimum=0
+reply subscribe . object (by hand)
+reply unsubscribe . object (by hand)
+request cancel
+request cancel . object
+request cancel id integer format="uint64" minimum=0
+request hello
+request hello . object
+request hello agent object
+request hello agent.name string
+request hello agent.version string
+request hello client object
+request hello client.name string
+request hello client.version string
+request hello core integer format="uint32" minimum=0
+request hello families array
+request hello families[] object
+request hello families[].name string
+request hello families[].version integer format="uint32" minimum=0
+request hello limits object
+request hello limits.bytes integer format="uint64" minimum=0
+request hello limits.line integer format="uint" minimum=0
+request hello secret string
+request subscribe
+request subscribe . object
+request subscribe events array
+request subscribe events[] string
+request unsubscribe
+request unsubscribe . object
+request unsubscribe events array
+request unsubscribe events[] string

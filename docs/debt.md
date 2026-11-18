@@ -70,7 +70,11 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Followed at [M6c.Q2f](stage-6c.md#m6cq2f--the-editor-at-the-displays-rate), which holds the editor's frames to the display's rate.
 - **An agent follows the editor's steps by reading its journal again** ([ADR-0265](adr/0265-the-editors-journal-read-by-pages-its-number-drawn-by-the-journal-pages-of-whole-entries-on-the-editors-thread.md)).
   A page that reaches the journal's end gives no cursor, as every list's: an agent that waits for the next steps reads the journal again from its start, the level's entry included.
-  Followed at [M6d.9a2c](stage-6d.md#m6d9a2c--waiting), whose journal waits for its next steps ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
+  Followed at [M6d.9a2c2](stage-6d.md#m6d9a2c2--the-journal-that-waits), whose journal waits for its next steps ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)).
+- **Part of the core's messages is described by hand** ([ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)).
+  The envelope, written by two private types, and the replies to `subscribe` and `unsubscribe` are lines that the core's test writes by hand; the parameters of `subscribe`, typed for their description, are still read by hand, to say what is wrong with each name.
+  A change of them escapes the test, which a review catches; so does a field read or written by a function of its own, which `schemars` describes as its type says.
+  Followed at the milestone of `uwui dev`'s carrier, which adds the minor to the descriptions ([ADR-0278](adr/0278-families-versioned-by-major-and-minor-tools-speaking-several-majors.md)).
 - **The process's number that binds the cursors has no randomness on the web** ([ADR-0260](adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
   `slime-channel` draws it with `getrandom`, falling back on `std`'s hashing keys, which are not random on `wasm32-unknown-unknown`.
   Followed at the web's carrier, which draws it from its host.
@@ -1123,9 +1127,6 @@ A review of uwui's architecture of 2026-11-17, read-only too, added these:
 - **An agent's command is any name.**
   `interface/act` passes a command's name on unchecked (`crates/uwui/src/agents.rs`), and no right guards it.
   Followed at [M6d.9a3b](stage-6d.md#m6d9a3b--rights-and-previews-before-applying), then refused unless declared at M6d.9b ([ADR-0293](adr/0293-actions-declared-once-in-uwuis-core-undo-and-the-journal-the-programs.md)).
-- **No family's messages are described, and nothing holds a family to its version.**
-  A message changed under the same version reads differently at each end, without an error.
-  Followed at [M6d.9a2c](stage-6d.md#m6d9a2c--waiting) ([ADR-0295](adr/0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md)).
 - **A windowed run that panics is checked under Wayland alone** ([ADR-0298](adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)).
   `slime-app`'s windowed driver catches a panic in each call that the event loop makes of it (`crates/slime-app/src/windowed.rs`); `windowed_lifecycle.rs` checks it in a headless Weston.
   On Windows, while the user resizes or moves the window, the loop does not ask the driver whether to end until the user lets go: a panic then leaves the window on screen, undrawn, until that moment, which nobody has seen.

@@ -15,3 +15,7 @@ workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+# The JSON Schema of the messages, which the families' test describes (ADR-0308).
+schemars.workspace = true

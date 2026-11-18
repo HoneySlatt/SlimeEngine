@@ -60,6 +60,10 @@ png = "0.18.1"
 # uwui's core for agents and of the development channel (ADR-0246).
 base64 = "0.23"
 rmcp = { version = "3.9.0", default-features = false, features = ["server", "macros", "transport-io"] }
+# The JSON Schema of the messages of uwui's core for agents and of the development channel, which
+# their tests read to hold each family to its version (ADR-0308); a development dependency alone.
+# Already built for rmcp, at its version.
+schemars = "1.2.3"
 serde = { version = "1.0.229", features = ["derive"] }
 tokio = { version = "1.53.2", features = ["macros", "rt"] }
 # The MCP server's tests, which speak JSON-RPC to it, the editor, which reads cargo's messages

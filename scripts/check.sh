@@ -189,6 +189,40 @@ if runs lint; then
         exit 1
     fi
 
+    step "No kept copy of a family's version changed (ADR-0308)"
+    # A family's kept copy, `families/<family>.<version>.txt`, holds what its version held when it
+    # was raised: each one tracked, in the working tree, must hold what it held in the commit that
+    # first added it at its path. A slip reverted passes, as does a crate that moves; a kept copy
+    # removed is not checked here, but its family's test fails while its version's is missing. The
+    # history is read, so a shallow clone, which lacks it, is refused: CI's lint job fetches it whole.
+    if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+        echo "a shallow clone holds too little history to check the kept copies: fetch it whole"
+        exit 1
+    fi
+    # Read first, so that a failure of git stops the check rather than passing it.
+    kept_copies=$(git ls-files -- ':(glob)crates/*/families/*.[0-9]*.txt')
+    changed=()
+    while IFS= read -r kept_copy; do
+        [ -n "$kept_copy" ] || continue
+        added=$(git log --diff-filter=A --no-renames --reverse --format=%H -- "$kept_copy")
+        added=${added%%$'\n'*}
+        # A kept copy added in the working tree alone has nothing to be compared with.
+        [ -n "$added" ] || continue
+        status=0
+        git diff --quiet "$added" -- "$kept_copy" || status=$?
+        case $status in
+            0) ;;
+            1) changed+=("$kept_copy, added by $added") ;;
+            *) exit "$status" ;;
+        esac
+    done <<< "$kept_copies"
+    if [ "${#changed[@]}" -gt 0 ]; then
+        printf '%s\n' "${changed[@]}"
+        echo "the kept copies above changed since they were added: a version's kept copy is never"
+        echo "edited; restore it, and raise the family's version, whose test writes a new one"
+        exit 1
+    fi
+
     step "Nothing in the workspace builds wgpu's GL backend, which uwui-render's gles feature alone turns on (ADR-0247)"
     # glow, the GL bindings that the backend alone brings, stands for it in the tree.
     workspace_dependencies=$(cargo tree --locked --workspace -e normal,build,dev --target all \

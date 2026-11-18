@@ -34,10 +34,29 @@ pub const SUBSCRIBE: &str = "subscribe";
 /// not subscribed is ignored.
 pub const UNSUBSCRIBE: &str = "unsubscribe";
 
+/// The parameters of a [`CANCEL`]: the request given up, by its number.
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub(crate) struct Cancel {
+    /// The request's number.
+    id: u64,
+}
+
+/// The parameters of a [`SUBSCRIBE`] or an [`UNSUBSCRIBE`]: the events, each `family/name`. The
+/// program reads them by hand, to say what is wrong with each name
+/// ([`ProgramSession::events_named`]).
+#[derive(Serialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub(crate) struct Subscription<'a> {
+    /// The events.
+    events: &'a [&'a str],
+}
+
 /// How many requests a connection may have in flight, sent and not yet answered, and how many
 /// bytes of their lines: the program states it in its welcome, the tool waits for an answer
 /// rather than pass it, and the program answers a request past it with [`Fault::BUSY`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct InFlight {
     /// The most requests.
     pub requests: usize,
@@ -57,6 +76,7 @@ impl InFlight {
 
 /// Who or what, as it says it is: a name and a version, which nothing proves.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct Named {
     /// Its name, `claude-code`.
     pub name: String,
@@ -87,10 +107,13 @@ impl fmt::Display for Named {
 /// A family of requests and events, `play`, and the version of it that an end speaks: a program
 /// serves each family at one version, and a tool asks for each at one.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct Family {
     /// Its name, which its methods begin with: `play` for `play/pause`.
     pub name: String,
-    /// Its version, raised at each change of its messages that an older end would misread.
+    /// Its version, raised at each change of its messages that an older end would misread: one
+    /// that removes or changes a field, or adds one to a request, which its description's test
+    /// tells ([`description`](crate::description)).
     pub version: u32,
 }
 
@@ -108,6 +131,7 @@ impl Family {
 /// that carries it, the secret that the carrier asks for, the families that it speaks, and how
 /// large a message it reads. Its `Debug` form hides the secret.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct Hello {
     /// [`CORE_VERSION`] of the tool.
     pub core: u32,
@@ -139,6 +163,7 @@ impl fmt::Debug for Hello {
 
 /// The program's answer to a hello it accepts.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct Welcome {
     /// [`CORE_VERSION`] of the program.
     pub core: u32,
@@ -159,6 +184,7 @@ pub struct Welcome {
 
 /// A family that the tool asked for and the program does not serve.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct Refusal {
     /// The family, as the tool asked for it.
     pub family: Family,
@@ -335,9 +361,11 @@ impl ProgramSession {
             Message::Event { method, params } if method == CANCEL => {
                 // A cancel that does not read, or names no request in flight, is ignored: it may
                 // have crossed its request's answer.
-                return Ok(params
-                    .get("id")
-                    .and_then(Value::as_u64)
+                // An object alone, as before its type: `serde` would read `[12]` as `{"id": 12}`.
+                return Ok(Some(params)
+                    .filter(Value::is_object)
+                    .and_then(|params| serde_json::from_value::<Cancel>(params).ok())
+                    .map(|cancel| cancel.id)
                     .filter(|id| self.flying.contains_key(id))
                     .map_or(FromTool::Ignored, |id| FromTool::Cancel { id }));
             }
@@ -826,7 +854,9 @@ impl ToolSession {
         if events.is_empty() {
             return Err(AgentError::NotDeclared(String::new()));
         }
-        self.in_flight(method, serde_json::json!({ "events": events }))
+        let params =
+            serde_json::to_value(Subscription { events }).map_err(AgentError::unwritable)?;
+        self.in_flight(method, params)
     }
 
     /// The request `method` with `params`, numbered and counted in flight, within the bounds that
@@ -889,7 +919,7 @@ impl ToolSession {
         encode(
             &Message::Event {
                 method: CANCEL.to_owned(),
-                params: serde_json::json!({ "id": id }),
+                params: serde_json::to_value(Cancel { id }).map_err(AgentError::unwritable)?,
             },
             0,
         )
@@ -1378,6 +1408,21 @@ mod tests {
         let (mut tool, mut program, _) = opened(InFlight::DEFAULT);
         let (id, sent) = tool.request("play/state", Value::Null).expect("in flight");
         program.receive(frame(&sent), the_secret).expect("read");
+        // Parameters that are no object do not read, even an array that holds the number.
+        for params in [json!([id]), json!(id), Value::Null] {
+            let unreadable = encode(
+                &Message::Event {
+                    method: CANCEL.to_owned(),
+                    params,
+                },
+                0,
+            )
+            .expect("written");
+            assert!(matches!(
+                program.receive(frame(&unreadable), the_secret),
+                Ok(FromTool::Ignored)
+            ));
+        }
         let cancel = tool.cancel(id).expect("written").expect("in flight");
         assert!(matches!(
             program.receive(frame(&cancel), the_secret),

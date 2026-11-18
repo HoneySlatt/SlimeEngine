@@ -3115,6 +3115,7 @@ name = "slime-channel"
 version = "0.6.0"
 dependencies = [
  "getrandom 0.4.3",
+ "schemars",
  "serde",
  "thiserror 2.0.21",
  "tracing",
@@ -3805,6 +3806,7 @@ dependencies = [
 name = "uwui-agent"
 version = "0.6.0"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.21",

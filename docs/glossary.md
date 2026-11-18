@@ -343,6 +343,11 @@ a *shadow map* is read. Depths are reversed (*reversed depth*).
 *depth target*, with pipelines that have no fragment stage (`Gpu::render_depth`): how a *shadow
 map* is drawn.
 
+**Description (family).** A *family*'s messages, and those of the *core for agents*, in a file kept
+with their code, `families/interface.txt`: one line for each message, value and field, read from
+their types' JSON Schema, prose dropped. Its test fails while it does not show the messages as they
+are (`uwui_agent::description`, [ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)).
+
 **Development channel.** The link between a running game and the tools that drive it: the *MCP*
 server, tests, and from Stage 6c the editor. It speaks uwui's *core for agents*, the engine's
 *families* on it. A game started with a *token* in its environment listens on the machine's own
@@ -840,6 +845,10 @@ history, and a test or an agent replays an editing session
 The *editor's program* keeps one per level's file, and recovers by itself, as it starts, a journal
 that holds steps that the level's file does not, which a crash or a stop without writing leaves
 ([ADR-0135](adr/0135-the-editors-program.md)).
+
+**Kept copy (family).** A *family*'s *description* as it stood when its version was raised,
+`families/interface.3.txt`, never edited after: what its test holds the family to until the version
+is raised again (`uwui_agent::description`, [ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)).
 
 **Kept signal.** In uwui, a *signal* named by its author in its scope, whose value a reload keeps:
 written through `serde` by its scope's path and its name, then read into its type as the new code

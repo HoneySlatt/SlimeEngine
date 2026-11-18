@@ -1,0 +1,128 @@
+# The messages of the family `editing`, version 2: one line for each message, value and field,
+# read from their types (`uwui_agent::description`). Written by the family's test with UWUI_DESCRIBE=write.
+reply done
+reply done . object
+reply entities
+reply entities . object
+reply entities entities array
+reply entities entities[] object
+reply entities entities[].cut array optional
+reply entities entities[].cut[] string
+reply entities entities[].identity string
+reply entities entities[].name string
+reply entities next string|null optional
+reply entity
+reply entity . object
+reply entity components array
+reply entity components[] object
+reply entity components[].name string
+reply entity components[].value string
+reply entity entity object
+reply entity entity.cut array optional
+reply entity entity.cut[] string
+reply entity entity.identity string
+reply entity entity.name string
+reply entity parent string
+reply history
+reply history . object
+reply history history object
+reply history history.done array
+reply history history.done[] string
+reply history history.journal string
+reply history history.level string
+reply history history.recovered integer format="uint64" minimum=0
+reply history history.selection array
+reply history history.selection[] string
+reply history history.undone array
+reply history history.undone[] string
+reply history history.unwritten integer format="uint64" minimum=0
+reply image
+reply image . object
+reply image height integer format="uint32" minimum=0
+reply image width integer format="uint32" minimum=0
+reply journal
+reply journal . object
+reply journal lossy boolean optional
+reply journal next string|null optional
+reply journal text string
+reply logs
+reply logs . object
+reply logs lines array
+reply logs lines[] object
+reply logs lines[].cut boolean optional
+reply logs lines[].number integer format="uint64" minimum=0
+reply logs lines[].text string
+reply logs partial boolean optional
+reply operations
+reply operations . object
+reply operations operations array
+reply operations operations[] object
+reply operations operations[].changes string
+reply operations operations[].label string
+reply operations operations[].name string
+reply operations operations[].parameters array
+reply operations operations[].parameters[] string
+reply picked
+reply picked . object
+reply picked entity object
+reply picked entity.cut array optional
+reply picked entity.cut[] string
+reply picked entity.identity string
+reply picked entity.name string
+reply picked found boolean
+reply played
+reply played . object
+reply played address string
+reply played token string
+reply report
+reply report . object
+reply report text string
+reply state
+reply state . object
+reply state state object
+reply state state.entities integer format="uint64" minimum=0
+reply state state.frame integer format="uint64" minimum=0
+reply state state.frame_ms number format="double"
+reply state state.game_seconds number format="double"
+reply state state.held boolean
+reply state state.longest_frame_ms number format="double"
+reply state state.paused boolean
+reply state state.real_seconds number format="double"
+reply state state.reports array
+reply state state.reports[] string
+reply state state.speed number format="double"
+reply state state.steps integer format="uint64" minimum=0
+reply state state.views array
+reply state state.views[] object
+reply state state.views[].name string
+reply state state.views[].settings string
+reply written
+reply written . object
+reply written left_out array
+reply written left_out[] string
+request editing/history
+request editing/journal
+request editing/journal . object
+request editing/journal bytes integer|null format="uint64" minimum=0 optional
+request editing/journal cursor string|null optional
+request editing/operations
+request editing/played
+request editing/redo
+request editing/run
+request editing/run . object
+request editing/run arguments array
+request editing/run arguments[] string
+request editing/run name string
+request editing/select
+request editing/select . object
+request editing/select selection array
+request editing/select selection[] string
+request editing/step
+request editing/step . object
+request editing/step commands array
+request editing/step commands[] string
+request editing/step label string
+request editing/step selection array|null optional
+request editing/step selection[] string
+request editing/undo
+request editing/write

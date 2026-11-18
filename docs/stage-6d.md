@@ -3229,6 +3229,8 @@ The first part of M6d.9a2c, started on 2026-11-18, designed in [ADR-0308](adr/03
   types through `schemars`; each family's description and a kept copy of its current version; the
   test, and the command that writes the descriptions again; `cancel` and `subscribe` typed, read as
   before; the check that refuses a change to a kept copy. No version raised, no behaviour changed.
+- **Debt settled.** No family's messages described, nothing holding a family to its version
+  ([`debt.md`](debt.md)).
 - **Done when.** Each family's test fails on a copy whose message changes without its description,
   and on one whose request gains a field, or whose field is removed with its description written
   again, without its version raised; a field added to a reply, or a comment reworded, passes; CI

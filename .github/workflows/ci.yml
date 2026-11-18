@@ -47,7 +47,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
+      # The lint job reads the whole history, to check that each kept copy of a family's version
+      # holds what it held when it was added (ADR-0308); the others need the commit alone.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: ${{ matrix.part == 'lint' && '0' || '1' }}
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
       # The sample game's zone, which scripts/fetch-assets.sh fetches from its mirror for the checks
       # to cook, kept from one run to the next while its list is unchanged; the metadata files come

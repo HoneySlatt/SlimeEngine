@@ -3,6 +3,7 @@
 // it is not marked (ADR-0282).
 #![warn(clippy::exhaustive_enums)]
 
+pub mod description;
 mod error;
 pub mod interface;
 mod message;
@@ -22,8 +23,12 @@ pub use typed::{call, json_size, read, read_call, write};
 
 /// The version of the core: its session and its messages' envelope. A family's own messages have
 /// their own versions ([`Family`]). A tool and a program of other versions of the core refuse each
-/// other at the hello, rather than misread each other.
+/// other at the hello, rather than misread each other. Its messages' description holds it to its
+/// version, as a family's ([`description`]).
 pub const CORE_VERSION: u32 = 2;
+
+#[cfg(test)]
+mod described_tests;
 
 /// Which types may cross threads: checked when the tests are compiled.
 #[cfg(test)]

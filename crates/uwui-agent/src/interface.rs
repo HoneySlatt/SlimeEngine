@@ -24,6 +24,7 @@ pub const EVENTS: &[&str] = &[];
 /// its method, `interface/elements`. A request on a program that has no interface, as one that
 /// runs without a window, is refused.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(tag = "method", content = "params")]
 #[non_exhaustive]
 pub enum Request {
@@ -97,6 +98,7 @@ pub enum Request {
 
 /// What a program answers to a [`Request`] of the family, but a refusal, which is a fault.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(tag = "reply", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Reply {
@@ -129,6 +131,7 @@ pub enum Reply {
 
 /// What a tool does in an interface ([`Request::Act`]), as a person's input would.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Action {
@@ -187,6 +190,7 @@ pub enum Action {
 /// An element of an interface, as a list of elements names it. Each of its texts is cut where it
 /// is longer than a page holds, and `cut` names it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct ElementSummary {
     /// Its path, which names it from one frame to the next: `main/bar/open`. A path cut names no
     /// element.
@@ -220,6 +224,7 @@ pub struct ElementSummary {
 
 /// A call that wrote part of an element's own style, and what it wrote ([`Reply::Style`]).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct StylePlace {
     /// The file, as the compiler gave it: from the workspace's root for its members, `src/app.rs`,
     /// absolute for other crates, with `\` or `/` on Windows.
@@ -235,6 +240,7 @@ pub struct StylePlace {
 /// A declaration of an element's own style, as [`StylePlace`] lists it: what it sets, not to
 /// what.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct StyleDeclaration {
     /// The field that it sets, as a style sheet writes it: `layout.padding.start`,
     /// `paint.background`.

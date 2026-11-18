@@ -19,6 +19,7 @@ use crate::error::ChannelError;
 /// (`slime_serialize::format`), which the game reads with the types it knows. Keys are named by
 /// their position on the keyboard, as `slime_platform::KeyCode` names them: `KeyW`, `Escape`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(tag = "method", content = "params")]
 pub enum Request {
     /// The game's state: [`Reply::State`].
@@ -207,6 +208,7 @@ pub enum Request {
 /// identities; commands are given as text, each a document of the engine's notation that
 /// `slime_world::Command::write` writes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(tag = "method", content = "params")]
 pub enum Edit {
     /// Makes a step of `commands`, whole or not at all, named `label`, and selects `selection`
@@ -289,6 +291,7 @@ pub enum Edit {
 /// [`Reply::Interface`], which crosses as the reply of the interface's family that it holds:
 /// serializing it alone fails, and reading never gives it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(tag = "reply", rename_all = "snake_case")]
 pub enum Reply {
     /// The request is done.
@@ -296,6 +299,7 @@ pub enum Reply {
     /// The request failed: why. The connection stays open. On the wire, an error of the core's,
     /// of its code: [`Fault::REFUSED`] when the game refused it, [`Fault::STALE`] for a cursor
     /// that no longer holds, and the others as the core and the families give them.
+    #[cfg_attr(test, schemars(skip))]
     Failed {
         /// What kind of failure, as [`Fault::code`].
         code: i64,
@@ -403,6 +407,7 @@ pub enum Reply {
 
 /// An operation of an editor, as [`Reply::Operations`] lists it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct OperationSummary {
     /// The name that runs it: `file.save`.
     pub name: String,
@@ -420,6 +425,7 @@ pub struct OperationSummary {
 
 /// An editor's level, history and selection, as [`Reply::History`] gives them.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct EditorHistory {
     /// The level's file, a path on the editor's machine.
     pub level: String,
@@ -441,6 +447,7 @@ pub struct EditorHistory {
 
 /// A game's state, as a frame's start finds it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct GameState {
     /// The frames run so far.
     pub frame: u64,
@@ -475,6 +482,7 @@ pub struct GameState {
 
 /// A view that a frame drew, as a game's state lists it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct ViewSummary {
     /// Its name, `map`.
     pub name: String,
@@ -488,6 +496,7 @@ pub struct ViewSummary {
 /// each of its texts is cut where it is longer than a page holds, and `cut` names it; elsewhere it
 /// is whole.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct EntitySummary {
     /// Its persistent identity; empty for an entity that has none. An identity cut names no
     /// entity.
@@ -501,6 +510,7 @@ pub struct EntitySummary {
 
 /// A component of an entity, as text.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct ComponentText {
     /// Its type's name.
     pub name: String,
@@ -510,6 +520,7 @@ pub struct ComponentText {
 
 /// A line of a game's log.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct LogLine {
     /// Its number, from 1 at the game's start, one more for each line.
     pub number: u64,
@@ -527,6 +538,7 @@ pub struct LogLine {
 /// Each is named on the wire by its method, `play/time`, which its family declares
 /// ([`FAMILIES`](crate::FAMILIES)).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(tag = "method", content = "params")]
 pub enum Event {
     /// How game time stands.
@@ -536,6 +548,7 @@ pub enum Event {
 
 /// How game time stands, as [`Event::Time`] tells it: three values that change seldom.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct GameTime {
     /// Whether game time is paused.
     pub paused: bool,

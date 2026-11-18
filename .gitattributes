@@ -34,3 +34,6 @@ crates/slime-editor/tests/reference/layouts/* text eol=lf
 # The editor's journals of earlier versions, kept as fixtures as it wrote them, LF endings included.
 crates/slime-editor/tests/reference/journals/* text eol=lf
 crates/uwui-kdl/tests/kdl-suite/** -text
+# The families' descriptions and their kept copies, which their tests compare byte for byte
+# (docs/adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md).
+crates/*/families/*.txt text eol=lf

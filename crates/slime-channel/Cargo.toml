@@ -19,3 +19,7 @@ thiserror.workspace = true
 tracing.workspace = true
 # The session of uwui's core for agents, which the channel carries (ADR-0246).
 uwui-agent.workspace = true
+
+[dev-dependencies]
+# The JSON Schema of the engine's families' messages, which their test describes (ADR-0308).
+schemars.workspace = true

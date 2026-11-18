@@ -18,6 +18,8 @@ and events by subscription
 M6d.9a1b3a: the interface's family
 ([ADR-0259](../../docs/adr/0259-the-interfaces-family-in-uwui-agent-answered-by-uwui-an-elements-style-by-its-own-request.md));
 M6d.9a1b3b1: long lists read by pages ([ADR-0260](../../docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
+M6d.9a2c1: each family described, and held to its version
+([ADR-0308](../../docs/adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)).
 Attaching to a program already running,
 consent, rights and previews come with M6d.9a's later parts
 ([`stage-6d.md`](../../docs/stage-6d.md#m6d9a--one-core-for-agents-and-its-mcp-server)).
@@ -86,6 +88,11 @@ consent, rights and previews come with M6d.9a's later parts
   uwui. `uwui` answers them with its feature `agents`; a host carries them, as `slime-channel`
   does. The module stands apart from the core, so that it can become a crate of its own without a
   change of the wire.
+- Each family's messages, and the core's own, are described in `families/`, one line for each
+  value and field, and held to their versions by a test: `description`'s rustdoc gives the rule,
+  and [`CONTRIBUTING.md`](../../CONTRIBUTING.md#making-a-change) what a change of them does. The
+  module serves the families' tests, here and in a carrier's; it reads and writes files only as
+  one calls it.
 
 ## Entry points
 
@@ -144,7 +151,10 @@ The rustdoc holds each item's contract: the codes of a `Fault`, the limits, the 
 
 - `serde` and `serde_json`: the messages, JSON-RPC 2.0, the format that MCP, the web and Android
   carry as they are (ADR-0246).
-- `thiserror`: derives `AgentError`'s `Display` and `Error` implementations (ADR-0282).
+- `thiserror`: derives `AgentError`'s and `DescriptionError`'s `Display` and `Error`
+  implementations (ADR-0282).
+- `schemars`, for the tests alone: the JSON Schema of the messages, which `description` reads
+  (ADR-0308).
 
 ## Must not
 
