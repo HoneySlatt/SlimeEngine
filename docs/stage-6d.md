@@ -2589,8 +2589,9 @@ The third part of M6d.7a2b ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platfor
     followed by `stop`, a report written for a panic that the application caught, the marker not
     writable on Windows through a second handle, thirteen smaller defects and ten details; each
     fixed but one detail, the frames of the hook at the backtrace's head; the report's writing
-    moved out of the hook, the start's and stop's panics put under a test. Whether a termination
-    signal after an application kept its window should ask it again is left to the owner.
+    moved out of the hook, the start's and stop's panics put under a test. A second termination
+    signal after an application kept its window still ends it at once, rather than asking it
+    again: the owner kept ADR-0306's rule on 2026-11-18, so that insisting always ends a run.
   - A start costs 0.07 ms, a clean end 0.56 ms; the seven `rest` tests take 32 s in Weston; every
     job of CI within its 20 minutes, a panic's report and marker checked on Windows by the unit
     tests
