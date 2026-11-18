@@ -4573,3 +4573,25 @@ the milestone. Its new key cooked *Hunna Wood*'s zone again in `check (game)`, `
 Every job stays within its limit of 20 minutes; `compositors (x11)`, the longest, has 3 min 42 s of
 margin. On Windows, `slime-files`' tests open and sync a directory, and eight threads that write
 one file at once each write it whole.
+
+## S1b, the editor's journal
+
+How long CI's jobs took, on GitHub's hosted runners, on 2026-11-18, on `55bda8e7`, which holds the
+milestone. The compositors' jobs did not run: no file that they watch changed.
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 52 s |
+| `check (headless)` | 14 min 46 s |
+| `check (windowed)` | 10 min 11 s |
+| `check (game)` | 9 min 28 s |
+| `check (gles)` | 3 min 15 s |
+| `windows (tests)` | 16 min 24 s |
+| `windows (render)` | 5 min 56 s |
+| `windows (game)` | 5 min 4 s |
+| `windows-release` | 16 min 34 s |
+
+Every job stays within its limit of 20 minutes; `windows-release`, the longest, has 3 min 26 s of
+margin. `windows (tests)` took 5 min 21 s more than at S1a, though the change adds
+a few tests of the editor alone; its cause is not looked into, and the next milestones' runs tell
+whether it holds.
