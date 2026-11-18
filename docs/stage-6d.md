@@ -3211,6 +3211,34 @@ Not a milestone of uwui's: the engine's saves, on track A after V1
 - **Done when.** `scripts/check.sh` passes; no file of a user's is written but through
   `slime-files`; its tests write a file whole, leave nothing beside it after an error, and tell
   `HeldFile`'s errors apart.
+- **Result.** Done on 2026-11-18:
+  - `slime-files`, on the standard library alone: `write`, `HeldFile` and `HoldError`,
+    `set_aside`, `data_directory` and `state_directory`; `slime-app` holds none of them now.
+  - `write` syncs the file's directory after its rename, on Linux as POSIX asks, on Windows through
+    a handle of the directory open for writing; its rustdoc says what each system promises.
+    `WriteError` tells a file not written from one written whose directory could not be synced:
+    the editor and *Hunna Wood* take the second as written and log it, the cooker refuses it.
+  - The cooker, the editor and *Hunna Wood* write through it; the two copies of the writer and the
+    editor's plain write of its keys are gone. A new journal's first entry is written whole; its
+    later entries are appended, as a log is.
+  - Directories are made one way, each synced into the one that holds it, by `write` and by
+    `HeldFile::hold` alike.
+  - Precision of [ADR-0282](adr/0282-errors-logging-assertions-uwuis-public-enumerations-open-to-new-cases.md),
+    the owner's choice of 2026-11-18: `slime-files` writes its errors' `Display` and `Error` by
+    hand, as `slime-reflect` and `uwui-kdl` do, since it depends on nothing; D1 consolidates it
+    into the rule on errors.
+  - `scripts/check.sh` checks with `cargo tree` that the data layer, `slime-files` to
+    `slime-world`, builds without wgpu, winit or uwui; `scripts/cooked-zone-key.sh` alone says what
+    CI's key of the cooked zone holds, the cooker's crates taken from its tree, `slime-tasks` and
+    `slime-files` among them.
+  - The closing review found the editor refusing its own level once a write succeeded but its
+    directory's sync did not, `HeldFile::hold` making directories unsynced, the drift from ADR-0282,
+    a new journal written outside `slime-files`, a debt item measured against the wrong budget, a
+    measure that could not be run again, and smaller points; all settled.
+  - Measured ([`measurements.md`](measurements.md#s1a-safe-files)), under load: the directory's
+    sync adds about 2.3 ms to a write; to measure again at rest.
+  - Left for later ([`debt.md`](debt.md)): a file written on a frame's thread, a save or the
+    editor's level, its speeds and layout, which the sync makes longer.
 
 ### S1b — The editor's journal
 
