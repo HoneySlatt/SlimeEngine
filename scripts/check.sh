@@ -68,7 +68,10 @@ if runs lint; then
     cargo fmt --all --check
 
     step "Clippy"
-    cargo clippy --workspace --all-targets --locked -- -D warnings
+    # `CARGO_BUILD_WARNINGS=deny` fails on Cargo's own warnings too, as `-D warnings` on rustc's and
+    # clippy's: an unused dependency among them, which Cargo reports only when every target that may
+    # use it is built, as `--all-targets` builds them; dev-dependencies it does not check (ADR-0304).
+    CARGO_BUILD_WARNINGS=deny cargo clippy --workspace --all-targets --locked -- -D warnings
     # `--all-targets` leaves out the test targets marked `test = false`, so they are named here, in a
     # separate command: cargo ignores `--test` when `--all-targets` is given.
     cargo clippy --locked -p slime-app --test windowed_lifecycle -- -D warnings
@@ -85,10 +88,10 @@ if runs lint; then
     cargo clippy --locked -p uwui-desktop --test rest -- -D warnings
     # The game built for shipping, without the development channel (ADR-0122): the code that stands in
     # for the channel is compiled only there.
-    cargo clippy --locked -p hunnawood --no-default-features --all-targets -- -D warnings
+    CARGO_BUILD_WARNINGS=deny cargo clippy --locked -p hunnawood --no-default-features --all-targets -- -D warnings
 
     step "Clippy for Windows (compiles the Windows code paths without a Windows machine)"
-    cargo clippy --workspace --all-targets --locked --target x86_64-pc-windows-msvc -- -D warnings
+    CARGO_BUILD_WARNINGS=deny cargo clippy --workspace --all-targets --locked --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-app --test windowed_lifecycle --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test drive --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test views --target x86_64-pc-windows-msvc -- -D warnings
@@ -101,7 +104,7 @@ if runs lint; then
     cargo clippy --locked -p slime-mcp --test answer --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test compositor --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p uwui-desktop --test rest --target x86_64-pc-windows-msvc -- -D warnings
-    cargo clippy --locked -p hunnawood --no-default-features --all-targets --target x86_64-pc-windows-msvc -- -D warnings
+    CARGO_BUILD_WARNINGS=deny cargo clippy --locked -p hunnawood --no-default-features --all-targets --target x86_64-pc-windows-msvc -- -D warnings
 
     step "Rustdoc"
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked

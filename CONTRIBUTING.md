@@ -650,6 +650,9 @@ the allowed licenses; `cargo deny` enforces the license and advisory rules. Reco
 dependency in [`docs/dependencies.md`](docs/dependencies.md) in the same change that adds it, and
 declare its version once, in `[workspace.dependencies]` of the root `Cargo.toml`.
 
+Cargo also warns about a dependency that no target uses; `scripts/check.sh lint` makes that an
+error. It does not check dev-dependencies.
+
 ## Review
 
 A change is reviewed against the definition of done and the rules in `AGENTS.md`, and against
