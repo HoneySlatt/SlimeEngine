@@ -2769,13 +2769,13 @@ The first part of M6d.7b ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-fra
     fullscreen hint without a window manager and with one, its pings, its start's end, its signal
     held while hidden, a present told across a resize, and a Wayland compositor that does not
     answer leaving it to X11.
-  - The closing review found the layer's own fullscreen hint told back as the window manager's,
-    a present lost shifting every later image's time, the layer's choice drifting from this ADR,
-    a cursor's cell printed rather than observed, the startup's id set after the map, a timer's
-    grid that saturates, and smaller defects; each fixed under a test that failed first where one
-    can show it. Its second round found that forgetting the images asked at a resize told a
-    present still in flight for the next image: dropped, a present that never reaches the server
-    left as debt ([`debt.md`](debt.md)).
+  - The closing review, in three rounds, found the layer's own fullscreen hint told back as the
+    window manager's, the layer's choice drifting from this ADR, a cursor's cell printed rather
+    than observed, the startup's id set after the map, a timer's grid that saturates, tests that
+    could not fail, and smaller defects; each fixed under a test that failed first where one can
+    show it. It found too that a present lost shifts every later image's time: forgetting the
+    images asked at a resize told a present still in flight for the next image, and was dropped;
+    the lost present is left as debt ([`debt.md`](debt.md)).
   - Debt left: on X11, no key, cursor, scale nor touch before M6d.7b2; the layer runs under Xvfb
     alone, its window manager's requests, RandR's period and the matching of Present's notices
     checked by hand ([`debt.md`](debt.md)).

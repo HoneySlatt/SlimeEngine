@@ -178,11 +178,12 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
   between screens of two scales, and its scale changed while it runs: laid out again at once,
   sharp; minimized and restored as it was.
 - **An application on uwui's desktop host** (M6d.7a1 to M6d.7b1): `UWUI_TRACE=<file> cargo run
-  -p uwui-desktop --example application` on the owner's desktop: its window and bar, the pointer on its
-  buttons, list and dialog, then rest; closed by its button, then by Ctrl+C; typing
+  -p uwui-desktop --example application` on the owner's desktop: its window and bar, pointer on its
+  buttons, list and dialog, rest; closed by its button, then Ctrl+C; typing
   with the owner's layout: dead keys, Compose, a key held, the I-beam over its field; sharp on
-  displays of two scales; its list scrolled fast, variable refresh on and off, smooth, a few `missed` at most in its trace.
-  Then on Xwayland (`env -u WAYLAND_DISPLAY`): pointer, wheel, rest, `shown` in its trace.
+  displays of two scales; its list scrolled fast, variable refresh on and off, smooth, few `missed` in its trace.
+  On Xwayland (`env -u WAYLAND_DISPLAY`): pointer, wheel, rest; resized mid-scroll, `shown`
+  lagging its frame as before.
 - **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
   left by Alt and Tab, Alt held or mid-drag: no bar in focus, nothing dropped; *Hunna Wood*'s
   button that loses the surface, on Direct3D 12: drawn again.

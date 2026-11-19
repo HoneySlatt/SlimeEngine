@@ -1,10 +1,11 @@
-//! X11's layer under an X server of the test's own, without a window manager, as Xvfb gives:
-//! what another client sees of the window, and what the layer tells its handler. `test = false`:
+//! X11's layer under an X server of the test's own, without a window manager, as Xvfb gives, or
+//! with one played by another client: what another client sees of the window, and what the layer
+//! tells its handler. `test = false`:
 //! it needs the server that `DISPLAY` names, never the person's own, and runs in the series' column
 //! of X11 (`scripts/compositors.sh x11`), with `DESKTOP_STARTUP_ID` set to a start's id that holds
 //! a quote and a backslash, and `WAYLAND_DISPLAY` unset, one test at a time (`--test-threads=1`):
-//! one covers the whole screen. Its last test runs its first again with
-//! `WAYLAND_DISPLAY` naming no compositor.
+//! one covers the whole screen. One test runs another again with `WAYLAND_DISPLAY` naming no
+//! compositor.
 
 #![cfg(target_os = "linux")]
 
@@ -632,29 +633,40 @@ fn a_present_in_flight_across_a_resize_is_not_told_for_the_next_image() {
     eprintln!("asked (image, host ns): {asked:?}");
     eprintln!("told (image, shown host ns): {told:?}");
     eprintln!("the driver saw (kind, serial, msc): {seen:?}");
-    let (second, asked_at) = *host.asked.get(1).expect("an image asked after the resize");
-    for presentation in host
-        .presentations
-        .iter()
-        .filter(|told| told.image == second)
-    {
-        if let Some(shown) = presentation.shown {
-            let after = shown.as_nanos().saturating_sub(asked_at.as_nanos());
+    assert_eq!(
+        host.asked.len(),
+        2,
+        "one image before the resize, one after"
+    );
+    // Each image is told shown, after it was asked; the one after the resize, presented thirty
+    // refreshes ahead, half a second or so later, not at the time of the present before it.
+    for (index, (image, asked_at)) in host.asked.iter().enumerate() {
+        let shown = host
+            .presentations
+            .iter()
+            .find(|presentation| presentation.image == *image)
+            .and_then(|presentation| presentation.shown)
+            .unwrap_or_else(|| panic!("image {image} is never told shown: {told:?}"));
+        let after = shown.as_nanos().saturating_sub(asked_at.as_nanos());
+        assert!(
+            shown > *asked_at,
+            "image {image} is told shown before it was asked: {told:?}"
+        );
+        if index == 1 {
             assert!(
                 after >= 300_000_000,
-                "image {second}, presented thirty refreshes after it was asked, is told shown \
-                 {} ms after: the time of the present before the resize",
+                "image {image}, presented thirty refreshes after it was asked, is told shown {} ms \
+                 after: the time of the present before the resize",
                 after / 1_000_000
             );
         }
     }
 }
 
-/// A window manager of the extended hints, played by another client: it names itself on the root
-/// and on a window of its own, then tells the window that it fills the screen and resizes it. The
-/// handler is told so: the window's state counts once a window manager runs.
-#[test]
-fn a_window_manager_that_fills_the_screen_with_the_window_is_believed() {
+/// What the handler is told of a window that a window manager of the extended hints, played by
+/// another client, manages: it names itself on the root and on a window of its own, then gives the
+/// window the states named `states` and a size of 640 × 480. It leaves before the test ends.
+fn managed(states: &'static [&'static [u8]]) -> Vec<Configured> {
     server_settles();
     let (window_sender, window_receiver) = mpsc::channel::<u32>();
     let manager = std::thread::spawn(move || {
@@ -668,11 +680,8 @@ fn a_window_manager_that_fills_the_screen_with_the_window_is_believed() {
                 .unwrap()
                 .atom
         };
-        let (check, state, fullscreen) = (
-            atom(b"_NET_SUPPORTING_WM_CHECK"),
-            atom(b"_NET_WM_STATE"),
-            atom(b"_NET_WM_STATE_FULLSCREEN"),
-        );
+        let (check, state) = (atom(b"_NET_SUPPORTING_WM_CHECK"), atom(b"_NET_WM_STATE"));
+        let states: Vec<u32> = states.iter().map(|name| atom(name)).collect();
         let own = connection.generate_id().unwrap();
         connection
             .create_window(
@@ -700,13 +709,7 @@ fn a_window_manager_that_fills_the_screen_with_the_window_is_believed() {
             .expect("the window's id");
         std::thread::sleep(Duration::from_millis(300));
         connection
-            .change_property32(
-                PropMode::REPLACE,
-                window,
-                state,
-                AtomEnum::ATOM,
-                &[fullscreen],
-            )
+            .change_property32(PropMode::REPLACE, window, state, AtomEnum::ATOM, &states)
             .unwrap();
         connection
             .configure_window(window, &ConfigureWindowAux::new().width(640).height(480))
@@ -724,13 +727,39 @@ fn a_window_manager_that_fills_the_screen_with_the_window_is_believed() {
     );
     ran.expect("the run");
     manager.join().unwrap();
-    let told = &recorder.told.configured;
+    let told = recorder.told.configured;
     eprintln!("configured, in order: {told:?}");
+    told
+}
+
+/// A window manager that fills the screen with the window: the handler is told so, the window's
+/// state counting once a window manager runs.
+#[test]
+fn a_window_manager_that_fills_the_screen_with_the_window_is_believed() {
+    let told = managed(&[b"_NET_WM_STATE_FULLSCREEN"]);
     assert_eq!(
         told.last(),
         Some(&Configured {
             size: [640, 480],
             fullscreen: true
+        }),
+        "the window manager's state and size: {told:?}"
+    );
+}
+
+/// A window manager that maximizes the window, without filling the screen with it: the handler is
+/// not told that it fills the screen.
+#[test]
+fn a_window_maximized_does_not_fill_the_screen() {
+    let told = managed(&[
+        b"_NET_WM_STATE_MAXIMIZED_VERT",
+        b"_NET_WM_STATE_MAXIMIZED_HORZ",
+    ]);
+    assert_eq!(
+        told.last(),
+        Some(&Configured {
+            size: [640, 480],
+            fullscreen: false
         }),
         "the window manager's state and size: {told:?}"
     );
