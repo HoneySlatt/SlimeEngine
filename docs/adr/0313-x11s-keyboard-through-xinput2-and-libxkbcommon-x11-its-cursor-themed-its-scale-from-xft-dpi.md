@@ -47,22 +47,29 @@ feature with `x11rb`'s `xkb`; then `x11rb`'s `cursor`, which brings `xcursor` 0.
 read again.
 
 **The keyboard.** The keys come through XInput2's `KeyPress` and `KeyRelease` of the master
-keyboards, with the server's times, translated by `xkb.rs`, shared with Wayland's layer. The keymap
-is the server's core keyboard's, read through libxkbcommon-x11 at the start and again at XKB's
-`NewKeyboardNotify` and `MapNotify`. The modifiers and the layout come from XKB's `StateNotify`,
-depressed, latched and locked apart, of those parts alone, not the pointer's buttons, and only
+keyboards, with the server's times, translated by `xkb.rs`, shared with Wayland's layer, each in its
+own event's state: the modifiers and the layout, depressed, latched and locked, that XInput2 gives
+with the key. The keymap is the server's core keyboard's, read through libxkbcommon-x11 at the start
+and again at XKB's `NewKeyboardNotify` and `MapNotify`. The modifiers told the host come from XKB's
+`StateNotify`, of the modifiers' and the layout's parts alone, not the pointer's buttons, and only
 while the window holds the focus: as it takes it, the layer asks for the notices and reads XKB's
 state once, and tells the modifiers if they changed meanwhile, as Wayland's compositors do; as it
-loses it, the notices stop. The repeat is the server's: XInput2's `KeyRepeat` marks it, and the
-layer keeps no timer of its own. The window holds the focus when the server's focus is the window
-itself, or lies above it, following the pointer (`PointerRoot`) or on an ancestor, such as the
-root window, and the pointer lies over it. At each of XInput2's `FocusIn` and `FocusOut`, the layer
-reads where the server's focus now is (`GetInputFocus`, then the window's ancestors through
-`QueryTree`) rather than reading it from the events' details: the server sends each move as an
-event out then an event in, and the details mislead between the two. `Enter`'s `focus` and `Leave`
-follow the pointer. As the window loses the focus, the modifiers held are told released, on
-Wayland too, whose protocol asks a client to take every key as lifted. `WM_HINTS` asks the window
-manager for the focus, ICCCM's passive model.
+loses it, the notices stop and the modifiers are told released, on Wayland too, whose protocol asks
+a client to take every key as lifted. The repeat is the server's: XInput2's `KeyRepeat` marks it,
+and the layer keeps no timer of its own.
+
+**The focus.** The window holds it when the server's focus is the window itself, or lies above it,
+following the pointer (`PointerRoot`) or on an ancestor, such as the root window, and the pointer
+lies over it. At each of the core protocol's `FocusIn` and `FocusOut`, which the server sends where
+XInput2 sends none, as for a move to an ancestor, the layer reads where the server's focus now is
+(`GetInputFocus`, then the window's ancestors through `QueryTree`), rather than reading it from the
+events' details, which mislead between an event out and an event in. Another client's grab of the
+keyboard, a `FocusOut` of the mode `Grab`, takes the focus until its `FocusIn` of the mode `Ungrab`,
+though the server's focus stays: a menu, a screen locker, a window manager's Alt and Tab. A key that
+reaches the window gives it the focus until the next event of the focus, since the server sends
+keys only to the window that holds them, whatever an event read late said. XInput2's `Enter` and
+`Leave` follow the pointer, those of another client's grab of the pointer aside. `WM_HINTS` asks the
+window manager for the focus, ICCCM's passive model.
 
 **The loop turns only for what tells the host something.** Events that tell it nothing, as a
 keyboard that the server's core keyboard now follows, or a window manager's ping, are read and
@@ -96,8 +103,12 @@ with the variable set, and checks that it passed there; the series' X11 test is 
 - **The keys through core events, detectable repeats asked of XKB:** a second path of events beside
   XInput2's, whose times and devices the pointer already reads; a per-client flag where XInput2's
   mark is in each event.
-- **The modifiers from each XInput2 event's own state:** no notice when they change outside a key
-  of the window, as Caps Lock locked elsewhere; XKB's `StateNotify` comes in the same order.
+- **The modifiers told from each XInput2 key's own state alone:** no notice when they change without
+  a key of the window, as Caps Lock locked by another device; the keys are translated in their own
+  state, and the modifiers told come from XKB's `StateNotify`.
+- **The focus read from the events' details, XInput2's alone:** the closing review found it told
+  lost as the server's focus moved through `PointerRoot`, and never told for a move to an ancestor,
+  which XInput2 does not send.
 - **A keymap compiled again from the rules' names that the server announces, or the core keymap
   alone:** both wrong where the person changed the keymap with `xmodmap` or `xkbcomp`, and the
   second without XKB's layouts and levels. Put to the owner, who chose libxkbcommon-x11.
@@ -127,6 +138,10 @@ with the variable set, and checks that it passed there; the series' X11 test is 
   files" are settled.
 - `crates/uwui-windowing` gains `x11/keyboard.rs`, `x11/cursor.rs`, `x11/touch.rs` and the core's
   `fingers.rs`; [`dependencies.md`](../dependencies.md) records the features and `xcursor`.
+- Each event of the focus costs a round trip to the server, and one more for each ancestor walked
+  through, two under a window manager's frame; on gaining the focus, XKB's state and the X
+  resources are read too. Negligible on the machine's own server; a round trip each over a
+  network, not measured.
 - At rest, the layer's thread wakes for no input elsewhere on the screen: a click, the wheel or a
   modifier over another window. It wakes, without a turn of the host, when the server's core
   keyboard follows another device, as XTest's or a second keyboard's, and reads the keymap again.

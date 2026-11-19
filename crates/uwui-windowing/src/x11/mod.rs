@@ -247,7 +247,10 @@ impl Platform {
                         EventMask::STRUCTURE_NOTIFY
                             | EventMask::PROPERTY_CHANGE
                             | EventMask::VISIBILITY_CHANGE
-                            | EventMask::EXPOSURE,
+                            | EventMask::EXPOSURE
+                            // The keyboard's focus, which the server tells this way where
+                            // XInput2 tells nothing, as for a move to an ancestor.
+                            | EventMask::FOCUS_CHANGE,
                     ),
             )
             .map_err(|cause| Error::new("the window", cause))?;
@@ -417,9 +420,7 @@ impl Platform {
             | xinput::XIEventMask::LEAVE
             | xinput::XIEventMask::DEVICE_CHANGED
             | xinput::XIEventMask::KEY_PRESS
-            | xinput::XIEventMask::KEY_RELEASE
-            | xinput::XIEventMask::FOCUS_IN
-            | xinput::XIEventMask::FOCUS_OUT;
+            | xinput::XIEventMask::KEY_RELEASE;
         if version.is_some_and(|version| version >= (2, 2)) {
             mask |= xinput::XIEventMask::TOUCH_BEGIN
                 | xinput::XIEventMask::TOUCH_UPDATE
@@ -602,15 +603,21 @@ impl Platform {
                         .inputs
                         .push((EventTime::received(received), input));
                 }
-                self.focus(keyboard::Focus::Entered { focus: enter.focus }, received);
+                // Another client's grab of the pointer moves neither the pointer's place for
+                // the keys nor their focus.
+                if !grab_crossing(enter.mode) {
+                    self.focus(keyboard::Focus::Entered { focus: enter.focus }, received);
+                }
             }
-            Event::XinputLeave(_) => {
+            Event::XinputLeave(leave) => {
                 for input in self.pointers.input(pointer::Event::Left, false) {
                     self.gathered
                         .inputs
                         .push((EventTime::received(received), input));
                 }
-                self.focus(keyboard::Focus::Left, received);
+                if !grab_crossing(leave.mode) {
+                    self.focus(keyboard::Focus::Left, received);
+                }
             }
             Event::XinputDeviceChanged(changed) => {
                 self.pointers.classes(changed.deviceid, &changed.classes);
@@ -618,18 +625,22 @@ impl Platform {
             Event::XinputKeyPress(press) => {
                 self.last_press = press.time;
                 let repeat = press.flags.contains(xinput::KeyEventFlags::KEY_REPEAT);
-                let input = self.keys.key(press.detail, ButtonState::Pressed, repeat);
-                self.push_timed(press.time, received, input);
+                self.key(&press, ButtonState::Pressed, repeat, received);
             }
             Event::XinputKeyRelease(release) => {
-                let input = self.keys.key(release.detail, ButtonState::Released, false);
-                self.push_timed(release.time, received, input);
+                self.key(&release, ButtonState::Released, false, received);
             }
-            Event::XinputFocusIn(focus) | Event::XinputFocusOut(focus)
-                if focus.event == self.window =>
-            {
-                self.server_focus(received);
-            }
+            Event::FocusIn(focus) if focus.event == self.window => match focus.mode {
+                xproto::NotifyMode::NORMAL | xproto::NotifyMode::UNGRAB => {
+                    self.server_focus(received);
+                }
+                _ => {}
+            },
+            Event::FocusOut(focus) if focus.event == self.window => match focus.mode {
+                xproto::NotifyMode::NORMAL => self.server_focus(received),
+                xproto::NotifyMode::GRAB => self.focus(keyboard::Focus::Grabbed, received),
+                _ => {}
+            },
             Event::XkbStateNotify(state) if self.keys.follows(state.device_id) => {
                 let (modifiers, layouts) = keyboard::state_of(&state);
                 let input = self.keys.state(modifiers, layouts);
@@ -770,8 +781,28 @@ impl Platform {
         }
     }
 
+    /// The key of `event` going down or up, received at `received`: the focus given, if it was not,
+    /// since the server sent the window its key; the key translated in its own event's state.
+    fn key(
+        &mut self,
+        event: &xinput::KeyPressEvent,
+        state: ButtonState,
+        repeat: bool,
+        received: Instant,
+    ) {
+        if !self.keys.focused() {
+            self.focus(keyboard::Focus::Key, received);
+        }
+        let (modifiers, layouts) = keyboard::key_state(&event.mods, &event.group);
+        let held = self.keys.state(modifiers, layouts);
+        self.push_received(received, held);
+        let input = self.keys.key(event.detail, state, repeat);
+        self.push_timed(event.time, received, input);
+    }
+
     /// What `event`, received at `received`, makes of the keyboard's focus; XKB's state followed
-    /// as the window takes it or loses it, and the X resources read again as it takes it.
+    /// as the window takes it or loses it, the X resources read again as it takes it, and the
+    /// modifiers told released as it loses it.
     fn focus(&mut self, event: keyboard::Focus, received: Instant) {
         let before = self.keys.focused();
         let told = self.keys.focus(event);
@@ -1163,6 +1194,18 @@ fn focus_place(
         _ => (false, false),
     };
     keyboard::Focus::Server { window, above }
+}
+
+/// Whether a crossing of the window's border comes from another client's grab of the pointer, or
+/// its end, rather than from the pointer's move.
+fn grab_crossing(mode: xinput::NotifyMode) -> bool {
+    matches!(
+        mode,
+        xinput::NotifyMode::GRAB
+            | xinput::NotifyMode::UNGRAB
+            | xinput::NotifyMode::PASSIVE_GRAB
+            | xinput::NotifyMode::PASSIVE_UNGRAB
+    )
 }
 
 /// Whether the server gives the extension `name`.

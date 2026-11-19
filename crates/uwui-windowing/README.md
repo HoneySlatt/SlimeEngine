@@ -56,8 +56,10 @@ onto it.
   a frame asked when the server says that it lost the window's image; the pointer and its wheel,
   touch from XInput 2.2 and the keys through XInput2, with the server's times, and the server's
   own repeat; the keymap read through libxkbcommon-x11 and followed through XKB's notices, as the
-  modifiers, these while the window holds the focus; the focus, the window's own, or the server's
-  above it, following the pointer or on an ancestor, while the pointer lies over the window; the
+  modifiers, these while the window holds the focus, each key translated in its own event's state;
+  the focus, the window's own, or the server's above it, following the pointer or on an ancestor,
+  while the pointer lies over the window, read from the server at each focus event, and lost while
+  another client grabs the keyboard; the
   cursor's shapes from the person's theme, else the core cursor font; the scale from the X
   resources' `Xft.dpi`, read again as the window takes the focus; the loop turned only for events
   that tell the host something
@@ -96,9 +98,11 @@ them. It checks:
 - the signal held while hidden, a present told across a resize, the fallback from a Wayland
   compositor that does not answer;
 - keys typed through `xdotool`, their repeat, a keymap changed, a dead key composed, Caps Lock
-  locked, the modifiers told released as the focus leaves;
-- the focus as other clients move it, through `PointerRoot` and the root window, every key coming
-  while the window is told focused;
+  locked, the modifiers told released as the focus leaves, a key's own modifiers kept through a
+  long turn;
+- the focus as other clients move it, through `PointerRoot`, the root window and a window
+  manager's frame, as they grab the keyboard or the pointer, and as the host turns late, every key
+  coming while the window is told focused;
 - a click, the wheel, Shift or a status written on the root window elsewhere turning nothing, and
   a close asked, the frames' signal, an exposure and a ping each handled at rest;
 - each cursor's shape as XFixes shows it, made again only when the X resources change;

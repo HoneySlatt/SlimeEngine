@@ -7,21 +7,27 @@
 //!   changed (`NewKeyboardNotify`, `MapNotify`), as `setxkbmap` or a tool that maps a keysym for a
 //!   while changes it. Its keys are translated by Linux's code of the keyboard (`crate::xkb`),
 //!   which counts from X11's keycode less 8.
-//! - *The modifiers and the layout*: XKB's `StateNotify`, depressed, latched and locked apart, of
-//!   these parts alone, and only while the window holds the focus: a modifier held in another
-//!   window, or a click anywhere, which changes the pointer's buttons in XKB's state, never wakes
-//!   the loop. As the window takes the focus, the layer reads XKB's state once, and tells the
-//!   modifiers held if they changed, as on Wayland.
+//! - *The modifiers and the layout*: each key is translated with its own event's state, the
+//!   modifiers and the layout depressed, latched and locked as XInput2 gives them with the key.
+//!   The modifiers told the host come from XKB's `StateNotify`, of those parts alone, and only
+//!   while the window holds the focus: a modifier held in another window, or a click anywhere,
+//!   which changes the pointer's buttons in XKB's state, never wakes the loop. As the window takes
+//!   the focus, the layer reads XKB's state once, and tells the modifiers held if they changed, as
+//!   on Wayland; as it loses it, it tells them released.
 //! - *The repeat*: the server's own. XInput2 marks a key held's repeats and sends no release
 //!   between them, so the layer keeps no timer of its own, as it does on Wayland.
 //! - *The focus*: the window holds it when the server's focus is the window itself, or lies above
 //!   it, following the pointer (`PointerRoot`), as where no window manager gives it, or on an
 //!   ancestor such as the root window, and the pointer lies over the window: the keys then go to
-//!   the window under the pointer. At each of XInput2's `FocusIn` and `FocusOut`, the layer reads
-//!   where the server's focus now is, rather than reading it from the events' details: the server
-//!   sends a move of its focus as an event out then an event in, whose details mislead between
-//!   the two. XInput2's `Enter` says whether the focus lies on the window or above it, and `Leave`
-//!   that the pointer left. As the window loses the focus, the modifiers are told released.
+//!   the window under the pointer. At each of the core protocol's `FocusIn` and `FocusOut`, which
+//!   the server sends where XInput2 sends none, as for a move to an ancestor, the layer reads where
+//!   the server's focus now is, rather than reading it from the events' details, which mislead
+//!   between an event out and an event in. Another client's grab of the keyboard, as a menu, a
+//!   screen locker or a window manager's Alt and Tab, takes the focus until it ends, though the
+//!   server's focus stays. A key that reaches the window gives it the focus, which an event read
+//!   late may not have told: the server sends keys only to the window that holds them. XInput2's
+//!   `Enter` says whether the focus lies on the window or above it, and `Leave` that the pointer
+//!   left; another client's grab of the pointer moves neither.
 //!
 //! It knows no clock: the layer times the inputs that it gives.
 
@@ -53,14 +59,23 @@ pub(super) struct Keys {
     focus_above: bool,
     /// Whether the pointer lies over the window.
     inside: bool,
+    /// Whether another client grabs the keyboard, which takes its keys until it lets it go.
+    grabbed: bool,
+    /// Whether a key reached the window since the last event of the focus: it holds the keyboard.
+    keyed: bool,
 }
 
 /// What told of the focus, as XInput2's events give it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Focus {
-    /// Where the server's focus is, read at a `FocusIn` or `FocusOut` of the window's: the window
-    /// itself, or above it, following the pointer or on an ancestor.
+    /// Where the server's focus is, read at a `FocusIn` or `FocusOut` of the window's, outside a
+    /// grab or at its end: the window itself, or above it, following the pointer or on an
+    /// ancestor.
     Server { window: bool, above: bool },
+    /// Another client grabbed the keyboard.
+    Grabbed,
+    /// A key reached the window.
+    Key,
     /// The pointer entered the window, the server saying whether its focus is the window or lies
     /// above it (XInput2's `focus`).
     Entered { focus: bool },
@@ -126,6 +141,8 @@ impl Keys {
             window_focus: false,
             focus_above: false,
             inside: false,
+            grabbed: false,
+            keyed: false,
         }
     }
 
@@ -137,6 +154,8 @@ impl Keys {
             window_focus: false,
             focus_above: false,
             inside: false,
+            grabbed: false,
+            keyed: false,
         }
     }
 
@@ -238,12 +257,23 @@ impl Keys {
             Focus::Server { window, above } => {
                 self.window_focus = window;
                 self.focus_above = above;
+                self.grabbed = false;
+                self.keyed = false;
             }
+            Focus::Grabbed => {
+                self.grabbed = true;
+                self.keyed = false;
+            }
+            Focus::Key => self.keyed = true,
             Focus::Entered { focus } => {
                 self.inside = true;
                 self.focus_above = focus;
+                self.keyed = false;
             }
-            Focus::Left => self.inside = false,
+            Focus::Left => {
+                self.inside = false;
+                self.keyed = false;
+            }
         }
         let given = self.focused();
         if given == before {
@@ -266,9 +296,9 @@ impl Keys {
     }
 
     /// Whether the keys go to the window: its own focus, or the focus above it and the pointer
-    /// over it.
+    /// over it, or a key that came; never while another client grabs the keyboard.
     pub(super) fn focused(&self) -> bool {
-        self.window_focus || (self.focus_above && self.inside)
+        !self.grabbed && (self.window_focus || (self.focus_above && self.inside) || self.keyed)
     }
 }
 
@@ -295,6 +325,18 @@ pub(super) fn state_of(state: &xkb::StateNotifyEvent) -> ([u32; 3], [u32; 3]) {
         [state.base_mods, state.latched_mods, state.locked_mods],
         [state.base_group, state.latched_group],
         state.locked_group,
+    )
+}
+
+/// The modifiers' masks and the layouts that XInput2 gives with a key, depressed, latched and
+/// locked, as [`Keys::state`] takes them: the state that the key is translated in.
+pub(super) fn key_state(
+    modifiers: &x11rb::protocol::xinput::ModifierInfo,
+    group: &x11rb::protocol::xinput::GroupInfo,
+) -> ([u32; 3], [u32; 3]) {
+    (
+        [modifiers.base, modifiers.latched, modifiers.locked],
+        [group.base, group.latched, group.locked].map(u32::from),
     )
 }
 
@@ -456,6 +498,48 @@ mod tests {
         );
         // Told once; none held, none told.
         assert_eq!(keys.released(), None);
+    }
+
+    #[test]
+    fn a_grab_by_another_client_takes_the_focus_until_it_ends() {
+        let mut keys = keys("us");
+        assert_eq!(keys.focus(GIVEN), Some(Input::Focus(true)));
+        assert_eq!(keys.focus(Focus::Grabbed), Some(Input::Focus(false)));
+        // The server's focus read at the grab's end: still the window's.
+        assert_eq!(keys.focus(GIVEN), Some(Input::Focus(true)));
+        // No key gives the focus back while grabbed.
+        keys.focus(Focus::Grabbed);
+        assert_eq!(keys.focus(Focus::Key), None);
+    }
+
+    #[test]
+    fn a_key_that_comes_gives_the_focus_until_the_next_event_of_the_focus() {
+        let mut keys = keys("us");
+        assert_eq!(keys.focus(Focus::Key), Some(Input::Focus(true)));
+        assert_eq!(keys.focus(Focus::Key), None);
+        // The server's focus read again, elsewhere: lost.
+        assert_eq!(keys.focus(TAKEN), Some(Input::Focus(false)));
+        // A key while above the window, then the pointer gone: lost.
+        keys.focus(Focus::Key);
+        assert_eq!(keys.focus(Focus::Left), Some(Input::Focus(false)));
+    }
+
+    #[test]
+    fn a_keys_own_state_is_read_as_xinput2_gives_it() {
+        use x11rb::protocol::xinput::{GroupInfo, ModifierInfo};
+        let modifiers = ModifierInfo {
+            base: 1,
+            latched: 4,
+            locked: 2,
+            effective: 7,
+        };
+        let group = GroupInfo {
+            base: 0,
+            latched: 1,
+            locked: 3,
+            effective: 0,
+        };
+        assert_eq!(key_state(&modifiers, &group), ([1, 4, 2], [0, 1, 3]));
     }
 
     #[test]
