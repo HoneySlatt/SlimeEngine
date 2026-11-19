@@ -143,6 +143,45 @@ pub async fn request<C: Carrier, R: DeserializeOwned>(
     })
 }
 
+/// The most seconds that a tool waits for a change: under the 60 s after which Codex stops a call
+/// (`docs/adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md`).
+/// A tool cuts a longer wait to it.
+pub const MOST_WAIT: u64 = 50;
+
+/// Asks `request`, a request that the program holds until what it waits for comes, as [`request`]
+/// does, for `bound` at most: `None` once `bound` passed, the request then cancelled through the
+/// core's cancel, never dropped, so that the program frees its place in flight, and its answer, if
+/// one crossed the cancel, dropped. A tool that waits takes this way, so that each bounds its wait
+/// alike; its agent asks again from the same handle, which nothing it was given has moved.
+///
+/// # Errors
+///
+/// As [`request`]; a call that its agent cancels gives that error, not `None`.
+pub async fn waited<C: Carrier, R: DeserializeOwned>(
+    carrier: &C,
+    request: &impl Serialize,
+    bound: std::time::Duration,
+    context: &RequestContext<RoleServer>,
+) -> Result<Option<Answer<R>>, String> {
+    // A cancel of its own, which the agent's cancels too: `ask` cancels the request, where a future
+    // dropped would leave it held.
+    let mut bounded = context.clone();
+    bounded.ct = context.ct.child_token();
+    let timer = tokio::spawn({
+        let ct = bounded.ct.clone();
+        async move {
+            tokio::time::sleep(bound).await;
+            ct.cancel();
+        }
+    });
+    let answer = self::request::<C, R>(carrier, request, &bounded).await;
+    timer.abort();
+    match answer {
+        Err(_) if bounded.ct.is_cancelled() && !context.ct.is_cancelled() => Ok(None),
+        answer => answer.map(Some),
+    }
+}
+
 /// The result of work run on tokio's threads for blocking work: a panic of that work is a failure
 /// that says so.
 fn joined<T>(joined: Result<Result<T, String>, tokio::task::JoinError>) -> Result<T, String> {

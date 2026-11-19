@@ -13,11 +13,11 @@ Its name is provisional: the names of uwui's crates are settled at M6d.10a
 
 ## Status
 
-M6d.9a2b1: the library, the interface's family as its tools, and a server's tools gathered by
-families. The engine's MCP server, `slime-mcp`, serves every tool through it, its own families
-`play`, `world` and `editing` among them. No program of its own: uwui's MCP server as a program
-comes with a carrier of uwui's own, `uwui dev`'s, at uwui's first stage. Tools that wait for a
-change come at M6d.9a2c
+M6d.9a2c4a: the library, the interface's family as its tools, a server's tools gathered by
+families, and the bound of the tools that wait for a change. The engine's MCP server,
+`slime-mcp`, serves every tool through it, its own families `play`, `world` and `editing` among
+them; the engine answers the interface's waits from M6d.9a2c4b. No program of its own: uwui's MCP
+server as a program comes with a carrier of uwui's own, `uwui dev`'s, at uwui's first stage
 ([`stage-6d.md`](../../docs/stage-6d.md#m6d9a2--uwuis-mcp-library-and-families)).
 
 ## Role
@@ -39,7 +39,16 @@ change come at M6d.9a2c
   serve is refused by the carrier, as it sends
   ([ADR-0274](../../docs/adr/0274-the-engines-families-typed-on-the-cores-way-a-family-not-served-refused-as-it-is-sent-m6d9a2b-cut-in-two.md)).
 - `interface_family` gives the interface's family, for any server's type that is a carrier:
-  `find_elements`, `element_at`, `act_on_interface`, `capture_element` and `element_style`.
+  `find_elements`, `element_at`, `act_on_interface`, `capture_element`, `element_style` and
+  `wait_for_elements`, which waits for elements to match a role, a name and states, or for none
+  to, and gives `after`, the handle of the elements seen, which its next call takes to see each
+  change once
+  ([ADR-0314](../../docs/adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)).
+- `waited` asks a request that the program holds until a change comes, at most a bound: once the
+  bound passed, it cancels the request through the core's cancel, never by dropping it, so that
+  the program frees its place, and gives none. Every tool that waits takes it, each at most
+  `MOST_WAIT`, 50 s, under the 60 s after which Codex stops a call
+  ([ADR-0310](../../docs/adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)).
 - `gather` reads a long list for an agent: the program's pages, each after the last, gathered
   within the bytes that the agent asks, at most `PAGE_BYTES`, and `LIST_TIME`, the cursor of the
   rest written first, as `next_line` writes it. A list's request (`List`) says how its rest is
@@ -89,7 +98,9 @@ The rustdoc holds each item's contract.
 - `rmcp`, with `tokio`, its runtime: MCP's official SDK in Rust; `serde` and `serde_json` read the
   tools' parameters and the families' answers.
 - `png` and `base64`: a capture returned as a PNG image, in base64 as MCP carries it.
-- For its tests: `uwui` with its feature `agents`, whose answers give the interface in memory.
+- For its tests: `uwui` with its feature `agents`, whose answers give the interface in memory,
+  a program on a thread of its own that holds the waits in flight and takes their cancels through
+  the core, as a program's host does.
 
 ## Must not
 

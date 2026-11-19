@@ -1,4 +1,4 @@
-# The messages of the family `interface`, version 3: one line for each message, value and field,
+# The messages of the family `interface`, version 4: one line for each message, value and field,
 # read from their types (`uwui_agent::description`). Written by the family's test with UWUI_DESCRIBE=write.
 reply done
 reply done . object
@@ -38,6 +38,27 @@ reply style places[].declarations[].state string|null optional
 reply style places[].declarations[].token string|null optional
 reply style places[].file string
 reply style places[].line integer format="uint32" minimum=0
+reply waited
+reply waited . object
+reply waited after string
+reply waited elements array
+reply waited elements[] object
+reply waited elements[].actions array
+reply waited elements[].actions[] string
+reply waited elements[].bounds array|null maxItems=4 minItems=4 optional
+reply waited elements[].bounds[] integer format="uint32" minimum=0
+reply waited elements[].cut array optional
+reply waited elements[].cut[] string
+reply waited elements[].description string|null optional
+reply waited elements[].name string
+reply waited elements[].path string
+reply waited elements[].placeholder string|null optional
+reply waited elements[].role string
+reply waited elements[].states array
+reply waited elements[].states[] string
+reply waited elements[].target integer format="uint32" minimum=0
+reply waited elements[].value string|null optional
+reply waited more boolean optional
 request interface/act
 request interface/act . object
 request interface/act action choice
@@ -94,3 +115,16 @@ request interface/elements role string
 request interface/style
 request interface/style . object
 request interface/style element string
+request interface/wait
+request interface/wait . object
+request interface/wait absent boolean optional
+request interface/wait after string|null optional
+request interface/wait bytes integer|null format="uint64" minimum=0 optional
+request interface/wait holding array optional
+request interface/wait holding[] string
+request interface/wait lacking array optional
+request interface/wait lacking[] string
+request interface/wait limit integer|null format="uint64" minimum=0 optional
+request interface/wait name string
+request interface/wait role string
+request interface/wait target integer format="uint32" minimum=0

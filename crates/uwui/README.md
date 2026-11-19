@@ -315,7 +315,16 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   of meaning for waits of each target, which takes no element that only moved and no modal root's
   whole changes, and each removed element; each wait keeps the elements that it matched, and a
   check counts the elements that it read (`WaitCheck::visited`)
-  (`docs/adr/0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md`). A build for shipping leaves the feature out.
+  (`docs/adr/0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md`).
+  A wait may follow what changed since an answer before, from the numbers of the elements that it
+  gave, its *seen* elements; a wait, or a check, while its target holds a change not yet framed
+  reads nothing until the check after that frame. A host that holds the family's waits reads each
+  `interface/wait` into its `Waits` (`agents::wait`), which answers it at once or holds it, and
+  answers each wait that a check gives met (`agents::met`); `agents::answer` refuses a wait, which
+  it holds nowhere. The wait's `after` is a handle written as a cursor is, bound to its process,
+  its interface and its condition, which holds the numbers of the elements seen and their sum
+  (`docs/adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md`).
+  A build for shipping leaves the feature out.
 
 ## Depends on
 

@@ -961,7 +961,7 @@ mod tests {
     #[test]
     fn the_server_is_built_each_tool_s_name_given_once() {
         let server = Server::new().expect("no name taken twice");
-        assert_eq!(server.tools.router().list_all().len(), 37);
+        assert_eq!(server.tools.router().list_all().len(), 38);
         let instructions = server.tools.instructions();
         let paragraphs: Vec<&str> = instructions.split("\n\n").collect();
         assert_eq!(

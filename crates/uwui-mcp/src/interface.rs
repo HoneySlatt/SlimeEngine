@@ -4,6 +4,7 @@
 
 use std::future::Future;
 use std::pin::Pin;
+use std::time::Duration;
 
 use base64::Engine as _;
 use rmcp::handler::server::common::schema_for_input;
@@ -16,7 +17,7 @@ use serde::Deserialize;
 use uwui_agent::Fault;
 use uwui_agent::interface::{Action, ElementSummary, Reply, Request};
 
-use crate::carrier::{Answer, Carrier};
+use crate::carrier::{Answer, Carrier, MOST_WAIT, waited};
 use crate::family::Family;
 use crate::pages::{List, PAGE_BYTES, Page, gather};
 use crate::result::{failure, fault, next_line, text};
@@ -86,6 +87,30 @@ pub struct ActOnInterface {
     pub value: Option<String>,
 }
 
+/// What `wait_for_elements` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct WaitForElements {
+    /// The role of the elements, as `find_elements` takes it, whatever its case; any if left out.
+    pub role: Option<String>,
+    /// What their names hold, whatever its case; any if left out.
+    pub name: Option<String>,
+    /// The states that hold of them, as `find_elements` names them, whatever their case.
+    pub holding: Option<Vec<String>>,
+    /// The states that do not: `["disabled"]` waits for an enabled one.
+    pub lacking: Option<Vec<String>>,
+    /// Whether to wait for no element to match, rather than one: a dialog closed, a button gone.
+    pub absent: Option<bool>,
+    /// The target whose elements are read, by the number that `find_elements` gives an element of
+    /// another target; left out for the window's, 0.
+    pub target: Option<u32>,
+    /// The `after` that a wait of the same role, name, states and target gave, present or
+    /// absent, to wait for what changed since it, each change seen once; left out to read the
+    /// interface as it stands.
+    pub after: Option<String>,
+    /// The most seconds to wait, from 1 to 50; 50 if left out.
+    pub seconds: Option<u64>,
+}
+
 /// What `capture_element` and `element_style` take.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct AnElement {
@@ -97,8 +122,8 @@ pub struct AnElement {
 type Handled<'a> = Pin<Box<dyn Future<Output = Result<CallToolResult, McpError>> + Send + 'a>>;
 
 /// The interface's family as tools, for a server of type `S`, which carries their requests to a
-/// program: `find_elements`, `element_at`, `act_on_interface`, `capture_element` and
-/// `element_style`, with their paragraph of the server's instructions.
+/// program: `find_elements`, `element_at`, `act_on_interface`, `capture_element`,
+/// `element_style` and `wait_for_elements`, with their paragraph of the server's instructions.
 pub fn interface_family<S: Carrier>() -> Family<S> {
     Family::new(uwui_agent::interface::FAMILY, INTERFACE, interface_tools())
 }
@@ -109,7 +134,8 @@ const INTERFACE: &str = "A program's interface is read and used as a person uses
      the one at a pixel, `act_on_interface` presses, focuses or scrolls one, gives a field, a \
      slider, two panels, a list to choose from or a color well a value, drops one onto another, \
      or moves the focus, accepts, cancels or gives a command as keys do, `capture_element` shows \
-     one, and `element_style` says where the code that wrote its own style is.";
+     one, `element_style` says where the code that wrote its own style is, and \
+     `wait_for_elements` waits for elements to come, change or go.";
 
 /// The interface's tools.
 fn interface_tools<S: Carrier>() -> ToolRouter<S> {
@@ -133,6 +159,10 @@ fn interface_tools<S: Carrier>() -> ToolRouter<S> {
         .with_route(ToolRoute::new(
             tool::<AnElement>("element_style", ELEMENT_STYLE),
             element_style::<S>,
+        ))
+        .with_route(ToolRoute::new(
+            tool::<WaitForElements>("wait_for_elements", WAIT_FOR_ELEMENTS),
+            wait_for_elements::<S>,
         ))
 }
 
@@ -171,6 +201,15 @@ const ELEMENT_STYLE: &str = "Where the code that wrote an element's own style is
      `layout.padding.start`, each with the state that it holds in, `Hovered`, and the theme's \
      token that gives its value, where one does, which a change of the theme rather than of the \
      code changes. The style sheets' rules are not listed.";
+
+const WAIT_FOR_ELEMENTS: &str = "Waits, up to `seconds`, until elements of the program's \
+     interface match a role, a name and states, as `find_elements` matches them, or, with \
+     `absent`, until none does: a dialog that opens or closes, a button enabled, a row selected. \
+     It gives the elements that met it, as `find_elements` gives them, after `after`, a handle \
+     that the next wait of the same role, name, states and target takes, present or absent, to \
+     wait for what changes next, each change seen once: wait for a dialog, then for its absence \
+     with the `after` that it gave. Without `after`, it reads the interface as it stands, and is \
+     answered at once when it holds. A wait that nothing met gives back the `after` that it took.";
 
 fn find_elements<S: Carrier>(
     server: &S,
@@ -243,6 +282,85 @@ fn element_style<S: Carrier>(
         let request = Request::Style { element };
         Ok(answered(server, &context, &request).await)
     })
+}
+
+fn wait_for_elements<S: Carrier>(
+    server: &S,
+    Parameters(arguments): Parameters<WaitForElements>,
+    context: RequestContext<RoleServer>,
+) -> Handled<'_> {
+    Box::pin(async move {
+        let seconds = arguments.seconds.unwrap_or(MOST_WAIT).clamp(1, MOST_WAIT);
+        let after = arguments.after;
+        let request = Request::Wait {
+            target: arguments.target.unwrap_or(0),
+            role: arguments.role.unwrap_or_default(),
+            name: arguments.name.unwrap_or_default(),
+            holding: arguments.holding.unwrap_or_default(),
+            lacking: arguments.lacking.unwrap_or_default(),
+            absent: arguments.absent.unwrap_or(false),
+            after: after.clone(),
+            limit: None,
+            bytes: Some(PAGE_BYTES),
+        };
+        let bound = Duration::from_secs(seconds);
+        Ok(
+            match waited::<S, Reply>(server, &request, bound, &context).await {
+                Ok(Some(Answer {
+                    outcome:
+                        Ok(Reply::Waited {
+                            elements: found,
+                            after,
+                            more,
+                        }),
+                    ..
+                })) => met(found, &after, more),
+                Ok(Some(Answer { outcome: Ok(_), .. })) => {
+                    failure("the program answered the wait with another reply")
+                }
+                // A stale `after` says itself to wait again without it, where `fault` would say
+                // to list again.
+                Ok(Some(Answer {
+                    outcome: Err(refused),
+                    ..
+                })) if refused.code == Fault::STALE => failure(refused.message),
+                Ok(Some(Answer {
+                    outcome: Err(refused),
+                    ..
+                })) => fault(refused),
+                Ok(None) => text(match after {
+                    Some(after) => format!(
+                        "after: {after} (nothing met the wait within {seconds} s: give it again \
+                         as `after` to wait on)"
+                    ),
+                    None => format!(
+                        "nothing met the wait within {seconds} s: wait again, without `after`"
+                    ),
+                }),
+                Err(why) => failure(why),
+            },
+        )
+    })
+}
+
+/// The result of a wait met: its `after` first, as an agent's client may cut a long output,
+/// whether `more` met it than it gives, then `found`, each element on its line.
+fn met(found: Vec<ElementSummary>, after: &str, more: bool) -> CallToolResult {
+    let mut lines = vec![format!(
+        "after: {after} (give it as `after`, with the same role, name, states and target, to \
+         wait for what changes next)"
+    )];
+    if more {
+        lines.push(
+            "more elements met it than this answer holds: wait again from this `after` for them"
+                .to_owned(),
+        );
+    }
+    if found.is_empty() {
+        lines.push("no element matches".to_owned());
+    }
+    lines.extend(found.iter().map(element_line));
+    text(lines.join("\n"))
 }
 
 /// The action that `act` names, with what it needs, or why it names none.
@@ -365,40 +483,43 @@ fn elements(found: Vec<ElementSummary>, next: Option<&str>) -> CallToolResult {
     if found.is_empty() {
         lines.push("no element on this page".to_owned());
     }
-    lines.extend(found.into_iter().map(|element| {
-        let mut line = format!("{} — {}", element.path, element.role);
-        // The window draws the main target, 0; another one's element shows nowhere in its image.
-        if element.target != 0 {
-            line.push_str(&format!(" on target {}", element.target));
-        }
-        if !element.name.is_empty() {
-            line.push_str(&format!(" `{}`", element.name));
-        }
-        if let Some(value) = &element.value {
-            line.push_str(&format!(", holding {value:?}"));
-        }
-        if let Some(description) = &element.description {
-            line.push_str(&format!(", described {description:?}"));
-        }
-        if let Some(placeholder) = &element.placeholder {
-            line.push_str(&format!(", showing {placeholder:?} while empty"));
-        }
-        if !element.states.is_empty() {
-            line.push_str(&format!(", {}", element.states.join(", ")));
-        }
-        line.push_str(&match element.bounds {
-            Some([x, y, width, height]) => format!("; at ({x}, {y}), {width} × {height} pixels"),
-            None => "; does not show".to_owned(),
-        });
-        if !element.actions.is_empty() {
-            line.push_str(&format!("; takes {}", element.actions.join(", ")));
-        }
-        if !element.cut.is_empty() {
-            line.push_str(&format!(" [cut: {}]", element.cut.join(", ")));
-        }
-        line
-    }));
+    lines.extend(found.iter().map(element_line));
     text(lines.join("\n"))
+}
+
+/// An element on its line, as the tools list it.
+fn element_line(element: &ElementSummary) -> String {
+    let mut line = format!("{} — {}", element.path, element.role);
+    // The window draws the main target, 0; another one's element shows nowhere in its image.
+    if element.target != 0 {
+        line.push_str(&format!(" on target {}", element.target));
+    }
+    if !element.name.is_empty() {
+        line.push_str(&format!(" `{}`", element.name));
+    }
+    if let Some(value) = &element.value {
+        line.push_str(&format!(", holding {value:?}"));
+    }
+    if let Some(description) = &element.description {
+        line.push_str(&format!(", described {description:?}"));
+    }
+    if let Some(placeholder) = &element.placeholder {
+        line.push_str(&format!(", showing {placeholder:?} while empty"));
+    }
+    if !element.states.is_empty() {
+        line.push_str(&format!(", {}", element.states.join(", ")));
+    }
+    line.push_str(&match element.bounds {
+        Some([x, y, width, height]) => format!("; at ({x}, {y}), {width} × {height} pixels"),
+        None => "; does not show".to_owned(),
+    });
+    if !element.actions.is_empty() {
+        line.push_str(&format!("; takes {}", element.actions.join(", ")));
+    }
+    if !element.cut.is_empty() {
+        line.push_str(&format!(" [cut: {}]", element.cut.join(", ")));
+    }
+    line
 }
 
 /// The result that shows `pixels`, `width` × `height` of four bytes each, as a PNG image, encoded

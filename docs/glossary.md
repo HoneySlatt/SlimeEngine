@@ -2087,6 +2087,9 @@ states that hold or not, present or absent, that uwui keeps across frames until 
 after each of the target's frames on the elements that changed alone, each wait keeping the
 elements that it matched, so that one removed ends a wait for its absence (`uwui::agents::Waits`,
 [ADR-0312](adr/0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md)).
+Its *seen* elements are those that an answer before gave, which `interface/wait`'s `after` names:
+a presence waits for another one, and an absence for none to match once one did, so that each
+change is seen once ([ADR-0314](adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)).
 
 **Wake (interface's host).** The host leaving its wait, for a task's timer or a task woken, without
 a frame: it runs the interface's tasks and the bindings that they change, and styles, lays out and draws nothing, so

@@ -199,7 +199,7 @@ fn waits_read(
         wanted(Role::TreeItem, "entity", Presence::Absent),
         wanted(Role::Button, "never", Presence::Present),
     ] {
-        match waits.wait(ui, TargetId::MAIN, condition) {
+        match waits.wait(ui, TargetId::MAIN, condition, None) {
             Ok(Waited::Held(_)) => {}
             other => return Err(format!("a wait not held: {other:?}")),
         }

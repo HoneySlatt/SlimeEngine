@@ -155,6 +155,11 @@ The tools, each described to the agent by the server itself, with its parameters
   keys do; `capture_element` gives the part of the image where one shows; `element_style` says
   where the code that wrote an element's own style is, each call's file, line and column, with the
   fields that it set, each with its state and the theme's token that gives its value, if any.
+- `wait_for_elements`: the interface's wait for elements to come, change or go, a tool of uwui's
+  MCP library
+  ([ADR-0314](../../docs/adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)).
+  The engine does not hold these waits yet, which it refuses, saying so: it does from
+  [M6d.9a2c4b](../../docs/stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface).
 - `read_logs`: the lines of the game's log, from its oldest kept or from a `cursor`: a page that
   more follow starts with `next`, and the page that reaches the log's end with `end`, which
   `cursor` takes later for the lines written after it. A cursor names the program whose log it
@@ -176,7 +181,8 @@ The tools, each described to the agent by the server itself, with its parameters
   The last page starts with `end`, which `cursor` takes with `wait`, in seconds, at most 50, to
   wait for the entries that the editor writes next, each seen once: the editor holds the request,
   at rest, and answers it in the frame that writes them, before drawing it; a wait that none
-  answers gives its cursor back, its request cancelled in the editor
+  answers gives its cursor back, its request cancelled in the editor through uwui's MCP library's
+  bound of a tool that waits, `uwui_mcp::waited`
   (`docs/adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md`).
 - `list_operations` and `run_operation`: an editor's operations, every action that its menus, its
   shortcuts and its palette run, listed with their parameters and what they change, and one run

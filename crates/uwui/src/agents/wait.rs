@@ -8,6 +8,12 @@
 //! changes; and every element removed or moved to another target, which the interface tells it
 //! alone. Each wait keeps the elements that it matched: an element listed leaves the wait's set
 //! when it is gone, hidden or no longer matches.
+//!
+//! A wait may follow what changed since an answer before, rather than read the interface as it
+//! stands: given the numbers of the elements that it gave then, its *seen* elements
+//! (`docs/adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md`),
+//! a presence waits for an element that it did not see, and an absence waits for none to match once
+//! one did.
 
 use std::collections::{HashMap, HashSet};
 
@@ -58,8 +64,14 @@ pub struct WaitId(u64);
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Waited {
-    /// It holds now: the elements that it matched, in the order of the tree, none for an absence.
-    Met(Vec<ElementId>),
+    /// It holds now.
+    Met {
+        /// The elements that met it and were not seen, in the order of the tree; none for an
+        /// absence.
+        elements: Vec<ElementId>,
+        /// The elements seen that still match, in the order of the tree; none for an absence.
+        seen: Vec<ElementId>,
+    },
     /// It is held, under this name, until a check finds it met or it is cancelled.
     Held(WaitId),
 }
@@ -69,8 +81,10 @@ pub enum Waited {
 pub struct Met {
     /// The wait.
     pub wait: WaitId,
-    /// The elements that it matched, in the order of the tree; none for an absence.
+    /// The elements that met it and were not seen, in the order of the tree; none for an absence.
     pub elements: Vec<ElementId>,
+    /// The elements seen that still match, in the order of the tree; none for an absence.
+    pub seen: Vec<ElementId>,
 }
 
 /// What a check of a target's waits found, and what it cost.
@@ -127,21 +141,77 @@ struct Wait {
     condition: Condition,
     /// The elements that match it now.
     matched: HashSet<ElementId>,
+    /// The elements of `matched` that were seen: those that the answer before gave and that
+    /// matched as the wait started, less each one that stopped matching since. A presence is met
+    /// by another one.
+    seen: HashSet<ElementId>,
+    /// Whether an element matched since the answer before, which an absence waits for: from its
+    /// start when it reads the interface as it stands, or when the answer before gave any.
+    armed: bool,
+    /// The numbers of the elements seen, while its first walk waits for its target's frame; none
+    /// once walked.
+    unwalked: Option<HashSet<u64>>,
 }
 
 impl Wait {
+    /// A wait of `condition`, whose name is in small letters, given the numbers of the elements
+    /// seen, `after`: none to read the interface as it stands.
+    fn new(id: WaitId, condition: Condition, after: Option<&[u64]>) -> Self {
+        Self {
+            id,
+            condition,
+            matched: HashSet::new(),
+            seen: HashSet::new(),
+            armed: after.is_none_or(|after| !after.is_empty()),
+            unwalked: Some(after.unwrap_or_default().iter().copied().collect()),
+        }
+    }
+
+    /// Takes the first walk's matches, `matched`: the elements seen are those of them whose
+    /// numbers the answer before gave.
+    fn walked(&mut self, ui: &Ui, matched: HashSet<ElementId>) {
+        let numbers = self.unwalked.take().unwrap_or_default();
+        self.seen = matched
+            .iter()
+            .copied()
+            .filter(|&id| {
+                ui.node(id)
+                    .is_some_and(|node| numbers.contains(&node.number))
+            })
+            .collect();
+        self.matched = matched;
+        self.armed |= !self.matched.is_empty();
+    }
+
     /// Whether it is met by what it matched.
     fn met(&self) -> bool {
         match self.condition.presence {
-            Presence::Present => !self.matched.is_empty(),
-            Presence::Absent => self.matched.is_empty(),
+            Presence::Present => self.matched.len() > self.seen.len(),
+            Presence::Absent => self.armed && self.matched.is_empty(),
         }
+    }
+
+    /// What it gives once met: the elements that met it and were not seen, and those seen, each
+    /// in the order of the tree.
+    fn answer(&self, ui: &Ui) -> (Vec<ElementId>, Vec<ElementId>) {
+        let new: HashSet<ElementId> = self.matched.difference(&self.seen).copied().collect();
+        (in_tree_order(ui, &new), in_tree_order(ui, &self.seen))
     }
 }
 
 impl Waits {
     /// Waits on `target`'s elements for `condition`: met at once when it holds on the tree as it
     /// stands, which costs a walk of the target's elements, else held until a check finds it met.
+    /// `after` names the elements seen, by their numbers ([`MeaningNode::number`]): a presence
+    /// waits for another one, an absence for none to match once one did; none to read the
+    /// interface as it stands. While `target` holds a change that its frame has not styled, the
+    /// wait reads nothing and is held, walked by the first check after that frame, so that an
+    /// element just built is not read before its style hides it.
+    ///
+    /// A host that bounds its waits counts them before it asks: a wait held stays held until it
+    /// is met, cancelled or cleared.
+    ///
+    /// [`MeaningNode::number`]: crate::tree::MeaningNode::number
     ///
     /// # Errors
     ///
@@ -153,6 +223,7 @@ impl Waits {
         ui: &mut Ui,
         target: TargetId,
         mut condition: Condition,
+        after: Option<&[u64]>,
     ) -> Result<Waited, Fault> {
         if self
             .interface
@@ -164,19 +235,19 @@ impl Waits {
             ));
         }
         condition.name = condition.name.to_lowercase();
-        let mut matched = HashSet::new();
-        walk(ui, target, |id, view| {
-            if holds(&condition, &view, &mut None) {
-                matched.insert(id);
+        let mut wait = Wait::new(WaitId(self.next), condition, after);
+        if !ui.holds_change(target) {
+            let mut matched = HashSet::new();
+            walk(ui, target, |id, view| {
+                if holds(&wait.condition, &view, &mut None) {
+                    matched.insert(id);
+                }
+            });
+            wait.walked(ui, matched);
+            if wait.met() {
+                let (elements, seen) = wait.answer(ui);
+                return Ok(Waited::Met { elements, seen });
             }
-        });
-        let wait = Wait {
-            id: WaitId(self.next),
-            condition,
-            matched,
-        };
-        if wait.met() {
-            return Ok(Waited::Met(in_tree_order(ui, &wait.matched)));
         }
         let at = match self.targets.iter().position(|on| on.target == target) {
             Some(at) => at,
@@ -205,8 +276,11 @@ impl Waits {
     /// Checks `target`'s waits, to be called after its [`Ui::frame`], which styles what changed:
     /// each element that its reader listed since the last check is read once, and the waits met
     /// are taken out and given. A frame where none was listed reads none. Where the reader's marks
-    /// passed their bound ([`Ui::take_meaning_changes`]), it walks the target whole. Nothing for a
-    /// target that holds no wait, or for another interface than the one whose waits it holds.
+    /// passed their bound ([`Ui::take_meaning_changes`]), or a wait was held unwalked, it walks the
+    /// target whole. Nothing for a target that holds no wait, for another interface than the one
+    /// whose waits it holds, and while the target holds a change that its frame has not styled,
+    /// whose marks it keeps for the check after that frame: a host may check after each point
+    /// where its interface may be framed.
     ///
     /// A target that runs no more frames, a window closed, has its waits checked no more: the host
     /// cancels them.
@@ -221,23 +295,33 @@ impl Waits {
             targets, marked, ..
         } = self;
         let on = &mut targets[at];
+        if ui.holds_change(target) {
+            return WaitCheck::default();
+        }
         // Only this `Waits` lets its reader go: one that its interface no longer knows reads whole.
         let whole = ui
             .take_meaning_marks(on.reader, marked)
-            .is_none_or(|taken| taken.whole);
+            .is_none_or(|taken| taken.whole)
+            || on.waits.iter().any(|wait| wait.unwalked.is_some());
         let mut visited = 0;
         if whole {
-            for wait in &mut on.waits {
-                wait.matched.clear();
-            }
+            let mut matched = vec![HashSet::new(); on.waits.len()];
             visited = walk(ui, target, |id, view| {
                 let mut lowered = None;
-                for wait in &mut on.waits {
+                for (wait, matched) in on.waits.iter().zip(&mut matched) {
                     if holds(&wait.condition, &view, &mut lowered) {
-                        wait.matched.insert(id);
+                        matched.insert(id);
                     }
                 }
             });
+            for (wait, matched) in on.waits.iter_mut().zip(matched) {
+                if wait.unwalked.is_some() {
+                    wait.walked(ui, matched);
+                } else {
+                    wait.seen.retain(|id| matched.contains(id));
+                    wait.matched = matched;
+                }
+            }
         } else {
             for &id in marked.iter() {
                 visited += 1;
@@ -253,18 +337,22 @@ impl Waits {
                         wait.matched.insert(id);
                     } else {
                         wait.matched.remove(&id);
+                        wait.seen.remove(&id);
                     }
                 }
             }
         }
         let mut met = Vec::new();
-        on.waits.retain(|wait| {
+        on.waits.retain_mut(|wait| {
+            wait.armed |= !wait.matched.is_empty();
             if !wait.met() {
                 return true;
             }
+            let (elements, seen) = wait.answer(ui);
             met.push(Met {
                 wait: wait.id,
-                elements: in_tree_order(ui, &wait.matched),
+                elements,
+                seen,
             });
             false
         });

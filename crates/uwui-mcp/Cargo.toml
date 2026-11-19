@@ -20,13 +20,14 @@ png.workspace = true
 rmcp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-# rmcp's runtime: each request to a program waits on a thread of tokio's pool for blocking work.
-tokio.workspace = true
+# rmcp's runtime: each request to a program waits on a thread of tokio's pool for blocking work,
+# and a request that waits for a change, at most a bound, on its timer.
+tokio = { workspace = true, features = ["time"] }
 uwui-agent.workspace = true
 
 [dev-dependencies]
 # The tests' interface, answered in memory by uwui's own answers to the interface's family, and
 # the MCP session that the tests speak to the server through a pipe in memory, each read bounded
 # by a time.
-tokio = { workspace = true, features = ["io-util", "time"] }
+tokio = { workspace = true, features = ["io-util"] }
 uwui = { workspace = true, features = ["agents"] }

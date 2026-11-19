@@ -7,6 +7,7 @@
 #[path = "common/memory.rs"]
 mod memory;
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::Duration;
@@ -24,7 +25,7 @@ use tokio::io::{
 use uwui_agent::Fault;
 use uwui_mcp::{Answer, Carrier, Sent, Tools, agent_of, interface_family, text};
 
-use memory::{Memory, buttons, panel};
+use memory::{Memory, buttons, chooser, panel};
 
 /// How long a test waits for any one message of the server.
 const PATIENCE: Duration = Duration::from_secs(10);
@@ -85,6 +86,8 @@ struct Agent {
     write: WriteHalf<DuplexStream>,
     lines: Lines<BufReader<ReadHalf<DuplexStream>>>,
     next: u64,
+    /// The answers read while another was awaited, by their numbers.
+    early: HashMap<u64, Value>,
 }
 
 impl Agent {
@@ -102,6 +105,7 @@ impl Agent {
             write,
             lines: BufReader::new(read).lines(),
             next: 0,
+            early: HashMap::new(),
         }
     }
 
@@ -157,14 +161,38 @@ impl Agent {
         serde_json::from_str(&line).expect("JSON")
     }
 
-    /// The answer numbered `id`, the notifications before it passed over.
+    /// The answer numbered `id`, the notifications before it passed over, and the answers of other
+    /// requests kept for when they are awaited.
     async fn answer(&mut self, id: u64, waiting: &str) -> Value {
+        if let Some(answer) = self.early.remove(&id) {
+            return answer;
+        }
         loop {
             let message = self.next_message(waiting).await;
-            if message["id"] == json!(id) {
-                return message;
+            match message["id"].as_u64() {
+                Some(answered) if answered == id => return message,
+                Some(answered) => {
+                    self.early.insert(answered, message);
+                }
+                None => {}
             }
         }
+    }
+
+    /// Calls the tool `name` with `arguments` without waiting for its answer: its number.
+    async fn send_tool(&mut self, name: &str, arguments: Value) -> u64 {
+        self.send(
+            "tools/call",
+            json!({ "name": name, "arguments": arguments }),
+        )
+        .await
+    }
+
+    /// The texts of the answer of the tool's call numbered `id`, and its result.
+    async fn tool_answer(&mut self, id: u64) -> (Vec<String>, Value) {
+        let answer = self.answer(id, "a tool's call").await;
+        assert!(answer["error"].is_null(), "{answer}");
+        (texts(&answer["result"]), answer["result"].clone())
     }
 
     /// Sends `method` with `params`, and gives its answer's result.
@@ -255,7 +283,8 @@ async fn the_interface_s_tools_read_and_use_an_interface_of_two_targets() {
             "capture_element",
             "element_at",
             "element_style",
-            "find_elements"
+            "find_elements",
+            "wait_for_elements"
         ]
     );
 
@@ -652,4 +681,168 @@ async fn a_fault_on_a_later_page_is_the_tool_s_error() {
     let (said, result) = agent.tool("find_elements", json!({})).await;
     assert_eq!(result["isError"], json!(true), "{said:?}");
     assert!(said[0].contains("list it again from its start"), "{said:?}");
+}
+
+/// Polls `memory` until it holds `count` waits, within [`PATIENCE`]: a cancel reaches it on its own
+/// thread after the call's answer.
+async fn until_held(memory: &Memory, count: usize) {
+    let started = std::time::Instant::now();
+    while memory.held() != count {
+        assert!(
+            started.elapsed() < PATIENCE,
+            "the program holds {} waits, not {count}",
+            memory.held()
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+}
+
+/// The `after` that a wait's first line gives.
+fn after_of(said: &[String]) -> String {
+    let line = said[0].lines().next().expect("a line");
+    let after = line
+        .strip_prefix("after: ")
+        .unwrap_or_else(|| panic!("no `after`: {said:?}"));
+    after.split(' ').next().expect("a handle").to_owned()
+}
+
+/// A list to choose from opened, then closed, is waited for through the tool: its options' presence
+/// held until a press opens them, their absence from that answer held until a cancel closes them,
+/// and seen once, a wait from that answer held. A bound passed and an agent's cancel each let the
+/// program's wait go.
+#[tokio::test]
+async fn a_list_to_choose_from_closed_is_waited_for_and_seen_once() {
+    let memory = Memory::start(chooser);
+    let carried = memory.clone();
+    let send: Sends = Arc::new(move |method, params| carried.send(method, params));
+    let mut agent = Agent::handshake(send, "a test").await;
+    // Nothing opened: the bound passes, and the program no longer holds the wait.
+    let (said, result) = agent
+        .tool(
+            "wait_for_elements",
+            json!({ "role": "ListBox", "seconds": 0 }),
+        )
+        .await;
+    assert_ne!(result["isError"], json!(true), "{said:?}");
+    assert!(
+        said[0].starts_with("nothing met the wait within 1 s"),
+        "{said:?}"
+    );
+    until_held(&memory, 0).await;
+    // Held while a press opens the options.
+    let opening = agent
+        .send_tool("wait_for_elements", json!({ "role": "listbox" }))
+        .await;
+    until_held(&memory, 1).await;
+    let (said, _) = agent
+        .tool(
+            "act_on_interface",
+            json!({ "action": "press", "element": "main/pick" }),
+        )
+        .await;
+    assert_eq!(said, ["done"]);
+    let (said, _) = agent.tool_answer(opening).await;
+    let lines: Vec<&str> = said[0].lines().collect();
+    assert_eq!(lines.len(), 2, "{said:?}");
+    assert!(lines[1].contains("— ListBox"), "{said:?}");
+    let opened = after_of(&said);
+    // Their absence from that answer, held until a cancel closes them.
+    let closing = agent
+        .send_tool(
+            "wait_for_elements",
+            json!({ "role": "ListBox", "absent": true, "after": opened }),
+        )
+        .await;
+    until_held(&memory, 1).await;
+    let (said, _) = agent
+        .tool(
+            "act_on_interface",
+            json!({ "action": "focus", "element": "main/pick" }),
+        )
+        .await;
+    assert_eq!(said, ["done"]);
+    let (said, _) = agent
+        .tool("act_on_interface", json!({ "action": "cancel" }))
+        .await;
+    assert_eq!(said, ["done"]);
+    let (said, _) = agent.tool_answer(closing).await;
+    assert!(said[0].ends_with("no element matches"), "{said:?}");
+    let closed = after_of(&said);
+    // Seen once: from that answer, the absence is not met again.
+    let (said, _) = agent
+        .tool(
+            "wait_for_elements",
+            json!({ "role": "ListBox", "absent": true, "after": closed, "seconds": 1 }),
+        )
+        .await;
+    assert!(
+        said[0].starts_with(&format!("after: {closed} (nothing met the wait within 1 s")),
+        "{said:?}"
+    );
+    until_held(&memory, 0).await;
+    // An agent's cancel lets the program's wait go too.
+    let cancelled = agent
+        .send_tool("wait_for_elements", json!({ "role": "Dialog" }))
+        .await;
+    until_held(&memory, 1).await;
+    agent
+        .notify(
+            "notifications/cancelled",
+            json!({ "requestId": cancelled, "reason": "a test" }),
+        )
+        .await;
+    until_held(&memory, 0).await;
+}
+
+/// A role or a state that the family does not name, and an `after` of another interface, are tools'
+/// errors that say so.
+#[tokio::test]
+async fn a_wait_on_what_no_element_could_be_is_refused_and_another_interface_s_after_too() {
+    let mut agent = Agent::handshake(in_memory(), "a test").await;
+    for (arguments, said) in [
+        (json!({ "role": "Buton" }), "no role `Buton`"),
+        (json!({ "holding": ["pressd"] }), "no state `pressd`"),
+    ] {
+        let (texts, result) = agent.tool("wait_for_elements", arguments).await;
+        assert_eq!(result["isError"], json!(true), "{texts:?}");
+        assert!(texts[0].contains(said), "{texts:?}");
+    }
+    let (said, _) = agent
+        .tool("wait_for_elements", json!({ "role": "Button" }))
+        .await;
+    let after = after_of(&said);
+    let mut other = Agent::handshake(in_memory(), "a test").await;
+    let (said, result) = other
+        .tool(
+            "wait_for_elements",
+            json!({ "role": "Button", "after": after, "seconds": 1 }),
+        )
+        .await;
+    assert_eq!(result["isError"], json!(true), "{said:?}");
+    assert!(said[0].contains("wait again without `after`"), "{said:?}");
+    assert!(!said[0].contains("list it again"), "{said:?}");
+}
+
+/// More elements met than the program's page holds: the tool says so, after `after`, and the next
+/// wait from it gives the rest at once, none twice.
+#[tokio::test]
+async fn a_wait_met_past_its_page_says_more_and_gives_the_rest_from_its_after() {
+    let memory = Memory::paged(buttons(80, "button"), Some(50));
+    let send: Sends = Arc::new(move |method, params| memory.send(method, params));
+    let mut agent = Agent::handshake(send, "a test").await;
+    let (said, _) = agent
+        .tool("wait_for_elements", json!({ "role": "Button" }))
+        .await;
+    let lines: Vec<&str> = said[0].lines().collect();
+    assert!(lines[1].starts_with("more elements met it"), "{said:?}");
+    assert_eq!(lines.len() - 2, 50, "{said:?}");
+    let (said, _) = agent
+        .tool(
+            "wait_for_elements",
+            json!({ "role": "Button", "after": after_of(&said) }),
+        )
+        .await;
+    let lines: Vec<&str> = said[0].lines().collect();
+    assert!(!said[0].contains("more elements"), "{said:?}");
+    assert_eq!(lines.len() - 1, 30, "{said:?}");
 }

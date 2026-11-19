@@ -14,11 +14,15 @@ pub const FAMILY: &str = "interface";
 
 /// The family's version. 2: each element names its target, a pixel is read on a target that the
 /// request may name, and `interface/style` reads an element's own style. 3: the elements are read
-/// by pages ([`page`](crate::page)), their long texts cut.
-pub const VERSION: u32 = 3;
+/// by pages ([`page`](crate::page)), their long texts cut. 4: `interface/wait` waits for a change.
+pub const VERSION: u32 = 4;
 
 /// The events that the family declares: none.
 pub const EVENTS: &[&str] = &[];
+
+/// The most elements that a wait's `after` holds ([`Request::Wait`]): a wait that would see more
+/// is refused, so that a handle that an agent passes back stays short.
+pub const MAX_SEEN: usize = 1000;
 
 /// What a tool asks of a program's interface, each answered by a [`Reply`], named on the wire by
 /// its method, `interface/elements`. A request on a program that has no interface, as one that
@@ -94,6 +98,50 @@ pub enum Request {
         /// The element, by its path.
         element: String,
     },
+    /// Waits until the elements of a target that `interface/elements` would list, filtered as it
+    /// filters them and by their states, hold the condition: one matches, or, with `absent`, none
+    /// does. Answered by [`Reply::Waited`] once it holds; held, a request in flight, until then,
+    /// or until it is cancelled
+    /// (`docs/adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md`).
+    ///
+    /// Without `after`, it reads the interface as it stands. With `after`, the handle of a wait
+    /// before, it waits for what changed since that answer: present, for an element that it did not
+    /// give, or that stopped matching and matched again while this wait was held; absent, for none
+    /// to match once one did, one that it gave, or one that matched since. Refused for a role or a
+    /// state that the family does not name, for `GenericContainer`, which never means something,
+    /// for a state both held and lacking, for a target that the interface does not have, for an
+    /// `after` of another condition, or that does not read, and when more than [`MAX_SEEN`]
+    /// elements would be seen; `STALE` for an `after` of another process or interface.
+    #[serde(rename = "interface/wait")]
+    Wait {
+        /// The target whose elements it reads, by its number: 0 for the main one.
+        target: u32,
+        /// The role of the elements, `Button`, whatever its case; empty for any.
+        role: String,
+        /// What their names hold, whatever its case; empty for any.
+        name: String,
+        /// The states that hold of them, as [`ElementSummary::states`] names them, whatever their
+        /// case.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        holding: Vec<String>,
+        /// The states that do not.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        lacking: Vec<String>,
+        /// Whether it waits for no element to match, rather than one.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        absent: bool,
+        /// The `after` of a wait before, of the same target, role, name and states; none to read
+        /// the interface as it stands.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        after: Option<String>,
+        /// The most elements wanted in its answer; none for the program's most.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        limit: Option<u64>,
+        /// The most bytes of JSON that its answer's elements and `after` take; none for the
+        /// program's most.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bytes: Option<u64>,
+    },
 }
 
 /// What a program answers to a [`Request`] of the family, but a refusal, which is a fault.
@@ -126,6 +174,19 @@ pub enum Reply {
     Style {
         /// The places.
         places: Vec<StylePlace>,
+    },
+    /// A wait's condition holds ([`Request::Wait`]).
+    Waited {
+        /// The elements that met it and that its `after` did not give, in the order of the tree;
+        /// none for an absence.
+        elements: Vec<ElementSummary>,
+        /// The handle that the next wait of the same condition takes as its `after`: the elements
+        /// given, by this answer or before, that still match.
+        after: String,
+        /// Whether more elements met it than the answer holds: the next wait from `after` gives
+        /// them at once.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        more: bool,
     },
 }
 
@@ -300,6 +361,28 @@ mod tests {
             Request::Style {
                 element: "main/open".to_owned(),
             },
+            Request::Wait {
+                target: 0,
+                role: "Dialog".to_owned(),
+                name: String::new(),
+                holding: Vec::new(),
+                lacking: Vec::new(),
+                absent: false,
+                after: None,
+                limit: None,
+                bytes: None,
+            },
+            Request::Wait {
+                target: 2,
+                role: "Button".to_owned(),
+                name: "save".to_owned(),
+                holding: vec!["focused".to_owned()],
+                lacking: vec!["disabled".to_owned()],
+                absent: true,
+                after: Some("wait:1:2:3:4".to_owned()),
+                limit: Some(20),
+                bytes: Some(32768),
+            },
         ];
         for request in requests {
             let (method, params) = call(&request).expect("written");
@@ -329,6 +412,51 @@ mod tests {
             params,
             serde_json::json!({ "x": 1, "y": 2 }),
             "no target written"
+        );
+    }
+
+    #[test]
+    fn a_wait_writes_only_what_it_names_and_reads_without_it() {
+        let params = serde_json::json!({ "target": 0, "role": "", "name": "" });
+        let (_, written) = call(&Request::Wait {
+            target: 0,
+            role: String::new(),
+            name: String::new(),
+            holding: Vec::new(),
+            lacking: Vec::new(),
+            absent: false,
+            after: None,
+            limit: None,
+            bytes: None,
+        })
+        .expect("written");
+        assert_eq!(written, params);
+        assert!(matches!(
+            read_call::<Request>("interface/wait", params),
+            Ok(Request::Wait {
+                absent: false,
+                after: None,
+                ..
+            })
+        ));
+        let reply = serde_json::json!({ "reply": "waited", "elements": [], "after": "a" });
+        assert_eq!(
+            read::<Reply>(reply.clone()),
+            Ok(Reply::Waited {
+                elements: Vec::new(),
+                after: "a".to_owned(),
+                more: false,
+            })
+        );
+        assert_eq!(
+            write(&Reply::Waited {
+                elements: Vec::new(),
+                after: "a".to_owned(),
+                more: false,
+            })
+            .expect("written"),
+            reply,
+            "no `more` written while none"
         );
     }
 
@@ -378,6 +506,28 @@ mod tests {
                         },
                     ],
                 }],
+            },
+            Reply::Waited {
+                elements: Vec::new(),
+                after: "wait:1:2:3:".to_owned(),
+                more: false,
+            },
+            Reply::Waited {
+                elements: vec![ElementSummary {
+                    path: "main/open".to_owned(),
+                    target: 0,
+                    role: "Dialog".to_owned(),
+                    name: "Open".to_owned(),
+                    value: None,
+                    description: None,
+                    placeholder: None,
+                    states: Vec::new(),
+                    actions: Vec::new(),
+                    bounds: None,
+                    cut: Vec::new(),
+                }],
+                after: "wait:1:2:3:4.5".to_owned(),
+                more: true,
             },
         ];
         for reply in replies {

@@ -69,18 +69,19 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Pages that wait at the journal's end read nothing until it grows; then each page that they ask, those of the same cursor and bytes once, reads its floor in that frame ([ADR-0310](adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)).
   Reading it on another thread needs a `Simulation::edit` that answers later.
   Followed at [M6c.Q2f](stage-6c.md#m6cq2f--the-editor-at-the-displays-rate), which holds the editor's frames to the display's rate.
-- **The bound of a tool that waits lives in `slime-mcp`** ([ADR-0310](adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)).
-  `editor_journal` bounds its wait with a timer of its own that cancels the request through `uwui-mcp`'s cancel; the interface's tool, in `uwui-mcp`, will need the same.
-  Followed at [M6d.9a2c4](stage-6d.md#m6d9a2c4--the-interface-that-waits), which moves it into `uwui-mcp` for both tools.
+- **The engine refuses the interface's waits** ([ADR-0314](adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)).
+  It serves the interface's family 4, but answers `interface/wait` that it does not hold waits yet: `slime-mcp` serves `wait_for_elements`, which fails on the engine's programs.
+  Followed at [M6d.9a2c4b](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface), whose host holds them.
 - **A wait cancelled frees its place untested** ([ADR-0310](adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)).
   `slime-app`'s channel leaves a wait cancelled, not yet answered, out of its connection's count (`MAX_WAITS`), so that a wait that comes in the same frame is held rather than `BUSY`; no test times a cancel and a new wait into one frame.
-  Followed at [M6d.9a2c4](stage-6d.md#m6d9a2c4--the-interface-that-waits), whose waits share the count.
+  Followed at [M6d.9a2c4b](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface), whose waits share the count.
 - **A host lets the waits on elements go itself** ([ADR-0312](adr/0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md)).
-  `uwui::agents::Waits` checks a target's waits only after its frames: a target that runs none, a window closed, answers none of them; and a `Waits` dropped while it holds waits leaves their readers of meaning in the interface.
-  Followed at [M6d.9a2c4](stage-6d.md#m6d9a2c4--the-interface-that-waits), whose host cancels a target's waits when it closes and clears them when its run ends.
+  `uwui::agents::Waits` checks a target's waits only after its frames: a target that runs none, a window closed, answers none of them, and uwui tells no target closed; a `Waits` dropped while it holds waits leaves their readers of meaning in the interface.
+  `uwui-mcp`'s program in memory clears its waits as it ends, and frames each of its targets after each request.
+  Followed at [M6d.9a2c4b](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface), whose host clears them when its run ends; the engine draws one target.
 - **The journal's wait was measured under a heavy load** ([`measurements.md`](measurements.md#m6d9a2c2-the-journal-that-waits)).
   Another project's builds held the machine's load between 13 and 20: the figures compare the two points of answer, and say nothing of a machine at rest.
-  Followed at [M6d.9a2c4](stage-6d.md#m6d9a2c4--the-interface-that-waits), which times the interface's wait on the editor, the journal's beside it.
+  Followed at [M6d.9a2c4b](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface), which times the interface's wait on the editor, the journal's beside it.
 - **`slime-app`'s tests of the channel fail now and then under a heavy load**.
   Run four at a time while another project's builds held the machine's load near 40, a test's game ended its connection early (`UnexpectedEof`), on the commit before M6d.9a2c2 as after it, and once a cancelled edit's answer came past its 30 s; at rest they pass. Not diagnosed.
   Followed at [M6d.12](stage-6d.md#m6d12--the-audit-of-stage-6d), the stage's audit.

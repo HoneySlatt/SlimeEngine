@@ -34,8 +34,12 @@ use crate::tree::{ElementAction, ElementId, ElementState, Meaning, Ui};
 mod wait;
 #[cfg(test)]
 mod wait_tests;
+mod waiting;
+#[cfg(test)]
+mod waiting_tests;
 
 pub use wait::{Condition, Met, Presence, WaitCheck, WaitId, Waited, Waits};
+pub use waiting::{Waiting, met, wait};
 
 /// What a host does with a request of the family.
 #[derive(Clone, Debug, PartialEq)]
@@ -79,7 +83,8 @@ pub struct Shown {
 /// that needs an element and names none, a navigation intent or a command that names one, an
 /// offset that is not finite, and a place in a target of drops outside 0 to 1; of the code
 /// `STALE` for a cursor of another process or interface, and `BAD_PARAMS` for one that does not
-/// read, or of another list or filter.
+/// read, or of another list or filter; `NO_METHOD` for a wait, `interface/wait`, which a host that
+/// holds its [`Waits`] answers through [`wait`].
 pub fn answer(
     ui: &mut Ui,
     request: &Request,
@@ -121,6 +126,12 @@ pub fn answer(
         Request::Style { element } => Reply::Style {
             places: style(ui, element).map_err(refused)?,
         },
+        Request::Wait { .. } => {
+            return Err(Fault::new(
+                Fault::NO_METHOD,
+                "the program does not hold waits on its interface yet",
+            ));
+        }
         // A request that `uwui-agent` gained and that this program does not answer yet.
         _ => {
             return Err(Fault::new(
@@ -396,8 +407,8 @@ fn displayed(ui: &Ui, id: ElementId) -> bool {
 }
 
 /// A state of an element, as the interface's family names it ([`ElementSummary::states`]): what a
-/// wait asks to hold or not ([`Condition`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// wait asks to hold or not ([`Condition`]). Ordered as a summary lists them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum State {
     /// The pointer is over it.

@@ -10,7 +10,9 @@ use rmcp::service::RequestContext;
 use rmcp::{ErrorData as McpError, RoleServer, schemars, tool, tool_router};
 use serde::Deserialize;
 use slime_channel::{EDITING, Edit, Fault, Reply, json_size};
-use uwui_mcp::{Answer, Family, List, Page, failure, fault, gather, next_line, page_bytes};
+use uwui_mcp::{
+    Answer, Family, List, MOST_WAIT, Page, failure, fault, gather, next_line, page_bytes, waited,
+};
 
 use crate::Server;
 
@@ -26,11 +28,6 @@ const INSTRUCTIONS: &str = "An editor's tools reach the editor, whatever the gam
 pub(crate) fn family() -> Family<Server> {
     Family::new(EDITING, INSTRUCTIONS, Server::editing_tools())
 }
-
-/// The most seconds that `editor_journal` waits for the editor's next steps: under the 60 s after
-/// which Codex stops a call
-/// (`docs/adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md`).
-const MOST_WAIT: u64 = 50;
 
 /// What `edit` takes.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -163,7 +160,7 @@ impl Server {
         let page = match cursor {
             Some(cursor) if seconds > 0 => {
                 match self
-                    .waited(&cursor, bytes, Duration::from_secs(seconds), &context)
+                    .journal_waited(&cursor, bytes, Duration::from_secs(seconds), &context)
                     .await
                 {
                     Ok(Some(page)) => self.rest(page, bytes, &context).await,
@@ -223,43 +220,30 @@ impl Server {
 
 impl Server {
     /// The page of the journal from `cursor`, of at most `bytes`, asked to wait for the entries
-    /// written after it, at most `bound`: none once `bound` passed, the request cancelled then and
-    /// its answer dropped, so that the agent reads those entries from the same cursor.
-    async fn waited(
+    /// written after it, at most `bound` ([`waited`]): none once `bound` passed, so that the agent
+    /// reads those entries from the same cursor.
+    async fn journal_waited(
         &self,
         cursor: &str,
         bytes: u64,
         bound: Duration,
         context: &RequestContext<RoleServer>,
     ) -> Result<Option<JournalPage>, CallToolResult> {
-        // A cancel of its own, which the agent's cancels too: the library cancels the request,
-        // where a future dropped would leave it held.
-        let mut bounded = context.clone();
-        bounded.ct = context.ct.child_token();
-        let timer = tokio::spawn({
-            let ct = bounded.ct.clone();
-            async move {
-                tokio::time::sleep(bound).await;
-                ct.cancel();
-            }
-        });
         let request = Edit::Journal {
             cursor: Some(cursor.to_owned()),
             bytes: Some(bytes),
             wait: true,
         };
-        let answer = uwui_mcp::request::<Self, Reply>(self, &request, &bounded).await;
-        timer.abort();
-        match answer {
-            Err(_) if bounded.ct.is_cancelled() && !context.ct.is_cancelled() => Ok(None),
+        match waited::<Self, Reply>(self, &request, bound, context).await {
+            Ok(None) => Ok(None),
             Err(why) => Err(failure(why)),
-            Ok(Answer {
+            Ok(Some(Answer {
                 outcome: Err(refused),
                 ..
-            }) => Err(fault(refused)),
-            Ok(Answer {
+            })) => Err(fault(refused)),
+            Ok(Some(Answer {
                 outcome: Ok(reply), ..
-            }) => Journal::page(reply).map(Some).map_err(fault),
+            })) => Journal::page(reply).map(Some).map_err(fault),
         }
     }
 

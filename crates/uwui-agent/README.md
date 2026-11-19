@@ -20,6 +20,8 @@ M6d.9a1b3a: the interface's family
 M6d.9a1b3b1: long lists read by pages ([ADR-0260](../../docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md)).
 M6d.9a2c1: each family described, and held to its version
 ([ADR-0308](../../docs/adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)).
+M6d.9a2c4a: the interface's wait, `interface` 4
+([ADR-0314](../../docs/adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)).
 Attaching to a program already running,
 consent, rights and previews come with M6d.9a's later parts
 ([`stage-6d.md`](../../docs/stage-6d.md#m6d9a--one-core-for-agents-and-its-mcp-server)).
@@ -81,10 +83,12 @@ consent, rights and previews come with M6d.9a's later parts
   or of another list or filter `BAD_PARAMS`. `cut` cuts a text to a number of bytes of JSON, so
   that no item is larger than a page; `json_char_size` gives the bytes of JSON of one character,
   which `cut` counts, and which a page of a text counts too.
-- `interface` holds the messages of the interface's family, uwui's own, version 3: an interface's
+- `interface` holds the messages of the interface's family, uwui's own, version 4: an interface's
   elements listed by pages, each with its target, the element at a pixel of a target, an action done as a
-  person's input would, an element's part of its target's image, and where the code that wrote an
-  element's own style is. They are plain types, so that a tool speaks the family without building
+  person's input would, an element's part of its target's image, where the code that wrote an
+  element's own style is, and a wait for elements to match a role, a name and states, or for none
+  to, which gives `after`, the elements seen, so that the next wait sees each change once
+  ([ADR-0314](../../docs/adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)). They are plain types, so that a tool speaks the family without building
   uwui. `uwui` answers them with its feature `agents`; a host carries them, as `slime-channel`
   does. The module stands apart from the core, so that it can become a crate of its own without a
   change of the wire.

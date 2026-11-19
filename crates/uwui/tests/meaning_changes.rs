@@ -1256,9 +1256,9 @@ fn check_waits(
             }
         }
         if watch.held.is_none() {
-            match waits.wait(ui, target, watch.condition.clone()) {
+            match waits.wait(ui, target, watch.condition.clone(), None) {
                 Ok(Waited::Held(wait)) => watch.held = Some(wait),
-                Ok(Waited::Met(elements)) => assert_eq!(
+                Ok(Waited::Met { elements, .. }) => assert_eq!(
                     Some(elements),
                     whole_answer(ui, target, &watch.condition),
                     "{:?} met at once",

@@ -109,6 +109,49 @@ pub enum Role {
 }
 
 impl Role {
+    /// Every role, in the order of their declaration ([`Role::name`] names each).
+    #[cfg(feature = "agents")]
+    pub(crate) const ALL: [Self; 38] = [
+        Self::GenericContainer,
+        Self::Group,
+        Self::Label,
+        Self::Image,
+        Self::Button,
+        Self::ScrollView,
+        Self::List,
+        Self::ListItem,
+        Self::Tree,
+        Self::TreeItem,
+        Self::Dialog,
+        Self::Toolbar,
+        Self::TextInput,
+        Self::SearchInput,
+        Self::MultilineTextInput,
+        Self::SpinButton,
+        Self::CheckBox,
+        Self::Slider,
+        Self::Details,
+        Self::TabList,
+        Self::Tab,
+        Self::TabPanel,
+        Self::Splitter,
+        Self::Menu,
+        Self::MenuBar,
+        Self::MenuItem,
+        Self::MenuItemCheckBox,
+        Self::ComboBox,
+        Self::ListBox,
+        Self::Pane,
+        Self::ToggleButton,
+        Self::RadioGroup,
+        Self::RadioButton,
+        Self::ProgressIndicator,
+        Self::Status,
+        Self::Alert,
+        Self::ListBoxOption,
+        Self::ColorWell,
+    ];
+
     /// Its name, as AccessKit writes it: `Button`.
     pub fn name(self) -> &'static str {
         match self {

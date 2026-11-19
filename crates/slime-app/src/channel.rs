@@ -1498,6 +1498,23 @@ mod tests {
         };
         assert!(message.contains("no element"), "{message}");
         assert_eq!(code, Fault::REFUSED);
+        // The engine holds no waits on its interface yet: refused, saying so.
+        let wait = interface::Request::Wait {
+            target: 0,
+            role: "Button".to_owned(),
+            name: String::new(),
+            holding: Vec::new(),
+            lacking: Vec::new(),
+            absent: false,
+            after: None,
+            limit: None,
+            bytes: None,
+        };
+        let Reply::Failed { code, message } = interfaced(&mut panel, &wait) else {
+            panic!("a wait answered");
+        };
+        assert_eq!(code, Fault::NO_METHOD, "{message}");
+        assert!(message.contains("does not hold waits"), "{message}");
         // A cursor of this process, given to another.
         let first = interface::Request::Elements {
             role: String::new(),
