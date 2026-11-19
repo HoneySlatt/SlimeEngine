@@ -1,0 +1,6 @@
+# The sequences that uwui-windowing's keyboard tests type, in libxkbcommon's format of compose
+# files. The tests name this file in `XCOMPOSEFILE`, which libxkbcommon reads in place of the
+# person's own files and the locale's table: what they compose never depends on the machine.
+<dead_circumflex> <e>               : "ê"   ecircumflex
+<dead_circumflex> <space>           : "^"   asciicircum
+<dead_circumflex> <dead_circumflex> : "^"   asciicircum

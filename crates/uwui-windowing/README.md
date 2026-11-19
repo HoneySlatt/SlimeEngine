@@ -53,13 +53,18 @@ onto it.
   Present's notices of the window's CRTC, or a timer of its own at the display's rate where the
   server gives no Present; when each image showed, where the driver presents through Present; the
   display's period from RandR; the signal held while the window is unmapped or covered whole, and
-  a frame asked when the server says that it lost the window's image; the pointer and its wheel
-  through XInput2, with the server's times.
-- Holds the keyboard's code of libxkbcommon, Linux's (`xkb`): the compositor's keymap, its state,
-  the compose tables of the person's locale, each key turned into `slime-input`'s `KeyEvent`.
+  a frame asked when the server says that it lost the window's image; the pointer and its wheel,
+  touch from XInput 2.2 and the keys through XInput2, with the server's times, and the server's
+  own repeat; the keymap read through libxkbcommon-x11 and followed through XKB's notices, as the
+  modifiers; the focus, the window's own or the pointer's where the server's focus follows it; the
+  cursor's shapes from the person's theme, else the core cursor font; the scale from the X
+  resources' `Xft.dpi`
+  ([ADR-0313](../../docs/adr/0313-x11s-keyboard-through-xinput2-and-libxkbcommon-x11-its-cursor-themed-its-scale-from-xft-dpi.md)).
+- Holds the keyboard's code of libxkbcommon, Linux's (`xkb`): the platform's keymap, as a text on
+  Wayland or read from the X server, its state, the compose tables of the person's locale, each
+  key turned into `slime-input`'s `KeyEvent`.
 
-What waits for its milestone: X11's keyboard, cursor, scale and touch (M6d.7b2); the system's
-notice of a resume on Linux (M6d.7b3); Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
+What waits for its milestone: the system's notice of a resume on Linux (M6d.7b3); Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
 it has no layer; a stylus, through `zwp_tablet_v2`,
 with uwui's first stage; the clipboard and input methods (M6d.8).
 
@@ -72,13 +77,17 @@ with uwui's first stage; the clipboard and input methods (M6d.8).
 `cargo test -p uwui-windowing` runs the core's tests on every platform, and on Linux the
 keyboard's, on layouts that libxkbcommon compiles from its rules, and the translation of the
 compositor's pointer, touch and keyboard events, without a compositor; X11's pointer, its wheel,
-its frames' signal and the display's period, without a server. The window itself is tested
+keys, focus, scale, its frames' signal and the display's period, without a server. Tests that
+compose dead keys read the tests' own compose file, `tests/compose/Compose`, never the
+developer's: each runs itself again in a process of its own whose `XCOMPOSEFILE` names it. The window itself is tested
 through the host above it, by `uwui-desktop`'s `rest` tests in the series of compositors, X11's
 under Xvfb. There too, `cargo test -p uwui-windowing --test x11 -- --test-threads=1`, which needs
 the X server that `DISPLAY` names, watches X11's window as another client sees it: its fullscreen
 hint without a window manager and with one, its pings, its start's end, its signal held while
-hidden, a present told across a resize, and the fallback from a Wayland compositor that does not
-answer.
+hidden, a present told across a resize, the fallback from a Wayland compositor that does not
+answer; keys typed through `xdotool`, their repeat, a keymap changed and a dead key composed, run
+with `XCOMPOSEFILE` naming `tests/compose/Compose`; each cursor's shape as XFixes shows it; the
+scale that the X resources' `Xft.dpi` gives.
 
 ## Depends on
 
@@ -86,8 +95,9 @@ answer.
 pointers given to the host; `ctrlc`, the termination signals; `tracing`. On Linux,
 `wayland-client` on libwayland's display, loaded at run time, `wayland-protocols`' xdg-shell,
 xdg-decoration, the cursor's shapes, the fractional scale, the viewporter and activation;
-`xkbcommon-dl`, libxkbcommon loaded at run time; `x11rb` on libxcb loaded at run time, with
-XInput2, RandR and Present; and `rustix`, the loop's poll, eventfd and timerfd, the clocks, the
+`xkbcommon-dl`, libxkbcommon and libxkbcommon-x11 loaded at run time; `x11rb` on libxcb loaded
+at run time, with XInput2, RandR, Present, XKB, the X resources and its loader of themed cursors,
+which brings `xcursor`; and `rustix`, the loop's poll, eventfd and timerfd, the clocks, the
 keymap's read and the machine's name.
 
 ## Must not
@@ -97,5 +107,5 @@ keymap's read and the machine's name.
   three.
 - Show a type of a platform's library in its API.
 - Run, poll or wake while nothing happens.
-- Use `unsafe` but where it calls libxkbcommon, each with its `// SAFETY:`; libxcb is reached
+- Use `unsafe` but where it calls libxkbcommon and libxkbcommon-x11, each with its `// SAFETY:`; libxcb is reached
   through `x11rb`'s safe interface.

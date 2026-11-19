@@ -5,7 +5,9 @@
 //! of X11 (`scripts/compositors.sh x11`), with `DESKTOP_STARTUP_ID` set to a start's id that holds
 //! a quote and a backslash, and `WAYLAND_DISPLAY` unset, one test at a time (`--test-threads=1`):
 //! one covers the whole screen. One test runs another again with `WAYLAND_DISPLAY` naming no
-//! compositor.
+//! compositor. The keyboard's test types through `xdotool`, and composes from the tests' own file,
+//! which `XCOMPOSEFILE` names (`tests/compose/Compose`); the scale's sets the root window's X
+//! resources, and leaves them as it found them.
 
 #![cfg(target_os = "linux")]
 
@@ -13,13 +15,15 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{Duration, Instant};
 
 use raw_window_handle::RawWindowHandle;
+use slime_input::{ButtonState, CursorShape, Key, KeyEvent};
 use uwui_time::Instant as HostInstant;
 use uwui_windowing::{
-    Configured, Control, Drawn, Handler, Happened, Presentation, Stopped, Window,
+    Configured, Control, Drawn, Handler, Happened, Input, Presentation, Stopped, Window,
 };
 use x11rb::connection::Connection;
 use x11rb::protocol::Event;
 use x11rb::protocol::present::{self, ConnectionExt as _};
+use x11rb::protocol::xfixes::ConnectionExt as _;
 use x11rb::protocol::xproto::{
     AtomEnum, ChangeWindowAttributesAux, ClientMessageEvent, ConfigureWindowAux,
     ConnectionExt as _, CreateWindowAux, EventMask, PropMode, WindowClass,
@@ -30,6 +34,9 @@ use x11rb::wrapper::ConnectionExt as _;
 #[derive(Default, Debug)]
 struct Told {
     configured: Vec<Configured>,
+    /// How the window drew as it opened, then each change.
+    drawn: Vec<Drawn>,
+    inputs: Vec<Input>,
     /// Each signal's time, in nanoseconds of the host's clock, with the moment it was read.
     signals: Vec<(u64, Instant)>,
     exposed: usize,
@@ -37,13 +44,16 @@ struct Told {
 }
 
 /// Records what comes for `run_for`, asking a signal at its first turn and again at each signal
-/// when `frames`; sends the window's id as it opens.
+/// when `frames`; sends the window's id as it opens. Ends sooner when `stop` says so, and shows the
+/// cursor's shapes that `shapes` gives as they come.
 struct Recorder {
     told: Told,
     frames: bool,
     run_for: Duration,
     window_id: Option<Sender<u32>>,
     started: Option<Instant>,
+    stop: Option<Receiver<()>>,
+    shapes: Option<Receiver<CursorShape>>,
 }
 
 impl Recorder {
@@ -54,12 +64,15 @@ impl Recorder {
             run_for,
             window_id,
             started: None,
+            stop: None,
+            shapes: None,
         }
     }
 }
 
 impl Handler for Recorder {
-    fn opened(&mut self, window: &mut Window<'_>, _: Drawn) -> Result<(), Stopped> {
+    fn opened(&mut self, window: &mut Window<'_>, drawn: Drawn) -> Result<(), Stopped> {
+        self.told.drawn.push(drawn);
         if let (Some(sender), (_, RawWindowHandle::Xcb(handle))) =
             (&self.window_id, window.raw_handles())
         {
@@ -74,6 +87,15 @@ impl Handler for Recorder {
         if let Some(configured) = happened.configured {
             self.told.configured.push(configured);
         }
+        self.told.drawn.extend(happened.drawn);
+        self.told
+            .inputs
+            .extend(happened.inputs.into_iter().map(|(_, input)| input));
+        if let Some(shapes) = &self.shapes {
+            for shape in shapes.try_iter() {
+                window.set_cursor(shape);
+            }
+        }
         if happened.exposed {
             self.told.exposed += 1;
         }
@@ -84,7 +106,11 @@ impl Handler for Recorder {
         if self.frames && (first || happened.signal.is_some()) {
             let _ = window.ask_signal();
         }
-        if started.elapsed() >= self.run_for {
+        let stopped = self
+            .stop
+            .as_ref()
+            .is_some_and(|stop| stop.try_recv().is_ok());
+        if stopped || started.elapsed() >= self.run_for {
             return Control::Exit;
         }
         Control::Wait(Some(window.now() + Duration::from_millis(20)))
@@ -763,4 +789,386 @@ fn a_window_maximized_does_not_fill_the_screen() {
         }),
         "the window manager's state and size: {told:?}"
     );
+}
+
+/// Runs `xdotool` with `arguments`, which gives the server's input through XTest.
+fn xdotool(arguments: &[&str]) {
+    let status = std::process::Command::new("xdotool")
+        .args(arguments)
+        .status()
+        .expect("xdotool runs");
+    assert!(status.success(), "xdotool {arguments:?} failed");
+}
+
+/// The keycodes of the server's keymap that no keysym is given to, with the keysyms per keycode.
+fn free_keycodes(connection: &impl Connection) -> (Vec<u8>, u8) {
+    let setup = connection.setup();
+    let (first, last) = (setup.min_keycode, setup.max_keycode);
+    let mapping = connection
+        .get_keyboard_mapping(first, last - first + 1)
+        .unwrap()
+        .reply()
+        .unwrap();
+    let per = mapping.keysyms_per_keycode;
+    let free = mapping
+        .keysyms
+        .chunks(usize::from(per))
+        .zip(first..=last)
+        .filter(|(keysyms, _)| keysyms.iter().all(|&keysym| keysym == 0))
+        .map(|(_, keycode)| keycode)
+        .collect();
+    (free, per)
+}
+
+/// Gives `keycode` the keysym `keysym` alone, or none for 0, through the core protocol, which the
+/// server tells XKB's clients as a change of its keymap.
+fn map_keycode(connection: &impl Connection, keycode: u8, keysym: u32, per: u8) {
+    let mut keysyms = vec![0; usize::from(per)];
+    keysyms[0] = keysym;
+    if per > 1 {
+        keysyms[1] = keysym;
+    }
+    connection
+        .change_keyboard_mapping(1, keycode, per, &keysyms)
+        .unwrap()
+        .check()
+        .unwrap();
+}
+
+/// The text of each key pressed, in order, its repeats marked.
+fn typed(inputs: &[Input]) -> Vec<String> {
+    inputs
+        .iter()
+        .filter_map(|input| match input {
+            Input::Key(KeyEvent {
+                state: ButtonState::Pressed,
+                text,
+                logical,
+                repeat,
+                ..
+            }) => Some(match (text, repeat) {
+                (Some(text), false) => text.clone(),
+                (Some(text), true) => format!("{text} repeat"),
+                (None, _) if matches!(logical, Key::Dead(_)) => "dead".to_owned(),
+                (None, _) => "none".to_owned(),
+            }),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Keys typed through XTest while the pointer lies over the window, without a window manager: the
+/// keys go to the window under the pointer, which the server tells by a focus. The keymap changes
+/// as a client maps keysyms that it lacked; a key held repeats by the server's own repeat, without
+/// releases between; a dead key composes with the next from the tests' own compose file.
+#[test]
+fn keys_typed_reach_the_window_with_the_servers_keymap_and_repeat() {
+    server_settles();
+    let compose = std::env::var("XCOMPOSEFILE").expect("run with XCOMPOSEFILE set");
+    assert!(
+        compose.ends_with("tests/compose/Compose"),
+        "XCOMPOSEFILE names the tests' own file: {compose}"
+    );
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let (stop_sender, stop_receiver) = mpsc::channel();
+    let typist = std::thread::spawn(move || {
+        let (connection, _) = x11rb::connect(None).expect("the X server");
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        std::thread::sleep(Duration::from_millis(300));
+        connection
+            .warp_pointer(x11rb::NONE, window, 0, 0, 0, 0, 160, 120)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(200));
+        xdotool(&["key", "a"]);
+        xdotool(&["key", "shift+a"]);
+        // `b` held for longer than the server's delay before it repeats.
+        xdotool(&["keydown", "b"]);
+        std::thread::sleep(Duration::from_millis(900));
+        xdotool(&["keyup", "b"]);
+        // Two keysyms that the keymap lacks, given to free keycodes: the window reads its new
+        // keymap before the keys come.
+        let (free, per) = free_keycodes(&connection);
+        let [dead, circumflexed, ..] = free[..] else {
+            panic!("the server's keymap has no two free keycodes: {free:?}");
+        };
+        const DEAD_CIRCUMFLEX: u32 = 0xfe52;
+        const ECIRCUMFLEX: u32 = 0xea;
+        map_keycode(&connection, dead, DEAD_CIRCUMFLEX, per);
+        map_keycode(&connection, circumflexed, ECIRCUMFLEX, per);
+        std::thread::sleep(Duration::from_millis(300));
+        xdotool(&["key", "ecircumflex"]);
+        xdotool(&["key", "dead_circumflex", "e"]);
+        std::thread::sleep(Duration::from_millis(200));
+        map_keycode(&connection, dead, 0, per);
+        map_keycode(&connection, circumflexed, 0, per);
+        // The pointer leaves for the root window, and the focus with it.
+        connection
+            .warp_pointer(
+                x11rb::NONE,
+                connection.setup().roots[0].root,
+                0,
+                0,
+                0,
+                0,
+                1000,
+                800,
+            )
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        let _ = stop_sender.send(());
+    });
+    let mut recorder = Recorder::new(Duration::from_secs(15), false, Some(window_sender));
+    recorder.stop = Some(stop_receiver);
+    let (recorder, ran) = uwui_windowing::run(opening(false), recorder);
+    ran.expect("the run");
+    typist.join().expect("the typist");
+    let inputs = &recorder.told.inputs;
+    let typed = typed(inputs);
+    eprintln!("typed: {typed:?}");
+    let focus: Vec<bool> = inputs
+        .iter()
+        .filter_map(|input| match input {
+            Input::Focus(given) => Some(*given),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(focus, [true, false], "the focus, given then lost");
+    let first_key = inputs
+        .iter()
+        .position(|input| matches!(input, Input::Key(_)))
+        .expect("a key");
+    let focused = inputs
+        .iter()
+        .position(|input| *input == Input::Focus(true))
+        .expect("the focus");
+    assert!(focused < first_key, "the focus before the keys");
+    // Shift held is told as a modifier before `A`.
+    assert!(
+        inputs
+            .iter()
+            .any(|input| matches!(input, Input::Modifiers(held) if held.shift)),
+        "Shift held is told: {inputs:?}"
+    );
+    let repeats = typed.iter().filter(|text| *text == "b repeat").count();
+    assert!(repeats >= 2, "the server repeats `b` held: {typed:?}");
+    let b_held: Vec<&Input> = inputs
+        .iter()
+        .filter(|input| {
+            matches!(input, Input::Key(KeyEvent { text: Some(text), .. }) if text == "b")
+                || matches!(input, Input::Key(KeyEvent { logical: Key::Character(c), state: ButtonState::Released, .. }) if c == "b")
+        })
+        .collect();
+    let releases = b_held
+        .iter()
+        .filter(|input| {
+            matches!(
+                input,
+                Input::Key(KeyEvent {
+                    state: ButtonState::Released,
+                    ..
+                })
+            )
+        })
+        .count();
+    assert_eq!(releases, 1, "one release of `b`, none between its repeats");
+    let without_repeats: Vec<&str> = typed
+        .iter()
+        .map(String::as_str)
+        .filter(|text| !text.ends_with(" repeat") && *text != "none")
+        .collect();
+    assert_eq!(
+        without_repeats,
+        ["a", "A", "b", "ê", "dead", "ê"],
+        "the keys' texts, the keymap followed, a dead key composed"
+    );
+    println!("keys: typed, repeated by the server, the keymap followed, composed");
+}
+
+/// What the server shows as the cursor now: its image's size, hot spot and pixels.
+fn cursor_image(connection: &impl Connection) -> (u16, u16, u16, u16, Vec<u32>) {
+    let image = connection
+        .xfixes_get_cursor_image()
+        .unwrap()
+        .reply()
+        .unwrap();
+    (
+        image.width,
+        image.height,
+        image.xhot,
+        image.yhot,
+        image.cursor_image,
+    )
+}
+
+/// Each shape that the host asks shows over the window, from the person's theme or the core
+/// cursor font: as XFixes shows another client the cursor, the I-beam and both resizing arrows
+/// differ from the arrow, which differs from the root window's cursor.
+#[test]
+fn the_cursor_shows_each_shape_asked_over_the_window() {
+    server_settles();
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let (shape_sender, shape_receiver) = mpsc::channel();
+    let (stop_sender, stop_receiver) = mpsc::channel();
+    let watcher = std::thread::spawn(move || {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        connection
+            .xfixes_query_version(4, 0)
+            .unwrap()
+            .reply()
+            .expect("XFixes");
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        let warp = |to: u32, x: i16, y: i16| {
+            connection
+                .warp_pointer(x11rb::NONE, to, 0, 0, 0, 0, x, y)
+                .unwrap()
+                .check()
+                .unwrap();
+            std::thread::sleep(Duration::from_millis(200));
+        };
+        warp(root, 1000, 800);
+        let outside = cursor_image(&connection);
+        warp(window, 160, 120);
+        // Before the host asks any shape: the arrow, set as the window opened.
+        let opened = cursor_image(&connection);
+        let mut shown = Vec::new();
+        for shape in [
+            CursorShape::Default,
+            CursorShape::Text,
+            CursorShape::ResizeHorizontal,
+            CursorShape::ResizeVertical,
+            CursorShape::Default,
+        ] {
+            shape_sender.send(shape).unwrap();
+            std::thread::sleep(Duration::from_millis(250));
+            shown.push((shape, cursor_image(&connection)));
+        }
+        let _ = stop_sender.send(());
+        (outside, opened, shown)
+    });
+    let mut recorder = Recorder::new(Duration::from_secs(10), false, Some(window_sender));
+    recorder.stop = Some(stop_receiver);
+    recorder.shapes = Some(shape_receiver);
+    let (_, ran) = uwui_windowing::run(opening(false), recorder);
+    ran.expect("the run");
+    let (outside, opened, shown) = watcher.join().expect("the watcher");
+    let image = |index: usize| &shown[index].1;
+    let size = |image: &(u16, u16, u16, u16, Vec<u32>)| (image.0, image.1, image.2, image.3);
+    eprintln!(
+        "outside {:?}; shown {:?}",
+        size(&outside),
+        shown
+            .iter()
+            .map(|(shape, image)| (shape, size(image)))
+            .collect::<Vec<_>>()
+    );
+    assert_ne!(
+        *image(0),
+        outside,
+        "the arrow over the window, not the root's cursor"
+    );
+    assert_eq!(
+        opened,
+        *image(0),
+        "the arrow from the window's opening, before any shape asked"
+    );
+    for index in 1..=3 {
+        assert_ne!(
+            image(index),
+            image(0),
+            "{:?} is not the arrow",
+            shown[index].0
+        );
+    }
+    assert_ne!(image(1), image(2), "the I-beam is not an arrow to resize");
+    assert_ne!(image(2), image(3), "the two arrows to resize differ");
+    assert_eq!(image(4), image(0), "the arrow again");
+    println!("cursor: by shape");
+}
+
+/// Sets the root window's X resources to `resources`, or deletes them for none.
+fn set_resources(connection: &impl Connection, resources: Option<&[u8]>) {
+    let root = connection.setup().roots[0].root;
+    match resources {
+        Some(resources) => connection
+            .change_property8(
+                PropMode::REPLACE,
+                root,
+                AtomEnum::RESOURCE_MANAGER,
+                AtomEnum::STRING,
+                resources,
+            )
+            .unwrap()
+            .check()
+            .unwrap(),
+        None => connection
+            .delete_property(root, AtomEnum::RESOURCE_MANAGER.into())
+            .unwrap()
+            .check()
+            .unwrap(),
+    }
+}
+
+/// Deletes the root window's X resources as it drops, however the test ends.
+struct ResourcesSet<C: Connection>(C);
+
+impl<C: Connection> Drop for ResourcesSet<C> {
+    fn drop(&mut self) {
+        set_resources(&self.0, None);
+    }
+}
+
+/// The scale from the X resources' `Xft.dpi` over 96: the window opens at its logical size times
+/// it, and keeps its pixels as it changes, its logical size following.
+#[test]
+fn the_scale_follows_the_x_resources_dpi() {
+    server_settles();
+    let (connection, _) = x11rb::connect(None).expect("the X server");
+    set_resources(&connection, Some(b"Xft.dpi:\t144\nXft.antialias:\t1\n"));
+    let resources = ResourcesSet(connection);
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let changer = std::thread::spawn(move || {
+        let (connection, _) = x11rb::connect(None).expect("the X server");
+        window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        std::thread::sleep(Duration::from_millis(300));
+        set_resources(&connection, Some(b"Xft.dpi:\t192\n"));
+    });
+    let (recorder, ran) = uwui_windowing::run(
+        opening(false),
+        Recorder::new(Duration::from_millis(1200), false, Some(window_sender)),
+    );
+    ran.expect("the run");
+    changer.join().expect("the changer");
+    drop(resources);
+    let told = &recorder.told;
+    eprintln!("drawn {:?}; configured {:?}", told.drawn, told.configured);
+    assert_eq!(
+        told.drawn.first().copied(),
+        Some(Drawn {
+            pixels: [480, 360],
+            scale: 1.5
+        }),
+        "opened at 320 x 240 logical pixels times 1.5"
+    );
+    assert_eq!(told.configured.first().map(|c| c.size), Some([320, 240]));
+    assert_eq!(
+        told.drawn.last().copied(),
+        Some(Drawn {
+            pixels: [480, 360],
+            scale: 2.0
+        }),
+        "the same pixels at the new scale"
+    );
+    assert_eq!(told.configured.last().map(|c| c.size), Some([240, 180]));
+    println!("scale: 1.5");
 }

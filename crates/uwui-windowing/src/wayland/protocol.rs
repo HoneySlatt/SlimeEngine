@@ -7,9 +7,7 @@
 use std::collections::HashMap;
 use std::os::fd::OwnedFd;
 
-use slime_input::{
-    ButtonState, CursorShape, Modifiers, MouseButton, Pointer, PointerId, ScrollDelta,
-};
+use slime_input::{ButtonState, CursorShape, Modifiers, MouseButton, Pointer, ScrollDelta};
 use std::time::Duration;
 
 use uwui_time::{EventTime, Instant};
@@ -37,6 +35,7 @@ use wayland_protocols::xdg::shell::client::{xdg_surface, xdg_toplevel, xdg_wm_ba
 use super::repeat::Repeat;
 use crate::anchor::Anchor;
 use crate::clock::{self, Clock};
+use crate::fingers::Fingers;
 use crate::xkb::{self, Keyboard};
 use crate::{Input, Presentation};
 
@@ -89,9 +88,8 @@ pub(super) struct Told {
     pub(super) decorated: Option<bool>,
     pub(super) pointer: Option<wl_pointer::WlPointer>,
     pub(super) touch: Option<wl_touch::WlTouch>,
-    /// The fingers on the window, each by the compositor's number, and the next name of a finger.
-    fingers: HashMap<i32, PointerId>,
-    next_finger: u32,
+    /// The fingers on the window, each by the compositor's number.
+    fingers: Fingers<i32>,
     /// The physical pixels per logical one that the window draws at, which the pointer's positions
     /// and the wheel's pixels are multiplied by.
     pub(super) scale: f64,
@@ -168,8 +166,7 @@ impl Told {
             decorated: None,
             pointer: None,
             touch: None,
-            fingers: HashMap::new(),
-            next_finger: 1,
+            fingers: Fingers::default(),
             scale: 1.0,
             fractional_scale: None,
             preferred_buffer_scale: None,
@@ -255,11 +252,13 @@ impl Told {
     /// `pointer` moved to a position of the surface, in logical pixels: in the window's physical
     /// pixels.
     fn moved(&self, pointer: Pointer, x: f64, y: f64) -> Input {
-        Input::PointerMoved {
-            pointer,
-            x: (x * self.scale) as f32,
-            y: (y * self.scale) as f32,
-        }
+        let [x, y] = self.pixels(x, y);
+        Input::PointerMoved { pointer, x, y }
+    }
+
+    /// The window's physical pixels of its logical position `x`, `y`.
+    fn pixels(&self, x: f64, y: f64) -> [f32; 2] {
+        [(x * self.scale) as f32, (y * self.scale) as f32]
     }
 
     /// A finger touched the window at `x` and `y`, the compositor's number `id`, at its time
@@ -272,31 +271,15 @@ impl Told {
         [x, y]: [f64; 2],
         received: Instant,
     ) {
-        let finger = Pointer::finger(PointerId(self.next_finger));
-        // Never the mouse's 0, as the count turns over.
-        self.next_finger = self.next_finger.checked_add(1).unwrap_or(1);
-        // A number still down that the compositor gives again, against the protocol: the finger
-        // before leaves, so that the interface does not follow it for ever.
-        if let Some(before) = self.fingers.insert(id, finger.id) {
-            self.push(
-                EventTime::received(received),
-                Input::PointerLeft {
-                    pointer: Pointer::finger(before),
-                },
-            );
+        let touched = self.fingers.down(id, self.pixels(x, y));
+        if let Some(replaced) = touched.replaced {
+            self.push(EventTime::received(received), replaced);
         }
         self.serial = Some(serial);
         let time = self.time(millis, received);
-        let moved = self.moved(finger, x, y);
-        self.push(time, moved);
-        self.push(
-            time,
-            Input::PointerButton {
-                pointer: finger,
-                button: MouseButton::Left,
-                state: ButtonState::Pressed,
-            },
-        );
+        for input in touched.inputs {
+            self.push(time, input);
+        }
     }
 
     /// What a finger did after touching, received at `received`: moved, lifted, or every finger
@@ -305,40 +288,24 @@ impl Told {
     fn touch(&mut self, event: wl_touch::Event, received: Instant) {
         match event {
             wl_touch::Event::Motion { time, id, x, y } => {
-                let Some(&finger) = self.fingers.get(&id) else {
+                let Some(moved) = self.fingers.moved(id, self.pixels(x, y)) else {
                     return;
                 };
                 let time = self.time(time, received);
-                let moved = self.moved(Pointer::finger(finger), x, y);
                 self.push(time, moved);
             }
             wl_touch::Event::Up { time, id, .. } => {
-                let Some(finger) = self.fingers.remove(&id) else {
+                let Some(lifted) = self.fingers.up(id) else {
                     return;
                 };
-                let pointer = Pointer::finger(finger);
                 let time = self.time(time, received);
-                self.push(
-                    time,
-                    Input::PointerButton {
-                        pointer,
-                        button: MouseButton::Left,
-                        state: ButtonState::Released,
-                    },
-                );
-                self.push(time, Input::PointerLeft { pointer });
+                for input in lifted {
+                    self.push(time, input);
+                }
             }
             wl_touch::Event::Cancel => {
-                let mut fingers: Vec<PointerId> =
-                    self.fingers.drain().map(|(_, finger)| finger).collect();
-                fingers.sort_unstable();
-                for finger in fingers {
-                    self.push(
-                        EventTime::received(received),
-                        Input::PointerLeft {
-                            pointer: Pointer::finger(finger),
-                        },
-                    );
+                for input in self.fingers.cancel() {
+                    self.push(EventTime::received(received), input);
                 }
             }
             _ => {}
@@ -486,7 +453,9 @@ impl Told {
                 let Some(xkb) = &mut self.keys.xkb else {
                     return;
                 };
-                let held = xkb.set_modifiers(mods_depressed, mods_latched, mods_locked, group);
+                // Wayland gives the layout in effect alone, as locked.
+                let held =
+                    xkb.set_modifiers([mods_depressed, mods_latched, mods_locked], [0, 0, group]);
                 if held != self.keys.modifiers {
                     self.keys.modifiers = held;
                     self.push(EventTime::received(received), Input::Modifiers(held));
@@ -1172,6 +1141,11 @@ mod tests {
 
     #[test]
     fn a_dead_key_before_the_focus_leaves_composes_with_nothing_after() {
+        if !crate::xkb::composing_from_the_tests_file(
+            "wayland::protocol::tests::a_dead_key_before_the_focus_leaves_composes_with_nothing_after",
+        ) {
+            return;
+        }
         let mut told = Told::new();
         let mut french = Keyboard::new("en_US.UTF-8").expect("libxkbcommon loads");
         french.set_test_layout("fr").expect("the layout compiles");

@@ -17,11 +17,11 @@
 //!
 //! Its *core*, which knows no platform, is tested without a window on every platform: the run that
 //! calls the handler back on a platform's window and lets go of both in order (`running`), the
-//! anchor of the events' times (`anchor`) and the wakes of other threads and the termination
-//! signals (`wake`). Linux has two layers, Wayland's (`wayland`) and X11's (`x11`), which share
-//! the loop's wait (`wait`), the host's clock (`clock`) and the keyboard's code of libxkbcommon
-//! (`xkb`), which X11's layer takes at M6d.7b2. Windows and macOS have theirs at M6d.7's next
-//! parts, and [`run`] there says that it has none.
+//! anchor of the events' times (`anchor`), a touch screen's fingers each a pointer (`fingers`)
+//! and the wakes of other threads and the termination signals (`wake`). Linux has two layers,
+//! Wayland's (`wayland`) and X11's (`x11`), which share the loop's wait (`wait`), the host's clock
+//! (`clock`) and the keyboard's code of libxkbcommon (`xkb`). Windows and macOS have theirs at
+//! M6d.7's next parts, and [`run`] there says that it has none.
 //!
 //! Its name is provisional, until M6d.10a names uwui's crates. It is public nowhere but to
 //! `uwui-desktop`, which `scripts/check.sh` checks, with its other rule: it depends on neither
@@ -39,6 +39,11 @@
     allow(dead_code, reason = "no windowing layer drives the core here yet")
 )]
 mod anchor;
+#[cfg_attr(
+    not(target_os = "linux"),
+    allow(dead_code, reason = "no windowing layer drives the core here yet")
+)]
+mod fingers;
 #[cfg_attr(
     not(target_os = "linux"),
     allow(dead_code, reason = "no windowing layer drives the core here yet")

@@ -124,9 +124,11 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **uwui's desktop host shows the compositor's cursor where `wp_cursor_shape_v1` is missing** ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
   The interface's shapes, the I-beam over a field and the arrows over a splitter, show only through that protocol, which sway, KWin and Mutter give; elsewhere the cursor is whatever the compositor last showed.
   Drawing a theme's images needs `wayland-cursor`, a dependency put to the owner once a compositor of the field lacks the protocol.
-- **On X11, uwui's desktop host takes no key, shows the server's cursor and draws at a scale of 1** ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)).
-  Its X11 layer gives the pointer and its wheel alone; touch does not reach it either.
-  Followed at M6d.7b2: XKB through libxkbcommon, the cursor's shapes, `Xft.dpi`'s scale and XInput2's touch.
+- **On X11, uwui's desktop host's touch runs nowhere in CI, and its scale and focus have limits** ([ADR-0313](adr/0313-x11s-keyboard-through-xinput2-and-libxkbcommon-x11-its-cursor-themed-its-scale-from-xft-dpi.md)).
+  Xvfb has no touch device and XTest makes no touch: XInput 2.2's touches are translated by tests of their own, without a server (`crates/uwui-windowing/src/fingers.rs`), and reach a window nowhere in CI.
+  The scale is the X resources' `Xft.dpi`, one for the whole screen: a window moved to a display of another density keeps its scale.
+  Where the server's focus follows the pointer, a window that takes the focus from it while the pointer stays over this one is told only if the server sends a focus event of the detail `Pointer`; Xvfb 21.1.24 sent none as the pointer entered the window.
+  Followed by the owner's check by hand under Xwayland ([`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-owner)); a scale per display with uwui's first stage, if a person asks for it.
 - **uwui's desktop host's X11 layer runs under Xvfb alone, with a software driver** ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)).
   Xvfb has no window manager and no display: the window's requests to a window manager, RandR's period and a GPU's driver presenting through Present run nowhere in CI.
   The images shown are matched to the images asked by their order, which holds only if the driver presents each image asked once, through Present (`crates/uwui-windowing/src/x11/frames.rs`); lavapipe copies its images without Present, and tells none.
@@ -150,9 +152,6 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   wgpu's surface stands on the layer's raw handles. The layer's side is tested since M6d.7b1: every layer runs through `crates/uwui-windowing/src/running.rs`, whose tests on a fake platform find the handler closed and dropped before the window, a panic's unwinding included.
   The host's side, its device dropped in `closing` (`crates/uwui-desktop/src/host.rs`), fails no test if it changes: no test drives the host on a fake platform, whose window the layer keeps private.
   Followed at M6d.7e, whose targets removed let a surface go while its window lives.
-- **uwui's desktop host's keyboard tests read the developer's own compose files** ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
-  libxkbcommon reads `XCOMPOSEFILE` or `~/.XCompose` before the locale's table, and `xkbcommon-dl` 0.4.2 gives no way to load a table from a file of the test's own: a person whose own sequence redefines `^` then `e` sees `crates/uwui-windowing/src/xkb.rs`'s tests of dead keys fail; CI has neither.
-  Followed at M6d.7b2, which shares the host's keyboard with X11's layer.
 - **`scripts/input-to-present.sh` loses part of its inputs** ([ADR-0200](adr/0200-applications-measured-from-outside.md)).
   It runs `wlrctl` once an input; each run makes a virtual pointer or keyboard and destroys it at once.
   A headless sway gives its seat a pointer only while one exists: a window binds it too late, and the input goes nowhere.

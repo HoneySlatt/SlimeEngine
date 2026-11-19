@@ -396,4 +396,5 @@ the ADR linking to it.
 | [0310](0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md) | The journal's wait answered once the simulation ran, through a read of its own; its tool gives `end` | Accepted; supersedes in part 0269 |
 | [0311](0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md) | M6d.7b cut in three, X11's window, frames and pointer first, on x11rb | Accepted |
 | [0312](0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md) | Waits on elements kept by uwui; a reader for waits reads what a condition reads | Accepted; supersedes in part 0261; amended by 0314 |
+| [0313](0313-x11s-keyboard-through-xinput2-and-libxkbcommon-x11-its-cursor-themed-its-scale-from-xft-dpi.md) | X11's keyboard through XInput2 and libxkbcommon-x11, its cursor themed, its scale from Xft.dpi | Accepted |
 | [0314](0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md) | M6d.9a2c4 cut in two; an interface's wait gives the elements seen as `after` | Accepted; supersedes in part 0269 and 0308; amends 0312 |

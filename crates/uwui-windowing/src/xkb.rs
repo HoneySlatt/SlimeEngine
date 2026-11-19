@@ -19,17 +19,22 @@
 //!
 //! A repeat is translated as a press, without feeding the compose tables: a key held repeats its
 //! own character.
+//!
+//! Its keymap comes from the platform: as a text on Wayland ([`Keyboard::set_keymap`]); from the X
+//! server's keyboard on X11, through libxkbcommon-x11 ([`Keyboard::set_x11_keymap`],
+//! `docs/adr/0313-x11s-keyboard-through-xinput2-and-libxkbcommon-x11-its-cursor-themed-its-scale-from-xft-dpi.md`).
 
 #![expect(
     unsafe_code,
     reason = "libxkbcommon's calls, through the functions that xkbcommon-dl loads"
 )]
 
-use std::ffi::{CString, c_char};
+use std::ffi::{CString, c_char, c_void};
 use std::fmt;
 use std::ptr::NonNull;
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, Modifiers, NamedKey};
+use xkbcommon_dl::x11::{XkbCommonX11, xkb_x11_setup_xkb_extension_flags};
 use xkbcommon_dl::{
     XKB_MOD_NAME_ALT, XKB_MOD_NAME_CTRL, XKB_MOD_NAME_LOGO, XKB_MOD_NAME_SHIFT, XkbCommon,
     XkbCommonCompose, keysyms, xkb_compose_compile_flags, xkb_compose_feed_result,
@@ -194,18 +199,15 @@ impl Keyboard {
         self.keymap.is_some()
     }
 
-    /// Sets the modifiers and the layout that the platform reports, each a mask of the keymap's
-    /// modifiers or a layout's index: the modifiers held afterwards. Nothing without a keymap.
-    pub(crate) fn set_modifiers(
-        &mut self,
-        depressed: u32,
-        latched: u32,
-        locked: u32,
-        group: u32,
-    ) -> Modifiers {
+    /// Sets the modifiers and the layout that the platform reports: `modifiers` the masks of the
+    /// keymap's modifiers depressed, latched and locked, `layouts` the layouts' indices the same
+    /// way. The modifiers held afterwards; nothing without a keymap.
+    pub(crate) fn set_modifiers(&mut self, modifiers: [u32; 3], layouts: [u32; 3]) -> Modifiers {
         let Some(keymap) = &self.keymap else {
             return Modifiers::default();
         };
+        let [depressed, latched, locked] = modifiers;
+        let [depressed_layout, latched_layout, locked_layout] = layouts;
         // SAFETY: the state is live; libxkbcommon takes any mask and index.
         unsafe {
             (self.xkb.xkb_state_update_mask)(
@@ -213,12 +215,63 @@ impl Keyboard {
                 depressed,
                 latched,
                 locked,
-                0,
-                0,
-                group,
+                depressed_layout,
+                latched_layout,
+                locked_layout,
             );
         }
         keymap.modifiers()
+    }
+
+    /// The modifiers held, as the keymap's state says; nothing without a keymap.
+    pub(crate) fn modifiers(&self) -> Modifiers {
+        self.keymap
+            .as_ref()
+            .map_or_else(Modifiers::default, Keymap::modifiers)
+    }
+
+    /// Takes the keymap of the X server's core keyboard, `device`, on `connection`, libxcb's, with
+    /// the state of its modifiers and layout as the server holds them, in place of the last one.
+    ///
+    /// # Errors
+    ///
+    /// When libxkbcommon-x11 does not load or reads no keymap: the keyboard then keeps its last.
+    pub(crate) fn set_x11_keymap(
+        &mut self,
+        connection: X11Connection,
+        device: i32,
+    ) -> Result<(), KeyboardError> {
+        let x11 = xkbcommon_dl::x11::xkbcommon_x11_option()
+            .ok_or(KeyboardError("libxkbcommon-x11.so.0 does not load"))?;
+        // SAFETY: the context is live; the connection is live for the call, made on the thread
+        // that owns it, as `X11Connection` promises; the keymap returned is checked for null.
+        let keymap = unsafe {
+            (x11.xkb_x11_keymap_new_from_device)(
+                self.context.as_ptr(),
+                connection.0.as_ptr(),
+                device,
+                xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
+            )
+        };
+        let keymap =
+            NonNull::new(keymap).ok_or(KeyboardError("the X server's keymap is not read"))?;
+        // SAFETY: as above; the state returned holds a reference of the keymap and is checked for
+        // null.
+        let state = unsafe {
+            (x11.xkb_x11_state_new_from_device)(keymap.as_ptr(), connection.0.as_ptr(), device)
+        };
+        let Some(state) = NonNull::new(state) else {
+            // SAFETY: the keymap's reference is this function's, never used again.
+            unsafe { (self.xkb.xkb_keymap_unref)(keymap.as_ptr()) };
+            return Err(KeyboardError("the X server's keyboard state is not read"));
+        };
+        self.keymap = Some(Keymap {
+            xkb: self.xkb,
+            keymap,
+            state,
+        });
+        self.forget_sequence();
+        Ok(())
     }
 
     /// Whether the key of Linux's code `code` repeats while held, as the keymap says.
@@ -282,6 +335,45 @@ impl Keyboard {
             repeat,
         }
     }
+}
+
+/// libxcb's connection to an X server, given to libxkbcommon-x11 for a call: the caller holds it
+/// live through the call, on the one thread that makes requests on it.
+#[derive(Clone, Copy)]
+pub(crate) struct X11Connection(pub(crate) NonNull<c_void>);
+
+/// Asks the X server for XKB, of a version that libxkbcommon-x11 reads, on `connection`: the id of
+/// its core keyboard.
+///
+/// # Errors
+///
+/// When libxkbcommon-x11 does not load, or the server gives no XKB or no core keyboard.
+pub(crate) fn x11_core_keyboard(connection: X11Connection) -> Result<i32, KeyboardError> {
+    let x11: &XkbCommonX11 = xkbcommon_dl::x11::xkbcommon_x11_option()
+        .ok_or(KeyboardError("libxkbcommon-x11.so.0 does not load"))?;
+    // SAFETY: the connection is live for the call, made on the thread that owns it, as
+    // `X11Connection` promises; null pointers ask for none of the versions and events' bases.
+    let set_up = unsafe {
+        (x11.xkb_x11_setup_xkb_extension)(
+            connection.0.as_ptr(),
+            xkbcommon_dl::x11::XKB_X11_MIN_MAJOR_XKB_VERSION,
+            xkbcommon_dl::x11::XKB_X11_MIN_MINOR_XKB_VERSION,
+            xkb_x11_setup_xkb_extension_flags::XKB_X11_SETUP_XKB_EXTENSION_NO_FLAGS,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+        )
+    };
+    if set_up != 1 {
+        return Err(KeyboardError("the X server gives no XKB"));
+    }
+    // SAFETY: as above.
+    let device = unsafe { (x11.xkb_x11_get_core_keyboard_device_id)(connection.0.as_ptr()) };
+    if device < 0 {
+        return Err(KeyboardError("the X server names no core keyboard"));
+    }
+    Ok(device)
 }
 
 impl Drop for Keyboard {
@@ -794,6 +886,32 @@ fn key_code(code: u32) -> KeyCode {
     }
 }
 
+/// Whether this test process composes from the tests' own file, `tests/compose/Compose`, which
+/// `XCOMPOSEFILE` names; else runs the test `name`, its path below the crate, again in a process of
+/// its own that does, checks that it passed there, and answers false. libxkbcommon reads the
+/// person's own compose files before the locale's table, from the environment alone: a test of
+/// sequences reads none of the developer's so.
+#[cfg(test)]
+pub(crate) fn composing_from_the_tests_file(name: &str) -> bool {
+    let file = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/compose/Compose");
+    if std::env::var_os("XCOMPOSEFILE").is_some_and(|named| named == file) {
+        return true;
+    }
+    let binary = std::env::current_exe().expect("the test's own binary");
+    let output = std::process::Command::new(binary)
+        .args([name, "--exact", "--test-threads=1"])
+        .env("XCOMPOSEFILE", file)
+        .output()
+        .expect("the test runs again");
+    let printed = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success() && printed.contains("1 passed"),
+        "{name}, run again on the tests' compose file, did not pass alone: {printed}{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -865,14 +983,15 @@ mod tests {
     #[test]
     fn the_modifiers_change_the_character_but_control_does_not() {
         let mut keyboard = keyboard("us");
-        let held = keyboard.set_modifiers(SHIFT, 0, 0, 0);
+        let held = keyboard.set_modifiers([SHIFT, 0, 0], [0; 3]);
         assert!(held.shift && !held.control && !held.alt && !held.super_key);
+        assert_eq!(keyboard.modifiers(), held);
         assert_eq!(
             press(&mut keyboard, KEY_A),
             (character("A"), Some("A".to_owned()))
         );
         // Control, the third modifier of the rules' keymaps: no control character.
-        let held = keyboard.set_modifiers(4, 0, 0, 0);
+        let held = keyboard.set_modifiers([4, 0, 0], [0; 3]);
         assert!(held.control && !held.shift);
         assert_eq!(
             press(&mut keyboard, KEY_A),
@@ -909,7 +1028,7 @@ mod tests {
             (Key::Named(NamedKey::Shift), None)
         );
         // Shift and Tab: Tab still, its text a tab.
-        keyboard.set_modifiers(SHIFT, 0, 0, 0);
+        keyboard.set_modifiers([SHIFT, 0, 0], [0; 3]);
         assert_eq!(
             press(&mut keyboard, KEY_TAB),
             (Key::Named(NamedKey::Tab), Some("\t".to_owned()))
@@ -918,6 +1037,9 @@ mod tests {
 
     #[test]
     fn a_dead_key_composes_with_the_next() {
+        if !composing_from_the_tests_file("xkb::tests::a_dead_key_composes_with_the_next") {
+            return;
+        }
         let mut keyboard = keyboard("fr");
         assert_eq!(
             press(&mut keyboard, KEY_LEFTBRACE),
@@ -951,6 +1073,9 @@ mod tests {
 
     #[test]
     fn a_repeat_feeds_no_sequence() {
+        if !composing_from_the_tests_file("xkb::tests::a_repeat_feeds_no_sequence") {
+            return;
+        }
         let mut keyboard = keyboard("fr");
         press(&mut keyboard, KEY_LEFTBRACE);
         let repeat = keyboard.key(KEY_E, ButtonState::Pressed, true);
@@ -966,6 +1091,20 @@ mod tests {
     }
 
     #[test]
+    fn a_layout_locked_or_latched_types_its_characters() {
+        let mut keyboard = keyboard("us,fr");
+        assert_eq!(press(&mut keyboard, KEY_Q).0, character("q"));
+        // The second layout, French, locked as Wayland's `group` gives it, then latched and
+        // depressed as XKB's state on X11 may give it.
+        for layouts in [[0, 0, 1], [0, 1, 0], [1, 0, 0]] {
+            keyboard.set_modifiers([0; 3], layouts);
+            assert_eq!(press(&mut keyboard, KEY_Q).0, character("a"), "{layouts:?}");
+        }
+        keyboard.set_modifiers([0; 3], [0; 3]);
+        assert_eq!(press(&mut keyboard, KEY_Q).0, character("q"));
+    }
+
+    #[test]
     fn keys_repeat_as_the_keymap_says() {
         let keyboard = keyboard("us");
         assert!(keyboard.repeats(KEY_A));
@@ -977,7 +1116,11 @@ mod tests {
         let mut keyboard = Keyboard::new("C").expect("libxkbcommon loads");
         assert!(!keyboard.has_keymap());
         assert_eq!(press(&mut keyboard, KEY_A), (Key::Unidentified, None));
-        assert_eq!(keyboard.set_modifiers(SHIFT, 0, 0, 0), Modifiers::default());
+        assert_eq!(
+            keyboard.set_modifiers([SHIFT, 0, 0], [0; 3]),
+            Modifiers::default()
+        );
+        assert_eq!(keyboard.modifiers(), Modifiers::default());
         assert!(!keyboard.repeats(KEY_A));
     }
 
@@ -1050,6 +1193,11 @@ mod tests {
 
     #[test]
     fn a_new_keymap_forgets_the_sequence_in_progress() {
+        if !composing_from_the_tests_file(
+            "xkb::tests::a_new_keymap_forgets_the_sequence_in_progress",
+        ) {
+            return;
+        }
         let mut keyboard = keyboard("fr");
         press(&mut keyboard, KEY_LEFTBRACE);
         keyboard.set_layout("fr", "").expect("the layout compiles");

@@ -11,8 +11,12 @@
 //! - *The window*: its title (`_NET_WM_NAME` and `WM_NAME`), its class, the app id twice, its
 //!   minimum size (`WM_NORMAL_HINTS`), filling the screen through `_NET_WM_STATE`, its closing
 //!   (`WM_DELETE_WINDOW`) told to the host rather than done, the window manager's pings answered,
-//!   its process and machine named. Its size is the window manager's, its scale 1; without a
-//!   window manager, as under Xvfb, it opens at the size asked and its requests do nothing.
+//!   its process and machine named, its focus given by the window manager (`WM_HINTS`). Its size
+//!   is the window manager's; without a window manager, as under Xvfb, it opens at the size asked
+//!   and its requests do nothing.
+//! - *Its scale*: the X resources' `Xft.dpi` over 96, the root window's `RESOURCE_MANAGER`, read
+//!   again when it changes. X11 counts in physical pixels: the window opens at its logical size
+//!   times the scale, and keeps its pixels when the scale changes, its logical size following.
 //! - *Activation*: `_NET_ACTIVE_WINDOW`, named by the person's last press, and
 //!   `_NET_WM_STATE_DEMANDS_ATTENTION`; the start's `DESKTOP_STARTUP_ID` told ended, as the
 //!   startup notification's specification asks.
@@ -22,11 +26,15 @@
 //!   it, holds its signal until it shows again; an exposed one asks to be drawn again.
 //! - *The pointer*: XInput2's moves, buttons and wheel (`pointer`), each with the server's time
 //!   anchored on the host's clock (`crate::anchor`); entering and leaving with their reception's.
-//!
-//! The keyboard, the cursor's shapes, the scale and touch come at M6d.7b2: until then the window
-//! takes no key, and shows the server's cursor.
+//!   Its shapes, from the person's cursor theme (`cursor`).
+//! - *Touch*: XInput 2.2's touches, each finger a pointer of its own (`crate::fingers`), with the
+//!   server's times; where the server gives XInput 2.1 alone, none.
+//! - *The keyboard*: its keymap, keys, modifiers and focus (`keyboard`), the keys with the server's
+//!   times, the rest with their reception's.
 
+mod cursor;
 mod frames;
+mod keyboard;
 mod pointer;
 
 use std::ffi::c_void;
@@ -41,25 +49,30 @@ use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XcbDisplayHandle, Xcb
 use slime_input::{ButtonState, CursorShape};
 use uwui_time::{EventTime, Instant};
 use x11rb::connection::{Connection, RequestConnection};
-use x11rb::properties::WmSizeHints;
+use x11rb::properties::{WmHints, WmSizeHints};
 use x11rb::protocol::Event;
 use x11rb::protocol::present::{self, ConnectionExt as _};
 use x11rb::protocol::randr::{self, ConnectionExt as _};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
+use x11rb::protocol::xkb;
 use x11rb::protocol::xproto::{
-    self, AtomEnum, ClientMessageEvent, ConnectionExt as _, CreateWindowAux, EventMask, PropMode,
-    Visibility, WindowClass,
+    self, AtomEnum, ChangeWindowAttributesAux, ClientMessageEvent, ConnectionExt as _,
+    CreateWindowAux, EventMask, PropMode, Visibility, WindowClass,
 };
+use x11rb::resource_manager::Database;
 use x11rb::wrapper::ConnectionExt as _;
 use x11rb::xcb_ffi::XCBConnection;
 
 use crate::anchor::Anchor;
 use crate::clock::{self, Clock, Suspends};
+use crate::fingers::Fingers;
 use crate::wait::Waits;
 use crate::wake::{self, Asks};
 use crate::{Activation, Configured, Drawn, Error, Happened, Input, Opening, running};
 
+use cursor::Cursors;
 use frames::Frames;
+use keyboard::Keys;
 use pointer::Pointers;
 
 /// The shortest time suspended after which the events' anchor is made again: what parts the two
@@ -98,6 +111,13 @@ const FROM_APPLICATION: u32 = 1;
 /// XInput2's device id for every master device.
 const ALL_MASTER_DEVICES: u16 = 1;
 
+/// The X resources' dots per inch at a scale of 1, as Xft and the toolkits that read it count.
+const DPI_AT_SCALE_ONE: f64 = 96.0;
+
+/// The scales that `Xft.dpi` may give, beyond which it is held: a resource mistyped still leaves an
+/// interface that the person can read and use.
+const SCALES: (f64, f64) = (0.5, 8.0);
+
 /// What came since the last turn, gathered from the events as they are read.
 #[derive(Debug, Default)]
 struct Gathered {
@@ -122,6 +142,10 @@ pub(crate) struct Platform {
     suspends: Suspends,
     anchor: Anchor,
     pointers: Pointers,
+    /// The fingers on the window, by their device and XInput2's number of the touch.
+    fingers: Fingers<(u16, u32)>,
+    keys: Keys,
+    cursors: Cursors,
     frames: Frames,
     gathered: Gathered,
     /// Whether RandR tells the displays' modes and their changes.
@@ -131,6 +155,10 @@ pub(crate) struct Platform {
     /// The window's size in pixels, and whether it fills the screen.
     size: [u32; 2],
     fullscreen: bool,
+    /// The physical pixels per logical one, from `Xft.dpi`.
+    scale: f64,
+    /// The smallest size that the person may give the window, in logical pixels.
+    min_size: Option<[u32; 2]>,
     /// Whether the window is mapped, and whether it is covered whole.
     mapped: bool,
     covered: bool,
@@ -170,7 +198,11 @@ impl Platform {
             .map_err(|cause| Error::new("the X server's atoms", cause))?
             .reply()
             .map_err(|cause| Error::new("the X server's atoms", cause))?;
-        let size = opening.size.map(|side| side.clamp(1, u32::from(u16::MAX)));
+        let resources = read_resources(&connection);
+        let scale = scale_of(&resources);
+        let size = opening
+            .size
+            .map(|side| pixels_of(side, scale).clamp(1, u32::from(u16::MAX)));
         let window = connection
             .generate_id()
             .map_err(|cause| Error::new("the window's id", cause))?;
@@ -198,6 +230,17 @@ impl Platform {
                     ),
             )
             .map_err(|cause| Error::new("the window", cause))?;
+        // The root's properties, of which the X resources, whose changes may change the scale.
+        connection
+            .change_window_attributes(
+                root,
+                &ChangeWindowAttributesAux::new().event_mask(EventMask::PROPERTY_CHANGE),
+            )
+            .map_err(|cause| Error::new("the root window's properties", cause))?;
+        let keys = Keys::new(&connection);
+        let mut cursors = Cursors::new(&connection, screen, window, &resources);
+        // The arrow of the person's theme, in place of the root window's cursor.
+        cursors.show(&connection, CursorShape::Default);
         let mut platform = Self {
             connection,
             driver,
@@ -210,12 +253,17 @@ impl Platform {
             suspends: Suspends::new(),
             anchor: Anchor::default(),
             pointers: Pointers::default(),
+            fingers: Fingers::default(),
+            keys,
+            cursors,
             frames: Frames::new(false),
             gathered: Gathered::default(),
             randr: false,
             period_stale: true,
             size,
             fullscreen: false,
+            scale,
+            min_size: opening.min_size,
             mapped: false,
             covered: false,
             last_press: 0,
@@ -236,15 +284,9 @@ impl Platform {
             .map_err(|cause| Error::new("the connection to the X server", cause))?;
         platform.frames.set_shown(false);
         // The first turn tells the window's first size, as a Wayland compositor's first configure.
-        platform.gathered.configured = Some(Configured {
-            size,
-            fullscreen: false,
-        });
+        platform.configured();
         wake::on_termination(&platform.asks);
-        let drawn = Drawn {
-            pixels: size,
-            scale: 1.0,
-        };
+        let drawn = platform.drawn();
         Ok((platform, drawn))
     }
 
@@ -297,7 +339,12 @@ impl Platform {
                 &[std::process::id()],
             )
             .map_err(failed)?;
-        self.set_size_hints(opening.min_size).map_err(failed)?;
+        self.set_size_hints().map_err(failed)?;
+        // The window manager gives the window the focus, which it takes as given, as ICCCM's
+        // passive model asks.
+        let mut hints = WmHints::new();
+        hints.input = Some(true);
+        hints.set(connection, window).map_err(failed)?;
         // Before the map, which a window manager reads it at, for its focus.
         if !startup.is_empty() {
             connection
@@ -328,37 +375,52 @@ impl Platform {
     /// Selects the extensions' events: XInput2's pointer, Present's notices, RandR's changes.
     fn select_input(&mut self) -> Result<(), Error> {
         let connection = &self.connection;
-        // XInput 2.1 gives the scroll valuators.
-        let xinput = connection
+        // XInput 2.1 gives the scroll valuators, 2.2 touch; the server answers the highest that
+        // both know.
+        let version = if connection
             .extension_information(xinput::X11_EXTENSION_NAME)
             .map_err(|cause| Error::new("the X server's extensions", cause))?
             .is_some()
-            && connection
-                .xinput_xi_query_version(2, 1)
+        {
+            connection
+                .xinput_xi_query_version(2, 2)
                 .ok()
                 .and_then(|cookie| cookie.reply().ok())
-                .is_some_and(|version| (version.major_version, version.minor_version) >= (2, 1));
-        if !xinput {
+                .map(|version| (version.major_version, version.minor_version))
+        } else {
+            None
+        };
+        if version.is_none_or(|version| version < (2, 1)) {
             return Err(Error(
                 "the X server gives no XInput 2.1, which the window's pointer needs".to_owned(),
             ));
+        }
+        let mut mask = xinput::XIEventMask::MOTION
+            | xinput::XIEventMask::BUTTON_PRESS
+            | xinput::XIEventMask::BUTTON_RELEASE
+            | xinput::XIEventMask::ENTER
+            | xinput::XIEventMask::LEAVE
+            | xinput::XIEventMask::DEVICE_CHANGED
+            | xinput::XIEventMask::KEY_PRESS
+            | xinput::XIEventMask::KEY_RELEASE
+            | xinput::XIEventMask::FOCUS_IN
+            | xinput::XIEventMask::FOCUS_OUT;
+        if version.is_some_and(|version| version >= (2, 2)) {
+            mask |= xinput::XIEventMask::TOUCH_BEGIN
+                | xinput::XIEventMask::TOUCH_UPDATE
+                | xinput::XIEventMask::TOUCH_END;
+        } else {
+            tracing::info!("the X server gives no XInput 2.2: the window takes no touch");
         }
         connection
             .xinput_xi_select_events(
                 self.window,
                 &[xinput::EventMask {
                     deviceid: ALL_MASTER_DEVICES,
-                    mask: vec![
-                        xinput::XIEventMask::MOTION
-                            | xinput::XIEventMask::BUTTON_PRESS
-                            | xinput::XIEventMask::BUTTON_RELEASE
-                            | xinput::XIEventMask::ENTER
-                            | xinput::XIEventMask::LEAVE
-                            | xinput::XIEventMask::DEVICE_CHANGED,
-                    ],
+                    mask: vec![mask],
                 }],
             )
-            .map_err(|cause| Error::new("the pointer's events", cause))?;
+            .map_err(|cause| Error::new("the pointer's and keyboard's events", cause))?;
         // Each master pointer's scroll valuators, which change as it switches devices.
         match connection
             .xinput_xi_query_device(ALL_MASTER_DEVICES)
@@ -450,9 +512,13 @@ impl Platform {
         Ok(())
     }
 
-    fn set_size_hints(&self, min: Option<[u32; 2]>) -> Result<(), x11rb::errors::ConnectionError> {
+    /// Tells the window manager the smallest size of the window, in pixels at its scale.
+    fn set_size_hints(&self) -> Result<(), x11rb::errors::ConnectionError> {
         let mut hints = WmSizeHints::new();
-        hints.min_size = min.map(|[width, height]| (side32(width), side32(height)));
+        hints.min_size = self.min_size.map(|logical| {
+            let [width, height] = logical.map(|side| pixels_of(side, self.scale));
+            (side32(width), side32(height))
+        });
         hints.set_normal_hints(&self.connection, self.window)?;
         Ok(())
     }
@@ -516,6 +582,10 @@ impl Platform {
                         .inputs
                         .push((EventTime::received(received), input));
                 }
+                let input = self
+                    .keys
+                    .focus(keyboard::Focus::Entered { focus: enter.focus });
+                self.push_received(received, input);
             }
             Event::XinputLeave(_) => {
                 for input in self.pointers.input(pointer::Event::Left, false) {
@@ -523,9 +593,90 @@ impl Platform {
                         .inputs
                         .push((EventTime::received(received), input));
                 }
+                let input = self.keys.focus(keyboard::Focus::Left);
+                self.push_received(received, input);
             }
             Event::XinputDeviceChanged(changed) => {
                 self.pointers.classes(changed.deviceid, &changed.classes);
+            }
+            Event::XinputKeyPress(press) => {
+                self.last_press = press.time;
+                let repeat = press.flags.contains(xinput::KeyEventFlags::KEY_REPEAT);
+                let input = self.keys.key(press.detail, ButtonState::Pressed, repeat);
+                self.push_timed(press.time, received, input);
+            }
+            Event::XinputKeyRelease(release) => {
+                let input = self.keys.key(release.detail, ButtonState::Released, false);
+                self.push_timed(release.time, received, input);
+            }
+            Event::XinputFocusIn(focus) if focus.event == self.window => {
+                let input = self.keys.focus(keyboard::Focus::Changed {
+                    given: true,
+                    pointer: focus.detail == xinput::NotifyDetail::POINTER,
+                });
+                self.push_received(received, input);
+            }
+            Event::XinputFocusOut(focus) if focus.event == self.window => {
+                let input = self.keys.focus(keyboard::Focus::Changed {
+                    given: false,
+                    pointer: focus.detail == xinput::NotifyDetail::POINTER,
+                });
+                self.push_received(received, input);
+            }
+            Event::XkbStateNotify(state) if self.keys.follows(state.device_id) => {
+                let input = self.keys.state(
+                    [
+                        keyboard::mask(state.base_mods),
+                        keyboard::mask(state.latched_mods),
+                        keyboard::mask(state.locked_mods),
+                    ],
+                    [
+                        keyboard::layout(state.base_group),
+                        keyboard::layout(state.latched_group),
+                        keyboard::layout(i16::from(u8::from(state.locked_group))),
+                    ],
+                );
+                self.push_received(received, input);
+            }
+            Event::XkbNewKeyboardNotify(new)
+                if self.keys.follows(new.device_id)
+                    && new.changed.contains(xkb::NKNDetail::KEYCODES) =>
+            {
+                let input = self.keys.keymap_changed(&self.connection);
+                self.push_received(received, input);
+            }
+            Event::XkbMapNotify(map) if self.keys.follows(map.device_id) => {
+                let input = self.keys.keymap_changed(&self.connection);
+                self.push_received(received, input);
+            }
+            Event::XinputTouchBegin(touch) => {
+                self.last_press = touch.time;
+                let at = [touch.event_x, touch.event_y].map(|side| pointer::pixels(side) as f32);
+                let touched = self.fingers.down((touch.sourceid, touch.detail), at);
+                self.push_received(received, touched.replaced);
+                let time = self.time(touch.time, received);
+                for input in touched.inputs {
+                    self.gathered.inputs.push((time, input));
+                }
+            }
+            Event::XinputTouchUpdate(touch) => {
+                let at = [touch.event_x, touch.event_y].map(|side| pointer::pixels(side) as f32);
+                let input = self.fingers.moved((touch.sourceid, touch.detail), at);
+                self.push_timed(touch.time, received, input);
+            }
+            Event::XinputTouchEnd(touch) => {
+                if let Some(lifted) = self.fingers.up((touch.sourceid, touch.detail)) {
+                    let time = self.time(touch.time, received);
+                    for input in lifted {
+                        self.gathered.inputs.push((time, input));
+                    }
+                }
+            }
+            Event::PropertyNotify(property)
+                if property.window == self.root
+                    && property.atom == u32::from(AtomEnum::RESOURCE_MANAGER) =>
+            {
+                self.resources_changed();
             }
             Event::PresentCompleteNotify(complete) if complete.window == self.window => {
                 let placed = self
@@ -544,10 +695,7 @@ impl Platform {
                 if size != self.size {
                     self.size = size;
                     self.configured();
-                    self.gathered.drawn = Some(Drawn {
-                        pixels: size,
-                        scale: 1.0,
-                    });
+                    self.gathered.drawn = Some(self.drawn());
                 }
                 self.period_stale = true;
             }
@@ -622,12 +770,53 @@ impl Platform {
         EventTime::anchored(self.anchor.time(millis, received))
     }
 
+    /// Gives `input`, if any, at the time that the server stamped, `millis`.
+    fn push_timed(&mut self, millis: u32, received: Instant, input: Option<Input>) {
+        if let Some(input) = input {
+            let time = self.time(millis, received);
+            self.gathered.inputs.push((time, input));
+        }
+    }
+
+    /// Gives `input`, if any, at its reception's time.
+    fn push_received(&mut self, received: Instant, input: Option<Input>) {
+        if let Some(input) = input {
+            self.gathered
+                .inputs
+                .push((EventTime::received(received), input));
+        }
+    }
+
     /// The window's size or state changed: the next image shows it.
     fn configured(&mut self) {
         self.gathered.configured = Some(Configured {
-            size: self.size,
+            size: self.size.map(|side| logical_of(side, self.scale)),
             fullscreen: self.fullscreen,
         });
+    }
+
+    /// How the window draws now: its pixels, at its scale.
+    fn drawn(&self) -> Drawn {
+        Drawn {
+            pixels: self.size,
+            scale: self.scale,
+        }
+    }
+
+    /// The X resources changed: the scale that their `Xft.dpi` gives, and the cursor's theme and
+    /// size, are read again. The window keeps its pixels; its logical size follows its scale.
+    fn resources_changed(&mut self) {
+        let resources = read_resources(&self.connection);
+        let screen = usize::try_from(self.screen).unwrap_or(0);
+        self.cursors
+            .resources_changed(&self.connection, screen, &resources);
+        let scale = scale_of(&resources);
+        if scale != self.scale {
+            self.scale = scale;
+            let _ = self.set_size_hints();
+            self.configured();
+            self.gathered.drawn = Some(self.drawn());
+        }
     }
 
     fn shown_changed(&mut self) {
@@ -809,7 +998,8 @@ impl running::Platform for Platform {
 
     /// The hints apply at once: no image needs to follow.
     fn set_min_size(&mut self, size: Option<[u32; 2]>) -> bool {
-        let _ = self.set_size_hints(size);
+        self.min_size = size;
+        let _ = self.set_size_hints();
         false
     }
 
@@ -846,12 +1036,8 @@ impl running::Platform for Platform {
         }
     }
 
-    fn set_cursor(&mut self, _: CursorShape) {
-        // Told once: the next requests do nothing as well.
-        static TOLD: std::sync::Once = std::sync::Once::new();
-        TOLD.call_once(|| {
-            tracing::info!("the cursor's shapes come to X11 at M6d.7b2: the server's shows");
-        });
+    fn set_cursor(&mut self, shape: CursorShape) {
+        self.cursors.show(&self.connection, shape);
     }
 
     fn ask_signal(&mut self) -> u64 {
@@ -913,6 +1099,46 @@ fn startup_removal(id: &str) -> Vec<u8> {
     message
 }
 
+/// The X resources that the root window's `RESOURCE_MANAGER` holds, as `xrdb` loads them at a
+/// session's start; none where it holds none. The person's files are not read in its place: the
+/// session's tools load them into the property.
+fn read_resources(connection: &XCBConnection) -> Database {
+    x11rb::resource_manager::new_from_resource_manager(connection)
+        .unwrap_or_else(|error| {
+            tracing::warn!(%error, "the X resources are not read: the scale is 1");
+            None
+        })
+        .unwrap_or_else(|| Database::new_from_data(b""))
+}
+
+/// The scale that `resources`' `Xft.dpi` gives, over 96 dots per inch, held within [`SCALES`]; 1
+/// where it gives none, or no positive number.
+fn scale_of(resources: &Database) -> f64 {
+    let dpi = resources
+        .get_string("Xft.dpi", "Xft.Dpi")
+        .and_then(|dpi| dpi.trim().parse::<f64>().ok())
+        .filter(|dpi| dpi.is_finite() && *dpi > 0.0);
+    dpi.map_or(1.0, |dpi| {
+        (dpi / DPI_AT_SCALE_ONE).clamp(SCALES.0, SCALES.1)
+    })
+}
+
+/// The pixels of a side of `logical` pixels at `scale`, one at least.
+fn pixels_of(logical: u32, scale: f64) -> u32 {
+    float_side(f64::from(logical) * scale)
+}
+
+/// The logical pixels of a side of `pixels` at `scale`, one at least.
+fn logical_of(pixels: u32, scale: f64) -> u32 {
+    float_side(f64::from(pixels) / scale)
+}
+
+/// A side measured as `side`, rounded, within one and `u32::MAX`.
+fn float_side(side: f64) -> u32 {
+    // A float's cast saturates, and a NaN gives 0, which the floor of one takes.
+    (side.round() as u32).max(1)
+}
+
 /// A side for a window's geometry, which X11 counts in `u16`.
 fn side16(pixels: u32) -> u16 {
     u16::try_from(pixels).unwrap_or(u16::MAX)
@@ -955,6 +1181,30 @@ mod tests {
             a_second_before
         );
         assert_eq!(present_time(None, received), received);
+    }
+
+    #[test]
+    fn xft_dpi_gives_the_scale_over_96() {
+        let scale = |resources: &[u8]| scale_of(&Database::new_from_data(resources));
+        assert_eq!(scale(b"Xft.dpi:\t144\n"), 1.5);
+        assert_eq!(scale(b"Xft.dpi: 192.0\n"), 2.0);
+        assert_eq!(scale(b"Xft.antialias: 1\n"), 1.0);
+        assert_eq!(scale(b""), 1.0);
+        // Not a positive number: 1. Out of reach: held.
+        assert_eq!(scale(b"Xft.dpi: high\n"), 1.0);
+        assert_eq!(scale(b"Xft.dpi: -96\n"), 1.0);
+        assert_eq!(scale(b"Xft.dpi: 0\n"), 1.0);
+        assert_eq!(scale(b"Xft.dpi: 9600\n"), SCALES.1);
+        assert_eq!(scale(b"Xft.dpi: 1\n"), SCALES.0);
+    }
+
+    #[test]
+    fn logical_and_physical_sides_follow_the_scale() {
+        assert_eq!(pixels_of(641, 1.5), 962);
+        assert_eq!(logical_of(962, 1.5), 641);
+        assert_eq!(pixels_of(0, 2.0), 1);
+        assert_eq!(logical_of(1, 8.0), 1);
+        assert_eq!(pixels_of(u32::MAX, 8.0), u32::MAX);
     }
 
     #[test]

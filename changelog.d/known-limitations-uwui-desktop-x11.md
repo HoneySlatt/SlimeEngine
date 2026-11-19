@@ -1,2 +1,2 @@
-- On X11, uwui's desktop host takes no key, shows the server's cursor, draws at a scale of 1 and
-  takes no touch (ADR-0311).
+- On X11, uwui's desktop host draws at one scale for the whole screen, the X resources'
+  `Xft.dpi`; its touch is checked by hand alone (ADR-0313).
