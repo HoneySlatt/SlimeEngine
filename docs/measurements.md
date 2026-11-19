@@ -5049,3 +5049,25 @@ opened, then closed, 4 each, its three elements and the button whose focus it to
 root moved to another target, its 209 elements on each target; a reader past its bound, a walk of
 the target's 609 elements; a box of 1 200 rows removed, past the bound, a walk of the 8 left; a root
 of one label removed below two floating panels of 20 labels, 2, and a panel raised, 0.
+
+GitHub's hosted runners, on 2026-11-19, each run green, on `8f9a0dec`, the milestone's commit:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 53 s |
+| `check (headless)` | 18 min 23 s |
+| `check (windowed)` | 10 min 44 s |
+| `check (game)` | 19 min 13 s |
+| `check (gles)` | 3 min 21 s |
+| `windows (tests)` | 17 min 23 s |
+| `windows (render)` | 7 min 26 s |
+| `windows (game)` | 7 min 51 s |
+| `windows-release` | 12 min 1 s |
+| Docs' `links` | green |
+
+Every job stays within its limit of 20 minutes, `check (game)` by 47 s only. Its step that writes
+the cooked zone's key, the job's first `nix develop`, took 609 s, against 40 s on `9eec12be`, and
+`check.sh game` 513 s against 696 s: the time went before the checks, which this milestone does
+not touch; not diagnosed. `check (headless)`'s `check.sh headless` took 1 092 s against 885 s on
+`9eec12be`, where this milestone adds tests of about a second on this machine. Both to watch at the
+next runs. The compositors' workflow did not run: no path that it watches changed.
