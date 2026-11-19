@@ -43,29 +43,42 @@ The facts, read on 2026-11-19:
 
 The owner chose the dependencies on 2026-11-19, one decision at a time: `xkbcommon-dl`'s `x11`
 feature with `x11rb`'s `xkb`; then `x11rb`'s `cursor`, which brings `xcursor` 0.3.11, `render` and
-`resource_manager`.
+`resource_manager`. The owner chose too, the same day, after the closing review, when the scale is
+read again.
 
 **The keyboard.** The keys come through XInput2's `KeyPress` and `KeyRelease` of the master
 keyboards, with the server's times, translated by `xkb.rs`, shared with Wayland's layer. The keymap
 is the server's core keyboard's, read through libxkbcommon-x11 at the start and again at XKB's
-`NewKeyboardNotify` and `MapNotify`; the modifiers and the layout come from XKB's `StateNotify`,
-depressed, latched and locked apart. The repeat is the server's: XInput2's `KeyRepeat` marks it,
-and the layer keeps no timer of its own. The window holds the focus when the server's focus is the
-window itself, through XInput2's `FocusIn` and `FocusOut`, or when it follows the pointer and the
-pointer lies over the window, through `Enter`'s `focus` and `Leave`. `WM_HINTS` asks the window
-manager for the focus, ICCCM's passive model.
+`NewKeyboardNotify` and `MapNotify`. The modifiers and the layout come from XKB's `StateNotify`,
+depressed, latched and locked apart, of those parts alone, not the pointer's buttons, and only
+while the window holds the focus: as it takes it, the layer asks for the notices and reads XKB's
+state once, and tells the modifiers if they changed meanwhile, as Wayland's compositors do; as it
+loses it, the notices stop. The repeat is the server's: XInput2's `KeyRepeat` marks it, and the
+layer keeps no timer of its own. The window holds the focus when the server's focus is the window
+itself, through XInput2's `FocusIn` and `FocusOut`; or when the server's focus lies above it,
+following the pointer (`PointerRoot`) or on an ancestor, such as the root window, and the pointer
+lies over it, through `Enter`'s `focus`, `Leave`, a `FocusOut` of the detail `Ancestor`, and focus
+events of the detail `Pointer`. `WM_HINTS` asks the window manager for the focus, ICCCM's passive
+model.
+
+**The loop turns only for what tells the host something.** Events that tell it nothing, as a
+keyboard that the server's core keyboard now follows, or a window manager's ping, are read and
+answered, and the loop waits again without a turn of the host.
 
 **The cursor.** Each shape is looked up in the person's theme by its CSS name, then by X11's older
 one (`text`, then `xterm`), through `x11rb`'s loader, which reads `XCURSOR_THEME` and
 `XCURSOR_SIZE`, then the X resources' `Xcursor.theme` and `Xcursor.size`, then a size from
-`Xft.dpi`. Where no theme holds it, the core cursor font's glyph shows. Each shape is made once,
+`Xft.dpi`. Where no theme holds it, or the theme named is `core`, the core cursor font's glyph
+shows, from the layer's own table: `x11rb` 0.13.2's gives the font's glyphs at half their numbers. Each shape is made once,
 when first shown, and set on the window; the arrow is set as the window opens, in place of the
 root window's cursor. A change of the X resources makes them again.
 
 **The scale.** `Xft.dpi` over 96, read from the root window's `RESOURCE_MANAGER` alone, held
-within 0.5 and 8; 1 where it gives no positive number. The layer follows the property's changes.
-The window opens at its logical size times the scale, its minimum size the same; a scale that
-changes keeps its pixels, its logical size following.
+within 0.5 and 8; 1 where it gives no positive number. The property is read at the start, and again
+each time the window takes the keyboard's focus, the owner's choice: a change applies as the
+person comes back to the application, which follows the change of the setting. The window opens at
+its logical size times the scale, its minimum size the same; a scale that changes keeps its pixels,
+its logical size following.
 
 **Touch.** XInput 2.2's `TouchBegin`, `TouchUpdate` and `TouchEnd`, asked where the server gives 2.2;
 each finger a pointer of its own, named anew at each touch, through the core's `fingers`, which
@@ -88,6 +101,11 @@ with the variable set, and checks that it passed there; the series' X11 test is 
 - **The core cursor font alone, or a reader of Xcursor's files of the layer's own:** the first
   black and white, of no theme nor size; the second what `xcursor` already does. Put to the owner,
   who chose `x11rb`'s `cursor`.
+- **The X resources followed as they change:** X11 tells a change of the root window's properties
+  only to a client that asks for every one, and a status bar that writes the time on the root
+  each second would wake the loop each second, at rest. Put to the owner.
+- **The X resources read at the start alone:** no wake either, but a change of the scale needs the
+  application started again. Put to the owner.
 - **The scale from XSETTINGS' `Xft/DPI`:** a settings daemon's selection protocol, given only
   where a desktop runs one; `Xft.dpi` is the older source, and the one that more programs read.
 - **The scale from RandR's physical sizes:** displays report sizes that are often wrong, and X11
@@ -104,13 +122,13 @@ with the variable set, and checks that it passed there; the series' X11 test is 
 - `docs/debt.md`'s items "On X11, uwui's desktop host takes no key, shows the server's cursor and
   draws at a scale of 1" and "uwui's desktop host's keyboard tests read the developer's own compose
   files" are settled.
-- `crates/uwui-windowing` gains `x11/keyboard.rs`, `x11/cursor.rs` and the core's `fingers.rs`;
-  [`dependencies.md`](../dependencies.md) records the features and `xcursor`.
-- The loop wakes once at each change of a property of the root window, a window manager's
-  included: the price of following the X resources, which X11 tells no other way.
+- `crates/uwui-windowing` gains `x11/keyboard.rs`, `x11/cursor.rs`, `x11/touch.rs` and the core's
+  `fingers.rs`; [`dependencies.md`](../dependencies.md) records the features and `xcursor`.
+- At rest, the layer's thread wakes for no input elsewhere on the screen: a click, the wheel or a
+  modifier over another window. It wakes, without a turn of the host, when the server's core
+  keyboard follows another device, as XTest's or a second keyboard's, and reads the keymap again.
 - The series' X11 column types into the example's field, and reads the cursor and the scale from
   the layer's own test ([`compositors.md`](../compositors.md)).
 - Debt left ([`debt.md`](../debt.md)): touch runs nowhere in CI, Xvfb having no touch device; a
-  scale per display is not followed, X11 giving one for the whole screen; a change of focus from
-  the pointer to another window while the pointer stays over this one is told only where the
-  server sends a focus event of the detail `Pointer`.
+  scale per display is not followed, X11 giving one for the whole screen; a layout switched, and
+  XKB's `NewKeyboardNotify`, reach no test against a server.

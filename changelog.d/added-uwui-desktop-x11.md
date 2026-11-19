@@ -3,4 +3,5 @@
   Present's notices, at RandR's rate where Present is missing; the pointer and its wheel through
   XInput2, with the server's times (ADR-0311). It takes the keys, with the server's keymap and
   repeat, dead keys and compose, shows the cursor's shapes of the person's theme, draws at the
-  scale of the X resources' `Xft.dpi`, and takes touch through XInput 2.2 (ADR-0313).
+  scale of the X resources' `Xft.dpi`, read again as the window takes the focus, and takes touch
+  through XInput 2.2 (ADR-0313).

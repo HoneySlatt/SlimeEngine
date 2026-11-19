@@ -31,9 +31,11 @@
 
 use std::ffi::{CString, c_char, c_void};
 use std::fmt;
+use std::marker::PhantomData;
 use std::ptr::NonNull;
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, Modifiers, NamedKey};
+use x11rb::xcb_ffi::XCBConnection;
 use xkbcommon_dl::x11::{XkbCommonX11, xkb_x11_setup_xkb_extension_flags};
 use xkbcommon_dl::{
     XKB_MOD_NAME_ALT, XKB_MOD_NAME_CTRL, XKB_MOD_NAME_LOGO, XKB_MOD_NAME_SHIFT, XkbCommon,
@@ -238,17 +240,17 @@ impl Keyboard {
     /// When libxkbcommon-x11 does not load or reads no keymap: the keyboard then keeps its last.
     pub(crate) fn set_x11_keymap(
         &mut self,
-        connection: X11Connection,
+        connection: X11Connection<'_>,
         device: i32,
     ) -> Result<(), KeyboardError> {
         let x11 = xkbcommon_dl::x11::xkbcommon_x11_option()
             .ok_or(KeyboardError("libxkbcommon-x11.so.0 does not load"))?;
-        // SAFETY: the context is live; the connection is live for the call, made on the thread
-        // that owns it, as `X11Connection` promises; the keymap returned is checked for null.
+        // SAFETY: the context is live; the connection is live, as `X11Connection`'s borrow makes
+        // sure, and libxcb takes calls from any thread; the keymap returned is checked for null.
         let keymap = unsafe {
             (x11.xkb_x11_keymap_new_from_device)(
                 self.context.as_ptr(),
-                connection.0.as_ptr(),
+                connection.raw.as_ptr(),
                 device,
                 xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
             )
@@ -258,7 +260,7 @@ impl Keyboard {
         // SAFETY: as above; the state returned holds a reference of the keymap and is checked for
         // null.
         let state = unsafe {
-            (x11.xkb_x11_state_new_from_device)(keymap.as_ptr(), connection.0.as_ptr(), device)
+            (x11.xkb_x11_state_new_from_device)(keymap.as_ptr(), connection.raw.as_ptr(), device)
         };
         let Some(state) = NonNull::new(state) else {
             // SAFETY: the keymap's reference is this function's, never used again.
@@ -337,10 +339,24 @@ impl Keyboard {
     }
 }
 
-/// libxcb's connection to an X server, given to libxkbcommon-x11 for a call: the caller holds it
-/// live through the call, on the one thread that makes requests on it.
+/// libxcb's connection to an X server under `x11rb`'s, given to libxkbcommon-x11 for a call. It
+/// borrows the connection, which lives as long as the value; libxcb takes calls from any thread.
 #[derive(Clone, Copy)]
-pub(crate) struct X11Connection(pub(crate) NonNull<c_void>);
+pub(crate) struct X11Connection<'a> {
+    raw: NonNull<c_void>,
+    _connection: PhantomData<&'a XCBConnection>,
+}
+
+impl<'a> X11Connection<'a> {
+    /// libxcb's connection under `connection`.
+    pub(crate) fn new(connection: &'a XCBConnection) -> Self {
+        Self {
+            raw: NonNull::new(connection.get_raw_xcb_connection())
+                .expect("libxcb gives x11rb a connection that is not null"),
+            _connection: PhantomData,
+        }
+    }
+}
 
 /// Asks the X server for XKB, of a version that libxkbcommon-x11 reads, on `connection`: the id of
 /// its core keyboard.
@@ -348,14 +364,14 @@ pub(crate) struct X11Connection(pub(crate) NonNull<c_void>);
 /// # Errors
 ///
 /// When libxkbcommon-x11 does not load, or the server gives no XKB or no core keyboard.
-pub(crate) fn x11_core_keyboard(connection: X11Connection) -> Result<i32, KeyboardError> {
+pub(crate) fn x11_core_keyboard(connection: X11Connection<'_>) -> Result<i32, KeyboardError> {
     let x11: &XkbCommonX11 = xkbcommon_dl::x11::xkbcommon_x11_option()
         .ok_or(KeyboardError("libxkbcommon-x11.so.0 does not load"))?;
-    // SAFETY: the connection is live for the call, made on the thread that owns it, as
-    // `X11Connection` promises; null pointers ask for none of the versions and events' bases.
+    // SAFETY: the connection is live, as `X11Connection`'s borrow makes sure, and libxcb takes
+    // calls from any thread; null pointers ask for none of the versions and events' bases.
     let set_up = unsafe {
         (x11.xkb_x11_setup_xkb_extension)(
-            connection.0.as_ptr(),
+            connection.raw.as_ptr(),
             xkbcommon_dl::x11::XKB_X11_MIN_MAJOR_XKB_VERSION,
             xkbcommon_dl::x11::XKB_X11_MIN_MINOR_XKB_VERSION,
             xkb_x11_setup_xkb_extension_flags::XKB_X11_SETUP_XKB_EXTENSION_NO_FLAGS,
@@ -369,7 +385,7 @@ pub(crate) fn x11_core_keyboard(connection: X11Connection) -> Result<i32, Keyboa
         return Err(KeyboardError("the X server gives no XKB"));
     }
     // SAFETY: as above.
-    let device = unsafe { (x11.xkb_x11_get_core_keyboard_device_id)(connection.0.as_ptr()) };
+    let device = unsafe { (x11.xkb_x11_get_core_keyboard_device_id)(connection.raw.as_ptr()) };
     if device < 0 {
         return Err(KeyboardError("the X server names no core keyboard"));
     }

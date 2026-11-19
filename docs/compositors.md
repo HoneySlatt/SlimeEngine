@@ -81,7 +81,9 @@ The rows:
   put on its button *Add*, whose hover draws frames, and at rest again; then ended by SIGTERM
   through its closing (its test `rest`); and whether the compositor took
   `zxdg_toplevel_decoration_v1`'s server side, in its log written with `WAYLAND_DEBUG=client`.
-  Xvfb has no window manager, which would draw the bar on X11.
+  Xvfb has no window manager, which would draw the bar on X11. On X11, the example stays at rest
+  too while `xdotool` clicks, scrolls and types Shift over the root window, far from its own
+  ([ADR-0313](adr/0313-x11s-keyboard-through-xinput2-and-libxkbcommon-x11-its-cursor-themed-its-scale-from-xft-dpi.md)).
 - **uwui's host's period told**: the display's period that `wp_presentation` tells with the same
   example's first image shown, in its log; where it tells none, the host measures the period from
   the signals' gaps. On X11, Present tells the images shown where the driver presents through it,

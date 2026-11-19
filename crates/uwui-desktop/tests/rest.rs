@@ -37,7 +37,9 @@
 //! which gives the window under the pointer the focus. The cursor's shapes are seen by
 //! `uwui-windowing`'s own test under the same server, as another client sees them: this test
 //! writes no `cursor:` there. A software driver presents without Present: the trace tells no image
-//! shown, and the test writes `period: none, measured from the signals`.
+//! shown, and the test writes `period: none, measured from the signals`. One more runs on X11
+//! alone: the example stays at rest while `xdotool` clicks, scrolls and types Shift over the root
+//! window, far from its own.
 //!
 //! On Wayland, the example writes its protocol with `WAYLAND_DEBUG=client` into a file of each
 //! test's own,
@@ -1151,4 +1153,67 @@ fn the_blank_window_presents_its_first_image_and_ends_on_a_signal() {
         std::thread::sleep(Duration::from_millis(50));
     };
     assert!(status.success(), "the blank window ended with {status}");
+}
+
+/// On X11, the example at rest, the pointer far from its window: a click, the wheel and Shift
+/// over another window, the root here, are nothing of its own, and it stays at rest, before it
+/// ever held the focus and after it held it.
+#[test]
+fn the_application_rests_through_a_click_elsewhere() {
+    let example = Example::start("rest-click-elsewhere.log", "");
+    if example.display != Display::X11 {
+        return;
+    }
+    let xdotool = |arguments: &[&str]| {
+        let status = Command::new("xdotool")
+            .args(arguments)
+            .status()
+            .expect("xdotool runs");
+        assert!(status.success(), "xdotool {arguments:?} failed");
+    };
+    // Far from the window, at the screen's bottom right.
+    xdotool(&["mousemove", "1900", "1060"]);
+    // Shift once before the rest is measured: XTest's keyboard becomes the one that the server's
+    // keyboard follows, a change of device that XKB and XInput2 tell every client, as a person
+    // switching keyboards would. What follows measures a modifier held elsewhere alone.
+    xdotool(&["key", "shift"]);
+    if let Err(error) = at_rest(&example) {
+        panic!("the example is not at rest after its start: {error}");
+    }
+    // A click, the wheel and Shift elsewhere, the window never focused.
+    let clicker = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(3));
+        xdotool(&["click", "1"]);
+        std::thread::sleep(Duration::from_secs(2));
+        xdotool(&["click", "--repeat", "3", "5"]);
+        std::thread::sleep(Duration::from_secs(1));
+        xdotool(&["key", "shift"]);
+    });
+    let rested = at_rest(&example);
+    clicker.join().expect("the clicker");
+    if let Err(error) = rested {
+        panic!("a click, the wheel or Shift over another window woke the example: {error}");
+    }
+    // The pointer over the window, which the server's focus following it gives the keyboard, then
+    // far from it again: the window took the focus and lost it; then Shift elsewhere once more.
+    xdotool(&["mousemove", "100", "100"]);
+    std::thread::sleep(Duration::from_millis(500));
+    xdotool(&["mousemove", "1900", "1060"]);
+    if let Err(error) = at_rest(&example) {
+        panic!("the example is not at rest after the pointer passed over it: {error}");
+    }
+    let typist = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(3));
+        xdotool(&["key", "shift"]);
+    });
+    let rested = at_rest(&example);
+    typist.join().expect("the typist");
+    if let Err(error) = rested {
+        panic!("Shift over another window woke the example once it had the focus: {error}");
+    }
+    assert_eq!(
+        example.end_on_sigterm(),
+        ["closing asked", "stopped", "dropped"],
+        "the example was not asked to close, then stopped"
+    );
 }

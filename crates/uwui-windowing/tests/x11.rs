@@ -5,9 +5,9 @@
 //! of X11 (`scripts/compositors.sh x11`), with `DESKTOP_STARTUP_ID` set to a start's id that holds
 //! a quote and a backslash, and `WAYLAND_DISPLAY` unset, one test at a time (`--test-threads=1`):
 //! one covers the whole screen. One test runs another again with `WAYLAND_DISPLAY` naming no
-//! compositor. The keyboard's test types through `xdotool`, and composes from the tests' own file,
-//! which `XCOMPOSEFILE` names (`tests/compose/Compose`); the scale's sets the root window's X
-//! resources, and leaves them as it found them.
+//! compositor. The keyboard's tests type through `xdotool`, and compose from the tests' own file,
+//! which `XCOMPOSEFILE` names (`tests/compose/Compose`); the scale's set the root window's X
+//! resources, and leave them as they found them.
 
 #![cfg(target_os = "linux")]
 
@@ -36,6 +36,8 @@ struct Told {
     configured: Vec<Configured>,
     /// How the window drew as it opened, then each change.
     drawn: Vec<Drawn>,
+    /// When each change of how it draws was read, after the opening's.
+    drawn_at: Vec<Instant>,
     inputs: Vec<Input>,
     /// Each signal's time, in nanoseconds of the host's clock, with the moment it was read.
     signals: Vec<(u64, Instant)>,
@@ -87,7 +89,10 @@ impl Handler for Recorder {
         if let Some(configured) = happened.configured {
             self.told.configured.push(configured);
         }
-        self.told.drawn.extend(happened.drawn);
+        if let Some(drawn) = happened.drawn {
+            self.told.drawn.push(drawn);
+            self.told.drawn_at.push(Instant::now());
+        }
         self.told
             .inputs
             .extend(happened.inputs.into_iter().map(|(_, input)| input));
@@ -1117,40 +1122,86 @@ fn set_resources(connection: &impl Connection, resources: Option<&[u8]>) {
     }
 }
 
-/// Deletes the root window's X resources as it drops, however the test ends.
-struct ResourcesSet<C: Connection>(C);
+/// The root window's X resources set by a test, given back as it found them as this drops,
+/// however the test ends.
+struct ResourcesSet<C: Connection> {
+    connection: C,
+    found: Option<Vec<u8>>,
+}
+
+impl<C: Connection> ResourcesSet<C> {
+    /// Sets the X resources to `resources` on `connection`, keeping those that it finds.
+    fn new(connection: C, resources: &[u8]) -> Self {
+        let root = connection.setup().roots[0].root;
+        let found = connection
+            .get_property(
+                false,
+                root,
+                AtomEnum::RESOURCE_MANAGER,
+                AtomEnum::STRING,
+                0,
+                u32::MAX / 4,
+            )
+            .unwrap()
+            .reply()
+            .unwrap();
+        let found = (found.type_ != x11rb::NONE).then_some(found.value);
+        set_resources(&connection, Some(resources));
+        Self { connection, found }
+    }
+}
 
 impl<C: Connection> Drop for ResourcesSet<C> {
     fn drop(&mut self) {
-        set_resources(&self.0, None);
+        set_resources(&self.connection, self.found.as_deref());
     }
 }
 
 /// The scale from the X resources' `Xft.dpi` over 96: the window opens at its logical size times
-/// it, and keeps its pixels as it changes, its logical size following.
+/// it; changed, it is read again as the window takes the focus, not before, and the window keeps
+/// its pixels, its logical size following.
 #[test]
 fn the_scale_follows_the_x_resources_dpi() {
     server_settles();
     let (connection, _) = x11rb::connect(None).expect("the X server");
-    set_resources(&connection, Some(b"Xft.dpi:\t144\nXft.antialias:\t1\n"));
-    let resources = ResourcesSet(connection);
+    let resources = ResourcesSet::new(connection, b"Xft.dpi:\t144\nXft.antialias:\t1\n");
     let (window_sender, window_receiver) = mpsc::channel::<u32>();
     let changer = std::thread::spawn(move || {
         let (connection, _) = x11rb::connect(None).expect("the X server");
-        window_receiver
+        let window = window_receiver
             .recv_timeout(Duration::from_secs(10))
             .expect("the window's id");
         std::thread::sleep(Duration::from_millis(300));
         set_resources(&connection, Some(b"Xft.dpi:\t192\n"));
+        // Read again as the window takes the keyboard's focus, here as the pointer enters it.
+        std::thread::sleep(Duration::from_millis(300));
+        let focused = Instant::now();
+        connection
+            .warp_pointer(x11rb::NONE, window, 0, 0, 0, 0, 100, 100)
+            .unwrap()
+            .check()
+            .unwrap();
+        let root = connection.setup().roots[0].root;
+        std::thread::sleep(Duration::from_millis(300));
+        connection
+            .warp_pointer(x11rb::NONE, root, 0, 0, 0, 0, 1000, 800)
+            .unwrap()
+            .check()
+            .unwrap();
+        focused
     });
     let (recorder, ran) = uwui_windowing::run(
         opening(false),
-        Recorder::new(Duration::from_millis(1200), false, Some(window_sender)),
+        Recorder::new(Duration::from_millis(1800), false, Some(window_sender)),
     );
     ran.expect("the run");
-    changer.join().expect("the changer");
+    let focused = changer.join().expect("the changer");
     drop(resources);
     let told = &recorder.told;
+    assert!(
+        told.drawn_at.iter().all(|at| *at >= focused),
+        "the scale changed before the window took the focus"
+    );
     eprintln!("drawn {:?}; configured {:?}", told.drawn, told.configured);
     assert_eq!(
         told.drawn.first().copied(),
@@ -1171,4 +1222,402 @@ fn the_scale_follows_the_x_resources_dpi() {
     );
     assert_eq!(told.configured.last().map(|c| c.size), Some([240, 180]));
     println!("scale: 1.5");
+}
+
+/// A handler that waits for nothing but the platform, counting its turns: it sends its window's
+/// id and its waker as the window opens, and ends at the turn after `stop`.
+struct Sleeper {
+    opened: Option<Sender<(u32, std::task::Waker)>>,
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    turns: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    inputs: Vec<Input>,
+}
+
+impl Handler for Sleeper {
+    fn opened(&mut self, window: &mut Window<'_>, _: Drawn) -> Result<(), Stopped> {
+        if let (Some(sender), (_, RawWindowHandle::Xcb(handle))) =
+            (&self.opened, window.raw_handles())
+        {
+            let _ = sender.send((handle.window.get(), window.waker()));
+        }
+        Ok(())
+    }
+
+    fn turn(&mut self, _: &mut Window<'_>, happened: Happened) -> Control {
+        self.turns.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.inputs
+            .extend(happened.inputs.into_iter().map(|(_, input)| input));
+        if self.stop.load(std::sync::atomic::Ordering::SeqCst) {
+            Control::Exit
+        } else {
+            Control::Wait(None)
+        }
+    }
+
+    fn closing(&mut self) {}
+}
+
+/// A window at rest, the pointer far from it: a click on another window, here the root, is
+/// nothing of the window's, and must not turn its loop.
+#[test]
+fn a_click_elsewhere_on_the_screen_turns_nothing() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    server_settles();
+    let stop = Arc::new(AtomicBool::new(false));
+    let turns = Arc::new(AtomicUsize::new(0));
+    let (opened_sender, opened_receiver) = mpsc::channel::<(u32, std::task::Waker)>();
+    let (thread_stop, thread_turns) = (Arc::clone(&stop), Arc::clone(&turns));
+    let clicker = std::thread::spawn(move || {
+        let (_window, waker) = opened_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window");
+        let count = || thread_turns.load(Ordering::SeqCst);
+        // Far from the window, which lies at the screen's top left, 320 x 240.
+        xdotool(&["mousemove", "1500", "900"]);
+        std::thread::sleep(Duration::from_millis(700));
+        let at_rest = count();
+        std::thread::sleep(Duration::from_millis(500));
+        let still = count();
+        xdotool(&["click", "1"]);
+        std::thread::sleep(Duration::from_millis(500));
+        let clicked = count();
+        // The wheel turned over the root window: buttons 4 and 5, twice each.
+        xdotool(&["click", "--repeat", "2", "4"]);
+        xdotool(&["click", "--repeat", "2", "5"]);
+        std::thread::sleep(Duration::from_millis(500));
+        let wheeled = count();
+        // Shift pressed and released, the pointer still far from the window, which the
+        // server's focus does not give the keys.
+        xdotool(&["key", "shift"]);
+        std::thread::sleep(Duration::from_millis(500));
+        let shifted = count();
+        thread_stop.store(true, Ordering::SeqCst);
+        waker.wake();
+        (at_rest, still, clicked, wheeled, shifted)
+    });
+    let sleeper = Sleeper {
+        opened: Some(opened_sender),
+        stop,
+        turns,
+        inputs: Vec::new(),
+    };
+    let (sleeper, ran) = uwui_windowing::run(opening(false), sleeper);
+    ran.expect("the run");
+    let (at_rest, still, clicked, wheeled, shifted) = clicker.join().expect("the clicker");
+    eprintln!(
+        "turns: at rest {at_rest}, 500 ms later {still}, after a click elsewhere {clicked}, \
+         after four notches of the wheel elsewhere {wheeled}, after Shift typed elsewhere \
+         {shifted}; inputs told {:?}",
+        sleeper.inputs
+    );
+    assert_eq!(still, at_rest, "the window turned while nothing happened");
+    assert_eq!(
+        clicked,
+        still,
+        "a click on another window turned the window's loop {} times",
+        clicked - still
+    );
+    assert_eq!(
+        wheeled,
+        clicked,
+        "the wheel over another window turned the window's loop {} times",
+        wheeled - clicked
+    );
+    assert_eq!(
+        shifted,
+        wheeled,
+        "Shift typed into another window turned the window's loop {} times",
+        shifted - wheeled
+    );
+    assert!(
+        sleeper.inputs.is_empty(),
+        "a window without the focus was told {:?}",
+        sleeper.inputs
+    );
+}
+
+/// A window at rest while another client names the root window, as a window manager's status
+/// bar does each second: a property of the root other than the X resources must not turn the
+/// window's loop.
+#[test]
+fn a_status_written_on_the_root_window_turns_nothing() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    server_settles();
+    let stop = Arc::new(AtomicBool::new(false));
+    let turns = Arc::new(AtomicUsize::new(0));
+    let (opened_sender, opened_receiver) = mpsc::channel::<(u32, std::task::Waker)>();
+    let (thread_stop, thread_turns) = (Arc::clone(&stop), Arc::clone(&turns));
+    let namer = std::thread::spawn(move || {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        let (_window, waker) = opened_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window");
+        std::thread::sleep(Duration::from_millis(700));
+        let at_rest = thread_turns.load(Ordering::SeqCst);
+        for second in 0..5 {
+            connection
+                .change_property8(
+                    PropMode::REPLACE,
+                    root,
+                    AtomEnum::WM_NAME,
+                    AtomEnum::STRING,
+                    format!("12:0{second} | 42%").as_bytes(),
+                )
+                .unwrap()
+                .check()
+                .unwrap();
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let named = thread_turns.load(Ordering::SeqCst);
+        // The root's name as the server had it, none.
+        connection
+            .delete_property(root, AtomEnum::WM_NAME.into())
+            .unwrap()
+            .check()
+            .unwrap();
+        thread_stop.store(true, Ordering::SeqCst);
+        waker.wake();
+        (at_rest, named)
+    });
+    let sleeper = Sleeper {
+        opened: Some(opened_sender),
+        stop,
+        turns,
+        inputs: Vec::new(),
+    };
+    let (_, ran) = uwui_windowing::run(opening(false), sleeper);
+    ran.expect("the run");
+    let (at_rest, named) = namer.join().expect("the namer");
+    eprintln!("turns: at rest {at_rest}, after the root named five times {named}");
+    assert_eq!(
+        named,
+        at_rest,
+        "the root's name written five times turned the window's loop {} times",
+        named - at_rest
+    );
+}
+
+/// The focus that the layer tells while other clients move the server's focus and the pointer
+/// stays over the window: every key that reaches the window comes while it is told focused.
+#[test]
+fn a_key_reaches_the_window_only_while_it_is_told_focused() {
+    use x11rb::protocol::xproto::InputFocus;
+    server_settles();
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let (stop_sender, stop_receiver) = mpsc::channel();
+    let mover = std::thread::spawn(move || {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        // Another client's window, far from the layer's.
+        let other = connection.generate_id().unwrap();
+        connection
+            .create_window(
+                x11rb::COPY_DEPTH_FROM_PARENT,
+                other,
+                root,
+                1200,
+                700,
+                100,
+                100,
+                0,
+                WindowClass::INPUT_OUTPUT,
+                0,
+                &CreateWindowAux::new(),
+            )
+            .unwrap()
+            .check()
+            .unwrap();
+        connection.map_window(other).unwrap().check().unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        let focus = |to: u32| {
+            connection
+                .set_input_focus(InputFocus::POINTER_ROOT, to, x11rb::CURRENT_TIME)
+                .unwrap()
+                .check()
+                .unwrap();
+            std::thread::sleep(Duration::from_millis(300));
+        };
+        // The pointer over the window, the server's focus following it.
+        connection
+            .warp_pointer(x11rb::NONE, window, 0, 0, 0, 0, 160, 120)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        xdotool(&["key", "a"]);
+        // Another window takes the focus: its keys go there.
+        focus(other);
+        xdotool(&["key", "b"]);
+        // The window's own focus.
+        focus(window);
+        xdotool(&["key", "c"]);
+        // The root window's: the keys go to the window under the pointer, this one.
+        focus(root);
+        xdotool(&["key", "d"]);
+        // The server's focus following the pointer again, as the next tests find it.
+        focus(u32::from(InputFocus::POINTER_ROOT));
+        let _ = stop_sender.send(());
+    });
+    let mut recorder = Recorder::new(Duration::from_secs(10), false, Some(window_sender));
+    recorder.stop = Some(stop_receiver);
+    let (recorder, ran) = uwui_windowing::run(opening(false), recorder);
+    ran.expect("the run");
+    mover.join().expect("the mover");
+    let mut focused = false;
+    let mut told = Vec::new();
+    let mut unfocused_keys = Vec::new();
+    for input in &recorder.told.inputs {
+        match input {
+            Input::Focus(given) => {
+                focused = *given;
+                told.push(format!("focus {given}"));
+            }
+            Input::Key(KeyEvent {
+                state: ButtonState::Pressed,
+                text: Some(text),
+                ..
+            }) => {
+                told.push(format!("key {text}"));
+                if !focused {
+                    unfocused_keys.push(text.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+    eprintln!("told: {told:?}");
+    assert!(
+        unfocused_keys.is_empty(),
+        "keys reached the window while it was told unfocused: {unfocused_keys:?}; told {told:?}"
+    );
+}
+
+/// Caps Lock locked by its key, then unlocked: XKB's locked modifiers reach the keymap's state,
+/// as its depressed ones do.
+#[test]
+fn a_locked_modifier_types_its_characters() {
+    server_settles();
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let (stop_sender, stop_receiver) = mpsc::channel();
+    let typist = std::thread::spawn(move || {
+        let (connection, _) = x11rb::connect(None).expect("the X server");
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        std::thread::sleep(Duration::from_millis(300));
+        connection
+            .warp_pointer(x11rb::NONE, window, 0, 0, 0, 0, 160, 120)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(200));
+        xdotool(&["key", "Caps_Lock"]);
+        xdotool(&["key", "a"]);
+        xdotool(&["key", "Caps_Lock"]);
+        xdotool(&["key", "a"]);
+        std::thread::sleep(Duration::from_millis(200));
+        let _ = stop_sender.send(());
+    });
+    let mut recorder = Recorder::new(Duration::from_secs(15), false, Some(window_sender));
+    recorder.stop = Some(stop_receiver);
+    let (recorder, ran) = uwui_windowing::run(opening(false), recorder);
+    ran.expect("the run");
+    typist.join().expect("the typist");
+    let typed: Vec<String> = typed(&recorder.told.inputs)
+        .into_iter()
+        .filter(|text| text != "none")
+        .collect();
+    eprintln!("typed: {typed:?}");
+    assert_eq!(typed, ["A", "a"], "Caps Lock locked, then unlocked");
+}
+
+/// The scale's test, run where the server holds X resources already, as a person's session does:
+/// they are as it found them afterwards, as this file's first lines say.
+#[test]
+fn the_scales_test_leaves_the_x_resources_as_it_found_them() {
+    server_settles();
+    let (connection, screen) = x11rb::connect(None).expect("the X server");
+    let root = connection.setup().roots[screen].root;
+    let found = b"Xcursor.size:\t24\n";
+    set_resources(&connection, Some(found));
+    the_scale_follows_the_x_resources_dpi();
+    let after = connection
+        .get_property(
+            false,
+            root,
+            AtomEnum::RESOURCE_MANAGER,
+            AtomEnum::ANY,
+            0,
+            1024,
+        )
+        .unwrap()
+        .reply()
+        .unwrap()
+        .value;
+    set_resources(&connection, None);
+    assert_eq!(
+        String::from_utf8_lossy(&after),
+        String::from_utf8_lossy(found),
+        "the X resources that the test found"
+    );
+}
+
+/// The window's smallest size, given in logical pixels, is told the window manager in pixels at
+/// the scale of `Xft.dpi`, and again as the scale changes, read as the window takes the focus.
+#[test]
+fn the_smallest_size_follows_the_scale() {
+    use x11rb::properties::WmSizeHints;
+    server_settles();
+    let (connection, _) = x11rb::connect(None).expect("the X server");
+    let resources = ResourcesSet::new(connection, b"Xft.dpi:\t144\n");
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let watcher = std::thread::spawn(move || {
+        let (connection, _) = x11rb::connect(None).expect("the X server");
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        std::thread::sleep(Duration::from_millis(300));
+        let smallest = || {
+            WmSizeHints::get_normal_hints(&connection, window)
+                .unwrap()
+                .reply()
+                .unwrap()
+                .and_then(|hints| hints.min_size)
+        };
+        let at_one_and_a_half = smallest();
+        set_resources(&connection, Some(b"Xft.dpi:\t192\n"));
+        // Read again as the window takes the focus.
+        connection
+            .warp_pointer(x11rb::NONE, window, 0, 0, 0, 0, 100, 100)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        let at_two = smallest();
+        let root = connection.setup().roots[0].root;
+        connection
+            .warp_pointer(x11rb::NONE, root, 0, 0, 0, 0, 1000, 800)
+            .unwrap()
+            .check()
+            .unwrap();
+        (at_one_and_a_half, at_two)
+    });
+    let mut opening = opening(false);
+    opening.min_size = Some([200, 100]);
+    let (_, ran) = uwui_windowing::run(
+        opening,
+        Recorder::new(Duration::from_millis(1200), false, Some(window_sender)),
+    );
+    ran.expect("the run");
+    let (at_one_and_a_half, at_two) = watcher.join().expect("the watcher");
+    drop(resources);
+    eprintln!("smallest at 1.5 {at_one_and_a_half:?}, at 2 {at_two:?}");
+    assert_eq!(at_one_and_a_half, Some((300, 150)));
+    assert_eq!(at_two, Some((400, 200)));
 }

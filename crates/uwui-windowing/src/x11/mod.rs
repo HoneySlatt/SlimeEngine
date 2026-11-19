@@ -15,7 +15,9 @@
 //!   is the window manager's; without a window manager, as under Xvfb, it opens at the size asked
 //!   and its requests do nothing.
 //! - *Its scale*: the X resources' `Xft.dpi` over 96, the root window's `RESOURCE_MANAGER`, read
-//!   again when it changes. X11 counts in physical pixels: the window opens at its logical size
+//!   again each time the window takes the keyboard's focus: following the property itself would
+//!   wake the loop at each change of any property of the root window, as a status bar that writes
+//!   the time each second. X11 counts in physical pixels: the window opens at its logical size
 //!   times the scale, and keeps its pixels when the scale changes, its logical size following.
 //! - *Activation*: `_NET_ACTIVE_WINDOW`, named by the person's last press, and
 //!   `_NET_WM_STATE_DEMANDS_ATTENTION`; the start's `DESKTOP_STARTUP_ID` told ended, as the
@@ -36,6 +38,7 @@ mod cursor;
 mod frames;
 mod keyboard;
 mod pointer;
+mod touch;
 
 use std::ffi::c_void;
 use std::num::NonZeroU32;
@@ -56,8 +59,8 @@ use x11rb::protocol::randr::{self, ConnectionExt as _};
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
 use x11rb::protocol::xkb;
 use x11rb::protocol::xproto::{
-    self, AtomEnum, ChangeWindowAttributesAux, ClientMessageEvent, ConnectionExt as _,
-    CreateWindowAux, EventMask, PropMode, Visibility, WindowClass,
+    self, AtomEnum, ClientMessageEvent, ConnectionExt as _, CreateWindowAux, EventMask, PropMode,
+    Visibility, WindowClass,
 };
 use x11rb::resource_manager::Database;
 use x11rb::wrapper::ConnectionExt as _;
@@ -128,6 +131,19 @@ struct Gathered {
     exposed: bool,
 }
 
+impl Gathered {
+    /// How much is gathered: what changes as anything comes for the host.
+    fn count(&self) -> (usize, bool, bool, bool, bool) {
+        (
+            self.inputs.len(),
+            self.configured.is_some(),
+            self.drawn.is_some(),
+            self.close,
+            self.exposed,
+        )
+    }
+}
+
 /// The layer on X11: its connections, the window and its loop's state.
 pub(crate) struct Platform {
     connection: XCBConnection,
@@ -157,6 +173,8 @@ pub(crate) struct Platform {
     fullscreen: bool,
     /// The physical pixels per logical one, from `Xft.dpi`.
     scale: f64,
+    /// The X resources' text last read, which the scale and the cursor's theme follow.
+    resources: Vec<u8>,
     /// The smallest size that the person may give the window, in logical pixels.
     min_size: Option<[u32; 2]>,
     /// Whether the window is mapped, and whether it is covered whole.
@@ -199,7 +217,8 @@ impl Platform {
             .reply()
             .map_err(|cause| Error::new("the X server's atoms", cause))?;
         let resources = read_resources(&connection);
-        let scale = scale_of(&resources);
+        let database = Database::new_from_data(&resources);
+        let scale = scale_of(&database);
         let size = opening
             .size
             .map(|side| pixels_of(side, scale).clamp(1, u32::from(u16::MAX)));
@@ -230,15 +249,8 @@ impl Platform {
                     ),
             )
             .map_err(|cause| Error::new("the window", cause))?;
-        // The root's properties, of which the X resources, whose changes may change the scale.
-        connection
-            .change_window_attributes(
-                root,
-                &ChangeWindowAttributesAux::new().event_mask(EventMask::PROPERTY_CHANGE),
-            )
-            .map_err(|cause| Error::new("the root window's properties", cause))?;
         let keys = Keys::new(&connection);
-        let mut cursors = Cursors::new(&connection, screen, window, &resources);
+        let mut cursors = Cursors::new(&connection, screen, window, &database);
         // The arrow of the person's theme, in place of the root window's cursor.
         cursors.show(&connection, CursorShape::Default);
         let mut platform = Self {
@@ -263,6 +275,7 @@ impl Platform {
             size,
             fullscreen: false,
             scale,
+            resources,
             min_size: opening.min_size,
             mapped: false,
             covered: false,
@@ -534,18 +547,23 @@ impl Platform {
         );
     }
 
-    /// Reads every event that the server sent, without waiting: whether any came.
+    /// Reads every event that the server sent, without waiting: whether any tells the host
+    /// something, an input, a change of the window, or the frames' signal. Another client's
+    /// property of the root window, a modifier held in another window, or a window manager's
+    /// ping tell it nothing.
     fn read_events(&mut self) -> Result<bool, Error> {
-        let mut any = false;
+        let mut told = false;
         while let Some(event) = self
             .connection
             .poll_for_event()
             .map_err(|cause| Error::new("the connection to the X server", cause))?
         {
-            any = true;
+            let frames = touches_frames(&event);
+            let before = self.gathered.count();
             self.event(event, clock::now());
+            told |= frames || self.gathered.count() != before;
         }
-        Ok(any)
+        Ok(told)
     }
 
     /// What `event`, received at `received`, tells.
@@ -582,10 +600,7 @@ impl Platform {
                         .inputs
                         .push((EventTime::received(received), input));
                 }
-                let input = self
-                    .keys
-                    .focus(keyboard::Focus::Entered { focus: enter.focus });
-                self.push_received(received, input);
+                self.focus(keyboard::Focus::Entered { focus: enter.focus }, received);
             }
             Event::XinputLeave(_) => {
                 for input in self.pointers.input(pointer::Event::Left, false) {
@@ -593,8 +608,7 @@ impl Platform {
                         .inputs
                         .push((EventTime::received(received), input));
                 }
-                let input = self.keys.focus(keyboard::Focus::Left);
-                self.push_received(received, input);
+                self.focus(keyboard::Focus::Left, received);
             }
             Event::XinputDeviceChanged(changed) => {
                 self.pointers.classes(changed.deviceid, &changed.classes);
@@ -610,32 +624,14 @@ impl Platform {
                 self.push_timed(release.time, received, input);
             }
             Event::XinputFocusIn(focus) if focus.event == self.window => {
-                let input = self.keys.focus(keyboard::Focus::Changed {
-                    given: true,
-                    pointer: focus.detail == xinput::NotifyDetail::POINTER,
-                });
-                self.push_received(received, input);
+                self.focus(keyboard::Focus::In(detail(focus.detail)), received);
             }
             Event::XinputFocusOut(focus) if focus.event == self.window => {
-                let input = self.keys.focus(keyboard::Focus::Changed {
-                    given: false,
-                    pointer: focus.detail == xinput::NotifyDetail::POINTER,
-                });
-                self.push_received(received, input);
+                self.focus(keyboard::Focus::Out(detail(focus.detail)), received);
             }
             Event::XkbStateNotify(state) if self.keys.follows(state.device_id) => {
-                let input = self.keys.state(
-                    [
-                        keyboard::mask(state.base_mods),
-                        keyboard::mask(state.latched_mods),
-                        keyboard::mask(state.locked_mods),
-                    ],
-                    [
-                        keyboard::layout(state.base_group),
-                        keyboard::layout(state.latched_group),
-                        keyboard::layout(i16::from(u8::from(state.locked_group))),
-                    ],
-                );
+                let (modifiers, layouts) = keyboard::state_of(&state);
+                let input = self.keys.state(modifiers, layouts);
                 self.push_received(received, input);
             }
             Event::XkbNewKeyboardNotify(new)
@@ -649,35 +645,12 @@ impl Platform {
                 let input = self.keys.keymap_changed(&self.connection);
                 self.push_received(received, input);
             }
-            Event::XinputTouchBegin(touch) => {
-                self.last_press = touch.time;
-                let at = [touch.event_x, touch.event_y].map(|side| pointer::pixels(side) as f32);
-                let touched = self.fingers.down((touch.sourceid, touch.detail), at);
-                self.push_received(received, touched.replaced);
-                let time = self.time(touch.time, received);
-                for input in touched.inputs {
-                    self.gathered.inputs.push((time, input));
-                }
+            Event::XinputTouchBegin(event) => {
+                self.last_press = event.time;
+                self.touch(touch::Phase::Began, &event, received);
             }
-            Event::XinputTouchUpdate(touch) => {
-                let at = [touch.event_x, touch.event_y].map(|side| pointer::pixels(side) as f32);
-                let input = self.fingers.moved((touch.sourceid, touch.detail), at);
-                self.push_timed(touch.time, received, input);
-            }
-            Event::XinputTouchEnd(touch) => {
-                if let Some(lifted) = self.fingers.up((touch.sourceid, touch.detail)) {
-                    let time = self.time(touch.time, received);
-                    for input in lifted {
-                        self.gathered.inputs.push((time, input));
-                    }
-                }
-            }
-            Event::PropertyNotify(property)
-                if property.window == self.root
-                    && property.atom == u32::from(AtomEnum::RESOURCE_MANAGER) =>
-            {
-                self.resources_changed();
-            }
+            Event::XinputTouchUpdate(event) => self.touch(touch::Phase::Moved, &event, received),
+            Event::XinputTouchEnd(event) => self.touch(touch::Phase::Ended, &event, received),
             Event::PresentCompleteNotify(complete) if complete.window == self.window => {
                 let placed = self
                     .present_clock
@@ -778,6 +751,39 @@ impl Platform {
         }
     }
 
+    /// What a touch's `event` at `phase`, received at `received`, gives.
+    fn touch(&mut self, phase: touch::Phase, event: &xinput::TouchBeginEvent, received: Instant) {
+        let touched = touch::touch(
+            &mut self.fingers,
+            phase,
+            event.sourceid,
+            event.detail,
+            [event.event_x, event.event_y],
+        );
+        self.push_received(received, touched.received);
+        if !touched.timed.is_empty() {
+            let time = self.time(event.time, received);
+            for input in touched.timed {
+                self.gathered.inputs.push((time, input));
+            }
+        }
+    }
+
+    /// What `event`, received at `received`, makes of the keyboard's focus; XKB's state followed
+    /// as the window takes it or loses it, and the X resources read again as it takes it.
+    fn focus(&mut self, event: keyboard::Focus, received: Instant) {
+        let before = self.keys.focused();
+        let told = self.keys.focus(event);
+        self.push_received(received, told);
+        if self.keys.focused() != before {
+            let held = self.keys.follow_state(&self.connection);
+            self.push_received(received, held);
+            if self.keys.focused() {
+                self.read_resources_again();
+            }
+        }
+    }
+
     /// Gives `input`, if any, at its reception's time.
     fn push_received(&mut self, received: Instant, input: Option<Input>) {
         if let Some(input) = input {
@@ -803,14 +809,20 @@ impl Platform {
         }
     }
 
-    /// The X resources changed: the scale that their `Xft.dpi` gives, and the cursor's theme and
-    /// size, are read again. The window keeps its pixels; its logical size follows its scale.
-    fn resources_changed(&mut self) {
+    /// Reads the X resources again; where they changed, the scale that their `Xft.dpi` gives, and
+    /// the cursor's theme and size, follow them. The window keeps its pixels; its logical size
+    /// follows its scale.
+    fn read_resources_again(&mut self) {
         let resources = read_resources(&self.connection);
+        if resources == self.resources {
+            return;
+        }
+        self.resources = resources;
+        let database = Database::new_from_data(&self.resources);
         let screen = usize::try_from(self.screen).unwrap_or(0);
         self.cursors
-            .resources_changed(&self.connection, screen, &resources);
-        let scale = scale_of(&resources);
+            .resources_changed(&self.connection, screen, &database);
+        let scale = scale_of(&database);
         if scale != self.scale {
             self.scale = scale;
             let _ = self.set_size_hints();
@@ -958,21 +970,31 @@ impl running::Platform for Platform {
             (Some(deadline), Some(signal)) => Some(deadline.min(signal)),
             (deadline, signal) => deadline.or(signal),
         };
-        self.connection
-            .flush()
-            .map_err(|cause| Error::new("the connection to the X server", cause))?;
+        let flush = |connection: &XCBConnection| {
+            connection
+                .flush()
+                .map_err(|cause| Error::new("the connection to the X server", cause))
+        };
+        flush(&self.connection)?;
         // Events that a reply's wait read are in libxcb's queue, not on the socket: read first.
         if self.read_events()? {
             return Ok(());
         }
-        let readable = self
-            .waits
-            .wait(self.connection.as_fd(), deadline, false)
-            .map_err(|cause| Error::new("the loop's wait", cause))?;
-        if readable {
-            self.read_events()?;
+        // Events that tell the host nothing, as another client's property of the root window,
+        // leave the loop waiting, without a turn of the host: only a wake, the deadline or an
+        // event that tells it something end the wait.
+        loop {
+            let readable = self
+                .waits
+                .wait(self.connection.as_fd(), deadline, false)
+                .map_err(|cause| Error::new("the loop's wait", cause))?;
+            let told = readable && self.read_events()?;
+            if told || !readable || self.waits.interrupted() {
+                return Ok(());
+            }
+            // What the events asked, as a ping's answer, goes before the next wait.
+            flush(&self.connection)?;
         }
-        Ok(())
     }
 
     fn raw_handles(&self) -> (RawDisplayHandle, RawWindowHandle) {
@@ -1068,6 +1090,30 @@ fn present_time(placed: Option<Instant>, received: Instant) -> Instant {
     }
 }
 
+/// Whether `event` bears on the frames' signal, which the host reads at its next turn: a present
+/// told, the window shown or hidden, moved, or the displays changed.
+fn touches_frames(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::PresentCompleteNotify(_)
+            | Event::MapNotify(_)
+            | Event::UnmapNotify(_)
+            | Event::VisibilityNotify(_)
+            | Event::ConfigureNotify(_)
+            | Event::RandrScreenChangeNotify(_)
+            | Event::RandrNotify(_)
+    )
+}
+
+/// The detail of XInput2's focus event as the keyboard reads it.
+fn detail(detail: xinput::NotifyDetail) -> keyboard::Detail {
+    match detail {
+        xinput::NotifyDetail::POINTER => keyboard::Detail::Pointer,
+        xinput::NotifyDetail::ANCESTOR => keyboard::Detail::Ancestor,
+        _ => keyboard::Detail::Other,
+    }
+}
+
 /// Whether the server gives the extension `name`.
 fn has_extension(connection: &XCBConnection, name: &'static str) -> bool {
     connection
@@ -1099,16 +1145,30 @@ fn startup_removal(id: &str) -> Vec<u8> {
     message
 }
 
-/// The X resources that the root window's `RESOURCE_MANAGER` holds, as `xrdb` loads them at a
-/// session's start; none where it holds none. The person's files are not read in its place: the
-/// session's tools load them into the property.
-fn read_resources(connection: &XCBConnection) -> Database {
-    x11rb::resource_manager::new_from_resource_manager(connection)
-        .unwrap_or_else(|error| {
+/// The X resources' text that the root window's `RESOURCE_MANAGER` holds, as `xrdb` loads them
+/// at a session's start; empty where it holds none. The person's files are not read in its place:
+/// the session's tools load them into the property.
+fn read_resources(connection: &XCBConnection) -> Vec<u8> {
+    let root = connection.setup().roots[0].root;
+    let read = connection
+        .get_property(
+            false,
+            root,
+            AtomEnum::RESOURCE_MANAGER,
+            AtomEnum::STRING,
+            0,
+            // The property's whole length, in 4-byte units, as large as X11 lets it be.
+            u32::MAX / 4,
+        )
+        .map_err(x11rb::errors::ReplyError::from)
+        .and_then(|cookie| cookie.reply());
+    match read {
+        Ok(reply) => reply.value,
+        Err(error) => {
             tracing::warn!(%error, "the X resources are not read: the scale is 1");
-            None
-        })
-        .unwrap_or_else(|| Database::new_from_data(b""))
+            Vec::new()
+        }
+    }
 }
 
 /// The scale that `resources`' `Xft.dpi` gives, over 96 dots per inch, held within [`SCALES`]; 1

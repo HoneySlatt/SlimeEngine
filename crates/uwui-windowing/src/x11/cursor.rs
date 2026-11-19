@@ -2,8 +2,10 @@
 //! (`docs/adr/0313-x11s-keyboard-through-xinput2-and-libxkbcommon-x11-its-cursor-themed-its-scale-from-xft-dpi.md`):
 //! each shape from the person's cursor theme, through `x11rb`'s cursor loader, at the theme and
 //! size that `XCURSOR_THEME` and `XCURSOR_SIZE` name, else the X resources' `Xcursor.theme` and
-//! `Xcursor.size`, else a size from `Xft.dpi`; where no theme holds it, the server's core cursor
-//! font's glyph. Each shape is made once, when first shown, and set on the window as its cursor.
+//! `Xcursor.size`, else a size from `Xft.dpi`; where no theme holds it, or where the theme named
+//! is `core`, the server's core cursor font's glyph, from the layer's own table (`x11rb` 0.13.2's
+//! gives the font's glyphs at half their numbers). Each shape is made once, when first shown, and
+//! set on the window as its cursor.
 
 use slime_input::CursorShape;
 use x11rb::NONE;
@@ -38,7 +40,8 @@ fn core_glyph(shape: CursorShape) -> u16 {
 /// The window's cursor: the shapes made, and the one shown.
 pub(super) struct Cursors {
     window: xproto::Window,
-    /// None where the server's RENDER cannot be asked: the core font's glyphs alone.
+    /// None where the server's RENDER cannot be asked, or the theme named is `core`: the core
+    /// font's glyphs alone.
     handle: Option<Handle>,
     made: Vec<(CursorShape, xproto::Cursor)>,
     shown: CursorShape,
@@ -119,8 +122,13 @@ impl Cursors {
     }
 }
 
-/// x11rb's loader of themed cursors on `screen`, or none where RENDER cannot be asked.
+/// x11rb's loader of themed cursors on `screen`, or none where RENDER cannot be asked or the
+/// theme named is `core`.
 fn handle(connection: &impl Connection, screen: usize, resources: &Database) -> Option<Handle> {
+    let named = std::env::var("XCURSOR_THEME").ok();
+    if theme_is_core(named.as_deref(), resources) {
+        return None;
+    }
     let loaded = Handle::new(connection, screen, resources)
         .map_err(x11rb::errors::ReplyOrIdError::from)
         .and_then(|cookie| cookie.reply());
@@ -129,6 +137,13 @@ fn handle(connection: &impl Connection, screen: usize, resources: &Database) -> 
             tracing::warn!(%error, "the cursor's theme is not read: the core font's cursors show");
         })
         .ok()
+}
+
+/// Whether the cursor's theme named is `core`, the server's font: `XCURSOR_THEME`, the
+/// environment's `named`, first, else the X resources' `Xcursor.theme`, as `x11rb`'s loader reads
+/// them.
+fn theme_is_core(named: Option<&str>, resources: &Database) -> bool {
+    named.or_else(|| resources.get_string("Xcursor.theme", "")) == Some("core")
 }
 
 /// The core cursor font's glyph `glyph`, black on white, as X11's older programs show it.
@@ -156,6 +171,20 @@ fn core_cursor(connection: &impl Connection, glyph: u16) -> Option<xproto::Curso
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_core_theme_is_read_as_x11rbs_loader_reads_it() {
+        let core = Database::new_from_data(b"Xcursor.theme: core\n");
+        let themed = Database::new_from_data(b"Xcursor.theme: Adwaita\n");
+        let none = Database::new_from_data(b"");
+        assert!(theme_is_core(Some("core"), &none));
+        assert!(theme_is_core(None, &core));
+        // The environment first.
+        assert!(!theme_is_core(Some("Adwaita"), &core));
+        assert!(theme_is_core(Some("core"), &themed));
+        assert!(!theme_is_core(None, &themed));
+        assert!(!theme_is_core(None, &none));
+    }
 
     #[test]
     fn each_shape_has_its_names_and_its_glyph() {

@@ -20,6 +20,8 @@ pub(crate) struct Waits {
     timer: OwnedFd,
     /// The deadline that the timer holds, if it is armed.
     armed: Option<Instant>,
+    /// Whether the last wait ended for a wake or the deadline, beside the display, if at all.
+    interrupted: bool,
 }
 
 impl Waits {
@@ -31,6 +33,7 @@ impl Waits {
                 TimerfdFlags::CLOEXEC | TimerfdFlags::NONBLOCK,
             )?,
             armed: None,
+            interrupted: false,
         })
     }
 
@@ -102,6 +105,57 @@ impl Waits {
             // A timer that fired is disarmed.
             self.armed = None;
         }
+        self.interrupted = wake.contains(PollFlags::IN) || timer.contains(PollFlags::IN);
         Ok(display.intersects(PollFlags::IN | PollFlags::ERR | PollFlags::HUP))
+    }
+
+    /// Whether the last wait ended for a wake from another thread or a termination signal, or
+    /// for its deadline, whether or not the display could be read too: the loop must turn, even
+    /// where what it read from the display tells nothing.
+    pub(crate) fn interrupted(&self) -> bool {
+        self.interrupted
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A display played by an eventfd: readable once written to.
+    fn display() -> OwnedFd {
+        eventfd(0, EventfdFlags::CLOEXEC | EventfdFlags::NONBLOCK).expect("an eventfd")
+    }
+
+    fn write(fd: &OwnedFd) {
+        rustix::io::write(fd, &1_u64.to_ne_bytes()).expect("written");
+    }
+
+    #[test]
+    fn a_wait_tells_what_ended_it() {
+        let mut waits = Waits::new().expect("the waits");
+        let display = display();
+        // The display alone.
+        write(&display);
+        assert!(waits.wait(display.as_fd(), None, false).expect("waited"));
+        assert!(!waits.interrupted());
+        let mut count = [0_u8; 8];
+        rustix::io::read(&display, &mut count).expect("read");
+        // A wake from another thread.
+        waits.notifier()();
+        assert!(!waits.wait(display.as_fd(), None, false).expect("waited"));
+        assert!(waits.interrupted());
+        // A deadline passed.
+        let past = Instant::from_nanos(1);
+        assert!(
+            !waits
+                .wait(display.as_fd(), Some(past), false)
+                .expect("waited")
+        );
+        assert!(waits.interrupted());
+        // The display and a wake together: both told.
+        write(&display);
+        waits.notifier()();
+        assert!(waits.wait(display.as_fd(), None, false).expect("waited"));
+        assert!(waits.interrupted());
     }
 }

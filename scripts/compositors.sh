@@ -321,6 +321,10 @@ if [ "$name" = x11 ]; then
         --nocapture 2>"$report/x11-layer.log" | tee "$work/x11-layer.txt" ||
         { cat "$report/x11-layer.log"; exit 1; }
     observe "uwui's host's cursor" "$(sed -n 's/^\(test .* \.\.\. \)\{0,1\}cursor: //p' "$work/x11-layer.txt")"
+    # The example at rest while another window is clicked, scrolled and typed Shift into.
+    run timeout -k 10 120 cargo test --locked -p uwui-desktop --test rest -- --nocapture --exact \
+        the_application_rests_through_a_click_elsewhere 2>"$report/application-elsewhere.log" ||
+        { cat "$report/application-elsewhere.log"; exit 1; }
 fi
 
 step "Scale: the window example on an output at a fractional scale"

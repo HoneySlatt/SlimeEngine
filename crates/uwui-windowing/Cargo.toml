@@ -34,11 +34,14 @@ wayland-client.workspace = true
 # xdg-shell's window and xdg-decoration's choice of who draws its bar; the cursor's shapes, the
 # fractional scale and its viewport, activation (ADR-0273).
 wayland-protocols.workspace = true
-# The keyboard's keymaps, its state and its compose tables, from libxkbcommon loaded at run time
-# (ADR-0270, ADR-0273).
+# The keyboard's keymaps, its state and its compose tables, from libxkbcommon loaded at run time;
+# an X server's keymap and state from libxkbcommon-x11, loaded the same way (ADR-0270, ADR-0273,
+# ADR-0313).
 xkbcommon-dl.workspace = true
 # X11 spoken by the layer itself, on libxcb's connection that Vulkan's driver presents on; its
-# window, XInput2's pointer, RandR's rates and Present's notices (ADR-0270, ADR-0311).
+# window, XInput2's pointer, keys and touch, RandR's rates, Present's notices, XKB's notices of the
+# keymap and the modifiers, the cursor's shapes from the person's theme and the X resources
+# (ADR-0270, ADR-0311, ADR-0313).
 x11rb.workspace = true
 
 # Needs an X server of its own, which `DISPLAY` names: run by the series' column of X11.

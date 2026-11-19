@@ -56,9 +56,11 @@ onto it.
   a frame asked when the server says that it lost the window's image; the pointer and its wheel,
   touch from XInput 2.2 and the keys through XInput2, with the server's times, and the server's
   own repeat; the keymap read through libxkbcommon-x11 and followed through XKB's notices, as the
-  modifiers; the focus, the window's own or the pointer's where the server's focus follows it; the
+  modifiers, these while the window holds the focus; the focus, the window's own, or the server's
+  above it, following the pointer or on an ancestor, while the pointer lies over the window; the
   cursor's shapes from the person's theme, else the core cursor font; the scale from the X
-  resources' `Xft.dpi`
+  resources' `Xft.dpi`, read again as the window takes the focus; the loop turned only for events
+  that tell the host something
   ([ADR-0313](../../docs/adr/0313-x11s-keyboard-through-xinput2-and-libxkbcommon-x11-its-cursor-themed-its-scale-from-xft-dpi.md)).
 - Holds the keyboard's code of libxkbcommon, Linux's (`xkb`): the platform's keymap, as a text on
   Wayland or read from the X server, its state, the compose tables of the person's locale, each
@@ -77,17 +79,21 @@ with uwui's first stage; the clipboard and input methods (M6d.8).
 `cargo test -p uwui-windowing` runs the core's tests on every platform, and on Linux the
 keyboard's, on layouts that libxkbcommon compiles from its rules, and the translation of the
 compositor's pointer, touch and keyboard events, without a compositor; X11's pointer, its wheel,
-keys, focus, scale, its frames' signal and the display's period, without a server. Tests that
+keys, focus, touch, scale, cursor's theme, its frames' signal and the display's period, without
+a server. Tests that
 compose dead keys read the tests' own compose file, `tests/compose/Compose`, never the
 developer's: each runs itself again in a process of its own whose `XCOMPOSEFILE` names it. The window itself is tested
 through the host above it, by `uwui-desktop`'s `rest` tests in the series of compositors, X11's
 under Xvfb. There too, `cargo test -p uwui-windowing --test x11 -- --test-threads=1`, which needs
-the X server that `DISPLAY` names, watches X11's window as another client sees it: its fullscreen
+an X server of its own that `DISPLAY` names, never the person's (it sets the server's keymap, focus,
+pointer and X resources, and leaves the resources as it found them), watches X11's window as another client sees it: its fullscreen
 hint without a window manager and with one, its pings, its start's end, its signal held while
 hidden, a present told across a resize, the fallback from a Wayland compositor that does not
-answer; keys typed through `xdotool`, their repeat, a keymap changed and a dead key composed, run
-with `XCOMPOSEFILE` naming `tests/compose/Compose`; each cursor's shape as XFixes shows it; the
-scale that the X resources' `Xft.dpi` gives.
+answer; keys typed through `xdotool`, their repeat, a keymap changed, a dead key composed and
+Caps Lock locked, run with `XCOMPOSEFILE` naming `tests/compose/Compose`; the focus as other
+clients move it, every key coming while the window is told focused; a click, the wheel, Shift or a
+status written on the root window elsewhere turning nothing; each cursor's shape as XFixes shows it;
+the scale and the smallest size that the X resources' `Xft.dpi` gives.
 
 ## Depends on
 
@@ -107,5 +113,5 @@ keymap's read and the machine's name.
   three.
 - Show a type of a platform's library in its API.
 - Run, poll or wake while nothing happens.
-- Use `unsafe` but where it calls libxkbcommon and libxkbcommon-x11, each with its `// SAFETY:`; libxcb is reached
-  through `x11rb`'s safe interface.
+- Use `unsafe` but where it calls libxkbcommon and libxkbcommon-x11, each with its `// SAFETY:`;
+  libxcb is reached through `x11rb`'s safe interface.

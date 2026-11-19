@@ -7,22 +7,27 @@
 //!   changed (`NewKeyboardNotify`, `MapNotify`), as `setxkbmap` or a tool that maps a keysym for a
 //!   while changes it. Its keys are translated by Linux's code of the keyboard (`crate::xkb`),
 //!   which counts from X11's keycode less 8.
-//! - *The modifiers and the layout*: XKB's `StateNotify`, depressed, latched and locked apart.
+//! - *The modifiers and the layout*: XKB's `StateNotify`, depressed, latched and locked apart, of
+//!   these parts alone, and only while the window holds the focus: a modifier held in another
+//!   window, or a click anywhere, which changes the pointer's buttons in XKB's state, never wakes
+//!   the loop. As the window takes the focus, the layer reads XKB's state once, and tells the
+//!   modifiers held if they changed, as on Wayland.
 //! - *The repeat*: the server's own. XInput2 marks a key held's repeats and sends no release
 //!   between them, so the layer keeps no timer of its own, as it does on Wayland.
 //! - *The focus*: the window holds it when the server's focus is the window itself, as XInput2's
-//!   `FocusIn` and `FocusOut` tell; or when the server's focus follows the pointer
-//!   (`PointerRoot`), as where no window manager gives it, and the pointer lies over the window:
-//!   XInput2's `Enter` then says that the window has the focus, and `Leave` takes it back. Focus
-//!   events of the detail `Pointer` tell the second way too.
+//!   `FocusIn` and `FocusOut` tell; or when the server's focus lies above it, following the
+//!   pointer (`PointerRoot`), as where no window manager gives it, or on an ancestor such as the
+//!   root window, and the pointer lies over the window: the keys then go to the window under the
+//!   pointer. XInput2's `Enter` says whether the focus lies so, `Leave` says that the pointer left;
+//!   a `FocusOut` of the detail `Ancestor` leaves the focus above, one of another detail takes it
+//!   elsewhere, and focus events of the detail `Pointer` move it from above or back.
 //!
 //! It knows no clock: the layer times the inputs that it gives.
-
-use std::ptr::NonNull;
 
 use slime_input::{ButtonState, Modifiers};
 use x11rb::connection::RequestConnection;
 use x11rb::protocol::xkb::{self, ConnectionExt as _};
+use x11rb::protocol::xproto::ModMask;
 use x11rb::xcb_ffi::XCBConnection;
 
 use crate::Input;
@@ -38,23 +43,40 @@ pub(super) struct Keys {
     keyboard: Option<Keyboard>,
     /// XKB's id of the server's core keyboard, which every master keyboard's keys follow.
     device: i32,
+    /// The modifiers last told the host.
     modifiers: Modifiers,
-    /// Whether the server's focus is the window.
+    /// Whether the server's focus is the window itself.
     window_focus: bool,
-    /// Whether the server's focus follows the pointer and the pointer lies over the window.
-    pointer_focus: bool,
+    /// Whether the server's focus lies above the window: following the pointer, or on an
+    /// ancestor.
+    focus_above: bool,
+    /// Whether the pointer lies over the window.
+    inside: bool,
 }
 
 /// What told of the focus, as XInput2's events give it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Focus {
-    /// `FocusIn` or `FocusOut` on the window: the server's focus given or taken; `pointer` for the
-    /// detail `Pointer`, the server's focus following the pointer into the window or out of it.
-    Changed { given: bool, pointer: bool },
-    /// The pointer entered the window, the server saying whether that gives it the keyboard.
+    /// `FocusIn` on the window, of this detail.
+    In(Detail),
+    /// `FocusOut` of the window, of this detail.
+    Out(Detail),
+    /// The pointer entered the window, the server saying whether its focus is the window or lies
+    /// above it (XInput2's `focus`).
     Entered { focus: bool },
     /// The pointer left the window.
     Left,
+}
+
+/// The detail of a focus event, as far as the window's keys depend on it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Detail {
+    /// `Pointer`: the server's focus moves above the window, which the pointer lies over, or back.
+    Pointer,
+    /// `Ancestor`: the focus moves from the window to one of its ancestors, above it.
+    Ancestor,
+    /// Any other: the focus moves to the window, or from it to a window not above it.
+    Other,
 }
 
 impl Keys {
@@ -70,8 +92,8 @@ impl Keys {
 
     fn open(connection: &XCBConnection) -> Result<Self, String> {
         let mut keyboard = Keyboard::new(&linux::locale()).map_err(|error| error.to_string())?;
-        let raw = raw_connection(connection)?;
-        let device = linux::x11_core_keyboard(raw).map_err(|error| error.to_string())?;
+        let device = linux::x11_core_keyboard(X11Connection::new(connection))
+            .map_err(|error| error.to_string())?;
         // libxkbcommon-x11 asked for XKB through libxcb alone: x11rb learns its events' numbers
         // here, without which it would not read them.
         if connection
@@ -91,18 +113,16 @@ impl Keys {
             | xkb::MapPart::VIRTUAL_MOD_MAP;
         connection
             .xkb_select_events(
-                xkb::DeviceSpec::try_from(device).map_err(|error| error.to_string())?,
+                spec(device)?,
                 xkb::EventType::from(0_u16),
-                xkb::EventType::NEW_KEYBOARD_NOTIFY
-                    | xkb::EventType::MAP_NOTIFY
-                    | xkb::EventType::STATE_NOTIFY,
+                xkb::EventType::NEW_KEYBOARD_NOTIFY | xkb::EventType::MAP_NOTIFY,
                 parts,
                 parts,
                 &xkb::SelectEventsAux::new(),
             )
             .map_err(|error| error.to_string())?;
         keyboard
-            .set_x11_keymap(raw, device)
+            .set_x11_keymap(X11Connection::new(connection), device)
             .map_err(|error| error.to_string())?;
         Ok(Self::with_keyboard(keyboard, device))
     }
@@ -115,7 +135,8 @@ impl Keys {
             device,
             modifiers,
             window_focus: false,
-            pointer_focus: false,
+            focus_above: false,
+            inside: false,
         }
     }
 
@@ -125,7 +146,8 @@ impl Keys {
             device: -1,
             modifiers: Modifiers::default(),
             window_focus: false,
-            pointer_focus: false,
+            focus_above: false,
+            inside: false,
         }
     }
 
@@ -135,31 +157,76 @@ impl Keys {
     }
 
     /// Reads the keymap of the server's core keyboard again, which XKB said changed: the modifiers
-    /// held, if they changed with it. A keymap that cannot be read leaves the last.
+    /// held, if they changed with it and the window holds the focus. A keymap that cannot be read
+    /// leaves the last.
     pub(super) fn keymap_changed(&mut self, connection: &XCBConnection) -> Option<Input> {
         let keyboard = self.keyboard.as_mut()?;
-        let read = raw_connection(connection).and_then(|raw| {
-            keyboard
-                .set_x11_keymap(raw, self.device)
-                .map_err(|error| error.to_string())
-        });
-        if let Err(error) = read {
+        if let Err(error) = keyboard.set_x11_keymap(X11Connection::new(connection), self.device) {
             tracing::warn!(%error, "the X server's new keymap is not read: keys keep the last");
             return None;
         }
-        let held = keyboard.modifiers();
-        self.modifiers_now(held)
+        self.modifiers_now()
+    }
+
+    /// Follows XKB's state of the modifiers and the layout while the window holds the focus, and
+    /// only then: as it takes it, XKB's `StateNotify` is asked and the state read once, the
+    /// modifiers held told if they changed meanwhile; as it loses it, the notices stop.
+    pub(super) fn follow_state(&mut self, connection: &XCBConnection) -> Option<Input> {
+        self.keyboard.as_ref()?;
+        let focused = self.focused();
+        let details = if focused { state_parts() } else { 0_u16.into() };
+        let followed = spec(self.device).and_then(|device| {
+            connection
+                .xkb_select_events(
+                    device,
+                    xkb::EventType::from(0_u16),
+                    xkb::EventType::from(0_u16),
+                    0_u16.into(),
+                    0_u16.into(),
+                    &xkb::SelectEventsAux::new().state_notify(xkb::SelectEventsAuxStateNotify {
+                        affect_state: state_parts(),
+                        state_details: details,
+                    }),
+                )
+                .map_err(|error| error.to_string())?;
+            if !focused {
+                return Ok(None);
+            }
+            let state = connection
+                .xkb_get_state(device)
+                .map_err(|error| error.to_string())?
+                .reply()
+                .map_err(|error| error.to_string())?;
+            Ok(Some(state))
+        });
+        match followed {
+            Ok(Some(state)) => {
+                let (modifiers, layouts) = parts(
+                    [state.base_mods, state.latched_mods, state.locked_mods],
+                    [state.base_group, state.latched_group],
+                    state.locked_group,
+                );
+                self.state(modifiers, layouts)
+            }
+            Ok(None) => None,
+            Err(error) => {
+                tracing::warn!(%error, "the keyboard's state is not followed: modifiers may lag");
+                None
+            }
+        }
     }
 
     /// XKB's state of the modifiers and the layout: `modifiers` and `layouts` depressed, latched
-    /// and locked. The modifiers held, if they changed.
+    /// and locked. The modifiers held, if they changed and the window holds the focus.
     pub(super) fn state(&mut self, modifiers: [u32; 3], layouts: [u32; 3]) -> Option<Input> {
-        let held = self.keyboard.as_mut()?.set_modifiers(modifiers, layouts);
-        self.modifiers_now(held)
+        self.keyboard.as_mut()?.set_modifiers(modifiers, layouts);
+        self.modifiers_now()
     }
 
-    fn modifiers_now(&mut self, held: Modifiers) -> Option<Input> {
-        (held != self.modifiers).then(|| {
+    /// The modifiers held, if the window holds the focus and they differ from those last told.
+    fn modifiers_now(&mut self) -> Option<Input> {
+        let held = self.keyboard.as_ref()?.modifiers();
+        (self.focused() && held != self.modifiers).then(|| {
             self.modifiers = held;
             Input::Modifiers(held)
         })
@@ -173,18 +240,24 @@ impl Keys {
         Some(Input::Key(event))
     }
 
-    /// What `event` makes of the window's keyboard focus: told once for each change. A sequence
-    /// of dead keys in progress is forgotten with the focus.
+    /// What `event` makes of the window's keyboard focus: told once for each change, which
+    /// [`Keys::follow_state`] must follow. A sequence of dead keys in progress is forgotten with
+    /// the focus.
     pub(super) fn focus(&mut self, event: Focus) -> Option<Input> {
         let before = self.focused();
         match event {
-            Focus::Changed {
-                given,
-                pointer: true,
-            } => self.pointer_focus = given,
-            Focus::Changed { given, .. } => self.window_focus = given,
-            Focus::Entered { focus } => self.pointer_focus = focus && !self.window_focus,
-            Focus::Left => self.pointer_focus = false,
+            Focus::In(Detail::Pointer) => self.focus_above = true,
+            Focus::In(_) => self.window_focus = true,
+            Focus::Out(Detail::Pointer) => self.focus_above = false,
+            Focus::Out(detail) => {
+                self.window_focus = false;
+                self.focus_above = detail == Detail::Ancestor;
+            }
+            Focus::Entered { focus } => {
+                self.inside = true;
+                self.focus_above = focus;
+            }
+            Focus::Left => self.inside = false,
         }
         let given = self.focused();
         if given == before {
@@ -196,26 +269,63 @@ impl Keys {
         Some(Input::Focus(given))
     }
 
-    fn focused(&self) -> bool {
-        self.window_focus || self.pointer_focus
+    /// Whether the keys go to the window: its own focus, or the focus above it and the pointer
+    /// over it.
+    pub(super) fn focused(&self) -> bool {
+        self.window_focus || (self.focus_above && self.inside)
     }
 }
 
-/// libxcb's connection under x11rb's, for libxkbcommon-x11.
-fn raw_connection(connection: &XCBConnection) -> Result<X11Connection, String> {
-    NonNull::new(connection.get_raw_xcb_connection())
-        .map(X11Connection)
-        .ok_or_else(|| "libxcb's connection is null".to_owned())
+/// The parts of XKB's state that the keys depend on: the modifiers and the layout, depressed,
+/// latched and locked; not the pointer's buttons.
+fn state_parts() -> xkb::StatePart {
+    xkb::StatePart::MODIFIER_BASE
+        | xkb::StatePart::MODIFIER_LATCH
+        | xkb::StatePart::MODIFIER_LOCK
+        | xkb::StatePart::GROUP_BASE
+        | xkb::StatePart::GROUP_LATCH
+        | xkb::StatePart::GROUP_LOCK
+}
+
+/// XKB's id of the keyboard `device` in its requests.
+fn spec(device: i32) -> Result<xkb::DeviceSpec, String> {
+    xkb::DeviceSpec::try_from(device).map_err(|error| error.to_string())
+}
+
+/// The modifiers' masks and the layouts of XKB's `state` notice, depressed, latched and locked,
+/// as [`Keys::state`] takes them.
+pub(super) fn state_of(state: &xkb::StateNotifyEvent) -> ([u32; 3], [u32; 3]) {
+    parts(
+        [state.base_mods, state.latched_mods, state.locked_mods],
+        [state.base_group, state.latched_group],
+        state.locked_group,
+    )
+}
+
+/// The masks of `modifiers` and the layouts of `groups`, then `locked`, as libxkbcommon takes them.
+fn parts(
+    modifiers: [ModMask; 3],
+    [base, latched]: [i16; 2],
+    locked: xkb::Group,
+) -> ([u32; 3], [u32; 3]) {
+    (
+        modifiers.map(mask),
+        [
+            layout(base),
+            layout(latched),
+            layout(i16::from(u8::from(locked))),
+        ],
+    )
 }
 
 /// XKB's mask of modifiers as libxkbcommon takes it.
-pub(super) fn mask(modifiers: x11rb::protocol::xproto::ModMask) -> u32 {
+fn mask(modifiers: ModMask) -> u32 {
     u32::from(u16::from(modifiers))
 }
 
 /// XKB's layout, which a latch or a base may give as negative, relative, as libxkbcommon takes it:
 /// the same bits, which it brings within the keymap's layouts itself.
-pub(super) fn layout(group: i16) -> u32 {
+fn layout(group: i16) -> u32 {
     i32::from(group).cast_unsigned()
 }
 
@@ -262,9 +372,15 @@ mod tests {
         assert_eq!(keys.key(7, ButtonState::Pressed, false), None);
     }
 
+    /// The window's own focus given, as a window manager gives it.
+    const GIVEN: Focus = Focus::In(Detail::Other);
+    /// The focus taken to another window.
+    const TAKEN: Focus = Focus::Out(Detail::Other);
+
     #[test]
     fn xkbs_state_changes_the_modifiers_and_the_layout_told_once() {
         let mut keys = keys("us,fr");
+        assert_eq!(keys.focus(GIVEN), Some(Input::Focus(true)));
         // Shift, the keymap's first modifier.
         let Some(Input::Modifiers(held)) = keys.state([1, 0, 0], [0; 3]) else {
             panic!("Shift is not told");
@@ -275,7 +391,7 @@ mod tests {
             key(keys.key(38, ButtonState::Pressed, false)).2.as_deref(),
             Some("A")
         );
-        // The French layout locked: no modifier changes, but `q`'s place types `a`.
+        // The French layout locked, Shift released: `q`'s place types `a`.
         assert!(keys.state([0, 0, 0], [0, 0, 1]).is_some());
         assert_eq!(keys.state([0, 0, 0], [0, 0, 1]), None);
         assert_eq!(
@@ -284,22 +400,50 @@ mod tests {
         );
     }
 
-    const GIVEN: Focus = Focus::Changed {
-        given: true,
-        pointer: false,
-    };
-    const TAKEN: Focus = Focus::Changed {
-        given: false,
-        pointer: false,
-    };
+    #[test]
+    fn the_modifiers_are_told_only_while_focused() {
+        let mut keys = keys("us");
+        // A state given without the focus, as XKB's read as it comes: followed, not told.
+        assert_eq!(keys.state([1, 0, 0], [0; 3]), None);
+        assert_eq!(
+            key(keys.key(38, ButtonState::Pressed, false)).2.as_deref(),
+            Some("A"),
+            "the state is followed"
+        );
+        // The focus given: the same state, read again as the window takes it, is told once.
+        assert_eq!(keys.focus(GIVEN), Some(Input::Focus(true)));
+        assert!(
+            matches!(keys.state([1, 0, 0], [0; 3]), Some(Input::Modifiers(held)) if held.shift)
+        );
+        assert_eq!(keys.state([1, 0, 0], [0; 3]), None);
+        // Taken away, then given back with the same modifiers: nothing more.
+        assert_eq!(keys.focus(TAKEN), Some(Input::Focus(false)));
+        assert_eq!(keys.focus(GIVEN), Some(Input::Focus(true)));
+        assert_eq!(keys.state([1, 0, 0], [0; 3]), None);
+    }
+
+    #[test]
+    fn xkbs_state_notice_gives_each_part_apart() {
+        use x11rb::protocol::xproto::ModMask;
+        let notice = xkb::StateNotifyEvent {
+            base_mods: ModMask::SHIFT,
+            latched_mods: ModMask::CONTROL,
+            locked_mods: ModMask::LOCK,
+            base_group: -1,
+            latched_group: 2,
+            locked_group: xkb::Group::from(1_u8),
+            ..Default::default()
+        };
+        assert_eq!(state_of(&notice), ([1, 4, 2], [u32::MAX, 2, 1]));
+    }
 
     #[test]
     fn the_focus_is_told_at_each_change_alone() {
         let mut keys = keys("us");
         assert_eq!(keys.focus(GIVEN), Some(Input::Focus(true)));
-        assert_eq!(keys.focus(GIVEN), None);
+        assert!(keys.focus(GIVEN).is_none());
         assert_eq!(keys.focus(TAKEN), Some(Input::Focus(false)));
-        assert_eq!(keys.focus(TAKEN), None);
+        assert!(keys.focus(TAKEN).is_none());
     }
 
     #[test]
@@ -311,16 +455,20 @@ mod tests {
             Some(Input::Focus(true))
         );
         assert_eq!(keys.focus(Focus::Left), Some(Input::Focus(false)));
-        // A window that another holds the focus of: entering gives nothing.
-        assert_eq!(keys.focus(Focus::Entered { focus: false }), None);
-        assert_eq!(keys.focus(Focus::Left), None);
-        // Focus events of the detail `Pointer` tell the same.
-        let pointer = |given| Focus::Changed {
-            given,
-            pointer: true,
-        };
-        assert_eq!(keys.focus(pointer(true)), Some(Input::Focus(true)));
-        assert_eq!(keys.focus(pointer(false)), Some(Input::Focus(false)));
+        // A window whose focus another holds: entering gives nothing.
+        assert!(keys.focus(Focus::Entered { focus: false }).is_none());
+        // The focus moving above the window while the pointer lies over it, and back.
+        assert_eq!(
+            keys.focus(Focus::In(Detail::Pointer)),
+            Some(Input::Focus(true))
+        );
+        assert_eq!(
+            keys.focus(Focus::Out(Detail::Pointer)),
+            Some(Input::Focus(false))
+        );
+        // Above it, but the pointer gone: nothing.
+        assert!(keys.focus(Focus::Left).is_none());
+        assert!(keys.focus(Focus::In(Detail::Pointer)).is_none());
     }
 
     #[test]
@@ -328,19 +476,33 @@ mod tests {
         let mut keys = keys("us");
         assert_eq!(keys.focus(GIVEN), Some(Input::Focus(true)));
         // The pointer passing over the focused window changes nothing.
-        assert_eq!(keys.focus(Focus::Entered { focus: true }), None);
-        assert_eq!(keys.focus(Focus::Left), None);
+        assert!(keys.focus(Focus::Entered { focus: true }).is_none());
+        assert!(keys.focus(Focus::Left).is_none());
         assert_eq!(keys.focus(TAKEN), Some(Input::Focus(false)));
         // Focused by the pointer, then given the focus itself, then the pointer leaving: held.
         keys.focus(Focus::Entered { focus: true });
-        assert_eq!(keys.focus(GIVEN), None);
-        assert_eq!(keys.focus(Focus::Left), None);
+        assert!(keys.focus(GIVEN).is_none());
+        assert!(keys.focus(Focus::Left).is_none());
         assert_eq!(keys.focus(TAKEN), Some(Input::Focus(false)));
         // The pointer entering the focused window, which then loses the focus to another while
-        // the pointer stays: lost, the server's focus not following the pointer.
+        // the pointer stays: lost.
         keys.focus(GIVEN);
-        assert_eq!(keys.focus(Focus::Entered { focus: true }), None);
+        assert!(keys.focus(Focus::Entered { focus: true }).is_none());
         assert_eq!(keys.focus(TAKEN), Some(Input::Focus(false)));
+    }
+
+    #[test]
+    fn a_focus_given_to_an_ancestor_leaves_the_keys_to_the_window_under_the_pointer() {
+        let mut keys = keys("us");
+        keys.focus(GIVEN);
+        keys.focus(Focus::Entered { focus: true });
+        // The focus moves to the root window, above this one: the keys still come here.
+        assert!(keys.focus(Focus::Out(Detail::Ancestor)).is_none());
+        assert_eq!(keys.focus(Focus::Left), Some(Input::Focus(false)));
+        assert_eq!(
+            keys.focus(Focus::Entered { focus: true }),
+            Some(Input::Focus(true))
+        );
     }
 
     #[test]
