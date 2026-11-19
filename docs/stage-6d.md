@@ -2741,7 +2741,8 @@ The first part of M6d.7b ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-fra
   signal, its device and surface lost and drawn again; the series' column of X11 tells uwui's
   host; CI is green.
 - **Measured.** CI's jobs that build the host, each within 20 minutes.
-- **Result.** Done on 2026-11-19:
+- **Result.** Done on 2026-11-19, CI green, every job within its 20 minutes
+  ([`measurements.md`](measurements.md#m6d7b1-x11s-window-frames-and-pointer)):
   - `uwui-windowing` chooses its layer as it starts: Wayland's where `WAYLAND_DISPLAY` or
     `WAYLAND_SOCKET` names a compositor that opens the window, else X11's where `DISPLAY` names a
     server. Both run

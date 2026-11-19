@@ -5071,3 +5071,33 @@ the cooked zone's key, the job's first `nix develop`, took 609 s, against 40 s o
 not touch; not diagnosed. `check (headless)`'s `check.sh headless` took 1 092 s against 885 s on
 `9eec12be`, where this milestone adds tests of about a second on this machine. Both to watch at the
 next runs. The compositors' workflow did not run: no path that it watches changed.
+
+## M6d.7b1, X11's window, frames and pointer
+
+No timed measure: the milestone checks that uwui's desktop host rests under Xvfb, in the series'
+column of X11 ([`compositors.md`](compositors.md)), not how fast it draws.
+
+GitHub's hosted runners, on 2026-11-19, each run green, on `fc42de25`, the milestone's last commit:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 11 min 22 s |
+| `check (headless)` | 18 min 15 s |
+| `check (windowed)` | 10 min 52 s |
+| `check (game)` | 12 min 48 s |
+| `check (gles)` | 3 min 36 s |
+| `windows (tests)` | 15 min 29 s |
+| `windows (render)` | 7 min 11 s |
+| `windows (game)` | 5 min 4 s |
+| `windows-release` | 16 min 9 s |
+| `compositors (weston)` | 14 min 0 s |
+| `compositors (sway)` | 17 min 11 s |
+| `compositors (kwin)` | 16 min 50 s |
+| `compositors (mutter)` | 14 min 57 s |
+| `compositors (x11)` | 13 min 54 s |
+| Docs' `links` | green |
+
+Every job stays within its limit of 20 minutes, `check (headless)` by 1 min 45 s, as at M6d.9a2c3;
+`check (game)` is back to 12 min 48 s, from 19 min 13 s. `check (lint)` took 11 min 22 s, against
+7 min 53 s on `8f9a0dec`: it compiles `x11rb`'s XInput2, RandR and Present code now. The column of
+X11 runs uwui's host and the layer's own `x11` test, and stays the fastest of the five.
