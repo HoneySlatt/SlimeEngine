@@ -25,7 +25,7 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     then [V1](stage-6d.md#v1--uwuis-documents-versioned); S1 cut in three ([ADR-0303](adr/0303-s1-cut-in-three-safe-files-the-editors-journal-saves-migrated.md)),
     S1 done with [S1c](stage-6d.md#s1c--saves-migrated-and-a-panics-end), then [R1](stage-6d.md#r1--rust-1100);
     M6d.9a2c cut in four ([ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)):
-    done, M6d.9a2c1 to [M6d.9a2c3](stage-6d.md#m6d9a2c3--waits-in-uwui); M6d.9a2c4 cut in two ([ADR-0314](adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)): next, [M6d.9a2c4a](stage-6d.md#m6d9a2c4a--the-library-that-waits-on-the-interface);
+    done to [M6d.9a2c4a](stage-6d.md#m6d9a2c4a--the-library-that-waits-on-the-interface), M6d.9a2c4 cut in two ([ADR-0314](adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)); next, [M6d.9a2c4b](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface);
     after M6d.9b, [E1](stage-6d.md#e1--the-elements-contract), the element's contract designed
     before M6d.10a ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six
@@ -55,8 +55,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a2a — The library](stage-6d.md#m6d9a2a--the-library) | Done |
 | [M6d.9a2b1 to M6d.9a2b2 — The engine on the library](stage-6d.md#m6d9a2b--the-engine-on-the-library) | Done |
-| [M6d.9a2c1 to M6d.9a2c3 — Families described, the journal waits, uwui's waits](stage-6d.md#m6d9a2c1--each-family-described) | Done |
-| [M6d.9a2c4a to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a2c4a--the-library-that-waits-on-the-interface) | Planned |
+| [M6d.9a2c1 to M6d.9a2c4a — Families described, and waits](stage-6d.md#m6d9a2c1--each-family-described) | Done |
+| [M6d.9a2c4b to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [V1 — uwui's documents versioned](stage-6d.md#v1--uwuis-documents-versioned) | Done |
 | [S1a to S1c — Saves migrated from layout 5](stage-6d.md#s1--saves-migrated-from-layout-5) | Done |

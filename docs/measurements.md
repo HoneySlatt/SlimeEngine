@@ -5102,3 +5102,12 @@ Every job stays within its limit of 20 minutes, `check (headless)` by 1 min 45 s
 7 min 53 s on `8f9a0dec`; it now compiles `x11rb`'s XInput2, RandR and Present code, whose share
 is not measured: to watch at the next runs. The column of X11 runs uwui's host and the layer's own
 `x11` test, and stays the fastest of the five.
+
+## M6d.9a2c4a, the library that waits on the interface
+
+The waits' counters on the editor's hierarchy, `editor.hierarchy.100k`, which `--counters` checks,
+on 2026-11-19: unchanged from [M6d.9a2c3](#m6d9a2c3-waits-in-uwui), 0 elements read and 0
+allocations after a frame standing still, 2 and 2 after a pointer's move or a rename, 15 and 4 after
+a scroll by a row. A check now first asks whether its target holds a change not yet framed, a
+search of the targets' records that allocates nothing; the bench's waits read the interface as it
+stands, so that no handle of elements seen is counted.

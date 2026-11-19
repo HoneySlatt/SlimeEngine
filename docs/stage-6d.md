@@ -166,7 +166,7 @@ in git.
   [M6d.9a2c3](#m6d9a2c3--waits-in-uwui), done on 2026-11-19; next,
   M6d.9a2c4, cut in two on 2026-11-19
   ([ADR-0314](adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)):
-  [M6d.9a2c4a](#m6d9a2c4a--the-library-that-waits-on-the-interface) and
+  [M6d.9a2c4a](#m6d9a2c4a--the-library-that-waits-on-the-interface), done on the same day; next,
   [M6d.9a2c4b](#m6d9a2c4b--the-engine-that-waits-on-the-interface),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
@@ -3495,6 +3495,33 @@ M6d.9a2c4, "The interface that waits", is cut in two
   interface in memory, seen once; a role or a state unknown is refused; CI is green, Windows
   included.
 - **Measured.** The counters of the waits' checks on the editor's hierarchy, as before.
+- **Result.** Done on 2026-11-19, CI green on `b60b12c1` ([ADR-0314](adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)):
+  - `interface/wait`, `interface` 4 and its kept copy: a target, a role, a name, states held and
+    lacking, `absent`, `after`, a page; `Reply::Waited` gives the elements not seen, `after` and
+    `more`. Unknown roles and states, `GenericContainer`, a state held and lacking, a target that
+    the interface does not have and more than 1,000 elements to see are refused.
+  - uwui: `agents::wait` and `agents::met` answer it from a host's `Waits`; `after` is a handle
+    bound to its process, interface and condition, holding the numbers of the elements seen and
+    their sum, counted in the page's bytes. A wait or a check while its target holds a change not
+    yet framed reads nothing until the check after that frame.
+  - `uwui-mcp`: `wait_for_elements`, 1 to 50 s; `waited` and `MOST_WAIT`, the bound of every tool
+    that waits, which `editor_journal` takes; its program in memory holds waits in flight, frames
+    its targets after each request and takes cancels through the core; its test session keeps
+    answers that come out of order.
+  - Tested: seen once, for a list to choose from closed, in uwui and through the tool; an element
+    seen that matched again, one not given that started matching, a wait walked late, a page past,
+    a handle of another condition, sum, interface or size; a bound passed and an agent's cancel
+    each let the program's wait go. 36 mutations, each failing a test.
+  - A fresh agent attacked the design first: a handle unbound to its condition and unbounded, a
+    wait of 0 s that a held request cannot answer, a deferral that left the first answer out, a
+    `BUSY` that leaked a wait, a test session that dropped answers, and a milestone larger than a
+    session, which the owner cut in two. The closing review found two paths untested, a deferred
+    wait from `after` and the handle's binding, each proven by a mutation, and documents behind; a
+    second review, the tool's stale branch untested and a target judged by its size alone. All
+    fixed.
+  - Measured: the counters of `editor.hierarchy.100k`'s waits as before.
+  - Left for later ([`debt.md`](debt.md)): the engine's refusal of these waits, with the other
+    host debts, for M6d.9a2c4b.
 
 ### M6d.9a2c4b — The engine that waits on the interface
 
