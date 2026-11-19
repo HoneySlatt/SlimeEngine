@@ -5111,3 +5111,24 @@ allocations after a frame standing still, 2 and 2 after a pointer's move or a re
 a scroll by a row. A check now first asks whether its target holds a change not yet framed, a
 search of the targets' records that allocates nothing; the bench's waits read the interface as it
 stands, so that no handle of elements seen is counted.
+
+GitHub's hosted runners, on 2026-11-19, each run green, on `b60b12c1`, the milestone's commit:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 44 s |
+| `check (headless)` | 15 min 21 s |
+| `check (windowed)` | 10 min 49 s |
+| `check (game)` | 9 min 39 s |
+| `check (gles)` | 3 min 20 s |
+| `windows (tests)` | 11 min 32 s |
+| `windows (render)` | 7 min 22 s |
+| `windows (game)` | 7 min 58 s |
+| `windows-release` | 15 min 28 s |
+| Docs' `links` | green |
+| Compositors | green |
+
+Every job stays within its limit of 20 minutes. `check (headless)` took 15 min 21 s, against
+18 min 23 s on `8f9a0dec` and 18 min 15 s on M6d.7b1's commit, though this milestone adds tests of
+about three seconds on this machine; `windows (tests)` 11 min 32 s against 17 min 23 s. The
+runners' share of these swings is not diagnosed.
