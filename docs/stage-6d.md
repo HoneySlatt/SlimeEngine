@@ -164,7 +164,10 @@ in git.
   [M6d.9a2c1](#m6d9a2c1--each-family-described) and
   [M6d.9a2c2](#m6d9a2c2--the-journal-that-waits), done on the same day;
   [M6d.9a2c3](#m6d9a2c3--waits-in-uwui), done on 2026-11-19; next,
-  [M6d.9a2c4](#m6d9a2c4--the-interface-that-waits),
+  M6d.9a2c4, cut in two on 2026-11-19
+  ([ADR-0314](adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)):
+  [M6d.9a2c4a](#m6d9a2c4a--the-library-that-waits-on-the-interface) and
+  [M6d.9a2c4b](#m6d9a2c4b--the-engine-that-waits-on-the-interface),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
@@ -3476,20 +3479,37 @@ The first part of M6d.9a2c, started on 2026-11-18, designed in [ADR-0308](adr/03
   - Left for later ([`debt.md`](debt.md)): the waits on elements, which their host lets go itself,
     for M6d.9a2c4.
 
-### M6d.9a2c4 — The interface that waits
+### M6d.9a2c4a — The library that waits on the interface
 
-- **Goal.** An agent waits for a change of the interface.
-- **Crates.** `uwui-agent`, `uwui`, `slime-channel`, `slime-app`, `uwui-mcp`, `slime-mcp`; timed
-  against M6d.7.
-- **Delivers.** `interface/wait`, `interface` 4, its kept copy; `slime-app` holding it; `uwui-mcp`'s
-  interface tool waiting under 60 s, giving `after`; the in-memory carrier of `uwui-mcp`'s tests
-  holding a request in flight.
+M6d.9a2c4, "The interface that waits", is cut in two
+([ADR-0314](adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)).
+
+- **Goal.** An agent waits, through uwui's MCP library, for a change of an interface.
+- **Crates.** `uwui-agent`, `uwui`, `uwui-mcp`, `slime-mcp`.
+- **Delivers.** `interface/wait`, `interface` 4, its kept copy; uwui's answers to it, `after` as
+  the elements seen; `uwui-mcp`'s tool waiting under 60 s, giving `after`; the in-memory program of
+  `uwui-mcp`'s tests holding a request in flight, and cancelling it.
 - **Debt settled.** The bound of a tool that waits in `slime-mcp`, moved into `uwui-mcp` for both
-  tools; a wait cancelled that frees its place untested; the journal's wait measured under a
-  heavy load; the waits on elements, which their host lets go itself ([`debt.md`](debt.md)).
-- **Done when.** A tool waits for a dialog to close, seen once; a still frame's counters as before;
-  a program at rest with a wait in flight runs no frame for 10 s; CI is green, closing M6d.9a2.
-- **Measured.** From a change to the waiting tool's answer, on the editor; a still frame's counters.
+  tools ([`debt.md`](debt.md)).
+- **Done when.** An agent waits through the tool for a list to choose from to close, on an
+  interface in memory, seen once; a role or a state unknown is refused; CI is green, Windows
+  included.
+- **Measured.** The counters of the waits' checks on the editor's hierarchy, as before.
+
+### M6d.9a2c4b — The engine that waits on the interface
+
+- **Goal.** An agent waits for a change of the engine's interface.
+- **Crates.** `slime-app`, `slime-channel`, `slime-mcp`; timed against M6d.7.
+- **Delivers.** `slime-app` holding the interface's waits beside the journal's, within one count,
+  checking them where its presentation frames the interface.
+- **Debt settled.** A wait cancelled that frees its place untested; the journal's wait measured
+  under a heavy load; the waits on elements, which their host lets go itself
+  ([`debt.md`](debt.md)).
+- **Done when.** A tool waits for the editor's dialog to close, seen once; a still frame's
+  counters as before; a program at rest with a wait in flight runs no frame for 10 s; CI is green,
+  closing M6d.9a2.
+- **Measured.** From a change to the waiting tool's answer, on the editor; the journal's beside it,
+  at rest; a still frame's counters.
 
 ### M6d.9a3a — Attaching, and the person's consent
 

@@ -2,7 +2,8 @@
 
 - Status: Accepted; supersedes in part
   [0261](0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)
-  (what each reader of meaning takes)
+  (what each reader of meaning takes); amended by
+  [0314](0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md) (`after`, and a check while a change is not framed)
 - Date: 2026-11-19
 
 ## Context

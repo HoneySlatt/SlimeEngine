@@ -2,7 +2,8 @@
 
 - Status: Accepted; supersedes in part
   [0295](0295-each-familys-messages-described-and-held-to-its-version-from-m6d9a2c.md) (the
-  rule on a family's description, made precise)
+  rule on a family's description, made precise); superseded in part by
+  [0314](0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md) (M6d.9a2c4 cut in two)
 - Date: 2026-11-18
 
 ## Context
