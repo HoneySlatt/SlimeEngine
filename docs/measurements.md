@@ -5099,5 +5099,6 @@ GitHub's hosted runners, on 2026-11-19, each run green, on `fc42de25`, the miles
 
 Every job stays within its limit of 20 minutes, `check (headless)` by 1 min 45 s, as at M6d.9a2c3;
 `check (game)` is back to 12 min 48 s, from 19 min 13 s. `check (lint)` took 11 min 22 s, against
-7 min 53 s on `8f9a0dec`: it compiles `x11rb`'s XInput2, RandR and Present code now. The column of
-X11 runs uwui's host and the layer's own `x11` test, and stays the fastest of the five.
+7 min 53 s on `8f9a0dec`; it now compiles `x11rb`'s XInput2, RandR and Present code, whose share
+is not measured: to watch at the next runs. The column of X11 runs uwui's host and the layer's own
+`x11` test, and stays the fastest of the five.
