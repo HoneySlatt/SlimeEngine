@@ -8,11 +8,12 @@ use std::time::{Duration, Instant};
 use slime_editor::{Hierarchy, InterfaceFrame, Offscreen};
 use slime_gfx::Gpu;
 use slime_world::{Name, World};
+use uwui::agents::{Condition, Presence, Waited, Waits};
 use uwui::host::{Person, TargetId, TargetSize};
 use uwui::look::{self, Colors, Density};
 use uwui::style::{Dimension, FlexDirection};
 use uwui::text::Fonts;
-use uwui::tree::{RootSettings, Ui};
+use uwui::tree::{Role, RootSettings, Ui};
 
 use crate::allocations::counted;
 use crate::measure::{Context, Row, timed};
@@ -129,7 +130,18 @@ pub fn hierarchy(context: &mut Context) -> Result<Vec<Row>, String> {
     move_pointer(&mut ui);
     let ((), moved) = counted(|| move_pointer(&mut ui));
     let moves = times(runs, || move_pointer(&mut ui));
+    let read = waits_read(
+        &mut ui,
+        &mut world,
+        renamed,
+        list,
+        &mut |ui, world| {
+            frame(ui, world, &mut hierarchy);
+        },
+        &mut move_pointer,
+    )?;
     let mut rows = counters;
+    rows.extend(read);
     rows.push(Row::count(
         "allocations of a pointer's move to another row",
         moved.calls,
@@ -150,6 +162,73 @@ pub fn hierarchy(context: &mut Context) -> Result<Vec<Row>, String> {
         &spawned,
     ));
     rows.extend(Row::times("a pointer's move to another row", &moves));
+    Ok(rows)
+}
+
+/// The elements that the checks of waits held on the hierarchy read, and what each check
+/// allocates
+/// (`docs/adr/0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md`):
+/// an absence of every row whose name holds `entity`, which keeps the rows in sight, and a
+/// presence of a button that never comes, held with the list at its top; each checked after a
+/// frame standing still, a pointer's move to another row, an entity in sight renamed, and a frame
+/// scrolled by a row. Measured after the
+/// other series, so that the waits' reader changes none of their counters.
+fn waits_read(
+    ui: &mut Ui,
+    world: &mut World,
+    renamed: slime_world::Entity,
+    list: uwui::tree::ElementId,
+    frame: &mut dyn FnMut(&mut Ui, &World),
+    move_pointer: &mut dyn FnMut(&mut Ui),
+) -> Result<Vec<Row>, String> {
+    // Back at the top, where the renamed entity's row shows; the rows that show are built, then
+    // the pointer's hover follows them.
+    ui.scroll_to(list, [0.0, 0.0]);
+    for _ in 0..3 {
+        frame(ui, world);
+    }
+    let mut waits = Waits::default();
+    let wanted = |role, name: &str, presence| Condition {
+        role: Some(role),
+        name: name.to_owned(),
+        holding: Vec::new(),
+        lacking: Vec::new(),
+        presence,
+    };
+    for condition in [
+        wanted(Role::TreeItem, "entity", Presence::Absent),
+        wanted(Role::Button, "never", Presence::Present),
+    ] {
+        match waits.wait(ui, TargetId::MAIN, condition) {
+            Ok(Waited::Held(_)) => {}
+            other => return Err(format!("a wait not held: {other:?}")),
+        }
+    }
+    let mut rows = Vec::new();
+    let mut checked = |ui: &mut Ui, world: &World, what: &str| {
+        frame(ui, world);
+        let (check, taken) = counted(|| waits.check(ui, TargetId::MAIN));
+        if !check.met.is_empty() {
+            return Err(format!("a wait met after {what}"));
+        }
+        rows.push(Row::count(
+            format!("elements that the waits read after {what}"),
+            check.visited,
+        ));
+        rows.push(Row::count(
+            format!("allocations of the waits' check after {what}"),
+            taken.calls,
+        ));
+        Ok(())
+    };
+    checked(ui, world, "a frame standing still")?;
+    move_pointer(ui);
+    checked(ui, world, "a pointer's move to another row")?;
+    world.insert(renamed, Name("entity renamed".to_owned()));
+    checked(ui, world, "an entity renamed")?;
+    ui.scroll_to(list, [0.0, 22.0]);
+    checked(ui, world, "a frame scrolled by a row")?;
+    waits.clear(Some(ui));
     Ok(rows)
 }
 

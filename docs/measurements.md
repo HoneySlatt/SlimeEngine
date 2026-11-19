@@ -5012,3 +5012,40 @@ Every job stays within its limit of 20 minutes. `windows (tests)`, the longest, 
 M6d.7a2c1's 16 min 57 s to 18 min 16 s and has 1 min 44 s of margin left, where this milestone adds
 unit tests of a few milliseconds: the runner's spread, which the next runs tell, but close enough to
 its limit to watch.
+
+## M6d.9a2c3, waits in uwui
+
+What the checks of waits on elements read and allocate
+([ADR-0312](adr/0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md)),
+counted, not timed: the machine's load does not change them. On 2026-11-19.
+
+On the editor's hierarchy, `editor.hierarchy.100k` (319 elements; `--counters` checks these): two
+waits held with the list at its top, the absence of every row named `entity`, which keeps the rows
+in sight, and the presence of a button that never comes.
+
+| After | Elements read | Allocations of the check |
+|---|---|---|
+| A frame standing still | 0 | 0 |
+| A pointer's move to another row | 2 | 2 |
+| An entity in sight renamed | 2 | 2 |
+| A frame scrolled by a row | 15 | 4 |
+
+A pointer's move reads the row's name that the pointer left and the one that it reached; a rename,
+the row and its name; a scroll, the row built and its six elements, the row removed and its six, and
+the list. The rows that only moved are not read. Each allocation counted is a name written in small letters,
+Rust's `to_lowercase`, as `interface/elements` writes it: one for each element read whose role a
+wait with a name matches, the rows (`TreeItem`) for the first wait and the buttons of a row, its
+name, its eye and its lock, for the second. A check also allocates when a wait's set of elements
+grows, and for a wait met.
+
+Without a reader of meaning, a mark of an element and what it holds no longer makes its list
+before it finds none: `ui.tree.look`'s first frame at twice the size of text allocates 894 412
+times, against 894 717 before.
+
+In uwui's tests (`agents::wait_tests`), on a root of 209 elements, 200 of them labels in a box that
+scrolls: a frame standing still reads 0; a button disabled, 1; the pointer over a button, 1; a scroll
+and a target resized, 0; a button removed, 3, the button, its box and the root above; a modal dialog
+opened, then closed, 4 each, its three elements and the button whose focus it took or gave back; a
+root moved to another target, its 209 elements on each target; a reader past its bound, a walk of
+the target's 609 elements; a box of 1 200 rows removed, past the bound, a walk of the 8 left; a root
+of one label removed below two floating panels of 20 labels, 2, and a panel raised, 0.

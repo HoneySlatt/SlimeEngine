@@ -511,9 +511,9 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
     }
     for (id, root) in moved {
         if root {
-            ui.mark_meaning_below(id);
+            ui.mark_place_below(id);
         } else {
-            ui.mark_meaning(id);
+            ui.mark_place(id);
         }
     }
     for section in titled {

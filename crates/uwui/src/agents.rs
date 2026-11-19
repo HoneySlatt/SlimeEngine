@@ -6,7 +6,10 @@
 //! Compiled by the feature `agents`, it serves nothing by itself: a host carries the family's
 //! messages, `uwui_agent::interface`, and gives each request to [`answer`] with the [`Ui`] that
 //! answers it. A capture waits for its target's image: the host keeps it, then asks [`shown`] which
-//! pixels of that image to cut. A refusal is a [`Fault`] of the code `REFUSED`, saying why.
+//! pixels of that image to cut. A refusal is a [`Fault`] of the code `REFUSED`, saying why. A host
+//! keeps [`Waits`] beside its interface: waits on a target's elements, checked after each of its
+//! frames on the elements that changed
+//! (`docs/adr/0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md`).
 //!
 //! The elements are read by pages
 //! (`docs/adr/0260-a-long-list-read-by-pages-a-cursor-bound-to-its-maker-pages-bounded-by-time-m6d9a1b3b-cut-in-two.md`):
@@ -27,6 +30,12 @@ use crate::host::TargetId;
 use crate::style::Display;
 use crate::theme::StateName;
 use crate::tree::{ElementAction, ElementId, ElementState, Meaning, Ui};
+
+mod wait;
+#[cfg(test)]
+mod wait_tests;
+
+pub use wait::{Condition, Met, Presence, WaitCheck, WaitId, Waited, Waits};
 
 /// What a host does with a request of the family.
 #[derive(Clone, Debug, PartialEq)]
@@ -386,30 +395,88 @@ fn displayed(ui: &Ui, id: ElementId) -> bool {
         .is_some_and(|node| node.style.layout.display != Display::None)
 }
 
+/// A state of an element, as the interface's family names it ([`ElementSummary::states`]): what a
+/// wait asks to hold or not ([`Condition`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum State {
+    /// The pointer is over it.
+    Hovered,
+    /// It is pressed.
+    Pressed,
+    /// It holds its target's focus.
+    Focused,
+    /// It is disabled.
+    Disabled,
+    /// It is checked: a check box, an item of a menu that turns something on, a button that stays
+    /// pressed.
+    Checked,
+    /// It is open: a section, a floating panel, an item of a tree, a menu's item that opens a
+    /// submenu, a list to choose from.
+    Expanded,
+    /// It is chosen: a tab, a segment, a list's option, an item of a tree.
+    Selected,
+    /// A press opens a layer beside it: an item of a menu that opens a submenu, a list to choose
+    /// from, a color well.
+    HasPopup,
+}
+
+impl State {
+    /// Every state, in the order that a summary lists them.
+    pub(crate) const ALL: [Self; 8] = [
+        Self::Hovered,
+        Self::Pressed,
+        Self::Focused,
+        Self::Disabled,
+        Self::Checked,
+        Self::Expanded,
+        Self::Selected,
+        Self::HasPopup,
+    ];
+
+    /// Its name, as the family writes it: `has_popup`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Hovered => "hovered",
+            Self::Pressed => "pressed",
+            Self::Focused => "focused",
+            Self::Disabled => "disabled",
+            Self::Checked => "checked",
+            Self::Expanded => "expanded",
+            Self::Selected => "selected",
+            Self::HasPopup => "has_popup",
+        }
+    }
+
+    /// Whether it holds of an element in `state`, `popup` for one that opens a layer.
+    pub(crate) fn holds(self, state: ElementState, popup: bool) -> bool {
+        // Each state named, so that one more does not compile until it is.
+        let ElementState {
+            hovered,
+            pressed,
+            disabled,
+            focused,
+            // Whether the focus shows is the look's, not what the element means.
+            focus_visible: _,
+            checked,
+            expanded,
+            selected,
+        } = state;
+        match self {
+            Self::Hovered => hovered,
+            Self::Pressed => pressed,
+            Self::Focused => focused,
+            Self::Disabled => disabled,
+            Self::Checked => checked,
+            Self::Expanded => expanded,
+            Self::Selected => selected,
+            Self::HasPopup => popup,
+        }
+    }
+}
+
 /// What `meaning` says, as the family gives it, each of its texts cut to `text_bytes` of JSON.
 fn summary(ui: &Ui, meaning: Meaning, text_bytes: usize) -> ElementSummary {
-    // Each state named, so that one more does not compile until it is.
-    let ElementState {
-        hovered,
-        pressed,
-        disabled,
-        focused,
-        // Whether the focus shows is the look's, not what the element means.
-        focus_visible: _,
-        checked,
-        expanded,
-        selected,
-    } = meaning.state;
-    let states = [
-        (hovered, "hovered"),
-        (pressed, "pressed"),
-        (focused, "focused"),
-        (disabled, "disabled"),
-        (checked, "checked"),
-        (expanded, "expanded"),
-        (selected, "selected"),
-        (meaning.popup, "has_popup"),
-    ];
     let target = ui.input_target(meaning.id);
     let Meaning {
         mut path,
@@ -442,10 +509,10 @@ fn summary(ui: &Ui, meaning: Meaning, text_bytes: usize) -> ElementSummary {
         value,
         description,
         placeholder,
-        states: states
+        states: State::ALL
             .into_iter()
-            .filter(|&(holds, _)| holds)
-            .map(|(_, state)| state.to_owned())
+            .filter(|state| state.holds(meaning.state, meaning.popup))
+            .map(|state| state.name().to_owned())
             .collect(),
         actions: meaning
             .actions

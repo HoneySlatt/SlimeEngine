@@ -9,9 +9,17 @@ devui.world_panel.100k	elements visited by a frame standing still	114
 devui.world_panel.100k	items of a frame standing still	77
 editor.hierarchy.100k	allocations of a frame standing still	18
 editor.hierarchy.100k	allocations of a pointer's move to another row	0
+editor.hierarchy.100k	allocations of the waits' check after a frame scrolled by a row	4
+editor.hierarchy.100k	allocations of the waits' check after a frame standing still	0
+editor.hierarchy.100k	allocations of the waits' check after a pointer's move to another row	2
+editor.hierarchy.100k	allocations of the waits' check after an entity renamed	2
 editor.hierarchy.100k	bytes allocated by a frame standing still	72744
 editor.hierarchy.100k	bytes allocated by a pointer's move to another row	0
 editor.hierarchy.100k	elements	319
+editor.hierarchy.100k	elements that the waits read after a frame scrolled by a row	15
+editor.hierarchy.100k	elements that the waits read after a frame standing still	0
+editor.hierarchy.100k	elements that the waits read after a pointer's move to another row	2
+editor.hierarchy.100k	elements that the waits read after an entity renamed	2
 editor.hierarchy.100k	elements visited by a frame standing still	638
 editor.hierarchy.100k	items of a frame standing still	142
 editor.window.entities	allocations of a frame standing still, 100k	70
@@ -115,7 +123,7 @@ ui.tree.look	allocations of a frame of the transition	96760
 ui.tree.look	allocations of reading the editor's default layout	49
 ui.tree.look	allocations of reading the editor's tables of shortcuts	324
 ui.tree.look	allocations of reading the look's documents	3376
-ui.tree.look	allocations of the first frame at twice the size of text	894717
+ui.tree.look	allocations of the first frame at twice the size of text	894412
 ui.tree.look	allocations of the frame after the size of text changed	894226
 ui.tree.look	allocations of the frame of the change	109453
 ui.tree.look	allocations of the frame of the change, own styles naming tokens	109801

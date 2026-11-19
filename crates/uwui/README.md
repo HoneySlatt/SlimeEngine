@@ -259,14 +259,14 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   which target lies under the pointer and where in it, from its top to its bottom, which the program
   shows, and a release over it gives the target `ActionKind::Dropped`; Escape gives the drag up.
   Agents drop through `Ui::drop` (`docs/adr/0168-rearranging-the-hierarchy.md`).
-- Each reader of that meaning, a screen reader's window, and an agent's session from M6d.9a2,
-  follows its own changes: `Ui::add_meaning_reader(target)` gives one, and `Ui::take_meaning_changes(reader,
+- Each reader of that meaning, a screen reader's window, follows its own changes (the waits on
+  one target's elements hold a reader of their own, below): `Ui::add_meaning_reader(target)` gives one, and `Ui::take_meaning_changes(reader,
   whole)` what changed in its target's tree since it last took them, as a screen reader's adapter
   sends it (`tree::MeaningChanges`): each element marked as its meaning changes, named by a number
   that no other element is ever given, with the elements that mean something nearest below it, and
   a field's text by runs, which screen readers move through by characters, words and lines
   (`Ui::field_runs`, `Ui::select_text`); the target's top and its own focus. A modal root makes
-  its own target's changes whole. `uwui-accesskit` translates them into AccessKit's tree
+  its own target's changes whole, but those of a reader for waits (`agents::Waits`). `uwui-accesskit` translates them into AccessKit's tree
   (`docs/adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md`).
 - `style::Style` is an element's style, typed, in logical pixels: its layout, CSS's flexbox and
   grid properties with start and end sides, its paint, a box's fill, border, corners and shadow,
@@ -308,7 +308,14 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   reads a pixel on the target
   that the request names, or on the active target; acts as a person's input would; and gives the
   places of the calls that wrote an element's own style, each with the fields, states and tokens
-  that it wrote (`OwnStyle::places`). A build for shipping leaves the feature out.
+  that it wrote (`OwnStyle::places`). It keeps *waits on elements* across frames
+  (`agents::Waits`): a condition on a target's elements, a role, a text that the name holds,
+  states that hold or not, present or absent, met at once when it holds, else checked after each
+  of the target's frames (`Waits::check`) on the elements that changed alone, through one reader
+  of meaning for waits of each target, which takes no element that only moved and no modal root's
+  whole changes, and each removed element; each wait keeps the elements that it matched, and a
+  check counts the elements that it read (`WaitCheck::visited`)
+  (`docs/adr/0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md`). A build for shipping leaves the feature out.
 
 ## Depends on
 

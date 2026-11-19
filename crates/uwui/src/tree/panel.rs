@@ -188,7 +188,7 @@ impl Ui {
             .copied()
             .collect::<Vec<_>>()
         {
-            self.mark_meaning_below(moved);
+            self.mark_place_below(moved);
         }
     }
 

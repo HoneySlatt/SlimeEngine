@@ -10,6 +10,7 @@ use slime_input::{
 };
 
 use super::field::DRAG_THRESHOLD;
+use super::meaning::Mark;
 use super::{ElementId, ElementState, Kind, LayoutDirection, Node, Place, Ui};
 use crate::DocumentErrors;
 use crate::action::{Action, ActionKind, Intent, SurfaceInput};
@@ -1843,6 +1844,8 @@ impl Ui {
         // At another scale, every length and primitive of theirs is made again.
         let rescaled = self.laid_out_size(from).scale() != self.laid_out_size(to).scale();
         for &root in group {
+            // Its elements leave the old target's readers for waits, which no other mark tells.
+            self.mark_below_on(root, from, Mark::Left);
             if let Some(settings) = self.node_mut(root).and_then(|node| node.root.as_mut()) {
                 settings.target = to;
             }

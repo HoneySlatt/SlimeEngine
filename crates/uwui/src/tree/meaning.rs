@@ -3,6 +3,7 @@
 //! path (`docs/adr/0143-what-agents-see-of-the-interface.md`); and what changed in it since it was
 //! last read, which the elements' marks give (`docs/adr/0146-screen-readers.md`).
 
+use std::borrow::Cow;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::{ElementId, ElementState, ItemMark, Key, Kind, Node, Ui};
@@ -321,6 +322,41 @@ pub(crate) struct Reader {
     whole: bool,
     /// Whether the elements that mean something at its target's top changed.
     top_changed: bool,
+    /// Whether it reads for waits on elements (`crate::agents::Waits`): it takes every element
+    /// marked for its meaning, but none whose bounds or path alone changed ([`Mark::Place`]), and
+    /// no modal root's whole changes, since no wait reads bounds, paths or actions; and every
+    /// element removed or moved to another target ([`Mark::Left`]), which no other mark tells.
+    for_waits: bool,
+}
+
+/// Why an element is marked for the readers of meaning.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Mark {
+    /// What it means changed, or it is new.
+    Meaning,
+    /// Only where it shows, its bounds, or its path: the readers for waits pass over it.
+    Place,
+    /// It leaves the target for another: only the readers for waits take it, which keep the
+    /// elements that they matched; another reader learns it from its target's top.
+    Left,
+}
+
+/// The marks that a reader took ([`Ui::take_meaning_marks`]), beside the elements that it marked.
+pub(crate) struct Taken {
+    /// Whether its changes must be whole ([`MeaningChanges::whole`]).
+    pub(crate) whole: bool,
+    /// Whether the elements that mean something at its target's top changed.
+    pub(crate) top_changed: bool,
+}
+
+/// What a wait on elements reads of one: its role, its name, its states, and whether a press opens
+/// a layer beside it ([`Meaning::popup`]).
+#[cfg(feature = "agents")]
+pub(crate) struct WaitView<'a> {
+    pub(crate) role: Role,
+    pub(crate) name: Cow<'a, str>,
+    pub(crate) state: ElementState,
+    pub(crate) popup: bool,
 }
 
 /// A number for a new interface, given to no other in the program's run: its readers of meaning
@@ -429,14 +465,39 @@ impl Ui {
     /// What `id` means; none for an element that is not drawn, or means nothing.
     pub fn meaning_of(&self, id: ElementId) -> Option<Meaning> {
         let path = self.path_text(id)?;
+        if !self.drawn(id) {
+            return None;
+        }
+        self.meaning_with(id, path)
+    }
+
+    /// What a wait on elements reads of `id`, whether drawn or not: none for an element that is
+    /// gone or means nothing. It allocates only a tab's name with its count.
+    #[cfg(feature = "agents")]
+    pub(crate) fn wait_view(&self, id: ElementId) -> Option<WaitView<'_>> {
+        let node = self.node(id)?;
+        let role = self.role_of(node);
+        (role != Role::GenericContainer).then(|| WaitView {
+            role,
+            name: name_of(node),
+            state: node.state,
+            popup: opens_popup(&node.element.kind),
+        })
+    }
+
+    /// Whether `id` is in the tree and drawn: neither it nor an element above it of no display.
+    pub(crate) fn drawn(&self, id: ElementId) -> bool {
         let mut at = Some(id);
-        while let Some(node) = at.and_then(|id| self.node(id)) {
+        while let Some(id) = at {
+            let Some(node) = self.node(id) else {
+                return false;
+            };
             if node.style.layout.display == Display::None {
-                return None;
+                return false;
             }
             at = node.parent;
         }
-        self.meaning_with(id, path)
+        true
     }
 
     /// What the element that the pointer would reach at `x` and `y` of `target`, in pixels of the
@@ -495,33 +556,7 @@ impl Ui {
         if role == Role::GenericContainer {
             return None;
         }
-        let name = match (&element.name, &element.kind) {
-            (Some(name), _) => name.clone(),
-            (
-                None,
-                Kind::Button { label }
-                | Kind::CheckBox { label, .. }
-                | Kind::Section { title: label, .. }
-                | Kind::FloatingPanel { title: label, .. }
-                | Kind::Tab {
-                    title: label,
-                    count: None,
-                }
-                | Kind::MenuItem { label, .. }
-                | Kind::ToggleButton { label, .. }
-                | Kind::Segment { title: label },
-            ) => label.clone(),
-            (None, Kind::Label(text)) => text.clone(),
-            // A tab's count is part of its name: `Console (3)`.
-            (
-                None,
-                Kind::Tab {
-                    title,
-                    count: Some(count),
-                },
-            ) => format!("{title} ({count})"),
-            (None, _) => String::new(),
-        };
+        let name = name_of(node).into_owned();
         let mut actions = Vec::new();
         if self.in_scope(id) {
             if self.pressable(id) {
@@ -617,14 +652,7 @@ impl Ui {
                     element.kind,
                     Kind::Section { .. } | Kind::FloatingPanel { .. }
                 ),
-            popup: matches!(
-                element.kind,
-                Kind::MenuItem {
-                    mark: ItemMark::Submenu,
-                    ..
-                } | Kind::Choice { .. }
-                    | Kind::ColorWell { .. }
-            ),
+            popup: opens_popup(&element.kind),
             actions,
             bounds,
         })
@@ -689,16 +717,36 @@ impl Ui {
     }
 
     /// A reader of what `target`'s part of the tree means, which follows its own changes
-    /// ([`Ui::take_meaning_changes`]): a screen reader's window, and an agent's session from
-    /// M6d.9a2. Its first changes are whole. A mark costs a look at the readers' slots where no
-    /// reader reads, and one push for each reader of the element's target. None past [`MEANING_READERS`] readers at once.
+    /// ([`Ui::take_meaning_changes`]): a screen reader's window. The waits on elements read
+    /// through readers of their own (`agents::Waits`). Its first changes are whole. A mark costs a
+    /// look at the readers' slots where no reader reads, and one push for each reader of the
+    /// element's target. None past [`MEANING_READERS`] readers at once.
     pub fn add_meaning_reader(&mut self, target: TargetId) -> Option<MeaningReader> {
-        let reader = Reader {
+        self.add_reader(Reader {
             target,
             marked: Vec::new(),
             whole: true,
             top_changed: false,
-        };
+            for_waits: false,
+        })
+    }
+
+    /// A reader of `target` for waits on elements ([`Reader::for_waits`]), whose first marks are
+    /// what changes after it is made: the wait that makes it has just walked the target. None past
+    /// [`MEANING_READERS`] readers at once.
+    #[cfg(feature = "agents")]
+    pub(crate) fn add_wait_reader(&mut self, target: TargetId) -> Option<MeaningReader> {
+        self.add_reader(Reader {
+            target,
+            marked: Vec::new(),
+            whole: false,
+            top_changed: false,
+            for_waits: true,
+        })
+    }
+
+    /// Gives `reader` a slot, the first free one.
+    fn add_reader(&mut self, reader: Reader) -> Option<MeaningReader> {
         let slot = match self.readers.iter().position(|slot| slot.reader.is_none()) {
             Some(slot) => slot,
             None if self.readers.len() < MEANING_READERS => {
@@ -741,13 +789,11 @@ impl Ui {
         reader: MeaningReader,
         whole: bool,
     ) -> Option<MeaningChanges> {
-        let slot = self.slot_of(reader)?;
-        let taken = self.readers[slot].reader.as_mut()?;
-        let target = taken.target;
-        let whole = std::mem::take(&mut taken.whole) || whole;
-        let top_changed = std::mem::take(&mut taken.top_changed);
-        let marked = std::mem::take(&mut taken.marked);
-        self.unmark(slot, &marked);
+        let target = self.readers[self.slot_of(reader)?].reader.as_ref()?.target;
+        let mut marked = Vec::new();
+        let taken = self.take_meaning_marks(reader, &mut marked)?;
+        let whole = taken.whole || whole;
+        let top_changed = taken.top_changed;
         let meanings = if whole {
             self.meaning_in(Some(target))
         } else {
@@ -805,6 +851,36 @@ impl Ui {
             top,
             focus,
         })
+    }
+
+    /// Gives `marked`, emptied first, the elements that `reader` marked since it last took its
+    /// marks, each once, the elements removed or moved away included for a reader for waits; and
+    /// says whether its changes must be whole and whether its target's top changed. Its marks are
+    /// cleared, and no other reader's. None for a reader that was let go, or that another
+    /// interface made.
+    pub(crate) fn take_meaning_marks(
+        &mut self,
+        reader: MeaningReader,
+        marked: &mut Vec<ElementId>,
+    ) -> Option<Taken> {
+        let slot = self.slot_of(reader)?;
+        let taken = self.readers[slot].reader.as_mut()?;
+        let whole = std::mem::take(&mut taken.whole);
+        let top_changed = std::mem::take(&mut taken.top_changed);
+        // Traded, not copied: the reader keeps the room of `marked` for its next marks.
+        marked.clear();
+        std::mem::swap(marked, &mut taken.marked);
+        self.unmark(slot, marked);
+        Some(Taken { whole, top_changed })
+    }
+
+    /// The readers of meaning that the interface holds now.
+    #[cfg(test)]
+    pub(crate) fn readers_held(&self) -> usize {
+        self.readers
+            .iter()
+            .filter(|slot| slot.reader.is_some())
+            .count()
     }
 
     /// The slot of `reader`, while it reads this interface.
@@ -877,16 +953,39 @@ impl Ui {
         if self.readers.iter().all(|slot| slot.reader.is_none()) {
             return;
         }
-        let bound = 2 * self.len().max(512);
-        let Some(target) = self.target_of(id) else {
+        if let Some(target) = self.target_of(id) {
+            self.mark_on(id, target, Mark::Meaning);
+        }
+    }
+
+    /// Marks where `id` shows, or its path, changed, for each reader of its target but those for
+    /// waits, which read neither.
+    pub(crate) fn mark_place(&mut self, id: ElementId) {
+        // Slots outlive their readers, so that a reader let go never names the next one.
+        if self.readers.iter().all(|slot| slot.reader.is_none()) {
             return;
-        };
+        }
+        if let Some(target) = self.target_of(id) {
+            self.mark_on(id, target, Mark::Place);
+        }
+    }
+
+    /// Marks `id` for each reader of `target`, for `why`: a reader lists it once until it takes its
+    /// marks.
+    /// Its callers return first where no reader reads.
+    fn mark_on(&mut self, id: ElementId, target: TargetId, why: Mark) {
+        let bound = 2 * self.len().max(512);
         for slot in 0..self.readers.len() {
             let bit = 1 << slot;
             let Some(reader) = self.readers[slot].reader.as_mut() else {
                 continue;
             };
-            if reader.target != target || reader.whole {
+            let passed = if reader.for_waits {
+                why == Mark::Place
+            } else {
+                why == Mark::Left
+            };
+            if reader.target != target || reader.whole || passed {
                 continue;
             }
             // The node, borrowed beside the reader: `target_of` found it.
@@ -922,12 +1021,13 @@ impl Ui {
     }
 
     /// Makes the next changes of `target`'s readers whole: what every element there takes changed.
+    /// Readers for waits pass over it: no wait reads what an element takes.
     pub(crate) fn meaning_whole_on(&mut self, target: TargetId) {
         for slot in 0..self.readers.len() {
             if self.readers[slot]
                 .reader
                 .as_ref()
-                .is_some_and(|reader| reader.target == target)
+                .is_some_and(|reader| reader.target == target && !reader.for_waits)
             {
                 self.meaning_whole_for(slot);
             }
@@ -976,13 +1076,104 @@ impl Ui {
         }
     }
 
-    /// Marks what `id` and every element below it mean changed: they are shown again, or their
-    /// root's box changed what shows of them.
+    /// Marks what `id` and every element below it mean changed: they are shown again, or hidden,
+    /// or they joined their target.
     pub(crate) fn mark_meaning_below(&mut self, id: ElementId) {
+        let Some(target) = self.target_of(id) else {
+            return;
+        };
+        self.mark_below_on(id, target, Mark::Meaning);
+    }
+
+    /// Marks where `id` and every element below it show, or their paths, changed, for the readers
+    /// of their target but those for waits: their root's box changed what shows of them, or their
+    /// root took another number.
+    pub(crate) fn mark_place_below(&mut self, id: ElementId) {
+        let Some(target) = self.target_of(id) else {
+            return;
+        };
+        self.mark_below_on(id, target, Mark::Place);
+    }
+
+    /// Marks `id` and every element below it for `target`'s readers, for `why`: `target` is theirs,
+    /// or the one that they leave.
+    pub(crate) fn mark_below_on(&mut self, id: ElementId, target: TargetId, why: Mark) {
+        if self.readers.iter().all(|slot| slot.reader.is_none()) {
+            return;
+        }
         let mut stack = vec![id];
         while let Some(id) = stack.pop() {
-            self.mark_meaning(id);
+            self.mark_on(id, target, why);
             stack.extend(self.children(id).iter().copied());
         }
     }
+
+    /// Tells the readers for waits of `node`'s target that the element `id`, which `node` was, is
+    /// removed: no other mark names it, since only the element above it, or its target's top, is
+    /// marked. Called as it is freed, with its node already out of the tree.
+    pub(crate) fn removed_for_waits(&mut self, id: ElementId, node: &Node) {
+        let bound = 2 * self.len().max(512);
+        for slot in 0..self.readers.len() {
+            let Some(reader) = self.readers[slot].reader.as_mut() else {
+                continue;
+            };
+            // One already listed by this reader is not listed again.
+            if !reader.for_waits
+                || reader.target != node.drawn_on
+                || reader.whole
+                || node.changed.meaning & (1 << slot) != 0
+            {
+                continue;
+            }
+            reader.marked.push(id);
+            if reader.marked.len() > bound {
+                self.meaning_whole_for(slot);
+            }
+        }
+    }
+}
+
+/// The name of `node`'s element ([`Meaning::name`]): its builder's, or else a button's or a check
+/// box's label, a section's or a tab's title, or a text's; empty for none.
+fn name_of(node: &Node) -> Cow<'_, str> {
+    let element = &node.element;
+    match (&element.name, &element.kind) {
+        (Some(name), _) => Cow::Borrowed(name),
+        (
+            None,
+            Kind::Button { label }
+            | Kind::CheckBox { label, .. }
+            | Kind::Section { title: label, .. }
+            | Kind::FloatingPanel { title: label, .. }
+            | Kind::Tab {
+                title: label,
+                count: None,
+            }
+            | Kind::MenuItem { label, .. }
+            | Kind::ToggleButton { label, .. }
+            | Kind::Segment { title: label },
+        ) => Cow::Borrowed(label),
+        (None, Kind::Label(text)) => Cow::Borrowed(text),
+        // A tab's count is part of its name: `Console (3)`.
+        (
+            None,
+            Kind::Tab {
+                title,
+                count: Some(count),
+            },
+        ) => Cow::Owned(format!("{title} ({count})")),
+        (None, _) => Cow::Borrowed(""),
+    }
+}
+
+/// Whether a press on an element of `kind` opens a layer beside it ([`Meaning::popup`]).
+fn opens_popup(kind: &Kind) -> bool {
+    matches!(
+        kind,
+        Kind::MenuItem {
+            mark: ItemMark::Submenu,
+            ..
+        } | Kind::Choice { .. }
+            | Kind::ColorWell { .. }
+    )
 }

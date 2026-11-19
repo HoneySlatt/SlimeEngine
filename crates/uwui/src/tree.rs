@@ -56,6 +56,8 @@ mod tooltip;
 pub use interact::Dragging;
 use interact::Interaction;
 pub use layer::{Along, Layer, Place, Side};
+#[cfg(feature = "agents")]
+pub(crate) use meaning::WaitView;
 pub use meaning::{
     ElementAction, FieldText, MEANING_READERS, Meaning, MeaningChanges, MeaningNode, MeaningReader,
     RUN_CHARACTERS, Role, RunCharacter, TextRun, ValueRange,
@@ -1580,7 +1582,7 @@ impl Ui {
                 .copied()
                 .collect();
             for root in above {
-                self.mark_meaning_below(root);
+                self.mark_place_below(root);
             }
         }
         if self.roots.contains(&id) {
@@ -2206,7 +2208,8 @@ impl Ui {
         };
         slot.generation = slot.generation.wrapping_add(1);
         self.free.push(id.index);
-        for child in node.children {
+        self.removed_for_waits(id, &node);
+        for &child in &node.children {
             self.free_subtree(child);
         }
     }

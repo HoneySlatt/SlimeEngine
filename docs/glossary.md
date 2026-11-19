@@ -1046,9 +1046,13 @@ meaning changes and named by a number that the interface never gives again
 (`Ui::take_meaning_changes`, [ADR-0146](adr/0146-screen-readers.md)).
 
 **Reader of meaning.** One reader of what a target's part of an interface means, a screen
-reader's window, and an agent's session from M6d.9a2, which follows its own changes: the interface keeps its
+reader's window, or the *waits on elements* of one target, which follows its own changes: the interface keeps its
 marks apart from every other reader's (`Ui::add_meaning_reader`,
 [ADR-0261](adr/0261-each-reader-of-meaning-its-changes-each-target-its-tree-no-number-on-a-screen-readers-action-m6d5d-cut-in-two.md)).
+A *reader for waits*, which the waits on elements of a target share, takes every element marked
+for its meaning but those whose bounds or path alone changed, no modal root's whole changes, and
+every element removed or moved away
+([ADR-0312](adr/0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md)).
 
 **Menu bar.** The row of an interface's menus, *File*, *View*, whose items open them below; the
 keys move along it and between its menus, and F10 or Alt alone reaches it (`Element::menu_bar`,
@@ -2077,6 +2081,12 @@ in it. The window shows one or two, each in a *pane (editor)*
 **Visual target.** A reference image that a game sets for its look, on its target *hardware tier*
 at its frame rate: the gap between the game's image and its targets is the measured problem by
 which a rendering technique enters the engine ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)).
+
+**Wait on elements.** A condition on a target's elements, a role, a text that the name holds,
+states that hold or not, present or absent, that uwui keeps across frames until it holds: checked
+after each of the target's frames on the elements that changed alone, each wait keeping the
+elements that it matched, so that one removed ends a wait for its absence (`uwui::agents::Waits`,
+[ADR-0312](adr/0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md)).
 
 **Wake (interface's host).** The host leaving its wait, for a task's timer or a task woken, without
 a frame: it runs the interface's tasks and the bindings that they change, and styles, lays out and draws nothing, so

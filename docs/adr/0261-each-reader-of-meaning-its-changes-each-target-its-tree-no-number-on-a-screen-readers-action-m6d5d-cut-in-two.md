@@ -1,6 +1,8 @@
 # 0261. Each reader of meaning its changes, each target its tree; no number on a screen reader's action; M6d.5d cut in two
 
-- Status: Accepted; amends [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) (the
+- Status: Accepted; superseded in part by
+  [0312](0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md)
+  (what each reader of meaning takes); amends [0248](0248-the-hosts-api-cut-in-five-built-where-it-is-read.md) (the
   crate's name left to M6d.10; late answers numbered) and
   [0249](0249-the-hosts-api-its-items-and-their-table.md) (each accessibility update numbered; a
   screen reader's action with the number of its update); amended by

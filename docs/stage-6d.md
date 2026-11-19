@@ -3420,7 +3420,7 @@ The first part of M6d.9a2c, started on 2026-11-18, designed in [ADR-0308](adr/03
   holding a request in flight.
 - **Debt settled.** The bound of a tool that waits in `slime-mcp`, moved into `uwui-mcp` for both
   tools; a wait cancelled that frees its place untested; the journal's wait measured under a
-  heavy load ([`debt.md`](debt.md)).
+  heavy load; the waits on elements, which their host lets go itself ([`debt.md`](debt.md)).
 - **Done when.** A tool waits for a dialog to close, seen once; a still frame's counters as before;
   a program at rest with a wait in flight runs no frame for 10 s; CI is green, closing M6d.9a2.
 - **Measured.** From a change to the waiting tool's answer, on the editor; a still frame's counters.

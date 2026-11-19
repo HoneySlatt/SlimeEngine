@@ -75,6 +75,9 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **A wait cancelled frees its place untested** ([ADR-0310](adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)).
   `slime-app`'s channel leaves a wait cancelled, not yet answered, out of its connection's count (`MAX_WAITS`), so that a wait that comes in the same frame is held rather than `BUSY`; no test times a cancel and a new wait into one frame.
   Followed at [M6d.9a2c4](stage-6d.md#m6d9a2c4--the-interface-that-waits), whose waits share the count.
+- **A host lets the waits on elements go itself** ([ADR-0312](adr/0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md)).
+  `uwui::agents::Waits` checks a target's waits only after its frames: a target that runs none, a window closed, answers none of them; and a `Waits` dropped while it holds waits leaves their readers of meaning in the interface.
+  Followed at [M6d.9a2c4](stage-6d.md#m6d9a2c4--the-interface-that-waits), whose host cancels a target's waits when it closes and clears them when its run ends.
 - **The journal's wait was measured under a heavy load** ([`measurements.md`](measurements.md#m6d9a2c2-the-journal-that-waits)).
   Another project's builds held the machine's load between 13 and 20: the figures compare the two points of answer, and say nothing of a machine at rest.
   Followed at [M6d.9a2c4](stage-6d.md#m6d9a2c4--the-interface-that-waits), which times the interface's wait on the editor, the journal's beside it.

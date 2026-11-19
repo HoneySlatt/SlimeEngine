@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 use slime_input::{ButtonState, MouseButton};
 use uwui::action::{Action, ActionKind};
+use uwui::agents::{Answer, Condition, Presence, State, Waited, Waits, answer};
 use uwui::host::{Person, TargetId, TargetSize};
 use uwui::style::{Dimension, Display, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
@@ -14,6 +15,8 @@ use uwui::tree::{
     Element, ElementId, FieldText, MeaningChanges, MeaningNode, MeaningReader, Role, RootSettings,
     Ui,
 };
+use uwui_agent::interface::{Reply, Request};
+use uwui_agent::page::Page;
 
 /// An interface and the reader of its main target's meaning, as a screen reader of its window.
 struct Reading {
@@ -1116,9 +1119,162 @@ fn readers_at_different_rates_over_two_targets_keep_their_trees_whole() {
     }
 }
 
+/// Builds `root` as [`build`] does, but for `revision`: of no display, the box `layout`, for a
+/// revision of 3 past a multiple of 4; a button rather than a label, `status`, for a multiple of 5;
+/// named, the box `panel`, for an even one; and a label of a Greek name in `layout`.
+fn build_varied(ui: &mut Ui, root: ElementId, revision: u64) {
+    ui.build(root, revision, |children| {
+        let page =
+            Element::container().style(|s| sized(s, 400.0, 300.0).direction(FlexDirection::Column));
+        children.add("page", page, |children| {
+            let bar = Element::container()
+                .style(|s| sized(s, 400.0, 40.0))
+                .named("tools");
+            children.add("bar", bar, |children| {
+                for name in ["open", "save"] {
+                    children.add(
+                        name,
+                        Element::button(name).style(|s| sized(s, 100.0, 40.0)),
+                        |_| {},
+                    );
+                }
+            });
+            let words = format!("revision {revision}");
+            let status = if revision.is_multiple_of(5) {
+                Element::button(words)
+            } else {
+                Element::label(words)
+            };
+            children.add("status", status.style(|s| sized(s, 400.0, 20.0)), |_| {});
+            let display = if revision % 4 == 3 {
+                Display::None
+            } else {
+                Display::Flex
+            };
+            let layout = Element::container().style(|s| sized(s, 400.0, 40.0).display(display));
+            children.add("layout", layout, |children| {
+                let mut panel = Element::container().style(|s| sized(s, 100.0, 40.0));
+                if revision.is_multiple_of(2) {
+                    panel = panel.named("panel");
+                }
+                children.add("panel", panel, |_| {});
+                if revision >= 2 {
+                    let second = Element::container()
+                        .style(|s| sized(s, 100.0, 40.0))
+                        .named("second");
+                    children.add("second", second, |_| {});
+                }
+                // A final sigma, which a name in small letters writes `ς`.
+                let road = Element::label(format!("ΟΔΟΣ {revision}"));
+                children.add("road", road.style(|s| sized(s, 100.0, 20.0)), |_| {});
+            });
+            children.add(
+                "field",
+                Element::text_field("").style(|s| sized(s, 200.0, 30.0)),
+                |_| {},
+            );
+        });
+    });
+}
+
+/// A condition on elements, held on one target, and the wait that holds it.
+struct Watch {
+    target: usize,
+    condition: Condition,
+    held: Option<uwui::agents::WaitId>,
+}
+
+/// What `interface/elements` answers for `condition` on `target` now, through `agents::answer`
+/// and the states of its summaries: the elements that it matched, none while it does not hold.
+fn whole_answer(ui: &mut Ui, target: TargetId, condition: &Condition) -> Option<Vec<ElementId>> {
+    let mut found = Vec::new();
+    let mut cursor = None;
+    loop {
+        let request = Request::Elements {
+            role: condition
+                .role
+                .map_or_else(String::new, |role| role.name().to_owned()),
+            name: condition.name.clone(),
+            cursor,
+            limit: None,
+            bytes: None,
+        };
+        let Ok(Answer::Reply(Reply::Elements { elements, next })) =
+            answer(ui, &request, Page::new(1, usize::MAX), || false)
+        else {
+            panic!("no page of elements");
+        };
+        for element in elements {
+            let has = |state: &State| element.states.iter().any(|held| held == state.name());
+            if element.target == target.0
+                && condition.holding.iter().all(has)
+                && !condition.lacking.iter().any(has)
+            {
+                found.push(
+                    ui.element_by_path(&element.path)
+                        .expect("an element listed"),
+                );
+            }
+        }
+        cursor = next;
+        if cursor.is_none() {
+            break;
+        }
+    }
+    match condition.presence {
+        Presence::Present => (!found.is_empty()).then_some(found),
+        _ => found.is_empty().then_some(found),
+    }
+}
+
+/// Checks `target`'s waits after its frame against a walk of the target whole: each wait met
+/// answers what the walk answers, and each one held does not hold; a wait met is held again. Gives
+/// how many were met.
+fn check_waits(
+    ui: &mut Ui,
+    waits: &mut Waits,
+    watches: &mut [Watch],
+    t: usize,
+    target: TargetId,
+) -> usize {
+    let check = waits.check(ui, target);
+    let met = check.met.len();
+    for watch in watches.iter_mut().filter(|watch| watch.target == t) {
+        if let Some(wait) = watch.held {
+            let expected = whole_answer(ui, target, &watch.condition);
+            match check.met.iter().find(|met| met.wait == wait) {
+                Some(met) => {
+                    assert_eq!(
+                        Some(met.elements.clone()),
+                        expected,
+                        "{:?}",
+                        watch.condition
+                    );
+                    watch.held = None;
+                }
+                None => assert_eq!(expected, None, "{:?} held", watch.condition),
+            }
+        }
+        if watch.held.is_none() {
+            match waits.wait(ui, target, watch.condition.clone()) {
+                Ok(Waited::Held(wait)) => watch.held = Some(wait),
+                Ok(Waited::Met(elements)) => assert_eq!(
+                    Some(elements),
+                    whole_answer(ui, target, &watch.condition),
+                    "{:?} met at once",
+                    watch.condition
+                ),
+                other => panic!("{other:?}"),
+            }
+        }
+    }
+    met
+}
+
 /// Random changes on two targets, a root moving between them and a modal root on each, read by
 /// a reader of each target after each of its frames and a rare reader of the other target: each
-/// reader's changes, applied, give its target's whole tree.
+/// reader's changes, applied, give its target's whole tree. Waits on each target, checked after
+/// each of its frames, answer as a walk of the target whole would.
 fn readers_follow_random_changes(seed: u64) {
     let mut state = seed;
     let mut next = |below: u64| {
@@ -1144,11 +1300,94 @@ fn readers_follow_random_changes(seed: u64) {
     let mut held_rare = Held::default();
     let mut modals: [Option<ElementId>; 2] = [None, None];
     let mut moving_on = 0;
-    for step in 0..300 {
-        match next(5) {
+    let mut waits = Waits::default();
+    let wanted = |role, name: &str, holding: Vec<State>, lacking: Vec<State>, presence| Condition {
+        role,
+        name: name.to_owned(),
+        holding,
+        lacking,
+        presence,
+    };
+    let mut watches = Vec::new();
+    let mut met = 0;
+    for t in 0..2 {
+        for condition in [
+            wanted(
+                Some(Role::Button),
+                "save",
+                vec![],
+                vec![State::Disabled],
+                Presence::Present,
+            ),
+            wanted(Some(Role::Button), "save", vec![], vec![], Presence::Absent),
+            wanted(
+                Some(Role::Label),
+                "revision",
+                vec![],
+                vec![],
+                Presence::Present,
+            ),
+            wanted(
+                Some(Role::Button),
+                "revision",
+                vec![],
+                vec![],
+                Presence::Present,
+            ),
+            wanted(
+                Some(Role::Group),
+                "second",
+                vec![],
+                vec![],
+                Presence::Absent,
+            ),
+            wanted(
+                Some(Role::Group),
+                "panel",
+                vec![],
+                vec![],
+                Presence::Present,
+            ),
+            wanted(None, "", vec![State::Hovered], vec![], Presence::Present),
+            wanted(None, "", vec![State::Focused], vec![], Presence::Absent),
+            wanted(None, "", vec![], vec![], Presence::Absent),
+            wanted(Some(Role::Label), "οδος", vec![], vec![], Presence::Present),
+            wanted(Some(Role::Label), "οδος", vec![], vec![], Presence::Absent),
+        ] {
+            watches.push(Watch {
+                target: t,
+                condition,
+                held: None,
+            });
+        }
+    }
+    for step in 0..600 {
+        match next(8) {
             0 => {
                 let root = roots[next(3) as usize];
-                build(&mut ui, root, 1 + next(3) + step * 3);
+                build_varied(&mut ui, root, 1 + next(3) + step * 3);
+            }
+            5 => {
+                let save = ui.element_by_path(
+                    ["a/page/bar/save", "b/page/bar/save", "moving/page/bar/save"]
+                        [next(3) as usize],
+                );
+                if let Some(save) = save {
+                    let state = uwui::tree::ElementState {
+                        disabled: next(2) == 0,
+                        ..Default::default()
+                    };
+                    ui.set_state(save, state);
+                }
+            }
+            6 => {
+                ui.pointer_moved(next(400) as f32, next(300) as f32);
+            }
+            7 => {
+                let field = ui.element_by_path(
+                    ["a/page/field", "b/page/field", "moving/page/field"][next(3) as usize],
+                );
+                ui.set_focus(field.filter(|_| next(3) != 0));
             }
             1 => {
                 moving_on = 1 - moving_on;
@@ -1169,12 +1408,14 @@ fn readers_follow_random_changes(seed: u64) {
                 let t = next(2) as usize;
                 ui.frame(targets[t]);
                 follow(&mut ui, readers[t], targets[t], &mut held[t]);
+                met += check_waits(&mut ui, &mut waits, &mut watches, t, targets[t]);
                 if t == 1 && next(8) == 0 {
                     follow(&mut ui, rare, OTHER, &mut held_rare);
                 }
             }
         }
     }
+    assert!(met >= 40, "the waits were met {met} times only");
 }
 
 #[test]
