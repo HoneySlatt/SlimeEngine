@@ -265,8 +265,8 @@ grep '^minimized: ' "$work/drive.txt" | sed 's/^minimized: /Game minimized: /' |
 observe "Agents' sessions and rest" "pass"
 
 step "uwui's desktop host: an application on uwui alone, at rest, woken by the pointer, typed into, ended by a signal, its device and surface lost"
-# Its own layers (ADR-0270, ADR-0311): Wayland's, and X11's, whose window under Xvfb has no window
-# manager, takes no key and sets no cursor's shape before M6d.7b2.
+# Its own layers (ADR-0270, ADR-0311, ADR-0313): Wayland's, and X11's, whose window under Xvfb has
+# no window manager and takes the keys as the window under the pointer.
 # On Wayland, the test writes the example's protocol, logged with WAYLAND_DEBUG=client, on its
 # standard error.
 run timeout -k 10 300 cargo test --locked -p uwui-desktop --test rest -- --nocapture --exact \
@@ -276,13 +276,13 @@ run timeout -k 10 300 cargo test --locked -p uwui-desktop --test rest -- --nocap
 observe "uwui's host at rest" "pass"
 observe "uwui's host's keys" "$(sed -n 's/^keys: //p' "$work/application.txt" |
     grep . || echo "not run, no input")"
-observe "uwui's host's cursor" "$(sed -n 's/^cursor: //p' "$work/application.txt")"
 if [ "$name" = x11 ]; then
     # Xvfb has no window manager to draw a bar. Present tells each image shown where the driver
     # presents through it, which a software one does not, with RandR's period, which Xvfb does not
     # give: the test tells which.
     observe "uwui's host's period told" "$(sed -n 's/^period: //p' "$work/application.txt")"
 else
+    observe "uwui's host's cursor" "$(sed -n 's/^cursor: //p' "$work/application.txt")"
     # xdg-decoration's mode 2 is the server's side.
     if grep -q -E 'zxdg_toplevel_decoration_v1#[0-9]+\.configure\(2\)' "$report/application.log"; then
         observe "uwui's host's bar" "the compositor's"
@@ -311,16 +311,25 @@ observe "uwui's host's losses" "$(sed -n 's/^lost: //p' "$work/application-lost.
 if [ "$name" = x11 ]; then
     # X11's layer as another client sees it: its fullscreen hint not taken for a window manager's
     # where none runs, believed where one does, its pings answered, its start told ended, its
-    # signal held while hidden, a present told across a resize, and a Wayland compositor that does
-    # not answer leaving it to X11. One test at a time: one covers the whole screen.
+    # signal held while hidden, a present told across a resize, a Wayland compositor that does not
+    # answer leaving it to X11; keys typed, composed from the tests' own compose file; each
+    # cursor's shape as XFixes shows it; the scale of the X resources' `Xft.dpi`. One test at a
+    # time: one covers the whole screen.
     run env -u WAYLAND_DISPLAY DESKTOP_STARTUP_ID='launcher "q" back\slash_TIME1234567890' \
+        XCOMPOSEFILE="$PWD/crates/uwui-windowing/tests/compose/Compose" \
         timeout -k 10 120 cargo test --locked -p uwui-windowing --test x11 -- --test-threads=1 \
-        2>"$report/x11-layer.log" || { cat "$report/x11-layer.log"; exit 1; }
+        --nocapture 2>"$report/x11-layer.log" | tee "$work/x11-layer.txt" ||
+        { cat "$report/x11-layer.log"; exit 1; }
+    observe "uwui's host's cursor" "$(sed -n 's/^\(test .* \.\.\. \)\{0,1\}cursor: //p' "$work/x11-layer.txt")"
 fi
 
 step "Scale: the window example on an output at a fractional scale"
 case "$name" in
-    x11) observe "Window's scale" "— X11 gives no scale for an output" ;;
+    x11)
+        observe "Window's scale" "— X11 gives no scale for an output"
+        # The layer's own test, above, sets `Xft.dpi` to 144.
+        observe "uwui's host's scale" "$(sed -n 's/^\(test .* \.\.\. \)\{0,1\}scale: //p' "$work/x11-layer.txt")"
+        ;;
     *)
         if [ "$name" = weston ]; then start_compositor 2; else start_compositor 1.5; fi
         run SLIME_LOG=info timeout -k 10 120 target/debug/examples/window --frames 30 \

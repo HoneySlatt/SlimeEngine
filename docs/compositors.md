@@ -42,9 +42,9 @@ A cell that starts with "—" is not observed: what it says comes from elsewhere
 | uwui's host at rest | pass | pass | pass | pass | pass |
 | uwui's host's bar | none, no protocol | the compositor's | the compositor's | none, no protocol | — no window manager under Xvfb |
 | uwui's host's period told | 4.167 ms | none, measured from the signals | 16.667 ms | 4.167 ms | none, measured from the signals |
-| uwui's host's keys | not run, no input | typed | typed | typed | not run, X11's layer takes no key yet |
-| uwui's host's cursor | not run, the pointer never entered | by shape | by shape | by shape | — the server's: X11's layer sets no shape before M6d.7b2 |
-| uwui's host's scale | 2.0 | 1.5 | 1.5 | 1.5 | — X11's layer reads no scale before M6d.7b2 |
+| uwui's host's keys | not run, no input | typed | typed | typed | typed |
+| uwui's host's cursor | not run, the pointer never entered | by shape | by shape | by shape | by shape |
+| uwui's host's scale | 2.0 | 1.5 | 1.5 | 1.5 | 1.5 |
 | uwui's host's losses | drawn again | drawn again | drawn again | drawn again | drawn again |
 
 The rows:
@@ -92,9 +92,14 @@ The rows:
   where the compositor takes input, its field clicked, `s` and `a` typed through the compositor,
   and the row that *Add* makes named `sa`; its cursor set by `wp_cursor_shape_v1`'s shape, or left
   to the compositor; the scale that its window drew at on an output at 1.5, at 2 in Weston, its
-  image's width over its logical width. On X11, the layer takes no key and sets no cursor yet,
-  and reads no scale
+  image's width over its logical width
   ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
+  On X11, the keys go to the window that the series gives the focus, the one under the pointer,
+  Xvfb running no window manager; the cursor
+  and the scale are read from `uwui-windowing`'s own test under the same server: each cursor's
+  shape over the window as XFixes shows it to another client, and the scale that the window drew
+  at with the X resources' `Xft.dpi` set to 144
+  ([ADR-0313](adr/0313-x11s-keyboard-through-xinput2-and-libxkbcommon-x11-its-cursor-themed-its-scale-from-xft-dpi.md)).
 - **uwui's host's losses**: the same example, its GPU device lost on purpose, then its surface
   given up, each followed by a new swap chain's image presented and the example at rest; then the
   fourth device lost ending it with status 1, the application stopped

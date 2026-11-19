@@ -33,11 +33,11 @@
 //! status 0.
 //!
 //! On X11, the first two run under Xvfb, without a window manager: the window lies at the screen's
-//! top left, and the pointer reaches it through `scripts/compositor-input.py`'s XTest. The window
-//! takes no key and sets no cursor's shape before M6d.7b2: the field's part does not run, and it
-//! writes `keys: not run, X11's layer takes no key yet` and `cursor: the server's`. A software
-//! driver presents without Present: the trace tells no image shown, and the test writes
-//! `period: none, measured from the signals`.
+//! top left, and the pointer and the keys reach it through `scripts/compositor-input.py`'s XTest,
+//! which gives the window under the pointer the focus. The cursor's shapes are seen by
+//! `uwui-windowing`'s own test under the same server, as another client sees them: this test
+//! writes no `cursor:` there. A software driver presents without Present: the trace tells no image
+//! shown, and the test writes `period: none, measured from the signals`.
 //!
 //! On Wayland, the example writes its protocol with `WAYLAND_DEBUG=client` into a file of each
 //! test's own,
@@ -679,26 +679,8 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
             "the hover's frames are in no input to present of the trace: {shown}"
         );
 
-        // A name typed into the field, and a row added under it: the keyboard's way whole, which
-        // X11's layer takes from M6d.7b2.
+        // A name typed into the field, and a row added under it: the keyboard's way whole.
         let field = place(FIELD);
-        if example.display == Display::X11 {
-            println!("keys: not run, X11's layer takes no key yet");
-            println!("cursor: the server's");
-            // Present tells the images shown where the driver presents through it, with RandR's
-            // period where it gives one.
-            if traced(&example.read_trace(), "shown") > 0 {
-                println!("period: images shown told by Present");
-            } else {
-                println!("period: none, measured from the signals");
-            }
-            assert_eq!(
-                example.end_on_sigterm(),
-                ["closing asked", "stopped", "dropped"],
-                "the example was not asked to close, then stopped"
-            );
-            return;
-        }
         assert!(move_pointer(field[0], field[1]));
         assert!(input("click"));
         assert!(input("key s"));
@@ -715,6 +697,22 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
         if let Err(error) = at_rest(&example) {
             panic!("the example is not at rest after the keys typed: {error}");
         }
+    }
+
+    if example.display == Display::X11 {
+        // Present tells the images shown where the driver presents through it, with RandR's
+        // period where it gives one.
+        if traced(&example.read_trace(), "shown") > 0 {
+            println!("period: images shown told by Present");
+        } else {
+            println!("period: none, measured from the signals");
+        }
+        assert_eq!(
+            example.end_on_sigterm(),
+            ["closing asked", "stopped", "dropped"],
+            "the example was not asked to close, then stopped"
+        );
+        return;
     }
 
     // The cursor that the host set, each shape of `wp_cursor_shape_v1` by its number: 9 is the

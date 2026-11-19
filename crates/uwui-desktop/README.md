@@ -118,8 +118,8 @@ close, ended by a second termination signal with `EXIT_TERMINATED`. The last: th
 first image in its trace, then its end on SIGTERM with status 0. Each run has a state directory
 of its own, never the user's. `scripts/check.sh windowed` runs them in a headless Weston, and
 `scripts/compositors.sh` the first three in Weston, sway, KWin and Mutter, the third on an output
-at 1.5, at 2 in Weston, and the first two under Xvfb, where the window takes no key yet and its
-images' presentations are not told
+at 1.5, at 2 in Weston, and the first two under Xvfb, where the window's images' presentations
+are not told
 ([`compositors.md`](../../docs/compositors.md)). `scripts/check.sh lint` checks that its tree
 holds no engine crate but `slime-color` and `slime-input`, that no other crate of the workspace
 depends on it, that `uwui` pulls no windowing library nor wgpu, and that its platform layer
