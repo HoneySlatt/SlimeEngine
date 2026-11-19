@@ -119,10 +119,11 @@ mod tests {
     /// What happened, in order, to the handler and the platform.
     type Told = Rc<RefCell<Vec<&'static str>>>;
 
-    /// A platform whose loop fails after `turns` turns, or never.
+    /// A platform whose loop fails after `turns` turns: a run that should have ended before
+    /// fails rather than turning without end, each turn's record growing.
     struct Fake {
         told: Told,
-        turns: Option<usize>,
+        turns: usize,
     }
 
     impl Drop for Fake {
@@ -133,14 +134,11 @@ mod tests {
 
     impl Platform for Fake {
         fn happened(&mut self) -> Result<Happened, Error> {
-            match &mut self.turns {
-                Some(0) => Err(Error("the connection broke".to_owned())),
-                Some(left) => {
-                    *left -= 1;
-                    Ok(Happened::default())
-                }
-                None => Ok(Happened::default()),
+            if self.turns == 0 {
+                return Err(Error("the connection broke".to_owned()));
             }
+            self.turns -= 1;
+            Ok(Happened::default())
         }
         fn wait(&mut self, _: Option<Instant>) -> Result<(), Error> {
             Ok(())
@@ -215,7 +213,7 @@ mod tests {
 
     /// Runs a handler that does `does` on a platform that fails after `turns` turns: what each
     /// told, in order, and the run's end, none for a panic.
-    fn ran(does: Does, turns: Option<usize>) -> (Vec<&'static str>, Option<Result<(), String>>) {
+    fn ran(does: Does, turns: usize) -> (Vec<&'static str>, Option<Result<(), String>>) {
         let told = Told::default();
         let platform = Fake {
             told: Rc::clone(&told),
@@ -242,7 +240,7 @@ mod tests {
 
     #[test]
     fn the_handler_is_told_the_window_closes_before_the_platform_goes() {
-        let (order, ended) = ran(Does::End, None);
+        let (order, ended) = ran(Does::End, 100);
         assert_eq!(
             order,
             [
@@ -260,7 +258,7 @@ mod tests {
 
     #[test]
     fn a_platform_that_fails_closes_the_handler_first_and_says_why() {
-        let (order, ended) = ran(Does::Run, Some(1));
+        let (order, ended) = ran(Does::Run, 1);
         assert_eq!(
             order,
             [
@@ -277,7 +275,7 @@ mod tests {
 
     #[test]
     fn a_handler_that_refuses_to_open_is_closed_without_a_turn() {
-        let (order, ended) = ran(Does::Refuse, None);
+        let (order, ended) = ran(Does::Refuse, 100);
         assert_eq!(
             order,
             [
@@ -293,7 +291,7 @@ mod tests {
 
     #[test]
     fn a_panic_drops_the_handler_before_the_platform() {
-        let (order, ended) = ran(Does::Panic, None);
+        let (order, ended) = ran(Does::Panic, 100);
         assert_eq!(
             order,
             [
