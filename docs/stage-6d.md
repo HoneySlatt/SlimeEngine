@@ -162,8 +162,9 @@ in git.
   [M6d.9a2c](#m6d9a2c--waiting), cut in four on 2026-11-18
   ([ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)):
   [M6d.9a2c1](#m6d9a2c1--each-family-described) and
-  [M6d.9a2c2](#m6d9a2c2--the-journal-that-waits), done on the same day; next,
-  [M6d.9a2c3](#m6d9a2c3--waits-in-uwui), [M6d.9a2c4](#m6d9a2c4--the-interface-that-waits),
+  [M6d.9a2c2](#m6d9a2c2--the-journal-that-waits), done on the same day;
+  [M6d.9a2c3](#m6d9a2c3--waits-in-uwui), done on 2026-11-19; next,
+  [M6d.9a2c4](#m6d9a2c4--the-interface-that-waits),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
@@ -3409,6 +3410,32 @@ The first part of M6d.9a2c, started on 2026-11-18, designed in [ADR-0308](adr/03
   changed, not the tree; an element removed, a dialog closed, ends a wait for its absence; CI is
   green.
 - **Measured.** The counters, in a still frame and after a change.
+- **Result.** Done on 2026-11-19, CI green on `8f9a0dec` ([ADR-0312](adr/0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md)):
+  - `uwui::agents::Waits`: a condition on a target's elements, a role, a text that the name holds,
+    states that hold (`holding`) or not (`lacking`), present or absent; met at once, else checked
+    after each of the target's frames (`Waits::check`); `cancel` and `clear`; another interface's
+    waits refused while it holds some, `BUSY` past the interface's readers.
+  - One reader for waits on each target with waits: it passes over marks of bounds and paths and
+    a modal root's whole changes, and takes each element removed or moved away; each wait keeps
+    the elements that it matched; a check reads an element's role, name and states without making
+    its meaning; `WaitCheck::visited` counts what it read. A summary's states come from
+    `agents::State`. A screen reader's changes are unchanged.
+  - Tested: a still frame reads nothing, a change what changed, a scroll, a resize, a root removed
+    below others and a panel raised nothing; an element removed, a box hidden, a dialog closed, a
+    root moved away end a wait for an absence; states, a popup, a final sigma as
+    `interface/elements` finds it; bounds passed; order; waits held through random changes answer
+    as `interface/elements` does. 30 mutations, each failing a test.
+  - A fresh agent attacked the design first: looking up every element kept after each change, and
+    marks of bounds and paths, made a hover or a scroll read the tree; a whole meaning cloned a
+    field's text at each key. The closing review found documents that said the reader took less
+    than it does, a name filter apart from `interface/elements`'s, `holding` untested, an oracle
+    that shared the code it checked, and a `Waits` that could not be let go; a second review, a
+    debt missing from M6d.9a2c4's card and orders untested. All fixed.
+  - Measured ([`measurements.md`](measurements.md#m6d9a2c3-waits-in-uwui)): on the editor's
+    hierarchy, 0 elements read in a still frame, 2 after a pointer's move or a rename, 15 after a
+    scroll by a row, which `--counters` checks.
+  - Left for later ([`debt.md`](debt.md)): the waits on elements, which their host lets go itself,
+    for M6d.9a2c4.
 
 ### M6d.9a2c4 — The interface that waits
 
