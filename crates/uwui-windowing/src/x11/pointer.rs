@@ -1,5 +1,5 @@
 //! The pointer on X11, through XInput2's events of the master pointers, which the server sends
-//! with each device's own times and positions to the sixteenth of a pixel: what the layer reads of
+//! with each device's own times and positions to the 65,536th of a pixel: what the layer reads of
 //! them, knowing neither the connection nor the clock.
 //!
 //! - *Moves*: the position in the window's pixels; entering moves it there, leaving lets it go.
@@ -52,7 +52,7 @@ pub(super) enum Event<'a> {
     Button { button: u32, state: ButtonState },
 }
 
-/// A position in sixteenths of a pixel, as XInput2 gives it, in pixels.
+/// A position in 65,536ths of a pixel (16.16 fixed point), as XInput2 gives it, in pixels.
 pub(super) fn pixels(fixed: i32) -> f64 {
     f64::from(fixed) / 65536.0
 }
@@ -372,7 +372,7 @@ mod tests {
     }
 
     #[test]
-    fn positions_come_in_sixteenths_of_a_pixel() {
+    fn positions_come_in_16_16_fixed_point() {
         assert_eq!(pixels(65536 * 3 + 32768), 3.5);
         assert_eq!(pixels(-65536), -1.0);
     }

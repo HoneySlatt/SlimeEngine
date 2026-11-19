@@ -40,3 +40,8 @@ xkbcommon-dl.workspace = true
 # X11 spoken by the layer itself, on libxcb's connection that Vulkan's driver presents on; its
 # window, XInput2's pointer, RandR's rates and Present's notices (ADR-0270, ADR-0311).
 x11rb.workspace = true
+
+# Needs an X server of its own, which `DISPLAY` names: run by the series' column of X11.
+[[test]]
+name = "x11"
+test = false

@@ -57,9 +57,9 @@ use crate::anchor::Anchor;
 use crate::clock::{self, Clock, Suspends};
 use crate::wait::Waits;
 use crate::wake::{self, Asks};
-use crate::{Activation, Configured, Drawn, Error, Handler, Happened, Input, Opening, running};
+use crate::{Activation, Configured, Drawn, Error, Happened, Input, Opening, running};
 
-use frames::{Frames, Shown};
+use frames::Frames;
 use pointer::Pointers;
 
 /// The shortest time suspended after which the events' anchor is made again: what parts the two
@@ -86,6 +86,7 @@ x11rb::atom_manager! {
         _NET_STARTUP_ID,
         _NET_STARTUP_INFO_BEGIN,
         _NET_STARTUP_INFO,
+        _NET_SUPPORTING_WM_CHECK,
     }
 }
 
@@ -96,11 +97,6 @@ const STATE_ADD: u32 = 1;
 const FROM_APPLICATION: u32 = 1;
 /// XInput2's device id for every master device.
 const ALL_MASTER_DEVICES: u16 = 1;
-
-/// Runs the loop of a window opened as `opening` says, calling `handler` back, until it ends.
-pub(crate) fn run<H: Handler>(opening: Opening, handler: H) -> (H, Result<(), Error>) {
-    running::run(Platform::open(opening), handler)
-}
 
 /// What came since the last turn, gathered from the events as they are read.
 #[derive(Debug, Default)]
@@ -158,7 +154,7 @@ impl Drop for Platform {
 impl Platform {
     /// Connects to the server, opens the window of `opening` and sets the termination's handler:
     /// the platform, and how the window draws.
-    fn open(opening: Opening) -> Result<(Self, Drawn), Error> {
+    pub(crate) fn open(opening: Opening) -> Result<(Self, Drawn), Error> {
         let waits = Waits::new().map_err(|cause| Error::new("the loop's waits", cause))?;
         let asks = Asks::new(waits.notifier());
         let (connection, screen) = XCBConnection::connect(None)
@@ -226,13 +222,14 @@ impl Platform {
             next_image: 0,
             present_clock: Clock::from_raw(1),
         };
-        platform.describe(&opening)?;
+        let startup = std::env::var("DESKTOP_STARTUP_ID").unwrap_or_default();
+        platform.describe(&opening, &startup)?;
         platform.select_input()?;
         platform
             .connection
             .map_window(window)
             .map_err(|cause| Error::new("the window", cause))?;
-        platform.started();
+        platform.started(&startup);
         platform
             .connection
             .flush()
@@ -253,7 +250,7 @@ impl Platform {
 
     /// Gives the window its properties: its title, class, process, protocols, minimum size, and
     /// whether it opens filling the screen.
-    fn describe(&mut self, opening: &Opening) -> Result<(), Error> {
+    fn describe(&mut self, opening: &Opening, startup: &str) -> Result<(), Error> {
         let failed = |cause| Error::new("the window's properties", cause);
         self.set_title_properties(&opening.title).map_err(failed)?;
         // The instance's name, then the class's, each ended by a zero.
@@ -301,6 +298,18 @@ impl Platform {
             )
             .map_err(failed)?;
         self.set_size_hints(opening.min_size).map_err(failed)?;
+        // Before the map, which a window manager reads it at, for its focus.
+        if !startup.is_empty() {
+            connection
+                .change_property8(
+                    PropMode::REPLACE,
+                    window,
+                    atoms._NET_STARTUP_ID,
+                    atoms.UTF8_STRING,
+                    startup.as_bytes(),
+                )
+                .map_err(failed)?;
+        }
         if opening.fullscreen {
             // Before the window maps, the state is the property itself.
             self.connection
@@ -406,21 +415,13 @@ impl Platform {
     }
 
     /// Tells the launcher that started the program, through the startup notification's message,
-    /// that its window opened, if the environment names the start. The variable stays set, as on
-    /// Wayland.
-    fn started(&mut self) {
-        let id = std::env::var("DESKTOP_STARTUP_ID").unwrap_or_default();
+    /// that its window opened, if the environment names the start, `id`. The variable stays set,
+    /// as on Wayland.
+    fn started(&mut self, id: &str) {
         if id.is_empty() {
             return;
         }
-        let _ = self.connection.change_property8(
-            PropMode::REPLACE,
-            self.window,
-            self.atoms._NET_STARTUP_ID,
-            self.atoms.UTF8_STRING,
-            id.as_bytes(),
-        );
-        let message = startup_removal(&id);
+        let message = startup_removal(id);
         for (index, chunk) in message.chunks(20).enumerate() {
             let mut data = [0_u8; 20];
             data[..chunk.len()].copy_from_slice(chunk);
@@ -527,20 +528,24 @@ impl Platform {
                 self.pointers.classes(changed.deviceid, &changed.classes);
             }
             Event::PresentCompleteNotify(complete) if complete.window == self.window => {
-                let at = self.present_time(complete.ust, received);
-                if complete.kind == present::CompleteKind::NOTIFY_MSC {
-                    self.frames.signalled(at);
-                } else if complete.mode == present::CompleteMode::SKIP {
-                    self.frames.presented(Shown::Skipped);
-                } else {
-                    self.frames.presented(Shown::At(at));
-                }
+                let placed = self
+                    .present_clock
+                    .map(|clock| clock.on_host(complete.ust.saturating_mul(1000)));
+                let at = present_time(placed, received);
+                self.frames.completed(
+                    complete.kind == present::CompleteKind::NOTIFY_MSC,
+                    complete.mode == present::CompleteMode::SKIP,
+                    at,
+                );
             }
             Event::ConfigureNotify(configure) if configure.window == self.window => {
                 let size = [u32::from(configure.width), u32::from(configure.height)]
                     .map(|side| side.max(1));
                 if size != self.size {
                     self.size = size;
+                    // The driver makes its swap chain again: its presents in flight may never
+                    // come.
+                    self.frames.forget_asked();
                     self.configured();
                     self.gathered.drawn = Some(Drawn {
                         pixels: size,
@@ -552,7 +557,9 @@ impl Platform {
             Event::PropertyNotify(property)
                 if property.window == self.window && property.atom == self.atoms._NET_WM_STATE =>
             {
-                let fullscreen = self.read_fullscreen();
+                // The layer writes the state itself before the window maps: only a window manager
+                // makes it the window's.
+                let fullscreen = self.window_manager_runs() && self.read_fullscreen();
                 if fullscreen != self.fullscreen {
                     self.fullscreen = fullscreen;
                     self.configured();
@@ -618,20 +625,6 @@ impl Platform {
         EventTime::anchored(self.anchor.time(millis, received))
     }
 
-    /// A time of Present, in microseconds of Linux's monotonic clock, received at `received`, on
-    /// the host's clock: the reception's where it lies off this machine's clock.
-    fn present_time(&self, micros: u64, received: Instant) -> Instant {
-        let Some(clock) = self.present_clock else {
-            return received;
-        };
-        let at = clock.on_host(micros.saturating_mul(1000));
-        if at <= received && received - at <= PRESENT_TIME_RANGE {
-            at
-        } else {
-            received
-        }
-    }
-
     /// The window's size or state changed: the next image shows it.
     fn configured(&mut self) {
         self.gathered.configured = Some(Configured {
@@ -644,7 +637,27 @@ impl Platform {
         self.frames.set_shown(self.mapped && !self.covered);
     }
 
-    /// Whether the window manager says that the window fills the screen.
+    /// Whether a window manager of the extended hints runs: the window that the root's
+    /// `_NET_SUPPORTING_WM_CHECK` names names itself the same way, as the hints ask.
+    fn window_manager_runs(&self) -> bool {
+        let checked = |window: xproto::Window| {
+            self.connection
+                .get_property(
+                    false,
+                    window,
+                    self.atoms._NET_SUPPORTING_WM_CHECK,
+                    AtomEnum::WINDOW,
+                    0,
+                    1,
+                )
+                .ok()
+                .and_then(|cookie| cookie.reply().ok())
+                .and_then(|reply| reply.value32()?.next())
+        };
+        checked(self.root).is_some_and(|manager| checked(manager) == Some(manager))
+    }
+
+    /// Whether the window's `_NET_WM_STATE` says that it fills the screen.
     fn read_fullscreen(&self) -> bool {
         let reply = self
             .connection
@@ -862,6 +875,16 @@ impl running::Platform for Platform {
     }
 }
 
+/// A time of Present received at `received`, `placed` on the host's clock from Linux's monotonic
+/// one: the reception's where it lies after it, or more than [`PRESENT_TIME_RANGE`] before, off
+/// this machine's clock, as a server elsewhere gives.
+fn present_time(placed: Option<Instant>, received: Instant) -> Instant {
+    match placed {
+        Some(at) if at <= received && received - at <= PRESENT_TIME_RANGE => at,
+        _ => received,
+    }
+}
+
 /// Whether the server gives the extension `name`.
 fn has_extension(connection: &XCBConnection, name: &'static str) -> bool {
     connection
@@ -917,6 +940,24 @@ mod tests {
             startup_removal("a \"b\" \\c"),
             b"remove: ID=\"a \\\"b\\\" \\\\c\"\0".to_vec()
         );
+    }
+
+    #[test]
+    fn a_present_time_counts_only_on_this_machines_clock() {
+        let received = Instant::from_nanos(10_000_000_000);
+        let before = Instant::from_nanos(9_990_000_000);
+        assert_eq!(present_time(Some(before), received), before);
+        // After its reception, or more than a second before: not this machine's clock.
+        let after = Instant::from_nanos(10_000_000_001);
+        assert_eq!(present_time(Some(after), received), received);
+        let long_before = Instant::from_nanos(8_999_999_999);
+        assert_eq!(present_time(Some(long_before), received), received);
+        let a_second_before = Instant::from_nanos(9_000_000_000);
+        assert_eq!(
+            present_time(Some(a_second_before), received),
+            a_second_before
+        );
+        assert_eq!(present_time(None, received), received);
     }
 
     #[test]

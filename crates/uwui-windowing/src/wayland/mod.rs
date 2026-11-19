@@ -55,7 +55,7 @@ use wayland_protocols::xdg::shell::client::{xdg_surface, xdg_toplevel, xdg_wm_ba
 
 use crate::clock::{self, Suspends};
 use crate::wake::{self, Asks};
-use crate::{Activation, Configured, Drawn, Error, Handler, Happened, Opening, running};
+use crate::{Activation, Configured, Drawn, Error, Happened, Opening, running};
 
 use crate::wait::Waits;
 use protocol::Told;
@@ -63,11 +63,6 @@ use protocol::Told;
 /// The shortest time suspended after which the events' anchor is made again: what parts the two
 /// clocks while the machine is awake is far below it.
 const RESUMED: Duration = Duration::from_secs(1);
-
-/// Runs the loop of a window opened as `opening` says, calling `handler` back, until it ends.
-pub(crate) fn run<H: Handler>(opening: Opening, handler: H) -> (H, Result<(), Error>) {
-    running::run(Platform::open(opening), handler)
-}
 
 /// The window's objects of the protocol.
 struct Objects {
@@ -206,7 +201,7 @@ pub(crate) struct Platform {
 impl Platform {
     /// Connects to the compositor, opens the window of `opening`, waits for its first configure,
     /// and sets the termination's handler: the platform, and how the window draws.
-    fn open(opening: Opening) -> Result<(Self, Drawn), Error> {
+    pub(crate) fn open(opening: Opening) -> Result<(Self, Drawn), Error> {
         let waits = Waits::new().map_err(|cause| Error::new("the loop's waits", cause))?;
         let asks = Asks::new(waits.notifier());
         let connection = Connection::connect_to_env()

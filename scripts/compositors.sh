@@ -92,6 +92,7 @@ cargo build --locked -p hunnawood
 cargo test --locked --no-run -p slime-mcp --test compositor --test edit_window --test drive
 cargo build --locked -p uwui-desktop --example application
 cargo test --locked --no-run -p uwui-desktop --test rest
+cargo test --locked --no-run -p uwui-windowing --test x11
 cooked=target/cooked/examples
 cargo run --locked -p slime-cook -- cook examples/assets "$cooked"
 scripts/fetch-assets.sh zone/
@@ -307,6 +308,15 @@ run timeout -k 10 120 cargo test --locked -p uwui-desktop --test rest -- --nocap
     2>"$report/application-lost.log" | tee "$work/application-lost.txt" ||
     { cat "$report/application-lost.log"; exit 1; }
 observe "uwui's host's losses" "$(sed -n 's/^lost: //p' "$work/application-lost.txt")"
+if [ "$name" = x11 ]; then
+    # X11's layer as another client sees it, without a window manager: its fullscreen hint not
+    # taken for the window manager's, its pings answered, its start told ended, its signal held
+    # while hidden, and a Wayland compositor that does not answer leaving it to X11. One test at a
+    # time: one covers the whole screen.
+    run env -u WAYLAND_DISPLAY DESKTOP_STARTUP_ID='launcher "q" back\slash_TIME1234567890' \
+        timeout -k 10 120 cargo test --locked -p uwui-windowing --test x11 -- --test-threads=1 \
+        2>"$report/x11-layer.log" || { cat "$report/x11-layer.log"; exit 1; }
+fi
 
 step "Scale: the window example on an output at a fractional scale"
 case "$name" in

@@ -129,6 +129,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **uwui's desktop host's X11 layer runs under Xvfb alone, with a software driver** ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)).
   Xvfb has no window manager and no display: the window's requests to a window manager, RandR's period and a GPU's driver presenting through Present run nowhere in CI.
   The images shown are matched to the images asked by their order, which holds only if the driver presents each image asked once, through Present (`crates/uwui-windowing/src/x11/frames.rs`); lavapipe copies its images without Present, and tells none.
+  A present that never reaches the server, as one the driver refuses, shifts every later image's time onto the image before its own, a refresh late, until the window's size changes and the images asked are forgotten.
   Followed by the owner's check by hand under Xwayland ([`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-owner)).
 - **uwui's desktop host's frames drawn just in time are measured in a headless sway alone** ([ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)).
   Its margin, its prediction and the frames that miss are measured where wlroots' headless output composes on a timer, and composes a late image when it comes rather than at the next refresh as a display does.

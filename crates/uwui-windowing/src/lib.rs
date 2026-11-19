@@ -325,8 +325,9 @@ impl std::error::Error for Error {}
 /// more later, ends the process with [`EXIT_TERMINATED`].
 ///
 /// On Linux, it opens the window on the Wayland compositor that `WAYLAND_DISPLAY` or
-/// `WAYLAND_SOCKET` names, else on the X server that `DISPLAY` names; it never tries the other
-/// when the one named fails. Elsewhere, it has no layer yet, and fails at once.
+/// `WAYLAND_SOCKET` names, and where none is named or the one named cannot open it, on the X server
+/// that `DISPLAY` names (`docs/adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md`).
+/// Elsewhere, it has no layer yet, and fails at once.
 ///
 /// # Errors
 ///
@@ -336,18 +337,34 @@ pub fn run<H: Handler>(opening: Opening, handler: H) -> (H, Result<(), Error>) {
     #[cfg(target_os = "linux")]
     {
         let named = |variable| std::env::var_os(variable).is_some_and(|value| !value.is_empty());
+        let mut failed: Option<Error> = None;
         if named("WAYLAND_DISPLAY") || named("WAYLAND_SOCKET") {
-            wayland::run(opening, handler)
-        } else if named("DISPLAY") {
-            x11::run(opening, handler)
-        } else {
-            (
-                handler,
-                Err(Error(
-                    "no display: neither WAYLAND_DISPLAY nor DISPLAY names one".to_owned(),
-                )),
-            )
+            match wayland::Platform::open(opening.clone()) {
+                Ok(opened) => return running::run(Ok(opened), handler),
+                Err(error) => {
+                    tracing::warn!(%error, "the window could not open on Wayland");
+                    failed = Some(error);
+                }
+            }
         }
+        if named("DISPLAY") {
+            match x11::Platform::open(opening) {
+                Ok(opened) => return running::run(Ok(opened), handler),
+                Err(error) => {
+                    failed = Some(match failed {
+                        Some(wayland) => Error(format!("{wayland}; then on X11, {error}")),
+                        None => error,
+                    });
+                }
+            }
+        }
+        let error = failed.unwrap_or_else(|| {
+            Error(
+                "no display: neither WAYLAND_DISPLAY, WAYLAND_SOCKET nor DISPLAY names one"
+                    .to_owned(),
+            )
+        });
+        (handler, Err(error))
     }
     #[cfg(not(target_os = "linux"))]
     {

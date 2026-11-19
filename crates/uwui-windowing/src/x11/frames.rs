@@ -9,9 +9,11 @@
 //!   on a grid set by the first signal asked.
 //! - *The images shown*: Present's notices of the pixmaps that Vulkan's driver presents to the
 //!   window, where it presents through Present, told in order, the first for the first image asked,
-//!   as the driver presents each image once; a skipped one never showed. A driver that presents
-//!   otherwise, as a software one that copies its images, tells none: the images asked wait for
-//!   none past [`IN_FLIGHT`].
+//!   as the driver presents each image once; a skipped one never showed. A present that never
+//!   reaches the server shifts every later notice onto the image before its own, until the window's
+//!   size changes: the driver then makes its swap chain again, and the images asked are forgotten.
+//!   A driver that presents otherwise, as a software one that copies its images, tells none: the
+//!   images asked wait for none past [`IN_FLIGHT`].
 //! - *The display's period*: the mode of the CRTC that shows most of the window, from RandR.
 //!
 //! While the window is hidden, unmapped or covered whole, the signal waits until it shows again,
@@ -33,7 +35,7 @@ const IN_FLIGHT: usize = 8;
 
 /// How a Present notice of a pixmap ended.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Shown {
+enum Shown {
     /// The image showed at the time given.
     At(Instant),
     /// A later image replaced it before it showed.
@@ -97,10 +99,11 @@ impl Frames {
         }
         let period = self.period.unwrap_or(UNKNOWN_PERIOD);
         let grid = *self.grid.get_or_insert(now);
-        // The first tick after now: whole periods from the grid's time.
-        let periods = (now - grid).as_nanos() / period.as_nanos().max(1) + 1;
-        let ahead = period.saturating_mul(u32::try_from(periods).unwrap_or(u32::MAX));
-        self.due = Some(grid + ahead);
+        // The first tick after now: whole periods from the grid's time, counted wide enough that
+        // no run outlasts them.
+        let period = period.as_nanos().max(1);
+        let ahead = ((now - grid).as_nanos() / period + 1) * period;
+        self.due = Some(grid + Duration::from_nanos(u64::try_from(ahead).unwrap_or(u64::MAX)));
         false
     }
 
@@ -114,8 +117,26 @@ impl Frames {
         self.signal = Some(at);
     }
 
+    /// A Present notice at `at`: of the refresh asked by `NotifyMSC` (`msc`), else of the next
+    /// pixmap that the driver presented, `skipped` if a later one replaced it before it showed.
+    pub(super) fn completed(&mut self, msc: bool, skipped: bool, at: Instant) {
+        if msc {
+            self.signalled(at);
+        } else if skipped {
+            self.presented(Shown::Skipped);
+        } else {
+            self.presented(Shown::At(at));
+        }
+    }
+
+    /// The driver makes its swap chain again, as the window's size changes: the images asked
+    /// whose present is still in flight may never reach the server, and none waits any more.
+    pub(super) fn forget_asked(&mut self) {
+        self.asked.clear();
+    }
+
     /// Present's notice of the next pixmap that the driver presented: the oldest image asked.
-    pub(super) fn presented(&mut self, shown: Shown) {
+    fn presented(&mut self, shown: Shown) {
         let Some(image) = self.asked.pop_front() else {
             return;
         };
@@ -285,6 +306,56 @@ mod tests {
         // A pixmap told for no image asked is no one's.
         frames.presented(Shown::At(ms(9)));
         assert_eq!(frames.take(ms(10)), (None, Vec::new()));
+    }
+
+    #[test]
+    fn each_notice_goes_to_the_signal_or_to_the_oldest_image_asked() {
+        let mut frames = Frames::new(true);
+        frames.asked(0, ms(0));
+        frames.asked(1, ms(1));
+        frames.completed(false, true, ms(3));
+        frames.completed(true, false, ms(4));
+        frames.completed(false, false, ms(5));
+        let (signal, presentations) = frames.take(ms(6));
+        assert_eq!(signal, Some(ms(4)));
+        assert_eq!(
+            presentations
+                .iter()
+                .map(|told| (told.image, told.shown))
+                .collect::<Vec<_>>(),
+            [(0, None), (1, Some(ms(5)))]
+        );
+    }
+
+    #[test]
+    fn a_new_swap_chain_forgets_the_images_asked_so_that_a_lost_present_shifts_nothing_after() {
+        let mut frames = Frames::new(true);
+        frames.asked(0, ms(0));
+        frames.presented(Shown::At(ms(16)));
+        // Image 1's present never reaches the server, as its swap chain is made again.
+        frames.asked(1, ms(17));
+        frames.forget_asked();
+        frames.asked(2, ms(34));
+        frames.presented(Shown::At(ms(44)));
+        let (_, presentations) = frames.take(ms(50));
+        assert_eq!(
+            presentations
+                .iter()
+                .map(|told| (told.image, told.shown))
+                .collect::<Vec<_>>(),
+            [(0, Some(ms(16))), (2, Some(ms(44)))]
+        );
+    }
+
+    #[test]
+    fn the_timers_grid_holds_past_two_to_the_thirty_two_periods() {
+        let mut frames = Frames::new(false);
+        frames.set_period(Some(Duration::from_nanos(1)));
+        frames.asked(0, ms(0));
+        // 2³² periods later: the next tick still lies ahead.
+        let now = Instant::from_nanos(1 << 32);
+        frames.asked(1, now);
+        assert_eq!(frames.deadline(), Some(Instant::from_nanos((1 << 32) + 1)));
     }
 
     #[test]

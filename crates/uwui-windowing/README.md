@@ -37,8 +37,7 @@ onto it.
   the first, ends the process at once with `EXIT_TERMINATED`, for a host that no longer ends
   ([ADR-0306](../../docs/adr/0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md)).
 - Chooses its layer on Linux as it starts: Wayland's where `WAYLAND_DISPLAY` or `WAYLAND_SOCKET`
-  names a compositor, else X11's where `DISPLAY` names a server; never the other when the one named
-  fails.
+  names a compositor that opens the window, else X11's where `DISPLAY` names a server.
 - Holds Wayland's layer, on Linux (`wayland`): its loop on `rustix`, one `poll` on the compositor's
   socket, an eventfd that wakes it and a timerfd on `CLOCK_BOOTTIME`, the host's clock (`wait`,
   `clock`), which X11's layer shares;
@@ -75,7 +74,10 @@ keyboard's, on layouts that libxkbcommon compiles from its rules, and the transl
 compositor's pointer, touch and keyboard events, without a compositor; X11's pointer, its wheel,
 its frames' signal and the display's period, without a server. The window itself is tested
 through the host above it, by `uwui-desktop`'s `rest` tests in the series of compositors, X11's
-under Xvfb.
+under Xvfb. There too, `cargo test -p uwui-windowing --test x11 -- --test-threads=1`, which needs
+the X server that `DISPLAY` names, watches X11's window as another client sees it: its fullscreen
+hint without a window manager, its pings, its start's end, its signal held while hidden, and the
+fallback from a Wayland compositor that does not answer.
 
 ## Depends on
 

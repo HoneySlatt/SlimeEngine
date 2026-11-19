@@ -43,7 +43,7 @@ A cell that starts with "—" is not observed: what it says comes from elsewhere
 | uwui's host's bar | none, no protocol | the compositor's | the compositor's | none, no protocol | — no window manager under Xvfb |
 | uwui's host's period told | 4.167 ms | none, measured from the signals | 16.667 ms | 4.167 ms | none, measured from the signals |
 | uwui's host's keys | not run, no input | typed | typed | typed | not run, X11's layer takes no key yet |
-| uwui's host's cursor | not run, the pointer never entered | by shape | by shape | by shape | the server's |
+| uwui's host's cursor | not run, the pointer never entered | by shape | by shape | by shape | — the server's: X11's layer sets no shape before M6d.7b2 |
 | uwui's host's scale | 2.0 | 1.5 | 1.5 | 1.5 | — X11's layer reads no scale before M6d.7b2 |
 | uwui's host's losses | drawn again | drawn again | drawn again | drawn again | drawn again |
 
@@ -118,7 +118,8 @@ The rows:
   `CLOCK_MONOTONIC`. Xvfb gives no refresh rate: the engine's frames there follow its own schedule.
   Its Present still notifies each refresh asked, on a timer of the server's own at 60 Hz, in
   microseconds of `CLOCK_MONOTONIC`: uwui's host's frames follow them (read on 2026-11-19,
-  Xvfb 21.1.24).
+  Xvfb 21.1.24). It refuses, about once, a connection made just as another closes: the X11
+  layer's own tests wait a tenth of a second before each window.
 - **Presentation feedback.** No program of the engine asks for it today: uwui's desktop host reads it
   from M6d.7a2 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
 - **Focus on X11.** Without a window manager, Xvfb gives no window the keyboard's focus: the series
