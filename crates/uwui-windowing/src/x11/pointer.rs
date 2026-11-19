@@ -348,6 +348,15 @@ mod tests {
     }
 
     #[test]
+    fn a_scroll_valuator_whose_notch_is_zero_scrolls_nothing() {
+        let mut pointers = Pointers::default();
+        // A device that names a notch of nothing would scroll without end on any motion.
+        pointers.classes(2, &[scroll(3, ScrollType::VERTICAL, 0.0)]);
+        assert_eq!(moved_by(&mut pointers, 0.0, 10.0), [moved(10.0, 20.0)]);
+        assert_eq!(moved_by(&mut pointers, 0.0, 25.0), [moved(10.0, 20.0)]);
+    }
+
+    #[test]
     fn a_valuator_beyond_the_first_word_of_the_mask_is_read() {
         let mut pointers = Pointers::default();
         pointers.classes(5, &[scroll(33, ScrollType::VERTICAL, 1.0)]);
