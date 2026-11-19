@@ -1162,6 +1162,12 @@ impl<C: Connection> Drop for ResourcesSet<C> {
 /// its pixels, its logical size following.
 #[test]
 fn the_scale_follows_the_x_resources_dpi() {
+    scale_follows_the_x_resources_dpi();
+    println!("scale: 1.5");
+}
+
+/// The scale's test, which another runs again where the server holds X resources already.
+fn scale_follows_the_x_resources_dpi() {
     server_settles();
     let (connection, _) = x11rb::connect(None).expect("the X server");
     let resources = ResourcesSet::new(connection, b"Xft.dpi:\t144\nXft.antialias:\t1\n");
@@ -1221,7 +1227,6 @@ fn the_scale_follows_the_x_resources_dpi() {
         "the same pixels at the new scale"
     );
     assert_eq!(told.configured.last().map(|c| c.size), Some([240, 180]));
-    println!("scale: 1.5");
 }
 
 /// A handler that waits for nothing but the platform, counting its turns: it sends its window's
@@ -1546,7 +1551,7 @@ fn the_scales_test_leaves_the_x_resources_as_it_found_them() {
     let root = connection.setup().roots[screen].root;
     let found = b"Xcursor.size:\t24\n";
     set_resources(&connection, Some(found));
-    the_scale_follows_the_x_resources_dpi();
+    scale_follows_the_x_resources_dpi();
     let after = connection
         .get_property(
             false,
