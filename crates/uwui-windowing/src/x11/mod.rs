@@ -113,6 +113,8 @@ const STATE_ADD: u32 = 1;
 const FROM_APPLICATION: u32 = 1;
 /// XInput2's device id for every master device.
 const ALL_MASTER_DEVICES: u16 = 1;
+/// The server's focus that follows the pointer, as `GetInputFocus` names it.
+const POINTER_ROOT: xproto::Window = 1;
 
 /// The X resources' dots per inch at a scale of 1, as Xft and the toolkits that read it count.
 const DPI_AT_SCALE_ONE: f64 = 96.0;
@@ -623,11 +625,10 @@ impl Platform {
                 let input = self.keys.key(release.detail, ButtonState::Released, false);
                 self.push_timed(release.time, received, input);
             }
-            Event::XinputFocusIn(focus) if focus.event == self.window => {
-                self.focus(keyboard::Focus::In(detail(focus.detail)), received);
-            }
-            Event::XinputFocusOut(focus) if focus.event == self.window => {
-                self.focus(keyboard::Focus::Out(detail(focus.detail)), received);
+            Event::XinputFocusIn(focus) | Event::XinputFocusOut(focus)
+                if focus.event == self.window =>
+            {
+                self.server_focus(received);
             }
             Event::XkbStateNotify(state) if self.keys.follows(state.device_id) => {
                 let (modifiers, layouts) = keyboard::state_of(&state);
@@ -780,8 +781,49 @@ impl Platform {
             self.push_received(received, held);
             if self.keys.focused() {
                 self.read_resources_again();
+            } else {
+                let released = self.keys.released();
+                self.push_received(received, released);
             }
         }
+    }
+
+    /// Reads where the server's focus now is, at a focus event of the window's, received at
+    /// `received`: one round trip, and one more for each ancestor walked through.
+    fn server_focus(&mut self, received: Instant) {
+        let focus = self
+            .connection
+            .get_input_focus()
+            .ok()
+            .and_then(|cookie| cookie.reply().ok())
+            .map(|reply| reply.focus);
+        let place = focus_place(focus, self.window, |focus| self.is_ancestor(focus));
+        self.focus(place, received);
+    }
+
+    /// Whether `window` is an ancestor of the layer's window: its parent, the window manager's
+    /// frame, up to the root.
+    fn is_ancestor(&self, window: xproto::Window) -> bool {
+        let mut at = self.window;
+        // A window's ancestors are few; the bound keeps a broken tree from looping.
+        for _ in 0..64 {
+            let Some(tree) = self
+                .connection
+                .query_tree(at)
+                .ok()
+                .and_then(|cookie| cookie.reply().ok())
+            else {
+                return false;
+            };
+            if tree.parent == window {
+                return true;
+            }
+            if tree.parent == x11rb::NONE || tree.parent == tree.root {
+                return false;
+            }
+            at = tree.parent;
+        }
+        false
     }
 
     /// Gives `input`, if any, at its reception's time.
@@ -984,6 +1026,9 @@ impl running::Platform for Platform {
         // leave the loop waiting, without a turn of the host: only a wake, the deadline or an
         // event that tells it something end the wait.
         loop {
+            // What the events read asked, as a ping's answer, goes before each wait, the first
+            // included.
+            flush(&self.connection)?;
             let readable = self
                 .waits
                 .wait(self.connection.as_fd(), deadline, false)
@@ -992,8 +1037,6 @@ impl running::Platform for Platform {
             if told || !readable || self.waits.interrupted() {
                 return Ok(());
             }
-            // What the events asked, as a ping's answer, goes before the next wait.
-            flush(&self.connection)?;
         }
     }
 
@@ -1105,13 +1148,21 @@ fn touches_frames(event: &Event) -> bool {
     )
 }
 
-/// The detail of XInput2's focus event as the keyboard reads it.
-fn detail(detail: xinput::NotifyDetail) -> keyboard::Detail {
-    match detail {
-        xinput::NotifyDetail::POINTER => keyboard::Detail::Pointer,
-        xinput::NotifyDetail::ANCESTOR => keyboard::Detail::Ancestor,
-        _ => keyboard::Detail::Other,
-    }
+/// Where the server's focus `focus` lies for the window, as `GetInputFocus` names it: on the
+/// window itself, or above it, following the pointer (`PointerRoot`) or on one of its ancestors,
+/// which `is_ancestor` tells; `None` and a focus not read lie elsewhere.
+fn focus_place(
+    focus: Option<xproto::Window>,
+    window: xproto::Window,
+    is_ancestor: impl FnOnce(xproto::Window) -> bool,
+) -> keyboard::Focus {
+    let (window, above) = match focus {
+        Some(focus) if focus == window => (true, false),
+        Some(POINTER_ROOT) => (false, true),
+        Some(focus) if focus != x11rb::NONE => (false, is_ancestor(focus)),
+        _ => (false, false),
+    };
+    keyboard::Focus::Server { window, above }
 }
 
 /// Whether the server gives the extension `name`.
@@ -1241,6 +1292,20 @@ mod tests {
             a_second_before
         );
         assert_eq!(present_time(None, received), received);
+    }
+
+    #[test]
+    fn the_servers_focus_lies_on_the_window_above_it_or_elsewhere() {
+        let place = |focus, ancestor: bool| focus_place(focus, 42, |_| ancestor);
+        let at = |window, above| keyboard::Focus::Server { window, above };
+        assert_eq!(place(Some(42), false), at(true, false));
+        assert_eq!(place(Some(POINTER_ROOT), false), at(false, true));
+        // The root window, or a window manager's frame: above when an ancestor.
+        assert_eq!(place(Some(7), true), at(false, true));
+        assert_eq!(place(Some(7), false), at(false, false));
+        // None, or the focus not read.
+        assert_eq!(place(Some(x11rb::NONE), true), at(false, false));
+        assert_eq!(place(None, true), at(false, false));
     }
 
     #[test]

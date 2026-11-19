@@ -55,15 +55,18 @@ while the window holds the focus: as it takes it, the layer asks for the notices
 state once, and tells the modifiers if they changed meanwhile, as Wayland's compositors do; as it
 loses it, the notices stop. The repeat is the server's: XInput2's `KeyRepeat` marks it, and the
 layer keeps no timer of its own. The window holds the focus when the server's focus is the window
-itself, through XInput2's `FocusIn` and `FocusOut`; or when the server's focus lies above it,
-following the pointer (`PointerRoot`) or on an ancestor, such as the root window, and the pointer
-lies over it, through `Enter`'s `focus`, `Leave`, a `FocusOut` of the detail `Ancestor`, and focus
-events of the detail `Pointer`. `WM_HINTS` asks the window manager for the focus, ICCCM's passive
-model.
+itself, or lies above it, following the pointer (`PointerRoot`) or on an ancestor, such as the
+root window, and the pointer lies over it. At each of XInput2's `FocusIn` and `FocusOut`, the layer
+reads where the server's focus now is (`GetInputFocus`, then the window's ancestors through
+`QueryTree`) rather than reading it from the events' details: the server sends each move as an
+event out then an event in, and the details mislead between the two. `Enter`'s `focus` and `Leave`
+follow the pointer. As the window loses the focus, the modifiers held are told released, on
+Wayland too, whose protocol asks a client to take every key as lifted. `WM_HINTS` asks the window
+manager for the focus, ICCCM's passive model.
 
 **The loop turns only for what tells the host something.** Events that tell it nothing, as a
 keyboard that the server's core keyboard now follows, or a window manager's ping, are read and
-answered, and the loop waits again without a turn of the host.
+answered, the answers sent before each wait, and the loop waits again without a turn of the host.
 
 **The cursor.** Each shape is looked up in the person's theme by its CSS name, then by X11's older
 one (`text`, then `xterm`), through `x11rb`'s loader, which reads `XCURSOR_THEME` and

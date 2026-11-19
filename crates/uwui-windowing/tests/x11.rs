@@ -352,13 +352,16 @@ fn the_signal_waits_while_hidden_and_comes_back() {
             .expect("the window's id");
         let mut marks = Vec::new();
         std::thread::sleep(Duration::from_millis(400));
-        connection.unmap_window(window).unwrap();
-        connection.flush().unwrap();
+        // A hidden time marked from when the server has hidden the window, to before it is
+        // asked to show it again: a server late to read a request, as under load, still sends
+        // the refreshes' notices meanwhile, and the signal held while hidden comes as the window
+        // shows again.
+        connection.unmap_window(window).unwrap().check().unwrap();
         marks.push(("unmapped", start.elapsed()));
         std::thread::sleep(Duration::from_millis(500));
+        marks.push(("mapped", start.elapsed()));
         connection.map_window(window).unwrap();
         connection.flush().unwrap();
-        marks.push(("mapped", start.elapsed()));
         std::thread::sleep(Duration::from_millis(500));
         let cover = connection.generate_id().unwrap();
         connection
@@ -378,13 +381,12 @@ fn the_signal_waits_while_hidden_and_comes_back() {
                     .background_pixel(0),
             )
             .unwrap();
-        connection.map_window(cover).unwrap();
-        connection.flush().unwrap();
+        connection.map_window(cover).unwrap().check().unwrap();
         marks.push(("covered", start.elapsed()));
         std::thread::sleep(Duration::from_millis(500));
+        marks.push(("uncovered", start.elapsed()));
         connection.destroy_window(cover).unwrap();
         connection.flush().unwrap();
-        marks.push(("uncovered", start.elapsed()));
         marks
     });
     let (recorder, ran) = uwui_windowing::run(
@@ -910,7 +912,9 @@ fn keys_typed_reach_the_window_with_the_servers_keymap_and_repeat() {
         std::thread::sleep(Duration::from_millis(200));
         map_keycode(&connection, dead, 0, per);
         map_keycode(&connection, circumflexed, 0, per);
-        // The pointer leaves for the root window, and the focus with it.
+        // Shift held as the pointer leaves for the root window, and the focus with it.
+        xdotool(&["keydown", "shift"]);
+        std::thread::sleep(Duration::from_millis(200));
         connection
             .warp_pointer(
                 x11rb::NONE,
@@ -926,6 +930,7 @@ fn keys_typed_reach_the_window_with_the_servers_keymap_and_repeat() {
             .check()
             .unwrap();
         std::thread::sleep(Duration::from_millis(300));
+        xdotool(&["keyup", "shift"]);
         let _ = stop_sender.send(());
     });
     let mut recorder = Recorder::new(Duration::from_secs(15), false, Some(window_sender));
@@ -934,6 +939,24 @@ fn keys_typed_reach_the_window_with_the_servers_keymap_and_repeat() {
     ran.expect("the run");
     typist.join().expect("the typist");
     let inputs = &recorder.told.inputs;
+    // Shift held as the focus left: told released after the focus, and nothing after.
+    let left = inputs
+        .iter()
+        .position(|input| *input == Input::Focus(false))
+        .expect("the focus lost");
+    let held_last = inputs[..left].iter().rev().find_map(|input| match input {
+        Input::Modifiers(held) => Some(*held),
+        _ => None,
+    });
+    assert!(
+        held_last.is_some_and(|held| held.shift),
+        "Shift held as the focus left: {inputs:?}"
+    );
+    assert_eq!(
+        inputs[left + 1..],
+        [Input::Modifiers(slime_input::Modifiers::default())],
+        "the modifiers told released as the focus left, then nothing"
+    );
     let typed = typed(inputs);
     eprintln!("typed: {typed:?}");
     let focus: Vec<bool> = inputs
@@ -1625,4 +1648,512 @@ fn the_smallest_size_follows_the_scale() {
     eprintln!("smallest at 1.5 {at_one_and_a_half:?}, at 2 {at_two:?}");
     assert_eq!(at_one_and_a_half, Some((300, 150)));
     assert_eq!(at_two, Some((400, 200)));
+}
+
+/// A handler that waits for nothing but the platform: it sends its window's id and its waker as
+/// the window opens, says so and sleeps through the turn after `busy` is set, as a host drawing a
+/// frame, and ends at the turn after `stop`.
+struct Busy {
+    opened: Option<Sender<(u32, std::task::Waker)>>,
+    busy: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    in_turn: Sender<()>,
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Handler for Busy {
+    fn opened(&mut self, window: &mut Window<'_>, _: Drawn) -> Result<(), Stopped> {
+        if let (Some(sender), (_, RawWindowHandle::Xcb(handle))) =
+            (&self.opened, window.raw_handles())
+        {
+            let _ = sender.send((handle.window.get(), window.waker()));
+        }
+        Ok(())
+    }
+
+    fn turn(&mut self, _: &mut Window<'_>, _: Happened) -> Control {
+        use std::sync::atomic::Ordering;
+        if self.busy.swap(false, Ordering::SeqCst) {
+            let _ = self.in_turn.send(());
+            std::thread::sleep(Duration::from_millis(400));
+        }
+        if self.stop.load(Ordering::SeqCst) {
+            Control::Exit
+        } else {
+            Control::Wait(None)
+        }
+    }
+
+    fn closing(&mut self) {}
+}
+
+/// A window manager's ping that comes while the host is busy in a turn, after which it waits for
+/// nothing: the answer must reach the root window as the loop waits again, not at the next event
+/// (a window manager that waits too long says that the application does not answer).
+#[test]
+fn a_ping_that_comes_during_a_turn_is_answered_at_rest() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    server_settles();
+    let stop = Arc::new(AtomicBool::new(false));
+    let busy = Arc::new(AtomicBool::new(false));
+    let (opened_sender, opened_receiver) = mpsc::channel::<(u32, std::task::Waker)>();
+    let (in_turn_sender, in_turn_receiver) = mpsc::channel::<()>();
+    let (thread_stop, thread_busy) = (Arc::clone(&stop), Arc::clone(&busy));
+    let pinger = std::thread::spawn(move || {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        let atom = |name: &[u8]| {
+            connection
+                .intern_atom(false, name)
+                .unwrap()
+                .reply()
+                .unwrap()
+                .atom
+        };
+        let (protocols, ping) = (atom(b"WM_PROTOCOLS"), atom(b"_NET_WM_PING"));
+        connection
+            .change_window_attributes(
+                root,
+                &ChangeWindowAttributesAux::new().event_mask(EventMask::SUBSTRUCTURE_NOTIFY),
+            )
+            .unwrap()
+            .check()
+            .unwrap();
+        let (window, waker) = opened_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window");
+        // At rest first; then a turn that lasts, during which the ping comes.
+        std::thread::sleep(Duration::from_millis(300));
+        thread_busy.store(true, Ordering::SeqCst);
+        waker.wake_by_ref();
+        in_turn_receiver
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the busy turn");
+        let event = ClientMessageEvent::new(32, window, protocols, [ping, 4242, window, 0, 0]);
+        connection
+            .send_event(false, window, EventMask::NO_EVENT, event)
+            .unwrap()
+            .check()
+            .unwrap();
+        let sent = Instant::now();
+        let mut answered = None;
+        while answered.is_none() && sent.elapsed() < Duration::from_secs(2) {
+            match connection.poll_for_event().unwrap() {
+                Some(Event::ClientMessage(message))
+                    if message.type_ == protocols && message.data.as_data32()[1] == 4242 =>
+                {
+                    answered = Some(sent.elapsed());
+                }
+                Some(_) => {}
+                None => std::thread::sleep(Duration::from_millis(5)),
+            }
+        }
+        thread_stop.store(true, Ordering::SeqCst);
+        waker.wake();
+        answered
+    });
+    let handler = Busy {
+        opened: Some(opened_sender),
+        busy,
+        in_turn: in_turn_sender,
+        stop,
+    };
+    let (_, ran) = uwui_windowing::run(opening(false), handler);
+    ran.expect("the run");
+    let answered = pinger.join().expect("the pinger");
+    eprintln!("the ping sent during a turn of 400 ms was answered after {answered:?}");
+    assert!(
+        answered.is_some_and(|after| after < Duration::from_millis(1500)),
+        "the ping that came during a turn was not answered while the window rested: {answered:?}"
+    );
+}
+
+/// The server's focus moved from the window to follow the pointer, then to the root window and
+/// back, the pointer staying over the window: the keys reach the window throughout, and its focus
+/// is never told lost.
+#[test]
+fn the_focus_moved_above_the_window_under_the_pointer_is_not_told_lost() {
+    use x11rb::protocol::xproto::InputFocus;
+    server_settles();
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let (stop_sender, stop_receiver) = mpsc::channel();
+    let mover = std::thread::spawn(move || {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        std::thread::sleep(Duration::from_millis(300));
+        let focus = |to: u32| {
+            connection
+                .set_input_focus(InputFocus::POINTER_ROOT, to, x11rb::CURRENT_TIME)
+                .unwrap()
+                .check()
+                .unwrap();
+            std::thread::sleep(Duration::from_millis(300));
+        };
+        connection
+            .warp_pointer(x11rb::NONE, window, 0, 0, 0, 0, 160, 120)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        focus(window);
+        xdotool(&["key", "a"]);
+        // From the window to the pointer's: the keys still go to the window under it.
+        focus(u32::from(InputFocus::POINTER_ROOT));
+        xdotool(&["key", "b"]);
+        // To the root window, an ancestor, then back to the pointer's.
+        focus(root);
+        xdotool(&["key", "c"]);
+        focus(u32::from(InputFocus::POINTER_ROOT));
+        xdotool(&["key", "d"]);
+        let _ = stop_sender.send(());
+    });
+    let mut recorder = Recorder::new(Duration::from_secs(10), false, Some(window_sender));
+    recorder.stop = Some(stop_receiver);
+    let (recorder, ran) = uwui_windowing::run(opening(false), recorder);
+    ran.expect("the run");
+    mover.join().expect("the mover");
+    let told: Vec<String> = recorder
+        .told
+        .inputs
+        .iter()
+        .filter_map(|input| match input {
+            Input::Focus(given) => Some(format!("focus {given}")),
+            Input::Key(KeyEvent {
+                state: ButtonState::Pressed,
+                text: Some(text),
+                ..
+            }) => Some(format!("key {text}")),
+            _ => None,
+        })
+        .collect();
+    eprintln!("told: {told:?}");
+    assert_eq!(
+        told,
+        ["focus true", "key a", "key b", "key c", "key d"],
+        "the focus was told lost while every key reached the window"
+    );
+}
+
+/// A handler that waits for nothing but the platform, as a host at rest: it sends its window's id
+/// and its waker as the window opens; when `signals`, it asks the signal at its first turn and at
+/// each signal, counting them; it ends at the close asked, or at the turn after `stop`.
+struct Waiter {
+    opened: Option<Sender<(u32, std::task::Waker)>>,
+    signals: bool,
+    told_signals: usize,
+    close_asked: Option<Instant>,
+    turns: usize,
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Waiter {
+    fn new(
+        opened: Sender<(u32, std::task::Waker)>,
+        signals: bool,
+        stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> Self {
+        Self {
+            opened: Some(opened),
+            signals,
+            told_signals: 0,
+            close_asked: None,
+            turns: 0,
+            stop,
+        }
+    }
+}
+
+impl Handler for Waiter {
+    fn opened(&mut self, window: &mut Window<'_>, _: Drawn) -> Result<(), Stopped> {
+        if let (Some(sender), (_, RawWindowHandle::Xcb(handle))) =
+            (&self.opened, window.raw_handles())
+        {
+            let _ = sender.send((handle.window.get(), window.waker()));
+        }
+        Ok(())
+    }
+
+    fn turn(&mut self, window: &mut Window<'_>, happened: Happened) -> Control {
+        self.turns += 1;
+        if happened.signal.is_some() {
+            self.told_signals += 1;
+        }
+        if self.signals && (self.turns == 1 || happened.signal.is_some()) {
+            let _ = window.ask_signal();
+        }
+        if happened.close_asked {
+            self.close_asked = Some(Instant::now());
+            return Control::Exit;
+        }
+        if self.stop.load(std::sync::atomic::Ordering::SeqCst) {
+            Control::Exit
+        } else {
+            Control::Wait(None)
+        }
+    }
+
+    fn closing(&mut self) {}
+}
+
+/// The window manager's close button, `WM_DELETE_WINDOW`, while the host waits for nothing: the
+/// host is told at once, though no other event comes.
+#[test]
+fn a_close_asked_at_rest_turns_the_loop() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    server_settles();
+    let stop = Arc::new(AtomicBool::new(false));
+    let (opened_sender, opened_receiver) = mpsc::channel::<(u32, std::task::Waker)>();
+    let thread_stop = Arc::clone(&stop);
+    let closer = std::thread::spawn(move || {
+        let (connection, _) = x11rb::connect(None).expect("the X server");
+        let atom = |name: &[u8]| {
+            connection
+                .intern_atom(false, name)
+                .unwrap()
+                .reply()
+                .unwrap()
+                .atom
+        };
+        let (protocols, delete) = (atom(b"WM_PROTOCOLS"), atom(b"WM_DELETE_WINDOW"));
+        let (window, waker) = opened_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window");
+        std::thread::sleep(Duration::from_millis(300));
+        let event = ClientMessageEvent::new(32, window, protocols, [delete, 0, 0, 0, 0]);
+        connection
+            .send_event(false, window, EventMask::NO_EVENT, event)
+            .unwrap()
+            .check()
+            .unwrap();
+        let sent = Instant::now();
+        // Woken after two seconds, if it did not end before.
+        std::thread::sleep(Duration::from_secs(2));
+        thread_stop.store(true, Ordering::SeqCst);
+        waker.wake();
+        sent
+    });
+    let (waiter, ran) = uwui_windowing::run(
+        opening(false),
+        Waiter::new(opened_sender, false, Arc::clone(&stop)),
+    );
+    ran.expect("the run");
+    let sent = closer.join().expect("the closer");
+    let told = waiter.close_asked.map(|at| at.duration_since(sent));
+    eprintln!("the close asked at rest was told after {told:?}");
+    assert!(
+        told.is_some_and(|after| after < Duration::from_secs(1)),
+        "the close asked while the host waited for nothing was told after {told:?}"
+    );
+}
+
+/// The signal asked by a host that waits for nothing else: Present's notice of each refresh ends
+/// the wait, a frame after a frame, as a host drawing an animation waits.
+#[test]
+fn the_signal_asked_at_rest_turns_the_loop_at_each_refresh() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    server_settles();
+    let stop = Arc::new(AtomicBool::new(false));
+    let (opened_sender, opened_receiver) = mpsc::channel::<(u32, std::task::Waker)>();
+    let thread_stop = Arc::clone(&stop);
+    let stopper = std::thread::spawn(move || {
+        let (_, waker) = opened_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window");
+        std::thread::sleep(Duration::from_millis(1000));
+        thread_stop.store(true, Ordering::SeqCst);
+        waker.wake();
+    });
+    let (waiter, ran) = uwui_windowing::run(
+        opening(false),
+        Waiter::new(opened_sender, true, Arc::clone(&stop)),
+    );
+    ran.expect("the run");
+    stopper.join().expect("the stopper");
+    eprintln!("signals told in a second: {}", waiter.told_signals);
+    assert!(
+        waiter.told_signals > 20,
+        "a host that waits for its signal alone was told {} in a second",
+        waiter.told_signals
+    );
+}
+
+/// The pointer entering the window and leaving it twice, the server's focus following it, the X
+/// resources unchanged: the cursor's shapes are not made again as the window takes the focus,
+/// XFixes showing the same cursor over the window each time.
+#[test]
+fn the_cursors_are_made_again_only_when_the_x_resources_change() {
+    server_settles();
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let (stop_sender, stop_receiver) = mpsc::channel();
+    let watcher = std::thread::spawn(move || {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        connection
+            .xfixes_query_version(4, 0)
+            .unwrap()
+            .reply()
+            .expect("XFixes");
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        let warp = |to: u32, x: i16, y: i16| {
+            connection
+                .warp_pointer(x11rb::NONE, to, 0, 0, 0, 0, x, y)
+                .unwrap()
+                .check()
+                .unwrap();
+            std::thread::sleep(Duration::from_millis(300));
+        };
+        let mut serials = Vec::new();
+        for _ in 0..2 {
+            warp(window, 160, 120);
+            serials.push(
+                connection
+                    .xfixes_get_cursor_image()
+                    .unwrap()
+                    .reply()
+                    .unwrap()
+                    .cursor_serial,
+            );
+            warp(root, 1000, 800);
+        }
+        let _ = stop_sender.send(());
+        serials
+    });
+    let mut recorder = Recorder::new(Duration::from_secs(10), false, Some(window_sender));
+    recorder.stop = Some(stop_receiver);
+    let (recorder, ran) = uwui_windowing::run(opening(false), recorder);
+    ran.expect("the run");
+    let serials = watcher.join().expect("the watcher");
+    let focus: Vec<&Input> = recorder
+        .told
+        .inputs
+        .iter()
+        .filter(|input| matches!(input, Input::Focus(_)))
+        .collect();
+    eprintln!("the cursor's serials over the window {serials:?}; focus told {focus:?}");
+    assert_eq!(
+        focus.len(),
+        4,
+        "the window took the focus twice and lost it twice"
+    );
+    assert_eq!(
+        serials[0], serials[1],
+        "the cursor was made again as the window took the focus, the X resources unchanged"
+    );
+}
+
+/// A handler that waits for nothing but the platform: it sends its window's id and its waker as
+/// the window opens, keeps the moment of each turn told that the window was exposed, and ends at
+/// the turn after `stop`.
+struct ExposureWaiter {
+    opened: Option<Sender<(u32, std::task::Waker)>>,
+    exposed: Vec<Instant>,
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Handler for ExposureWaiter {
+    fn opened(&mut self, window: &mut Window<'_>, _: Drawn) -> Result<(), Stopped> {
+        if let (Some(sender), (_, RawWindowHandle::Xcb(handle))) =
+            (&self.opened, window.raw_handles())
+        {
+            let _ = sender.send((handle.window.get(), window.waker()));
+        }
+        Ok(())
+    }
+
+    fn turn(&mut self, _: &mut Window<'_>, happened: Happened) -> Control {
+        if happened.exposed {
+            self.exposed.push(Instant::now());
+        }
+        if self.stop.load(std::sync::atomic::Ordering::SeqCst) {
+            Control::Exit
+        } else {
+            Control::Wait(None)
+        }
+    }
+
+    fn closing(&mut self) {}
+}
+
+/// Another client's window moved over part of the window, as where no compositor keeps its image:
+/// the part that it leaves is exposed, the window staying partly covered, without a change of its
+/// visibility; the host that waits for nothing is told at once to draw again.
+#[test]
+fn an_exposure_alone_turns_a_loop_at_rest() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    server_settles();
+    let stop = Arc::new(AtomicBool::new(false));
+    let (opened_sender, opened_receiver) = mpsc::channel::<(u32, std::task::Waker)>();
+    let thread_stop = Arc::clone(&stop);
+    let mover = std::thread::spawn(move || {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        let (_, waker) = opened_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window");
+        std::thread::sleep(Duration::from_millis(300));
+        // A window over the top left of the layer's, which lies at the screen's top left.
+        let cover = connection.generate_id().unwrap();
+        connection
+            .create_window(
+                x11rb::COPY_DEPTH_FROM_PARENT,
+                cover,
+                root,
+                0,
+                0,
+                100,
+                100,
+                0,
+                WindowClass::INPUT_OUTPUT,
+                x11rb::COPY_FROM_PARENT,
+                &CreateWindowAux::new()
+                    .override_redirect(1)
+                    .background_pixel(0),
+            )
+            .unwrap()
+            .check()
+            .unwrap();
+        connection.map_window(cover).unwrap().check().unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        // Moved right, still over the window: what it covered is exposed.
+        let moved = Instant::now();
+        connection
+            .configure_window(cover, &ConfigureWindowAux::new().x(150))
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(1000));
+        connection.destroy_window(cover).unwrap().check().unwrap();
+        thread_stop.store(true, Ordering::SeqCst);
+        waker.wake();
+        moved
+    });
+    let handler = ExposureWaiter {
+        opened: Some(opened_sender),
+        exposed: Vec::new(),
+        stop,
+    };
+    let (handler, ran) = uwui_windowing::run(opening(false), handler);
+    ran.expect("the run");
+    let moved = mover.join().expect("the mover");
+    let after: Vec<Duration> = handler
+        .exposed
+        .iter()
+        .filter(|at| **at >= moved)
+        .map(|at| at.duration_since(moved))
+        .collect();
+    eprintln!("exposures told after the move: {after:?}");
+    assert!(
+        after
+            .first()
+            .is_some_and(|first| *first < Duration::from_millis(500)),
+        "the part that the other window left was not told exposed at once: {after:?}"
+    );
 }

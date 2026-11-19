@@ -14,13 +14,14 @@
 //!   modifiers held if they changed, as on Wayland.
 //! - *The repeat*: the server's own. XInput2 marks a key held's repeats and sends no release
 //!   between them, so the layer keeps no timer of its own, as it does on Wayland.
-//! - *The focus*: the window holds it when the server's focus is the window itself, as XInput2's
-//!   `FocusIn` and `FocusOut` tell; or when the server's focus lies above it, following the
-//!   pointer (`PointerRoot`), as where no window manager gives it, or on an ancestor such as the
-//!   root window, and the pointer lies over the window: the keys then go to the window under the
-//!   pointer. XInput2's `Enter` says whether the focus lies so, `Leave` says that the pointer left;
-//!   a `FocusOut` of the detail `Ancestor` leaves the focus above, one of another detail takes it
-//!   elsewhere, and focus events of the detail `Pointer` move it from above or back.
+//! - *The focus*: the window holds it when the server's focus is the window itself, or lies above
+//!   it, following the pointer (`PointerRoot`), as where no window manager gives it, or on an
+//!   ancestor such as the root window, and the pointer lies over the window: the keys then go to
+//!   the window under the pointer. At each of XInput2's `FocusIn` and `FocusOut`, the layer reads
+//!   where the server's focus now is, rather than reading it from the events' details: the server
+//!   sends a move of its focus as an event out then an event in, whose details mislead between
+//!   the two. XInput2's `Enter` says whether the focus lies on the window or above it, and `Leave`
+//!   that the pointer left. As the window loses the focus, the modifiers are told released.
 //!
 //! It knows no clock: the layer times the inputs that it gives.
 
@@ -57,26 +58,14 @@ pub(super) struct Keys {
 /// What told of the focus, as XInput2's events give it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Focus {
-    /// `FocusIn` on the window, of this detail.
-    In(Detail),
-    /// `FocusOut` of the window, of this detail.
-    Out(Detail),
+    /// Where the server's focus is, read at a `FocusIn` or `FocusOut` of the window's: the window
+    /// itself, or above it, following the pointer or on an ancestor.
+    Server { window: bool, above: bool },
     /// The pointer entered the window, the server saying whether its focus is the window or lies
     /// above it (XInput2's `focus`).
     Entered { focus: bool },
     /// The pointer left the window.
     Left,
-}
-
-/// The detail of a focus event, as far as the window's keys depend on it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Detail {
-    /// `Pointer`: the server's focus moves above the window, which the pointer lies over, or back.
-    Pointer,
-    /// `Ancestor`: the focus moves from the window to one of its ancestors, above it.
-    Ancestor,
-    /// Any other: the focus moves to the window, or from it to a window not above it.
-    Other,
 }
 
 impl Keys {
@@ -246,12 +235,9 @@ impl Keys {
     pub(super) fn focus(&mut self, event: Focus) -> Option<Input> {
         let before = self.focused();
         match event {
-            Focus::In(Detail::Pointer) => self.focus_above = true,
-            Focus::In(_) => self.window_focus = true,
-            Focus::Out(Detail::Pointer) => self.focus_above = false,
-            Focus::Out(detail) => {
-                self.window_focus = false;
-                self.focus_above = detail == Detail::Ancestor;
+            Focus::Server { window, above } => {
+                self.window_focus = window;
+                self.focus_above = above;
             }
             Focus::Entered { focus } => {
                 self.inside = true;
@@ -267,6 +253,16 @@ impl Keys {
             keyboard.forget_sequence();
         }
         Some(Input::Focus(given))
+    }
+
+    /// The modifiers told released, as the window lost the focus, if any was told held: the keys
+    /// held go to another window from now on.
+    pub(super) fn released(&mut self) -> Option<Input> {
+        let released = Modifiers::default();
+        (self.modifiers != released).then(|| {
+            self.modifiers = released;
+            Input::Modifiers(released)
+        })
     }
 
     /// Whether the keys go to the window: its own focus, or the focus above it and the pointer
@@ -373,9 +369,20 @@ mod tests {
     }
 
     /// The window's own focus given, as a window manager gives it.
-    const GIVEN: Focus = Focus::In(Detail::Other);
+    const GIVEN: Focus = Focus::Server {
+        window: true,
+        above: false,
+    };
     /// The focus taken to another window.
-    const TAKEN: Focus = Focus::Out(Detail::Other);
+    const TAKEN: Focus = Focus::Server {
+        window: false,
+        above: false,
+    };
+    /// The server's focus above the window: following the pointer, or on an ancestor.
+    const ABOVE: Focus = Focus::Server {
+        window: false,
+        above: true,
+    };
 
     #[test]
     fn xkbs_state_changes_the_modifiers_and_the_layout_told_once() {
@@ -438,6 +445,20 @@ mod tests {
     }
 
     #[test]
+    fn the_modifiers_held_are_told_released_as_the_focus_leaves() {
+        let mut keys = keys("us");
+        keys.focus(GIVEN);
+        assert!(keys.state([1, 0, 0], [0; 3]).is_some());
+        keys.focus(TAKEN);
+        assert_eq!(
+            keys.released(),
+            Some(Input::Modifiers(Modifiers::default()))
+        );
+        // Told once; none held, none told.
+        assert_eq!(keys.released(), None);
+    }
+
+    #[test]
     fn the_focus_is_told_at_each_change_alone() {
         let mut keys = keys("us");
         assert_eq!(keys.focus(GIVEN), Some(Input::Focus(true)));
@@ -458,17 +479,11 @@ mod tests {
         // A window whose focus another holds: entering gives nothing.
         assert!(keys.focus(Focus::Entered { focus: false }).is_none());
         // The focus moving above the window while the pointer lies over it, and back.
-        assert_eq!(
-            keys.focus(Focus::In(Detail::Pointer)),
-            Some(Input::Focus(true))
-        );
-        assert_eq!(
-            keys.focus(Focus::Out(Detail::Pointer)),
-            Some(Input::Focus(false))
-        );
+        assert_eq!(keys.focus(ABOVE), Some(Input::Focus(true)));
+        assert_eq!(keys.focus(TAKEN), Some(Input::Focus(false)));
         // Above it, but the pointer gone: nothing.
         assert!(keys.focus(Focus::Left).is_none());
-        assert!(keys.focus(Focus::In(Detail::Pointer)).is_none());
+        assert!(keys.focus(ABOVE).is_none());
     }
 
     #[test]
@@ -497,7 +512,7 @@ mod tests {
         keys.focus(GIVEN);
         keys.focus(Focus::Entered { focus: true });
         // The focus moves to the root window, above this one: the keys still come here.
-        assert!(keys.focus(Focus::Out(Detail::Ancestor)).is_none());
+        assert!(keys.focus(ABOVE).is_none());
         assert_eq!(keys.focus(Focus::Left), Some(Input::Focus(false)));
         assert_eq!(
             keys.focus(Focus::Entered { focus: true }),

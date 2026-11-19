@@ -82,18 +82,27 @@ compositor's pointer, touch and keyboard events, without a compositor; X11's poi
 keys, focus, touch, scale, cursor's theme, its frames' signal and the display's period, without
 a server. Tests that
 compose dead keys read the tests' own compose file, `tests/compose/Compose`, never the
-developer's: each runs itself again in a process of its own whose `XCOMPOSEFILE` names it. The window itself is tested
-through the host above it, by `uwui-desktop`'s `rest` tests in the series of compositors, X11's
-under Xvfb. There too, `cargo test -p uwui-windowing --test x11 -- --test-threads=1`, which needs
-an X server of its own that `DISPLAY` names, never the person's (it sets the server's keymap, focus,
-pointer and X resources, and leaves the resources as it found them), watches X11's window as another client sees it: its fullscreen
-hint without a window manager and with one, its pings, its start's end, its signal held while
-hidden, a present told across a resize, the fallback from a Wayland compositor that does not
-answer; keys typed through `xdotool`, their repeat, a keymap changed, a dead key composed and
-Caps Lock locked, run with `XCOMPOSEFILE` naming `tests/compose/Compose`; the focus as other
-clients move it, every key coming while the window is told focused; a click, the wheel, Shift or a
-status written on the root window elsewhere turning nothing; each cursor's shape as XFixes shows it;
-the scale and the smallest size that the X resources' `Xft.dpi` gives.
+developer's: each runs itself again in a process of its own whose `XCOMPOSEFILE` names it.
+
+The window itself is tested through the host above it, by `uwui-desktop`'s `rest` tests in the
+series of compositors, X11's under Xvfb. There too, `env -u WAYLAND_DISPLAY cargo test -p
+uwui-windowing --test x11 -- --test-threads=1`, with `XCOMPOSEFILE` naming `tests/compose/Compose`
+and `DESKTOP_STARTUP_ID` a start's id that holds a quote and a backslash, watches X11's window as
+another client sees it. It needs an X server of its own that `DISPLAY` names, never the person's:
+it sets the server's keymap, focus, pointer and X resources, and leaves the resources as it found
+them. It checks:
+
+- the fullscreen hint without a window manager and with one, the pings, the start's end;
+- the signal held while hidden, a present told across a resize, the fallback from a Wayland
+  compositor that does not answer;
+- keys typed through `xdotool`, their repeat, a keymap changed, a dead key composed, Caps Lock
+  locked, the modifiers told released as the focus leaves;
+- the focus as other clients move it, through `PointerRoot` and the root window, every key coming
+  while the window is told focused;
+- a click, the wheel, Shift or a status written on the root window elsewhere turning nothing, and
+  a close asked, the frames' signal, an exposure and a ping each handled at rest;
+- each cursor's shape as XFixes shows it, made again only when the X resources change;
+- the scale and the smallest size that the X resources' `Xft.dpi` gives.
 
 ## Depends on
 

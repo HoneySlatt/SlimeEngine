@@ -471,7 +471,8 @@ impl Told {
     }
 
     /// The window took the keyboard's focus, or lost it, at `received`: told before what follows,
-    /// as uwui asks; a key held repeats no more.
+    /// as uwui asks; a key held repeats no more. As it loses it, the modifiers held are told
+    /// released, as the protocol asks a client to take every key as lifted.
     fn focus(&mut self, given: bool, received: Instant) {
         self.keys.focused = given;
         if !given {
@@ -481,6 +482,11 @@ impl Told {
             }
         }
         self.push(EventTime::received(received), Input::Focus(given));
+        let released = Modifiers::default();
+        if !given && self.keys.modifiers != released {
+            self.keys.modifiers = released;
+            self.push(EventTime::received(received), Input::Modifiers(released));
+        }
     }
 
     /// The seat lost its keyboard, at `received`: a focus that it held is lost with it, though the
@@ -1094,11 +1100,22 @@ mod tests {
         // The focus leaves: told, and the key held no longer repeats.
         told.keyboard(key(1_020, 30, true), at(5_020));
         assert!(told.keys.repeat.deadline().is_some());
+        // Shift held as it leaves: told released after the focus.
+        told.keyboard(modifiers(1), at(5_025));
         told.focus(false, at(5_030));
         assert!(told.keys.repeat.deadline().is_none());
+        let given = inputs(&mut told);
+        assert_eq!(given[given.len() - 2], "5030 Received Focus(false)");
+        assert!(
+            given[given.len() - 1].starts_with("5030 Received Modifiers(Modifiers { shift: false"),
+            "{given:?}"
+        );
+        // Lost again with nothing held: the focus alone.
+        told.focus(true, at(5_040));
+        told.focus(false, at(5_050));
         assert_eq!(
             inputs(&mut told).last().map(String::as_str),
-            Some("5030 Received Focus(false)")
+            Some("5050 Received Focus(false)")
         );
     }
 
