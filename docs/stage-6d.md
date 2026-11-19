@@ -2717,6 +2717,59 @@ The third part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-l
 - **Done when.** The example rests under Xvfb in the series' job; a resume reaches uwui on Linux;
   CI is green.
 
+- **Cut in three** on 2026-11-19, the owner's choice ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)): X11's window, frames and
+  pointer, on `x11rb`; X11's keyboard, cursor, scale and touch; a resume's notice on Linux. The
+  "Done when" above is met at M6d.7b3.
+
+### M6d.7b1 — X11's window, frames and pointer
+
+The first part of M6d.7b ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** An application on uwui's desktop host opens its window on X11 and rests there.
+- **Crates.** `uwui-windowing`; `uwui-desktop`'s tests; `scripts/compositors.sh`.
+- **Delivers.** The layer on `x11rb`, chosen where no Wayland compositor answers and `DISPLAY`
+  names a server. The window and its requests: its title, its class, its minimum size, fullscreen,
+  activation and the start's `DESKTOP_STARTUP_ID`, its closing asked through `WM_DELETE_WINDOW`.
+  Frames on Present's notices of the window's CRTC; the images' times where the driver presents
+  through Present; the display's period from RandR; a timer at RandR's rate, 60 a second where it
+  reports none, where Present is missing. The pointer through XInput2, its moves, buttons and
+  wheel, with their times. The run's order of release checked on a fake platform
+  ([`debt.md`](debt.md)).
+- **Done when.** The example rests under Xvfb in the series' job, woken by the pointer, ended by a
+  signal, its device and surface lost and drawn again; the series' column of X11 tells uwui's
+  host; CI is green.
+- **Measured.** CI's jobs that build the host, each within 20 minutes.
+
+### M6d.7b2 — X11's keyboard, cursor, scale and touch
+
+The second part of M6d.7b ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** An application on uwui's desktop host takes the keyboard, and shows its cursor and
+  scale, on X11.
+- **Crates.** `uwui-windowing`; `uwui-desktop`'s tests; `scripts/compositors.sh`.
+- **Delivers.** The keyboard through XKB and libxkbcommon, its code shared with Wayland's layer,
+  the server's repeat, the focus and the modifiers; the keyboard's tests on compose tables of
+  their own ([`debt.md`](debt.md)); the cursor's shapes from the person's theme; the scale from
+  the X resources' `Xft.dpi`; touch through XInput2. Its dependencies put to the owner.
+- **Done when.** Under Xvfb, the `rest` test clicks the example's field, types into it and finds
+  the text in the row that *Add* makes; CI is green.
+- **Measured.** CI's jobs that build the host, each within 20 minutes.
+
+### M6d.7b3 — A resume's notice on Linux
+
+The third part of M6d.7b ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** uwui learns that the system resumed, on Wayland and on X11.
+- **Crates.** `uwui-windowing`; `uwui-desktop`; `uwui`.
+- **Delivers.** The system's notice that it resumed, with the time suspended, its source weighed
+  at its start (logind's `PrepareForSleep`, or the kernel's own); carried to uwui's lifecycle
+  ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
+  Its dependencies put to the owner.
+- **Done when.** A resume reaches uwui on Linux; CI is green.
+
 ### M6d.7c — Windows
 
 The fourth part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)). It follows the rules of
