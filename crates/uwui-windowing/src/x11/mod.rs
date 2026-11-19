@@ -543,9 +543,6 @@ impl Platform {
                     .map(|side| side.max(1));
                 if size != self.size {
                     self.size = size;
-                    // The driver makes its swap chain again: its presents in flight may never
-                    // come.
-                    self.frames.forget_asked();
                     self.configured();
                     self.gathered.drawn = Some(Drawn {
                         pixels: size,

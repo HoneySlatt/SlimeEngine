@@ -8,17 +8,22 @@
 
 #![cfg(target_os = "linux")]
 
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{Duration, Instant};
 
 use raw_window_handle::RawWindowHandle;
-use uwui_windowing::{Configured, Control, Drawn, Handler, Happened, Stopped, Window};
+use uwui_time::Instant as HostInstant;
+use uwui_windowing::{
+    Configured, Control, Drawn, Handler, Happened, Presentation, Stopped, Window,
+};
 use x11rb::connection::Connection;
 use x11rb::protocol::Event;
+use x11rb::protocol::present::{self, ConnectionExt as _};
 use x11rb::protocol::xproto::{
-    AtomEnum, ChangeWindowAttributesAux, ClientMessageEvent, ConnectionExt as _, CreateWindowAux,
-    EventMask, WindowClass,
+    AtomEnum, ChangeWindowAttributesAux, ClientMessageEvent, ConfigureWindowAux,
+    ConnectionExt as _, CreateWindowAux, EventMask, PropMode, WindowClass,
 };
+use x11rb::wrapper::ConnectionExt as _;
 
 /// What the layer told, turn by turn.
 #[derive(Default, Debug)]
@@ -419,5 +424,314 @@ fn a_wayland_compositor_that_does_not_answer_leaves_the_window_to_x11() {
         ran.status.success() && output.contains("1 passed"),
         "the window did not open on X11: {output}{}",
         String::from_utf8_lossy(&ran.stderr)
+    );
+}
+
+enum ToDriver {
+    Window(u32),
+    Asked(u64),
+}
+
+struct Host {
+    to_driver: Sender<ToDriver>,
+    ready: Receiver<()>,
+    asked: Vec<(u64, HostInstant)>,
+    presentations: Vec<Presentation>,
+    sizes: Vec<[u32; 2]>,
+    started: Option<Instant>,
+    asked_after_resize: bool,
+}
+
+impl Host {
+    fn ask(&mut self, window: &mut Window<'_>) {
+        let image = window.ask_signal();
+        self.asked.push((image, window.now()));
+        let _ = self.to_driver.send(ToDriver::Asked(image));
+    }
+}
+
+impl Handler for Host {
+    fn opened(&mut self, window: &mut Window<'_>, _: Drawn) -> Result<(), Stopped> {
+        if let (_, RawWindowHandle::Xcb(handle)) = window.raw_handles() {
+            let _ = self.to_driver.send(ToDriver::Window(handle.window.get()));
+        }
+        Ok(())
+    }
+
+    fn turn(&mut self, window: &mut Window<'_>, happened: Happened) -> Control {
+        let started = *self.started.get_or_insert_with(Instant::now);
+        self.presentations
+            .extend(happened.presentations.iter().copied());
+        if let Some(configured) = happened.configured {
+            self.sizes.push(configured.size);
+            // The new size drawn: the next image asked, as a host does.
+            if configured.size != [320, 240] && !self.asked_after_resize {
+                self.asked_after_resize = true;
+                self.ask(window);
+            }
+        }
+        if self.ready.try_recv().is_ok() {
+            self.ask(window);
+        }
+        if started.elapsed() >= Duration::from_millis(2000) {
+            return Control::Exit;
+        }
+        Control::Wait(Some(window.now() + Duration::from_millis(5)))
+    }
+
+    fn closing(&mut self) {}
+}
+
+/// The driver's side: what it presented, and the notices it saw, each (kind, serial, msc).
+fn drive(from_host: Receiver<ToDriver>, ready: Sender<()>) -> Vec<(String, u32, u64)> {
+    let (connection, screen) = x11rb::connect(None).expect("the X server");
+    let setup = &connection.setup().roots[screen];
+    let (root, depth) = (setup.root, setup.root_depth);
+    let Ok(ToDriver::Window(window)) = from_host.recv_timeout(Duration::from_secs(10)) else {
+        panic!("the window's id");
+    };
+    let eid = connection.generate_id().unwrap();
+    connection
+        .present_select_input(eid, window, present::EventMask::COMPLETE_NOTIFY)
+        .unwrap()
+        .check()
+        .unwrap();
+    let pixmap = connection.generate_id().unwrap();
+    connection
+        .create_pixmap(depth, pixmap, root, 320, 240)
+        .unwrap()
+        .check()
+        .unwrap();
+    let mut seen = Vec::new();
+    // The current refresh's count, from a NotifyMSC of the probe's own that fires at once.
+    let current_msc = |serial: u32, seen: &mut Vec<(String, u32, u64)>| -> u64 {
+        connection
+            .present_notify_msc(window, serial, 0, 0, 0)
+            .unwrap();
+        connection.flush().unwrap();
+        loop {
+            if let Event::PresentCompleteNotify(notice) = connection.wait_for_event().unwrap() {
+                seen.push((format!("{:?}", notice.kind), notice.serial, notice.msc));
+                if notice.kind == present::CompleteKind::NOTIFY_MSC && notice.serial == serial {
+                    return notice.msc;
+                }
+            }
+        }
+    };
+    std::thread::sleep(Duration::from_millis(300));
+    ready.send(()).unwrap();
+    let Ok(ToDriver::Asked(first)) = from_host.recv_timeout(Duration::from_secs(10)) else {
+        panic!("the first image asked");
+    };
+    // The first image, presented three refreshes ahead; then the window resized at once, as a
+    // window manager does, while that present waits in the server.
+    let msc = current_msc(9001, &mut seen);
+    connection
+        .present_pixmap(
+            window,
+            pixmap,
+            first as u32,
+            0u32,
+            0u32,
+            0,
+            0,
+            0u32,
+            0u32,
+            0u32,
+            0,
+            msc + 3,
+            0,
+            0,
+            &[],
+        )
+        .unwrap();
+    connection
+        .configure_window(window, &ConfigureWindowAux::new().width(400).height(300))
+        .unwrap();
+    connection.flush().unwrap();
+    let Ok(ToDriver::Asked(second)) = from_host.recv_timeout(Duration::from_secs(10)) else {
+        panic!("the image asked after the resize");
+    };
+    // The image drawn at the new size, presented thirty refreshes ahead: half a second.
+    let msc = current_msc(9002, &mut seen);
+    connection
+        .present_pixmap(
+            window,
+            pixmap,
+            second as u32,
+            0u32,
+            0u32,
+            0,
+            0,
+            0u32,
+            0u32,
+            0u32,
+            0,
+            msc + 30,
+            0,
+            0,
+            &[],
+        )
+        .unwrap();
+    connection.flush().unwrap();
+    let deadline = Instant::now() + Duration::from_millis(1200);
+    while Instant::now() < deadline {
+        match connection.poll_for_event().unwrap() {
+            Some(Event::PresentCompleteNotify(notice)) => {
+                seen.push((format!("{:?}", notice.kind), notice.serial, notice.msc))
+            }
+            Some(_) => {}
+            None => std::thread::sleep(Duration::from_millis(5)),
+        }
+    }
+    seen
+}
+
+/// A present still waiting in the server as the window's size changes: Present tells it after the
+/// ConfigureNotify, as the server executes every present it took at its target refresh. This probe
+/// plays the driver from a connection of its own (Present's notices go to every client that asks
+/// them, the layer's included), and the host, which asks one image before the resize and one after.
+#[test]
+fn a_present_in_flight_across_a_resize_is_not_told_for_the_next_image() {
+    server_settles();
+    let (to_driver, from_host) = mpsc::channel();
+    let (ready_sender, ready) = mpsc::channel();
+    let driver = std::thread::spawn(move || drive(from_host, ready_sender));
+    let host = Host {
+        to_driver,
+        ready,
+        asked: Vec::new(),
+        presentations: Vec::new(),
+        sizes: Vec::new(),
+        started: None,
+        asked_after_resize: false,
+    };
+    let (host, ran) = uwui_windowing::run(
+        uwui_windowing::Opening {
+            title: "windowing test".to_owned(),
+            app_id: "dev.uwui.WindowingTest".to_owned(),
+            size: [320, 240],
+            min_size: None,
+            fullscreen: false,
+        },
+        host,
+    );
+    ran.expect("the run");
+    let seen = driver.join().unwrap();
+    let asked: Vec<(u64, u64)> = host
+        .asked
+        .iter()
+        .map(|(image, at)| (*image, at.as_nanos()))
+        .collect();
+    let told: Vec<(u64, Option<u64>)> = host
+        .presentations
+        .iter()
+        .map(|told| (told.image, told.shown.map(|at| at.as_nanos())))
+        .collect();
+    eprintln!("sizes told: {:?}", host.sizes);
+    eprintln!("asked (image, host ns): {asked:?}");
+    eprintln!("told (image, shown host ns): {told:?}");
+    eprintln!("the driver saw (kind, serial, msc): {seen:?}");
+    let (second, asked_at) = *host.asked.get(1).expect("an image asked after the resize");
+    for presentation in host
+        .presentations
+        .iter()
+        .filter(|told| told.image == second)
+    {
+        if let Some(shown) = presentation.shown {
+            let after = shown.as_nanos().saturating_sub(asked_at.as_nanos());
+            assert!(
+                after >= 300_000_000,
+                "image {second}, presented thirty refreshes after it was asked, is told shown \
+                 {} ms after: the time of the present before the resize",
+                after / 1_000_000
+            );
+        }
+    }
+}
+
+/// A window manager of the extended hints, played by another client: it names itself on the root
+/// and on a window of its own, then tells the window that it fills the screen and resizes it. The
+/// handler is told so: the window's state counts once a window manager runs.
+#[test]
+fn a_window_manager_that_fills_the_screen_with_the_window_is_believed() {
+    server_settles();
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let manager = std::thread::spawn(move || {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        let atom = |name: &[u8]| {
+            connection
+                .intern_atom(false, name)
+                .unwrap()
+                .reply()
+                .unwrap()
+                .atom
+        };
+        let (check, state, fullscreen) = (
+            atom(b"_NET_SUPPORTING_WM_CHECK"),
+            atom(b"_NET_WM_STATE"),
+            atom(b"_NET_WM_STATE_FULLSCREEN"),
+        );
+        let own = connection.generate_id().unwrap();
+        connection
+            .create_window(
+                x11rb::COPY_DEPTH_FROM_PARENT,
+                own,
+                root,
+                0,
+                0,
+                1,
+                1,
+                0,
+                WindowClass::INPUT_ONLY,
+                x11rb::COPY_FROM_PARENT,
+                &CreateWindowAux::new(),
+            )
+            .unwrap();
+        for named_on in [root, own] {
+            connection
+                .change_property32(PropMode::REPLACE, named_on, check, AtomEnum::WINDOW, &[own])
+                .unwrap();
+        }
+        connection.flush().unwrap();
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        std::thread::sleep(Duration::from_millis(300));
+        connection
+            .change_property32(
+                PropMode::REPLACE,
+                window,
+                state,
+                AtomEnum::ATOM,
+                &[fullscreen],
+            )
+            .unwrap();
+        connection
+            .configure_window(window, &ConfigureWindowAux::new().width(640).height(480))
+            .unwrap();
+        connection.flush().unwrap();
+        std::thread::sleep(Duration::from_millis(700));
+        // The manager leaves: the next test runs without one.
+        connection.delete_property(root, check).unwrap();
+        connection.destroy_window(own).unwrap();
+        connection.flush().unwrap();
+    });
+    let (recorder, ran) = uwui_windowing::run(
+        opening(false),
+        Recorder::new(Duration::from_millis(1200), false, Some(window_sender)),
+    );
+    ran.expect("the run");
+    manager.join().unwrap();
+    let told = &recorder.told.configured;
+    eprintln!("configured, in order: {told:?}");
+    assert_eq!(
+        told.last(),
+        Some(&Configured {
+            size: [640, 480],
+            fullscreen: true
+        }),
+        "the window manager's state and size: {told:?}"
     );
 }

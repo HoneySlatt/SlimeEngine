@@ -309,10 +309,10 @@ run timeout -k 10 120 cargo test --locked -p uwui-desktop --test rest -- --nocap
     { cat "$report/application-lost.log"; exit 1; }
 observe "uwui's host's losses" "$(sed -n 's/^lost: //p' "$work/application-lost.txt")"
 if [ "$name" = x11 ]; then
-    # X11's layer as another client sees it, without a window manager: its fullscreen hint not
-    # taken for the window manager's, its pings answered, its start told ended, its signal held
-    # while hidden, and a Wayland compositor that does not answer leaving it to X11. One test at a
-    # time: one covers the whole screen.
+    # X11's layer as another client sees it: its fullscreen hint not taken for a window manager's
+    # where none runs, believed where one does, its pings answered, its start told ended, its
+    # signal held while hidden, a present told across a resize, and a Wayland compositor that does
+    # not answer leaving it to X11. One test at a time: one covers the whole screen.
     run env -u WAYLAND_DISPLAY DESKTOP_STARTUP_ID='launcher "q" back\slash_TIME1234567890' \
         timeout -k 10 120 cargo test --locked -p uwui-windowing --test x11 -- --test-threads=1 \
         2>"$report/x11-layer.log" || { cat "$report/x11-layer.log"; exit 1; }

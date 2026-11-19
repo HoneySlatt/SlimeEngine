@@ -10,9 +10,9 @@
 //! - *The images shown*: Present's notices of the pixmaps that Vulkan's driver presents to the
 //!   window, where it presents through Present, told in order, the first for the first image asked,
 //!   as the driver presents each image once; a skipped one never showed. A present that never
-//!   reaches the server shifts every later notice onto the image before its own, until the window's
-//!   size changes: the driver then makes its swap chain again, and the images asked are forgotten.
-//!   A driver that presents otherwise, as a software one that copies its images, tells none: the
+//!   reaches the server would shift every later notice onto the image before its own: none is
+//!   forgotten at a resize, whose presents still waiting in the server are told after it. A driver
+//!   that presents otherwise, as a software one that copies its images, tells none: the
 //!   images asked wait for none past [`IN_FLIGHT`].
 //! - *The display's period*: the mode of the CRTC that shows most of the window, from RandR.
 //!
@@ -127,12 +127,6 @@ impl Frames {
         } else {
             self.presented(Shown::At(at));
         }
-    }
-
-    /// The driver makes its swap chain again, as the window's size changes: the images asked
-    /// whose present is still in flight may never reach the server, and none waits any more.
-    pub(super) fn forget_asked(&mut self) {
-        self.asked.clear();
     }
 
     /// Present's notice of the next pixmap that the driver presented: the oldest image asked.
@@ -324,26 +318,6 @@ mod tests {
                 .map(|told| (told.image, told.shown))
                 .collect::<Vec<_>>(),
             [(0, None), (1, Some(ms(5)))]
-        );
-    }
-
-    #[test]
-    fn a_new_swap_chain_forgets_the_images_asked_so_that_a_lost_present_shifts_nothing_after() {
-        let mut frames = Frames::new(true);
-        frames.asked(0, ms(0));
-        frames.presented(Shown::At(ms(16)));
-        // Image 1's present never reaches the server, as its swap chain is made again.
-        frames.asked(1, ms(17));
-        frames.forget_asked();
-        frames.asked(2, ms(34));
-        frames.presented(Shown::At(ms(44)));
-        let (_, presentations) = frames.take(ms(50));
-        assert_eq!(
-            presentations
-                .iter()
-                .map(|told| (told.image, told.shown))
-                .collect::<Vec<_>>(),
-            [(0, Some(ms(16))), (2, Some(ms(44)))]
         );
     }
 

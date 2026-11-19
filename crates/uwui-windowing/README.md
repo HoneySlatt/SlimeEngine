@@ -76,8 +76,9 @@ its frames' signal and the display's period, without a server. The window itself
 through the host above it, by `uwui-desktop`'s `rest` tests in the series of compositors, X11's
 under Xvfb. There too, `cargo test -p uwui-windowing --test x11 -- --test-threads=1`, which needs
 the X server that `DISPLAY` names, watches X11's window as another client sees it: its fullscreen
-hint without a window manager, its pings, its start's end, its signal held while hidden, and the
-fallback from a Wayland compositor that does not answer.
+hint without a window manager and with one, its pings, its start's end, its signal held while
+hidden, a present told across a resize, and the fallback from a Wayland compositor that does not
+answer.
 
 ## Depends on
 

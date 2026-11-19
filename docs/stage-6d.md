@@ -2753,8 +2753,8 @@ The first part of M6d.7b ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-fra
     process, minimum size, fullscreen and activation through ICCCM's and the extended window
     manager hints' properties and messages, the start's `DESKTOP_STARTUP_ID` ended, its closing
     asked, the window manager's pings answered. Frames on Present's `NotifyMSC`, at the refresh's
-    time; images shown from Present's notices of the driver's pixmaps, in order, forgotten as the
-    window's size changes and the driver makes its swap chain again; RandR's period
+    time; images shown from Present's notices of the driver's pixmaps, in order, across a resize
+    too; RandR's period
     of the CRTC that shows most of the window; a timer at that rate, 60 a second without one,
     where the server gives no Present. The signal held while the window is unmapped or covered
     whole; an exposed window drawn again, which `Happened::exposed` tells the host; the window's
@@ -2766,14 +2766,16 @@ The first part of M6d.7b ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-fra
     are drawn again, in the series' column of X11, which tells uwui's host
     ([`compositors.md`](compositors.md)); its crash and termination tests pass there too. The
     layer's own test there, `uwui-windowing`'s `x11`, watches the window as another client: its
-    fullscreen hint, its pings, its start's end, its signal held while hidden, and a Wayland
-    compositor that does not answer leaving it to X11.
+    fullscreen hint without a window manager and with one, its pings, its start's end, its signal
+    held while hidden, a present told across a resize, and a Wayland compositor that does not
+    answer leaving it to X11.
   - The closing review found the layer's own fullscreen hint told back as the window manager's,
     a present lost shifting every later image's time, the layer's choice drifting from this ADR,
     a cursor's cell printed rather than observed, the startup's id set after the map, a timer's
     grid that saturates, and smaller defects; each fixed under a test that failed first where one
-    can show it, a lost present's shift now held until the window's size changes
-    ([`debt.md`](debt.md)).
+    can show it. Its second round found that forgetting the images asked at a resize told a
+    present still in flight for the next image: dropped, a present that never reaches the server
+    left as debt ([`debt.md`](debt.md)).
   - Debt left: on X11, no key, cursor, scale nor touch before M6d.7b2; the layer runs under Xvfb
     alone, its window manager's requests, RandR's period and the matching of Present's notices
     checked by hand ([`debt.md`](debt.md)).
