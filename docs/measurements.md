@@ -4987,3 +4987,28 @@ On lavapipe the example's frame takes longer than a refresh: its start just in t
 passed, and its frames start on the signal as before (14.28 / 16.96 ms to present in motion
 before, a disturbed run). Its start, memory, binary and rest match M6d.7a2c1's within the runs'
 spread. The compositor and the display after the shown time are not measured.
+
+GitHub's hosted runners, on 2026-11-18, each run green, on `9eec12be`, which holds the milestone:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 0 s |
+| `check (headless)` | 14 min 57 s |
+| `check (windowed)` | 13 min 33 s |
+| `check (game)` | 12 min 35 s |
+| `check (gles)` | 3 min 36 s |
+| `windows (tests)` | 18 min 16 s |
+| `windows (render)` | 6 min 21 s |
+| `windows (game)` | 6 min 2 s |
+| `windows-release` | 12 min 15 s |
+| `compositors (weston)` | 12 min 4 s |
+| `compositors (sway)` | 15 min 40 s |
+| `compositors (kwin)` | 13 min 54 s |
+| `compositors (mutter)` | 12 min 18 s |
+| `compositors (x11)` | 13 min 59 s |
+| Docs' `links` | green |
+
+Every job stays within its limit of 20 minutes. `windows (tests)`, the longest, grew from
+M6d.7a2c1's 16 min 57 s to 18 min 16 s and has 1 min 44 s of margin left, where this milestone adds
+unit tests of a few milliseconds: the runner's spread, which the next runs tell, but close enough to
+its limit to watch.

@@ -204,8 +204,7 @@ in git.
   [M6d.7a2b3](#m6d7a2b3--crashes-and-panics), on 2026-11-18, M6d.7a2b whole; then
   [M6d.7a2c](#m6d7a2c--frames-and-the-host-measured), cut in two on 2026-11-18 ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)):
   done, [M6d.7a2c1](#m6d7a2c1--the-host-measured) and
-  [M6d.7a2c2](#m6d7a2c2--frames-in-step-with-the-display), on 2026-11-18, M6d.7a2 whole, CI
-  pending; next, [M6d.7b](#m6d7b--x11).
+  [M6d.7a2c2](#m6d7a2c2--frames-in-step-with-the-display), on 2026-11-18, M6d.7a2 whole; next, [M6d.7b](#m6d7b--x11).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2404,7 +2403,7 @@ The second part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-
 - **Cut in three** on 2026-11-15, the owner's choice ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)): Wayland's input and window; the
   host made robust; frames and the host measured, last, on the host as the first two leave it. The
   "Done when" above is met at M6d.7a2c.
-- **Done** on 2026-11-18 with M6d.7a2c2, CI pending. In motion, its "Done when" reads as the budget that
+- **Done** on 2026-11-18 with M6d.7a2c2, CI green. In motion, its "Done when" reads as the budget that
   [ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md) set on 2026-11-18, the owner's choice: the input reaches the next image, within a
   refresh plus the frame's work; no pacing in step with the display meets 4.17 ms there.
 
@@ -2680,7 +2679,7 @@ The second part of M6d.7a2c ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-mea
 - **Done when.** M6d.7a2's "Done when" above.
 - **Measured.** The host's own cost before and after, in one run each; the applications' budgets'
   first figures, in uwui's repository.
-- **Result.** Done on 2026-11-18, CI pending ([ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)):
+- **Result.** Done on 2026-11-18, CI green ([ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)):
   - Wayland's layer asks `wp_presentation`'s feedback with each image and tells the host when it
     showed, on the host's clock, with the display's period where the compositor tells it, which a
     headless sway does not: there the host still measures it. It gives the interface the time
