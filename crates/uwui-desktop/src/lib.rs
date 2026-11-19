@@ -46,7 +46,8 @@
 //! (`session`), and what it keeps of the runs that did not end well (`crash`); `host` drives them
 //! at each turn, `gpu` draws each frame into the window's image, and `trace` writes the frames and
 //! each input to present where [`TRACE_ENV_VAR`] asks.
-//! The layer gives Wayland's window alone yet: elsewhere [`run`] says that it has none and ends.
+//! The layer gives Wayland's window and X11's yet: elsewhere [`run`] says that it has none and
+//! ends.
 //!
 //! No type of a platform's library appears in its public API.
 // A public enumeration may gain cases without breaking a program; one closed by nature says why
@@ -119,8 +120,9 @@ pub const EXIT_TERMINATED: i32 = uwui_windowing::EXIT_TERMINATED;
 /// run goes on. A program run by a test or a tool is given its own `XDG_STATE_HOME`, or it writes
 /// in the user's.
 ///
-/// On Linux, it needs a Wayland compositor, which `WAYLAND_DISPLAY` names, and a GPU with Vulkan;
-/// elsewhere, it has no windowing layer yet, and ends with [`EXIT_HOST_FAILED`].
+/// On Linux, it needs a Wayland compositor, which `WAYLAND_DISPLAY` names, else an X server, which
+/// `DISPLAY` names, and a GPU with Vulkan; elsewhere, it has no windowing layer yet, and ends with
+/// [`EXIT_HOST_FAILED`].
 pub fn run(look: Look, window: WindowSettings, app: impl App) -> ! {
     std::process::exit(host::run(look, window, app))
 }

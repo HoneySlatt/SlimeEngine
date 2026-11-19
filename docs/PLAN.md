@@ -31,9 +31,9 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
   - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six
     ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)):
     done, [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) to
-    [M6d.7a2c2](stage-6d.md#m6d7a2c2--frames-in-step-with-the-display), M6d.7a2 whole; M6d.7b cut in three
-    ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)): in progress,
-    [M6d.7b1](stage-6d.md#m6d7b1--x11s-window-frames-and-pointer).
+    [M6d.7b1](stage-6d.md#m6d7b1--x11s-window-frames-and-pointer), M6d.7b cut in three
+    ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)); next,
+    [M6d.7b2](stage-6d.md#m6d7b2--x11s-keyboard-cursor-scale-and-touch).
   - M6d.10a, D1, M6d.11, M6d.10b and M6d.12 run alone, in this order
     ([ADR-0300](adr/0300-m6d10-cut-in-two-what-the-move-needs-before-it-uwuis-first-stage-planned-after.md)).
   - Timed measures run one track at a time; shared files are edited by one session at a time.
@@ -49,8 +49,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 |---|---|
 | [M6d.0a to M6d.3c3, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.4, M6d.5, M6d.6 — The canvas, the host's API, the compositors](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
-| [M6d.7a1 to M6d.7a2c2 — The host's core, Wayland whole, its cost measured](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) | Done |
-| [M6d.7b1 to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7b--x11) | M6d.7b1 in progress |
+| [M6d.7a1 to M6d.7b1 — The host's core, Wayland, X11's window](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) | Done |
+| [M6d.7b2 to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7b2--x11s-keyboard-cursor-scale-and-touch) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a2a — The library](stage-6d.md#m6d9a2a--the-library) | Done |
@@ -177,11 +177,12 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
 - **Each window's size and scale** (M6d.5e2): the editor in the Windows virtual machine moved
   between screens of two scales, and its scale changed while it runs: laid out again at once,
   sharp; minimized and restored as it was.
-- **An application on uwui's desktop host** (M6d.7a1 to M6d.7a2c2): `UWUI_TRACE=<file> cargo run
-  -p uwui-desktop --example application` on the owner's desktop: its window, its bar or none, the pointer on its
-  buttons, list and dialog, then at rest; closed by its window's button, then by Ctrl+C; typing
+- **An application on uwui's desktop host** (M6d.7a1 to M6d.7b1): `UWUI_TRACE=<file> cargo run
+  -p uwui-desktop --example application` on the owner's desktop: its window and bar, the pointer on its
+  buttons, list and dialog, then rest; closed by its button, then by Ctrl+C; typing
   with the owner's layout: dead keys, Compose, a key held, the I-beam over its field; sharp on
   displays of two scales; its list scrolled fast, variable refresh on and off, smooth, a few `missed` at most in its trace.
+  Then on Xwayland (`env -u WAYLAND_DISPLAY`): pointer, wheel, rest, `shown` in its trace.
 - **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
   left by Alt and Tab, Alt held or mid-drag: no bar in focus, nothing dropped; *Hunna Wood*'s
   button that loses the surface, on Direct3D 12: drawn again.

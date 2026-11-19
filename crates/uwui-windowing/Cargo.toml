@@ -25,8 +25,9 @@ uwui-time.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # The loop's poll, its eventfd that a wake writes, and its timerfd on CLOCK_BOOTTIME for deadlines;
-# the host's clock (ADR-0251, ADR-0270).
-rustix = { workspace = true, features = ["event"] }
+# the host's clock; the machine's name, which X11's window gives with its process (ADR-0251,
+# ADR-0270).
+rustix = { workspace = true, features = ["event", "system"] }
 # Wayland spoken by the layer itself, on libwayland's display that Vulkan's driver shares
 # (ADR-0270).
 wayland-client.workspace = true
@@ -36,3 +37,6 @@ wayland-protocols.workspace = true
 # The keyboard's keymaps, its state and its compose tables, from libxkbcommon loaded at run time
 # (ADR-0270, ADR-0273).
 xkbcommon-dl.workspace = true
+# X11 spoken by the layer itself, on libxcb's connection that Vulkan's driver presents on; its
+# window, XInput2's pointer, RandR's rates and Present's notices (ADR-0270, ADR-0311).
+x11rb.workspace = true

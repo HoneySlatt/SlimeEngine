@@ -38,8 +38,9 @@ impl WindowSettings {
     /// A window of 800 × 600 logical pixels, titled `title`, of the application named `app_id`.
     ///
     /// The identity names the application to the system, which groups its windows and finds its
-    /// icon and its name by it: on Wayland, the window's app id, which matches the application's
-    /// desktop file, by reverse domain name by convention, `org.example.Notes`. It names the
+    /// icon and its name by it: on Wayland, the window's app id, on X11 its class, which matches
+    /// the application's desktop file, by reverse domain name by convention, `org.example.Notes`.
+    /// It names the
     /// application's crash directory too ([`run`](crate::run)).
     pub fn new(title: impl Into<String>, app_id: impl Into<String>) -> Self {
         Self {
@@ -195,6 +196,8 @@ impl Window {
     /// another program, and show it as asking for attention instead. On Wayland, the request names
     /// the person's last press of a key or a button in the window, a touch, or the keyboard's
     /// focus given to it, and does nothing where the compositor gives no `xdg_activation_v1`, as Weston.
+    /// On X11, through `_NET_ACTIVE_WINDOW`, naming the person's last press of a button; nothing
+    /// without a window manager.
     pub fn bring_to_front(&mut self) {
         self.requests.activation = Some(Activation::Front);
     }
@@ -202,7 +205,7 @@ impl Window {
     /// Asks the system to show that the window wants the person's attention, as its entry in a
     /// task bar marked, without taking the focus. On Wayland, through `xdg_activation_v1`, which
     /// some compositors read as a request to bring it to the front; nothing where the compositor
-    /// does not give it.
+    /// does not give it. On X11, through `_NET_WM_STATE_DEMANDS_ATTENTION`.
     pub fn request_attention(&mut self) {
         self.requests.activation = Some(Activation::Attention);
     }

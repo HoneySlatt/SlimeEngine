@@ -264,18 +264,24 @@ grep '^minimized: ' "$work/drive.txt" | sed 's/^minimized: /Game minimized: /' |
 observe "Agents' sessions and rest" "pass"
 
 step "uwui's desktop host: an application on uwui alone, at rest, woken by the pointer, typed into, ended by a signal, its device and surface lost"
-# Its own Wayland layer (ADR-0270): X11's comes at M6d.7b.
-if [ "$name" != x11 ]; then
-    # The test writes the example's protocol, logged with WAYLAND_DEBUG=client, on its standard
-    # error.
-    run timeout -k 10 300 cargo test --locked -p uwui-desktop --test rest -- --nocapture --exact \
-        the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal \
-        2>"$report/application.log" | tee "$work/application.txt" ||
-        { cat "$report/application.log"; exit 1; }
-    observe "uwui's host at rest" "pass"
-    observe "uwui's host's keys" "$(sed -n 's/^keys: //p' "$work/application.txt" |
-        grep . || echo "not run, no input")"
-    observe "uwui's host's cursor" "$(sed -n 's/^cursor: //p' "$work/application.txt")"
+# Its own layers (ADR-0270, ADR-0311): Wayland's, and X11's, whose window under Xvfb has no window
+# manager, takes no key and sets no cursor's shape before M6d.7b2.
+# On Wayland, the test writes the example's protocol, logged with WAYLAND_DEBUG=client, on its
+# standard error.
+run timeout -k 10 300 cargo test --locked -p uwui-desktop --test rest -- --nocapture --exact \
+    the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal \
+    2>"$report/application.log" | tee "$work/application.txt" ||
+    { cat "$report/application.log"; exit 1; }
+observe "uwui's host at rest" "pass"
+observe "uwui's host's keys" "$(sed -n 's/^keys: //p' "$work/application.txt" |
+    grep . || echo "not run, no input")"
+observe "uwui's host's cursor" "$(sed -n 's/^cursor: //p' "$work/application.txt")"
+if [ "$name" = x11 ]; then
+    # Xvfb has no window manager to draw a bar. Present tells each image shown where the driver
+    # presents through it, which a software one does not, with RandR's period, which Xvfb does not
+    # give: the test tells which.
+    observe "uwui's host's period told" "$(sed -n 's/^period: //p' "$work/application.txt")"
+else
     # xdg-decoration's mode 2 is the server's side.
     if grep -q -E 'zxdg_toplevel_decoration_v1#[0-9]+\.configure\(2\)' "$report/application.log"; then
         observe "uwui's host's bar" "the compositor's"
@@ -293,14 +299,14 @@ if [ "$name" != x11 ]; then
         0) observe "uwui's host's period told" "none, measured from the signals" ;;
         *) observe "uwui's host's period told" "$(awk -v nanos="$refresh" 'BEGIN { printf "%.3f ms", nanos / 1e6 }')" ;;
     esac
-    # Its device lost on purpose, then its surface, each drawn again; the fourth device lost ends
-    # it (ADR-0264, ADR-0305).
-    run timeout -k 10 120 cargo test --locked -p uwui-desktop --test rest -- --nocapture --exact \
-        the_application_draws_again_after_its_device_and_its_surface_are_lost \
-        2>"$report/application-lost.log" | tee "$work/application-lost.txt" ||
-        { cat "$report/application-lost.log"; exit 1; }
-    observe "uwui's host's losses" "$(sed -n 's/^lost: //p' "$work/application-lost.txt")"
 fi
+# Its device lost on purpose, then its surface, each drawn again; the fourth device lost ends it
+# (ADR-0264, ADR-0305).
+run timeout -k 10 120 cargo test --locked -p uwui-desktop --test rest -- --nocapture --exact \
+    the_application_draws_again_after_its_device_and_its_surface_are_lost \
+    2>"$report/application-lost.log" | tee "$work/application-lost.txt" ||
+    { cat "$report/application-lost.log"; exit 1; }
+observe "uwui's host's losses" "$(sed -n 's/^lost: //p' "$work/application-lost.txt")"
 
 step "Scale: the window example on an output at a fractional scale"
 case "$name" in

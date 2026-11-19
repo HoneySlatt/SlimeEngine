@@ -28,7 +28,6 @@
 
 mod protocol;
 mod repeat;
-mod wait;
 
 use std::ptr::NonNull;
 use std::sync::Arc;
@@ -56,10 +55,10 @@ use wayland_protocols::xdg::shell::client::{xdg_surface, xdg_toplevel, xdg_wm_ba
 
 use crate::clock::{self, Suspends};
 use crate::wake::{self, Asks};
-use crate::{Activation, Configured, Control, Drawn, Error, Handler, Happened, Opening, Window};
+use crate::{Activation, Configured, Drawn, Error, Handler, Happened, Opening, running};
 
+use crate::wait::Waits;
 use protocol::Told;
-use wait::Waits;
 
 /// The shortest time suspended after which the events' anchor is made again: what parts the two
 /// clocks while the machine is awake is far below it.
@@ -67,58 +66,7 @@ const RESUMED: Duration = Duration::from_secs(1);
 
 /// Runs the loop of a window opened as `opening` says, calling `handler` back, until it ends.
 pub(crate) fn run<H: Handler>(opening: Opening, handler: H) -> (H, Result<(), Error>) {
-    let (platform, drawn) = match Platform::open(opening) {
-        Ok(opened) => opened,
-        Err(error) => return (handler, Err(error)),
-    };
-    // The handler is dropped before the platform, a panic's unwinding included: what it made on
-    // the window's handles goes before them.
-    let mut running = Running { handler, platform };
-    let ran = running.run(drawn);
-    let Running { handler, platform } = running;
-    drop(platform);
-    (handler, ran)
-}
-
-/// The handler and the window that it draws into, in the order that they are dropped.
-struct Running<H> {
-    handler: H,
-    platform: Platform,
-}
-
-impl<H: Handler> Running<H> {
-    /// The loop, from the window's opening at `drawn` until a turn ends it or the connection
-    /// fails; the handler told that the window closes in both cases.
-    fn run(&mut self, drawn: Drawn) -> Result<(), Error> {
-        let opened = self.handler.opened(
-            &mut Window {
-                platform: &mut self.platform,
-            },
-            drawn,
-        );
-        let ran = match opened {
-            Ok(()) => self.turns(),
-            Err(_) => Ok(()),
-        };
-        self.handler.closing();
-        ran
-    }
-
-    fn turns(&mut self) -> Result<(), Error> {
-        loop {
-            let happened = self.platform.happened()?;
-            let control = self.handler.turn(
-                &mut Window {
-                    platform: &mut self.platform,
-                },
-                happened,
-            );
-            match control {
-                Control::Exit => return Ok(()),
-                Control::Wait(deadline) => self.platform.wait(deadline)?,
-            }
-        }
-    }
+    running::run(Platform::open(opening), handler)
 }
 
 /// The window's objects of the protocol.
@@ -404,6 +352,38 @@ impl Platform {
         })
     }
 
+    /// Draws the window of its logical size at the scale that the compositor prefers: asks the
+    /// surface's buffer scale or its viewport's destination, which the next present's commit
+    /// carries. Whether anything changed.
+    fn scale_surface(&mut self) -> bool {
+        let viewport = self
+            .objects
+            .fractional
+            .as_ref()
+            .map(|(_, viewport)| viewport);
+        let scaled = self.scale.drawn(self.logical, viewport.is_some());
+        if scaled == self.scaled {
+            return false;
+        }
+        if scaled.buffer_scale != self.scaled.buffer_scale {
+            self.objects.surface.set_buffer_scale(scaled.buffer_scale);
+        }
+        if let Some(viewport) = viewport
+            && scaled.destination != self.scaled.destination
+        {
+            match scaled.destination {
+                Some([width, height]) => viewport.set_destination(side(width), side(height)),
+                // Unset: the surface's size is its image's, divided by its buffer scale.
+                None => viewport.set_destination(-1, -1),
+            }
+        }
+        self.scaled = scaled;
+        self.told.scale = scaled.scale;
+        true
+    }
+}
+
+impl running::Platform for Platform {
     /// Reads what the compositor sent and what other threads asked since the last turn: the
     /// configure acknowledged, the scale applied to the surface, which the next present's commit
     /// carries.
@@ -445,37 +425,9 @@ impl Platform {
             woken: self.asks.take_woken(),
             signal: self.told.signal.take(),
             presentations: std::mem::take(&mut self.told.presentations),
+            // The compositor keeps the window's image.
+            exposed: false,
         })
-    }
-
-    /// Draws the window of its logical size at the scale that the compositor prefers: asks the
-    /// surface's buffer scale or its viewport's destination, which the next present's commit
-    /// carries. Whether anything changed.
-    fn scale_surface(&mut self) -> bool {
-        let viewport = self
-            .objects
-            .fractional
-            .as_ref()
-            .map(|(_, viewport)| viewport);
-        let scaled = self.scale.drawn(self.logical, viewport.is_some());
-        if scaled == self.scaled {
-            return false;
-        }
-        if scaled.buffer_scale != self.scaled.buffer_scale {
-            self.objects.surface.set_buffer_scale(scaled.buffer_scale);
-        }
-        if let Some(viewport) = viewport
-            && scaled.destination != self.scaled.destination
-        {
-            match scaled.destination {
-                Some([width, height]) => viewport.set_destination(side(width), side(height)),
-                // Unset: the surface's size is its image's, divided by its buffer scale.
-                None => viewport.set_destination(-1, -1),
-            }
-        }
-        self.scaled = scaled;
-        self.told.scale = scaled.scale;
-        true
     }
 
     /// Waits for the compositor, a wake, `deadline` or the next repeat of a key held, then reads
@@ -517,7 +469,7 @@ impl Platform {
 
     /// The display's and the surface's pointers, which the platform keeps live until it is
     /// dropped.
-    pub(crate) fn raw_handles(&self) -> (RawDisplayHandle, RawWindowHandle) {
+    fn raw_handles(&self) -> (RawDisplayHandle, RawWindowHandle) {
         let (display, surface) = self.handles;
         (
             RawDisplayHandle::Wayland(WaylandDisplayHandle::new(display)),
@@ -525,17 +477,21 @@ impl Platform {
         )
     }
 
-    pub(crate) fn waker(&self) -> Waker {
+    fn now(&self) -> Instant {
+        clock::now()
+    }
+
+    fn waker(&self) -> Waker {
         self.asks.waker()
     }
 
-    pub(crate) fn set_title(&mut self, title: &str) {
+    fn set_title(&mut self, title: &str) {
         self.objects.toplevel.set_title(title.to_owned());
     }
 
     /// The minimum size is the surface's state, which the next commit applies: an image must
     /// follow.
-    pub(crate) fn set_min_size(&mut self, size: Option<[u32; 2]>) -> bool {
+    fn set_min_size(&mut self, size: Option<[u32; 2]>) -> bool {
         let [width, height] = size.unwrap_or([0, 0]);
         self.objects
             .toplevel
@@ -543,7 +499,7 @@ impl Platform {
         true
     }
 
-    pub(crate) fn set_fullscreen(&mut self, fullscreen: bool) {
+    fn set_fullscreen(&mut self, fullscreen: bool) {
         if fullscreen {
             self.objects.toplevel.set_fullscreen(None);
         } else {
@@ -551,11 +507,11 @@ impl Platform {
         }
     }
 
-    pub(crate) fn set_cursor(&mut self, shape: CursorShape) {
+    fn set_cursor(&mut self, shape: CursorShape) {
         self.told.cursor.set(shape);
     }
 
-    pub(crate) fn ask_signal(&mut self) -> u64 {
+    fn ask_signal(&mut self) -> u64 {
         let image = self.next_image;
         self.next_image += 1;
         self.objects.surface.frame(&self.handle, ());
@@ -568,7 +524,7 @@ impl Platform {
     /// Asks the compositor for a token that activates the window, which comes back to the loop
     /// (`Told::tokens`): bringing it to the front names the person's last press, asking for
     /// attention names none.
-    pub(crate) fn activate(&mut self, activation: Activation) {
+    fn activate(&mut self, activation: Activation) {
         let Some(manager) = &self.objects.activation else {
             // Told once: the next requests do nothing as well.
             static TOLD: std::sync::Once = std::sync::Once::new();

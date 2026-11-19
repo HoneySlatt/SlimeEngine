@@ -1,4 +1,5 @@
-//! The `application` example in a Wayland compositor, which the environment names: it starts,
+//! The `application` example on the display that the environment names, a Wayland compositor or
+//! an X server, as the host's layer chooses it: it starts,
 //! draws and rests, none of its threads waking in 10 s (`docs/adr/0185-rest-checked-in-ci.md`);
 //! where the compositor takes a person's input, the pointer put on its button *Add* hovers it,
 //! which draws frames, and it rests again once the hover's transition ends; then a click in its
@@ -31,7 +32,15 @@
 //! the host above: it presents its first image, writes it in its trace, and ends on SIGTERM with
 //! status 0.
 //!
-//! The example writes its protocol with `WAYLAND_DEBUG=client` into a file of each test's own,
+//! On X11, the first two run under Xvfb, without a window manager: the window lies at the screen's
+//! top left, and the pointer reaches it through `scripts/compositor-input.py`'s XTest. The window
+//! takes no key and sets no cursor's shape before M6d.7b2: the field's part does not run, and it
+//! writes `keys: not run, X11's layer takes no key yet` and `cursor: the server's`. A software
+//! driver presents without Present: the trace tells no image shown, and the test writes
+//! `period: none, measured from the signals`.
+//!
+//! On Wayland, the example writes its protocol with `WAYLAND_DEBUG=client` into a file of each
+//! test's own,
 //! read for the images it presented and their size, the scale preferred, the pointer's events and
 //! where its window lies, then written on the test's standard error, where
 //! `scripts/compositors.sh` reads who draws its bar; and its trace (`UWUI_TRACE`) beside it, which
@@ -67,6 +76,27 @@ const SETTLE: Duration = Duration::from_secs(60);
 
 /// Each thread's switches and time on the processor, by its id.
 type Threads = BTreeMap<u32, (u64, u64)>;
+
+/// The display that the example opens its window on, as the host's layer chooses it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Display {
+    Wayland,
+    X11,
+}
+
+/// The display that the environment names: a Wayland compositor first, else an X server.
+fn display() -> Display {
+    let named = |variable| std::env::var_os(variable).is_some_and(|value| !value.is_empty());
+    if named("WAYLAND_DISPLAY") || named("WAYLAND_SOCKET") {
+        Display::Wayland
+    } else {
+        assert!(
+            named("DISPLAY"),
+            "the test runs on a display, which WAYLAND_DISPLAY or DISPLAY names"
+        );
+        Display::X11
+    }
+}
 
 /// Reads the threads of `pid`; an error if it ended.
 fn threads(pid: u32) -> Result<Threads, String> {
@@ -393,6 +423,7 @@ struct Example {
     log: PathBuf,
     /// Its standard input, where it takes commands, with `--commands`.
     commands: Option<ChildStdin>,
+    display: Display,
 }
 
 impl Example {
@@ -431,10 +462,7 @@ impl Example {
         state: &std::path::Path,
         arguments: &[&str],
     ) -> Self {
-        assert!(
-            std::env::var_os("WAYLAND_DISPLAY").is_some(),
-            "the test runs in a Wayland compositor, which WAYLAND_DISPLAY names"
-        );
+        let display = display();
         let log = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(log);
         let log_file = std::fs::File::create(&log).expect("the example's log");
         let mut command = Command::new(example());
@@ -466,6 +494,7 @@ impl Example {
             lines,
             log,
             commands,
+            display,
         }
     }
 
@@ -493,6 +522,47 @@ impl Example {
     /// Its trace so far, which the host writes from the window's opening.
     fn read_trace(&self) -> String {
         std::fs::read_to_string(self.log.with_extension("trace.json")).unwrap_or_default()
+    }
+
+    /// How many images it presented so far, and how many its swap chains made: on Wayland, as
+    /// its protocol's log tells; on X11, the frames that its trace tells, for both.
+    fn presented(&self) -> (usize, usize) {
+        match self.display {
+            Display::Wayland => {
+                let log = self.read_log();
+                (commits(&log), images_made(&log))
+            }
+            Display::X11 => {
+                let frames = traced(&self.read_trace(), "frame");
+                (frames, frames)
+            }
+        }
+    }
+
+    /// Where its window's top left lies on the screen, in pixels at a scale of 1, on X11: as
+    /// `xdotool` finds it by the process that `_NET_WM_PID` names.
+    fn x11_origin(&self) -> [f64; 2] {
+        let xdotool = |arguments: &[&str]| {
+            let output = Command::new("xdotool")
+                .args(arguments)
+                .output()
+                .expect("xdotool runs");
+            String::from_utf8_lossy(&output.stdout).into_owned()
+        };
+        let pid = self.pid().to_string();
+        let found = xdotool(&["search", "--sync", "--pid", &pid]);
+        let window = found
+            .lines()
+            .next()
+            .unwrap_or_else(|| panic!("xdotool finds no window of the example"));
+        let geometry = xdotool(&["getwindowgeometry", "--shell", window]);
+        let value = |name: &str| {
+            geometry
+                .lines()
+                .find_map(|line| line.strip_prefix(name)?.parse::<f64>().ok())
+                .unwrap_or_else(|| panic!("xdotool gives no {name} of the window: {geometry}"))
+        };
+        [value("X="), value("Y=")]
     }
 
     /// Sends it `signal`, `TERM` or `KILL`.
@@ -557,18 +627,21 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
         panic!("the example is not at rest after its start: {error}");
     }
     assert!(
-        commits(&example.read_log()) > 0,
+        example.presented().0 > 0,
         "the example presented no image: {shown}"
     );
     assert!(
         traced(&example.read_trace(), "frame") > 0,
         "the example's trace holds no frame: {shown}"
     );
-    // Every compositor of the series tells when an image showed (`wp_presentation`).
-    assert!(
-        traced(&example.read_trace(), "shown") > 0,
-        "the example's trace tells no image shown: {shown}"
-    );
+    // Every compositor of the series tells when an image showed (`wp_presentation`); X11 only
+    // where the driver presents through Present, which a software one does not.
+    if example.display == Display::Wayland {
+        assert!(
+            traced(&example.read_trace(), "shown") > 0,
+            "the example's trace tells no image shown: {shown}"
+        );
+    }
 
     // The output's middle, which the window covers in each compositor of the series: the window's
     // place on the output follows from where the pointer lies in it, both in logical pixels at
@@ -576,16 +649,22 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
     let mut typed = false;
     if move_pointer(960, 540) {
         std::thread::sleep(Duration::from_secs(1));
-        let log = example.read_log();
-        let [x, y] = pointer_in_window(&log)
-            .unwrap_or_else(|| panic!("the pointer never reached the window: {shown}"));
-        let before = commits(&log);
+        // Where the window's top left lies on the output.
+        let origin = match example.display {
+            Display::Wayland => {
+                let [x, y] = pointer_in_window(&example.read_log())
+                    .unwrap_or_else(|| panic!("the pointer never reached the window: {shown}"));
+                [960.0 - x, 540.0 - y]
+            }
+            Display::X11 => example.x11_origin(),
+        };
+        let before = example.presented().0;
         let place =
-            |at: [f64; 2]| [960.0 - x + at[0], 540.0 - y + at[1]].map(|side| side.round() as u32);
+            |at: [f64; 2]| [origin[0] + at[0], origin[1] + at[1]].map(|side| side.round() as u32);
         let add = place(ADD);
         assert!(move_pointer(add[0], add[1]));
         let deadline = Instant::now() + Duration::from_secs(5);
-        while commits(&example.read_log()) == before {
+        while example.presented().0 == before {
             assert!(
                 Instant::now() < deadline,
                 "the pointer on the button drew no frame: {shown}"
@@ -600,8 +679,26 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
             "the hover's frames are in no input to present of the trace: {shown}"
         );
 
-        // A name typed into the field, and a row added under it: the keyboard's way whole.
+        // A name typed into the field, and a row added under it: the keyboard's way whole, which
+        // X11's layer takes from M6d.7b2.
         let field = place(FIELD);
+        if example.display == Display::X11 {
+            println!("keys: not run, X11's layer takes no key yet");
+            println!("cursor: the server's");
+            // Present tells the images shown where the driver presents through it, with RandR's
+            // period where it gives one.
+            if traced(&example.read_trace(), "shown") > 0 {
+                println!("period: images shown told by Present");
+            } else {
+                println!("period: none, measured from the signals");
+            }
+            assert_eq!(
+                example.end_on_sigterm(),
+                ["closing asked", "stopped", "dropped"],
+                "the example was not asked to close, then stopped"
+            );
+            return;
+        }
         assert!(move_pointer(field[0], field[1]));
         assert!(input("click"));
         assert!(input("key s"));
@@ -649,16 +746,16 @@ fn the_application_rests_wakes_for_the_pointer_and_ends_on_a_signal() {
 }
 
 /// Gives `example` `command`, which it answers with `taken`, then waits until a new swap chain's
-/// image is presented, for at most 10 s: how long that took from the command, to 50 ms.
+/// image is presented, for at most 10 s: how long that took from the command, to 50 ms. On X11,
+/// whose trace tells no swap chain, until an image is presented after the command.
 fn drawn_again(example: &mut Example, command: &str, taken: &str) -> Duration {
-    let log = example.read_log();
-    let (presented, made) = (commits(&log), images_made(&log));
+    let (presented, made) = example.presented();
     let asked = Instant::now();
     example.command(command, taken);
     let deadline = asked + Duration::from_secs(10);
     loop {
-        let log = example.read_log();
-        if commits(&log) > presented && images_made(&log) > made {
+        let (now_presented, now_made) = example.presented();
+        if now_presented > presented && now_made > made {
             return asked.elapsed();
         }
         assert!(

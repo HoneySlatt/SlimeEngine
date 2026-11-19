@@ -39,13 +39,13 @@ A cell that starts with "—" is not observed: what it says comes from elsewhere
 | Clipboard round trip | not run, no input | round trip | round trip | nothing pasted | round trip |
 | Game minimized | at rest | draws its frames | at rest | at rest | draws its frames |
 | Agents' sessions and rest | pass | pass | pass | pass | pass |
-| uwui's host at rest | pass | pass | pass | pass | — no layer for X11 before M6d.7b |
-| uwui's host's bar | none, no protocol | the compositor's | the compositor's | none, no protocol | — no layer for X11 before M6d.7b |
-| uwui's host's period told | 4.167 ms | none, measured from the signals | 16.667 ms | 4.167 ms | — no layer for X11 before M6d.7b |
-| uwui's host's keys | not run, no input | typed | typed | typed | — no layer for X11 before M6d.7b |
-| uwui's host's cursor | not run, the pointer never entered | by shape | by shape | by shape | — no layer for X11 before M6d.7b |
-| uwui's host's scale | 2.0 | 1.5 | 1.5 | 1.5 | — no layer for X11 before M6d.7b |
-| uwui's host's losses | drawn again | drawn again | drawn again | drawn again | — no layer for X11 before M6d.7b |
+| uwui's host at rest | pass | pass | pass | pass | pass |
+| uwui's host's bar | none, no protocol | the compositor's | the compositor's | none, no protocol | — no window manager under Xvfb |
+| uwui's host's period told | 4.167 ms | none, measured from the signals | 16.667 ms | 4.167 ms | none, measured from the signals |
+| uwui's host's keys | not run, no input | typed | typed | typed | not run, X11's layer takes no key yet |
+| uwui's host's cursor | not run, the pointer never entered | by shape | by shape | by shape | the server's |
+| uwui's host's scale | 2.0 | 1.5 | 1.5 | 1.5 | — X11's layer reads no scale before M6d.7b2 |
+| uwui's host's losses | drawn again | drawn again | drawn again | drawn again | drawn again |
 
 The rows:
 
@@ -74,21 +74,26 @@ The rows:
 - **Agents' sessions and rest**: slime-mcp's `edit_window` and `drive`, which find the editor and
   the game at rest ([ADR-0185](adr/0185-rest-checked-in-ci.md)).
 - **uwui's host at rest** and **uwui's host's bar**: `uwui-desktop`'s `application` example, on
-  uwui's own Wayland layer, `uwui-windowing`
-  ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)):
+  uwui's own layers, `uwui-windowing`'s Wayland's and, under Xvfb, X11's
+  ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md),
+  [ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)):
   an image presented and at rest after its start; where the compositor takes input, the pointer
   put on its button *Add*, whose hover draws frames, and at rest again; then ended by SIGTERM
   through its closing (its test `rest`); and whether the compositor took
   `zxdg_toplevel_decoration_v1`'s server side, in its log written with `WAYLAND_DEBUG=client`.
+  Xvfb has no window manager, which would draw the bar on X11.
 - **uwui's host's period told**: the display's period that `wp_presentation` tells with the same
   example's first image shown, in its log; where it tells none, the host measures the period from
-  the signals' gaps
+  the signals' gaps. On X11, Present tells the images shown where the driver presents through it,
+  which lavapipe does not, and RandR the period, which Xvfb does not: the trace of the same run
+  tells whether any showed
   ([ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)).
 - **uwui's host's keys**, **uwui's host's cursor** and **uwui's host's scale**: the same example,
   where the compositor takes input, its field clicked, `s` and `a` typed through the compositor,
   and the row that *Add* makes named `sa`; its cursor set by `wp_cursor_shape_v1`'s shape, or left
   to the compositor; the scale that its window drew at on an output at 1.5, at 2 in Weston, its
-  image's width over its logical width
+  image's width over its logical width. On X11, the layer takes no key and sets no cursor yet,
+  and reads no scale
   ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
 - **uwui's host's losses**: the same example, its GPU device lost on purpose, then its surface
   given up, each followed by a new swap chain's image presented and the example at rest; then the
@@ -111,6 +116,9 @@ The rows:
 - **Rates and clocks.** KWin's virtual output refreshes at 60 Hz: neither an option nor a custom
   mode of its settings changes it. Weston's presentation clock is `CLOCK_MONOTONIC_RAW`, the others'
   `CLOCK_MONOTONIC`. Xvfb gives no refresh rate: the engine's frames there follow its own schedule.
+  Its Present still notifies each refresh asked, on a timer of the server's own at 60 Hz, in
+  microseconds of `CLOCK_MONOTONIC`: uwui's host's frames follow them (read on 2026-11-19,
+  Xvfb 21.1.24).
 - **Presentation feedback.** No program of the engine asks for it today: uwui's desktop host reads it
   from M6d.7a2 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
 - **Focus on X11.** Without a window manager, Xvfb gives no window the keyboard's focus: the series

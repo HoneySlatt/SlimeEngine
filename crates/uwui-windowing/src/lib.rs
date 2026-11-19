@@ -15,11 +15,13 @@
 //! 3. as the window closes, it calls [`Handler::closing`], where the host lets go of what it made
 //!    on the handles, then hands the host back.
 //!
-//! Its *core*, which knows no platform, is tested without a window on every platform: the anchor
-//! of the events' times (`anchor`) and the wakes of other threads and the termination signals
-//! (`wake`). Wayland's layer (`wayland`) is the only platform's yet: X11, Windows and macOS have
-//! theirs at M6d.7's next parts, and [`run`] there says that it has none. The keyboard's code of
-//! libxkbcommon (`xkb`) is Linux's, which X11's layer will share.
+//! Its *core*, which knows no platform, is tested without a window on every platform: the run that
+//! calls the handler back on a platform's window and lets go of both in order (`running`), the
+//! anchor of the events' times (`anchor`) and the wakes of other threads and the termination
+//! signals (`wake`). Linux has two layers, Wayland's (`wayland`) and X11's (`x11`), which share
+//! the loop's wait (`wait`), the host's clock (`clock`) and the keyboard's code of libxkbcommon
+//! (`xkb`), which X11's layer takes at M6d.7b2. Windows and macOS have theirs at M6d.7's next
+//! parts, and [`run`] there says that it has none.
 //!
 //! Its name is provisional, until M6d.10a names uwui's crates. It is public nowhere but to
 //! `uwui-desktop`, which `scripts/check.sh` checks, with its other rule: it depends on neither
@@ -30,7 +32,7 @@
 // A public enumeration may gain cases without breaking its host (ADR-0282).
 #![warn(clippy::exhaustive_enums)]
 
-// The core, which only Wayland's layer drives yet: elsewhere it is compiled and tested, and used by
+// The core, which only Linux's layers drive yet: elsewhere it is compiled and tested, and used by
 // no layer.
 #[cfg_attr(
     not(target_os = "linux"),
@@ -41,12 +43,21 @@ mod anchor;
     not(target_os = "linux"),
     allow(dead_code, reason = "no windowing layer drives the core here yet")
 )]
+mod running;
+#[cfg_attr(
+    not(target_os = "linux"),
+    allow(dead_code, reason = "no windowing layer drives the core here yet")
+)]
 mod wake;
 
 #[cfg(target_os = "linux")]
 mod clock;
 #[cfg(target_os = "linux")]
+mod wait;
+#[cfg(target_os = "linux")]
 mod wayland;
+#[cfg(target_os = "linux")]
+mod x11;
 #[cfg(target_os = "linux")]
 mod xkb;
 
@@ -168,6 +179,9 @@ pub struct Happened {
     /// platform tells it (on Wayland, `wp_presentation`, which every compositor of the series
     /// gives). A platform may tell none for some images: the host never waits for one.
     pub presentations: Vec<Presentation>,
+    /// The platform lost what the window showed, as X11 does where nothing keeps a covered
+    /// window's image: the next image must be drawn and presented again.
+    pub exposed: bool,
 }
 
 /// What the layer does after a turn.
@@ -223,12 +237,7 @@ pub struct Stopped;
 /// The window, during a call of the [`Handler`]: its handles, its clock, and the requests that the
 /// host makes of it.
 pub struct Window<'a> {
-    #[cfg(target_os = "linux")]
-    platform: &'a mut wayland::Platform,
-    #[cfg(not(target_os = "linux"))]
-    never: std::convert::Infallible,
-    #[cfg(not(target_os = "linux"))]
-    _platform: std::marker::PhantomData<&'a mut ()>,
+    platform: &'a mut dyn running::Platform,
 }
 
 impl Window<'_> {
@@ -236,85 +245,47 @@ impl Window<'_> {
     /// [`Handler::closing`] returns, and until the layer drops the handler, whichever comes first:
     /// the layer drops the handler before the window, a panic's unwinding included.
     pub fn raw_handles(&self) -> (RawDisplayHandle, RawWindowHandle) {
-        #[cfg(target_os = "linux")]
-        return self.platform.raw_handles();
-        #[cfg(not(target_os = "linux"))]
-        match self.never {}
+        self.platform.raw_handles()
     }
 
     /// The host's clock now: one that counts the time that the machine spends suspended, which
     /// every time that the layer gives is on.
     pub fn now(&self) -> Instant {
-        #[cfg(target_os = "linux")]
-        return clock::now();
-        #[cfg(not(target_os = "linux"))]
-        match self.never {}
+        self.platform.now()
     }
 
     /// A waker that turns the loop from any thread, without blocking: wakes that come before the
     /// next turn turn it once ([`Happened::woken`]).
     pub fn waker(&self) -> Waker {
-        #[cfg(target_os = "linux")]
-        return self.platform.waker();
-        #[cfg(not(target_os = "linux"))]
-        match self.never {}
+        self.platform.waker()
     }
 
     /// Gives the window `title`.
     pub fn set_title(&mut self, title: &str) {
-        #[cfg(target_os = "linux")]
         self.platform.set_title(title);
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = title;
-            match self.never {}
-        }
     }
 
     /// Sets the smallest that the person may make the window, in logical pixels; none for no
-    /// bound. Whether an image must follow to apply it: on Wayland, the next image's commit does.
+    /// bound. Whether an image must follow to apply it: on Wayland, the next image's commit does;
+    /// on X11, none needs to.
     #[must_use = "an image must follow where it says so"]
     pub fn set_min_size(&mut self, size: Option<[u32; 2]>) -> bool {
-        #[cfg(target_os = "linux")]
-        return self.platform.set_min_size(size);
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = size;
-            match self.never {}
-        }
+        self.platform.set_min_size(size)
     }
 
     /// Asks the platform to fill the screen with the window, without borders, or to stop.
     pub fn set_fullscreen(&mut self, fullscreen: bool) {
-        #[cfg(target_os = "linux")]
         self.platform.set_fullscreen(fullscreen);
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = fullscreen;
-            match self.never {}
-        }
     }
 
     /// Asks the system to activate the window as `activation` says; nothing where it gives no way.
     pub fn activate(&mut self, activation: Activation) {
-        #[cfg(target_os = "linux")]
         self.platform.activate(activation);
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = activation;
-            match self.never {}
-        }
     }
 
     /// Shows `shape` while a pointer lies in the window, where the platform shows shapes.
     pub fn set_cursor(&mut self, shape: CursorShape) {
-        #[cfg(target_os = "linux")]
         self.platform.set_cursor(shape);
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = shape;
-            match self.never {}
-        }
     }
 
     /// Asks the platform's signal of frames for the image presented next, and when it shows
@@ -322,10 +293,7 @@ impl Window<'_> {
     /// image that they follow. The image's number: 0 for the window's first, then one more at each
     /// call.
     pub fn ask_signal(&mut self) -> u64 {
-        #[cfg(target_os = "linux")]
-        return self.platform.ask_signal();
-        #[cfg(not(target_os = "linux"))]
-        match self.never {}
+        self.platform.ask_signal()
     }
 }
 
@@ -356,8 +324,9 @@ impl std::error::Error for Error {}
 /// termination signal reaches the handler as [`Happened::terminated`]; a second, half a second or
 /// more later, ends the process with [`EXIT_TERMINATED`].
 ///
-/// On Linux, it needs a Wayland compositor, which `WAYLAND_DISPLAY` names; elsewhere, it has no
-/// layer yet, and fails at once.
+/// On Linux, it opens the window on the Wayland compositor that `WAYLAND_DISPLAY` or
+/// `WAYLAND_SOCKET` names, else on the X server that `DISPLAY` names; it never tries the other
+/// when the one named fails. Elsewhere, it has no layer yet, and fails at once.
 ///
 /// # Errors
 ///
@@ -365,7 +334,21 @@ impl std::error::Error for Error {}
 /// run, after [`Handler::closing`].
 pub fn run<H: Handler>(opening: Opening, handler: H) -> (H, Result<(), Error>) {
     #[cfg(target_os = "linux")]
-    return wayland::run(opening, handler);
+    {
+        let named = |variable| std::env::var_os(variable).is_some_and(|value| !value.is_empty());
+        if named("WAYLAND_DISPLAY") || named("WAYLAND_SOCKET") {
+            wayland::run(opening, handler)
+        } else if named("DISPLAY") {
+            x11::run(opening, handler)
+        } else {
+            (
+                handler,
+                Err(Error(
+                    "no display: neither WAYLAND_DISPLAY nor DISPLAY names one".to_owned(),
+                )),
+            )
+        }
+    }
     #[cfg(not(target_os = "linux"))]
     {
         drop(opening);

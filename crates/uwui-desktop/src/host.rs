@@ -362,6 +362,7 @@ impl<A: App> Host<A> {
             close_asked,
             terminated,
             woken,
+            exposed,
             // Taken above.
             signal: _,
             presentations: _,
@@ -374,8 +375,13 @@ impl<A: App> Host<A> {
             || !inputs.is_empty()
             || configured.is_some()
             || drawn.is_some()
+            || exposed
         {
             self.pacing.asked_from_outside();
+        }
+        // The platform lost the window's image: the next frame draws it again.
+        if exposed {
+            self.pacing.host_changed();
         }
         if terminated || close_asked {
             session.close_requested();

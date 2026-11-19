@@ -2741,6 +2741,30 @@ The first part of M6d.7b ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-fra
   signal, its device and surface lost and drawn again; the series' column of X11 tells uwui's
   host; CI is green.
 - **Measured.** CI's jobs that build the host, each within 20 minutes.
+- **Result.** Done on 2026-11-19:
+  - `uwui-windowing` chooses its layer as it starts: Wayland's where `WAYLAND_DISPLAY` or
+    `WAYLAND_SOCKET` names a compositor, else X11's where `DISPLAY` names a server. Both run
+    through one run of the core, `running`, whose tests on a fake platform find the handler closed
+    and dropped before the window, a panic included; the loop's wait is shared.
+  - X11's layer on `x11rb` 0.13.2, already in the lockfile: two connections of libxcb, the
+    layer's own, which it alone reads, and Vulkan's driver's, which the raw handle names, so that
+    no other thread drains the socket that the loop waits on. The window: its title, class,
+    process, minimum size, fullscreen and activation through ICCCM's and the extended window
+    manager hints' properties and messages, the start's `DESKTOP_STARTUP_ID` ended, its closing
+    asked, the window manager's pings answered. Frames on Present's `NotifyMSC`, at the refresh's
+    time; images shown from Present's notices of the driver's pixmaps, in order; RandR's period
+    of the CRTC that shows most of the window; a timer at that rate, 60 a second without one,
+    where the server gives no Present. The signal held while the window is unmapped or covered
+    whole; an exposed window drawn again, which `Happened::exposed` tells the host. The pointer
+    through XInput 2.1, its buttons, wheel and scroll valuators, the server's copies skipped, its
+    times anchored.
+  - Under Xvfb, Present notifies each refresh at 60 Hz and lavapipe presents without it: the
+    example rests, its hover draws frames and rests again, it ends on SIGTERM, its device and
+    surface lost are drawn again, in the series' column of X11, which tells uwui's host
+    ([`compositors.md`](compositors.md)); its crash and termination tests pass there too.
+  - Debt left: on X11, no key, cursor, scale nor touch before M6d.7b2; the layer runs under Xvfb
+    alone, its window manager's requests, RandR's period and the matching of Present's notices
+    checked by hand ([`debt.md`](debt.md)).
 
 ### M6d.7b2 — X11's keyboard, cursor, scale and touch
 

@@ -3890,6 +3890,7 @@ dependencies = [
  "uwui-time",
  "wayland-client",
  "wayland-protocols",
+ "x11rb",
  "xkbcommon-dl",
 ]
 

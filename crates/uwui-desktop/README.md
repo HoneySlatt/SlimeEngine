@@ -5,7 +5,7 @@ platform's signal and none at rest
 ([ADR-0270](../../docs/adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md),
 [ADR-0271](../../docs/adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)).
 It speaks each platform itself, not through winit, through its platform layer, `uwui-windowing`:
-Wayland alone yet.
+Wayland and X11 yet.
 Its name is provisional, until M6d.10a names uwui's crates; it leaves with uwui at M6d.11, under
 MIT OR Apache-2.0.
 
@@ -22,8 +22,9 @@ MIT OR Apache-2.0.
   back at each turn, and knows neither the interface nor the GPU
   ([ADR-0279](../../docs/adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md),
   [ADR-0302](../../docs/adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)).
-  Wayland's window alone yet; its input, its times, its scale and its signal of frames are the
-  layer's ([its README](../uwui-windowing/README.md)).
+  Wayland's window and X11's yet; its input, its times, its scale and its signal of frames are the
+  layer's ([its README](../uwui-windowing/README.md)). A window whose image the platform lost, as
+  X11 does with a covered one where no compositor keeps it, is drawn again.
 - Holds a *core* that knows no platform, tested without a window on every platform:
   - `pacing`: nothing runs at rest; while frames run, one per refresh, each on the signal that the
     image before asked, drawn just in time where the layer tells when images show: it starts at the
@@ -99,7 +100,8 @@ it has no layer and ends; a bar drawn by uwui where the compositor draws none, W
 ## Tests
 
 `cargo test -p uwui-desktop` runs the core's tests, on every platform, without a window. The
-`rest` tests, `test = false`, run the example in the Wayland compositor that `WAYLAND_DISPLAY` names. The first:
+`rest` tests, `test = false`, run the example on the display that the environment names, the Wayland
+compositor of `WAYLAND_DISPLAY`, else the X server of `DISPLAY`. The first:
 an image presented, in its trace too with when it showed, and at rest after its start; where the series gives input,
 the pointer put on its button *Add*, whose hover draws frames, an input to present in its trace,
 and at rest again; its field clicked, `s` and `a`
@@ -116,7 +118,8 @@ close, ended by a second termination signal with `EXIT_TERMINATED`. The last: th
 first image in its trace, then its end on SIGTERM with status 0. Each run has a state directory
 of its own, never the user's. `scripts/check.sh windowed` runs them in a headless Weston, and
 `scripts/compositors.sh` the first three in Weston, sway, KWin and Mutter, the third on an output
-at 1.5, at 2 in Weston
+at 1.5, at 2 in Weston, and the first two under Xvfb, where the window takes no key yet and its
+images' presentations are not told
 ([`compositors.md`](../../docs/compositors.md)). `scripts/check.sh lint` checks that its tree
 holds no engine crate but `slime-color` and `slime-input`, that no other crate of the workspace
 depends on it, that `uwui` pulls no windowing library nor wgpu, and that its platform layer

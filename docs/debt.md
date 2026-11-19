@@ -119,10 +119,17 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **An application on uwui rests on Wayland alone** ([measured at M6d.0b](measurements.md#m6d0b-a-program-on-uwuis-start-and-rest-measured-from-outside)).
   The `widgets` example, which [ADR-0180](adr/0180-one-canvas-and-the-frameworks-foundations.md) names, moves two progress bars without end and draws 60 frames a second.
   Since M6d.7a1, `uwui-desktop`'s `application` example is checked at rest in Weston, sway, KWin and Mutter, none of its threads waking in 10 s ([`compositors.md`](compositors.md)).
-  Its rest is measured on Wayland since M6d.7a2c1: no frame, no wake-up, no time on the processor ([`measurements.md`](measurements.md#m6d7a2c1-uwuis-desktop-host-measured)); under X11 and Xwayland, from M6d.7b, which brings the host's X11 layer.
+  Its rest is measured on Wayland since M6d.7a2c1: no frame, no wake-up, no time on the processor ([`measurements.md`](measurements.md#m6d7a2c1-uwuis-desktop-host-measured)); on X11, it is checked under Xvfb since M6d.7b1, not measured, and Xwayland is checked by hand alone.
 - **uwui's desktop host shows the compositor's cursor where `wp_cursor_shape_v1` is missing** ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
   The interface's shapes, the I-beam over a field and the arrows over a splitter, show only through that protocol, which sway, KWin and Mutter give; elsewhere the cursor is whatever the compositor last showed.
   Drawing a theme's images needs `wayland-cursor`, a dependency put to the owner once a compositor of the field lacks the protocol.
+- **On X11, uwui's desktop host takes no key, shows the server's cursor and draws at a scale of 1** ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)).
+  Its X11 layer gives the pointer and its wheel alone; touch does not reach it either.
+  Followed at M6d.7b2: XKB through libxkbcommon, the cursor's shapes, `Xft.dpi`'s scale and XInput2's touch.
+- **uwui's desktop host's X11 layer runs under Xvfb alone, with a software driver** ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)).
+  Xvfb has no window manager and no display: the window's requests to a window manager, RandR's period and a GPU's driver presenting through Present run nowhere in CI.
+  The images shown are matched to the images asked by their order, which holds only if the driver presents each image asked once, through Present (`crates/uwui-windowing/src/x11/frames.rs`); lavapipe copies its images without Present, and tells none.
+  Followed by the owner's check by hand under Xwayland ([`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-owner)).
 - **uwui's desktop host's frames drawn just in time are measured in a headless sway alone** ([ADR-0309](adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md)).
   Its margin, its prediction and the frames that miss are measured where wlroots' headless output composes on a timer, and composes a late image when it comes rather than at the next refresh as a display does.
   How a real compositor shows images composed while frames run and from idle, the lags that the host learns apart, is reasoned, not observed.
@@ -135,12 +142,13 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **uwui's desktop host follows no global that comes during its run** ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)).
   A seat added later gives no pointer, touch or keyboard, and an output plugged later is not bound: where the compositor prefers no scale for the surface, as Weston, a window moved onto it keeps the scale of the outputs known at its start.
   Followed at M6d.7e, whose several windows follow the outputs and the seats.
-- **The order in which uwui's desktop host lets go of its window is checked by review alone** ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)).
-  wgpu's surface stands on the layer's raw handles: the layer drops its handler before its window, by the order of `Running`'s fields (`crates/uwui-windowing/src/wayland/mod.rs`), and the host drops its device in `Handler::closing`; no test fails if either changes, since the layer's window is Wayland's alone.
-  Followed at M6d.7b, whose second layer may let the run be driven by a fake platform.
+- **That uwui's desktop host lets go of its device in `Handler::closing` is checked by review alone** ([ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)).
+  wgpu's surface stands on the layer's raw handles. The layer's side is tested since M6d.7b1: every layer runs through `crates/uwui-windowing/src/running.rs`, whose tests on a fake platform find the handler closed and dropped before the window, a panic's unwinding included.
+  The host's side, its device dropped in `closing` (`crates/uwui-desktop/src/host.rs`), fails no test if it changes: no test drives the host on a fake platform, whose window the layer keeps private.
+  Followed at M6d.7e, whose targets removed let a surface go while its window lives.
 - **uwui's desktop host's keyboard tests read the developer's own compose files** ([ADR-0273](adr/0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md)).
   libxkbcommon reads `XCOMPOSEFILE` or `~/.XCompose` before the locale's table, and `xkbcommon-dl` 0.4.2 gives no way to load a table from a file of the test's own: a person whose own sequence redefines `^` then `e` sees `crates/uwui-windowing/src/xkb.rs`'s tests of dead keys fail; CI has neither.
-  Followed when the host's keyboard is shared with X11's layer, at M6d.7b.
+  Followed at M6d.7b2, which shares the host's keyboard with X11's layer.
 - **`scripts/input-to-present.sh` loses part of its inputs** ([ADR-0200](adr/0200-applications-measured-from-outside.md)).
   It runs `wlrctl` once an input; each run makes a virtual pointer or keyboard and destroys it at once.
   A headless sway gives its seat a pointer only while one exists: a window binds it too late, and the input goes nowhere.
@@ -870,13 +878,13 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   An event carries its time ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md)), of which uwui keeps the time, not its source.
   The engine gives no root a clock of its own: no game's root runs on uwui yet, and the dev overlay and the editor follow the host's clock.
   A motion asks for every frame while it moves.
-  Followed for uwui's desktop host at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames)'s parts, which read each platform's times and events' times (Wayland's pointer since M6d.7a1, its keyboard at M6d.7a2a and its frames since M6d.7a2c2, X11 at M6d.7b, Windows at M6d.7c, macOS at M6d.7d), the system's notice that it resumed with the time suspended (Linux at M6d.7b, Windows at M6d.7c, macOS at M6d.7d), and macOS's clock (M6d.7d) ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)); for the engine, its frame's time at M6c.Q2f ([ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)); the layer of games' interfaces, which feeds a game's clock to its roots ([`uwui-needs.md`](uwui-needs.md#slimeengines-own)); uwui's first stage builds the caps of motion.
+  Followed for uwui's desktop host at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames)'s parts, which read each platform's times and events' times (Wayland's pointer since M6d.7a1, its keyboard at M6d.7a2a and its frames since M6d.7a2c2, X11's pointer and frames since M6d.7b1, its keyboard at M6d.7b2, Windows at M6d.7c, macOS at M6d.7d), the system's notice that it resumed with the time suspended (Linux at M6d.7b3, Windows at M6d.7c, macOS at M6d.7d), and macOS's clock (M6d.7d) ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)); for the engine, its frame's time at M6c.Q2f ([ADR-0271](adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)); the layer of games' interfaces, which feeds a game's clock to its roots ([`uwui-needs.md`](uwui-needs.md#slimeengines-own)); uwui's first stage builds the caps of motion.
 - **Of the window's lifecycle, uwui hears the focus alone** ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
   A suspend, a resume and low memory are not given: winit 0.30 gives them on phones and the web alone, nowhere the engine runs.
   A target removed, lost or made again is not given: nothing in uwui reads them yet, and the engine's target goes only as the run ends.
   Whether a target is covered is not given: nothing in uwui draws it otherwise; the engine holds a covered window's frames itself.
   The focus's loss ends a drag and Alt alone; a press of a button held as the focus left still presses it at the release that the platform makes.
-  Followed at M6d.7's parts: the system's notice of a resume on each platform (M6d.7b to M6d.7d), several windows (M6d.7e); a host on a phone for the rest.
+  Followed at M6d.7's parts: the system's notice of a resume on each platform (M6d.7b3 to M6d.7d), several windows (M6d.7e); a host on a phone for the rest.
 - **A modal root reaches its own target alone, and the engine gives the pointer's moves of a frame as one** ([ADR-0253](adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md), [ADR-0256](adr/0256-each-root-on-its-target-each-target-its-input-the-active-target-m6d5c3-cut-in-two.md), [ADR-0258](adr/0258-each-target-its-frame-and-its-time-a-change-asks-for-its-targets-frame.md)).
   A modal root blocks its own target alone: a dialog in a window of its own, or panels torn off into windows, would need one that blocks a parent window or every window, which nothing reads yet.
   A target's record of its frames, its time and whether it holds a change, is kept as long as the interface: a target removed waits for M6d.7e, the first host whose targets go during a run ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
