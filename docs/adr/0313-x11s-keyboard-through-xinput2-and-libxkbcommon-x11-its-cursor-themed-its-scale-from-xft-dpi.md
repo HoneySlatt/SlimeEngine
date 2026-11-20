@@ -49,10 +49,11 @@ read again.
 **The keyboard.** The keys come through XInput2's `KeyPress` and `KeyRelease` of the master
 keyboards, with the server's times, translated by `xkb.rs`, shared with Wayland's layer, each in its
 own event's state: the modifiers and the layout, depressed, latched and locked, that XInput2 gives
-with the key. The keymap is the server's core keyboard's, read through libxkbcommon-x11 at the start
-and again at XKB's `NewKeyboardNotify` and `MapNotify`. The modifiers told the host come from XKB's
-`StateNotify`, of the modifiers' and the layout's parts alone, not the pointer's buttons, and only
-while the window holds the focus: as it takes it, the layer asks for the notices and reads XKB's
+with the key, from before it; the keyboard then returns to the state that the server last told. The
+keymap is the server's core keyboard's, read through libxkbcommon-x11 at the start and again at
+XKB's `NewKeyboardNotify` and `MapNotify`. The modifiers told the host come from each key's own
+state, before the key, and from XKB's `StateNotify`, of the modifiers' and the layout's parts alone,
+not the pointer's buttons, after it, and only while the window holds the focus: as it takes it, the layer asks for the notices and reads XKB's
 state once, and tells the modifiers if they changed meanwhile, as Wayland's compositors do; as it
 loses it, the notices stop and the modifiers are told released, on Wayland too, whose protocol asks
 a client to take every key as lifted. The repeat is the server's: XInput2's `KeyRepeat` marks it,
@@ -65,9 +66,10 @@ XInput2 sends none, as for a move to an ancestor, the layer reads where the serv
 (`GetInputFocus`, then the window's ancestors through `QueryTree`), rather than reading it from the
 events' details, which mislead between an event out and an event in. Another client's grab of the
 keyboard, a `FocusOut` of the mode `Grab`, takes the focus until its `FocusIn` of the mode `Ungrab`,
-though the server's focus stays: a menu, a screen locker, a window manager's Alt and Tab. A key that
-reaches the window gives it the focus until the next event of the focus, since the server sends
-keys only to the window that holds them, whatever an event read late said. XInput2's `Enter` and
+or until a key reaches the window, where the server tells the grab's end to no one, though the
+server's focus stays: a menu, a screen locker, a window manager's Alt and Tab. A key that reaches
+the window gives it the focus until the next event of the focus, since the server sends keys only
+to the window that holds them, whatever an event read late said. XInput2's `Enter` and
 `Leave` follow the pointer, those of another client's grab of the pointer aside. `WM_HINTS` asks the
 window manager for the focus, ICCCM's passive model.
 
@@ -104,8 +106,8 @@ with the variable set, and checks that it passed there; the series' X11 test is 
   XInput2's, whose times and devices the pointer already reads; a per-client flag where XInput2's
   mark is in each event.
 - **The modifiers told from each XInput2 key's own state alone:** no notice when they change without
-  a key of the window, as Caps Lock locked by another device; the keys are translated in their own
-  state, and the modifiers told come from XKB's `StateNotify`.
+  a key of the window, as Caps Lock locked by another device, and a key's state is from before it,
+  so that the last key would leave a modifier told held; `StateNotify` follows.
 - **The focus read from the events' details, XInput2's alone:** the closing review found it told
   lost as the server's focus moved through `PointerRoot`, and never told for a move to an ancestor,
   which XInput2 does not send.
@@ -149,4 +151,7 @@ with the variable set, and checks that it passed there; the series' X11 test is 
   the layer's own test ([`compositors.md`](../compositors.md)).
 - Debt left ([`debt.md`](../debt.md)): touch runs nowhere in CI, Xvfb having no touch device; a
   scale per display is not followed, X11 giving one for the whole screen; a layout switched, and
-  XKB's `NewKeyboardNotify`, reach no test against a server.
+  XKB's `NewKeyboardNotify`, reach no test against a server; where the server's focus follows the
+  pointer, another client's grab of the pointer through XInput2 that ends over another window leaves
+  the window told focused until the pointer crosses its border again, the owner's choice of
+  2026-11-20: the server tells it nothing, and no key reaches it meanwhile.

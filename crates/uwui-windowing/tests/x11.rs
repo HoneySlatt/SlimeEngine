@@ -2932,3 +2932,384 @@ fn a_key_typed_after_the_focus_came_back_through_the_root_takes_the_servers_modi
     let keys: Vec<&String> = told.iter().filter(|told| told.starts_with("key")).collect();
     assert_eq!(keys, ["key b"], "b typed without Shift: {told:?}");
 }
+
+/// The server's focus following the pointer, which lies over the window, while another client
+/// grabs the keyboard; the pointer leaves the window during the grab, which ends there, then comes
+/// back: the server sends the window no event as the grab ends, the focus lying under the pointer
+/// elsewhere, and `b`, typed once the pointer is back, reaches the window, which must be told
+/// focused before it.
+#[test]
+fn a_keyboard_grab_that_ends_while_the_pointer_is_elsewhere_gives_the_focus_back() {
+    use x11rb::protocol::xproto::{GrabMode, GrabStatus, InputFocus};
+    server_settles();
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let (stop_sender, stop_receiver) = mpsc::channel();
+    let grabber = std::thread::spawn(move || {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        let menu = other_window(&connection, root);
+        connection
+            .set_input_focus(
+                InputFocus::POINTER_ROOT,
+                u32::from(InputFocus::POINTER_ROOT),
+                x11rb::CURRENT_TIME,
+            )
+            .unwrap()
+            .check()
+            .unwrap();
+        let warp = |to: u32, x: i16, y: i16| {
+            connection
+                .warp_pointer(x11rb::NONE, to, 0, 0, 0, 0, x, y)
+                .unwrap()
+                .check()
+                .unwrap();
+            std::thread::sleep(Duration::from_millis(300));
+        };
+        warp(window, 160, 120);
+        xdotool(&["key", "a"]);
+        let grabbed = connection
+            .grab_keyboard(
+                false,
+                menu,
+                x11rb::CURRENT_TIME,
+                GrabMode::ASYNC,
+                GrabMode::ASYNC,
+            )
+            .unwrap()
+            .reply()
+            .unwrap()
+            .status;
+        std::thread::sleep(Duration::from_millis(300));
+        // The pointer leaves the window while the grab holds; the grab ends with it elsewhere.
+        warp(root, 1000, 400);
+        connection
+            .ungrab_keyboard(x11rb::CURRENT_TIME)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        // Back over the window, which takes the keys again.
+        warp(window, 160, 120);
+        xdotool(&["key", "b"]);
+        std::thread::sleep(Duration::from_millis(200));
+        warp(root, 1000, 800);
+        let _ = stop_sender.send(());
+        grabbed
+    });
+    let mut recorder = Recorder::new(Duration::from_secs(10), false, Some(window_sender));
+    recorder.stop = Some(stop_receiver);
+    let (recorder, ran) = uwui_windowing::run(opening(false), recorder);
+    ran.expect("the run");
+    let grabbed = grabber.join().expect("the grabber");
+    assert_eq!(grabbed, GrabStatus::SUCCESS, "the keyboard grabbed");
+    let told = focus_and_keys(&recorder.told.inputs);
+    eprintln!("told: {told:?}");
+    assert!(
+        told.contains(&"key b".to_owned()),
+        "b reached the window: {told:?}"
+    );
+    let unfocused = keys_told_unfocused(&recorder.told.inputs);
+    assert!(
+        unfocused.is_empty(),
+        "keys reached the window while it was told unfocused: {unfocused:?}; told {told:?}"
+    );
+}
+
+/// As `keys_typed_as_the_focus_comes_during_a_long_turn_keep_their_modifiers`, once the keys are
+/// read: Shift was let go, so the modifiers last told hold none.
+#[test]
+fn keys_typed_as_the_focus_comes_during_a_long_turn_leave_no_modifier_told_held() {
+    use x11rb::protocol::xproto::InputFocus;
+    server_settles();
+    let inputs = with_a_long_turn(|window, start_turn| {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        connection
+            .warp_pointer(x11rb::NONE, root, 0, 0, 0, 0, 1000, 400)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        start_turn();
+        connection
+            .set_input_focus(InputFocus::POINTER_ROOT, window, x11rb::CURRENT_TIME)
+            .unwrap()
+            .check()
+            .unwrap();
+        // Shift let go after `a`, as a person types `A`.
+        xdotool(&["keydown", "shift"]);
+        xdotool(&["key", "a"]);
+        xdotool(&["keyup", "shift"]);
+    });
+    let last_held = inputs.iter().rev().find_map(|input| match input {
+        Input::Modifiers(held) => Some(*held),
+        _ => None,
+    });
+    eprintln!("told: {:?}; inputs: {inputs:?}", focus_and_keys(&inputs));
+    assert!(
+        !last_held.is_some_and(|held| held.shift),
+        "Shift let go, still told held: {inputs:?}"
+    );
+}
+
+/// The server's focus following the pointer, which lies over the window, while another client
+/// grabs the keyboard on the root window, above the window, as a program that binds keys where no
+/// window manager runs: the server sends the window a focus out then a focus in, both of the mode
+/// `Grab`; the window must be told the focus lost until the grab ends.
+#[test]
+fn a_keyboard_grabbed_on_the_root_while_the_focus_follows_the_pointer_is_told_lost() {
+    use x11rb::protocol::xproto::{GrabMode, GrabStatus, InputFocus};
+    server_settles();
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let (stop_sender, stop_receiver) = mpsc::channel();
+    let grabber = std::thread::spawn(move || {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        connection
+            .set_input_focus(
+                InputFocus::POINTER_ROOT,
+                u32::from(InputFocus::POINTER_ROOT),
+                x11rb::CURRENT_TIME,
+            )
+            .unwrap()
+            .check()
+            .unwrap();
+        connection
+            .warp_pointer(x11rb::NONE, window, 0, 0, 0, 0, 160, 120)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        xdotool(&["key", "a"]);
+        let grabbed = connection
+            .grab_keyboard(
+                false,
+                root,
+                x11rb::CURRENT_TIME,
+                GrabMode::ASYNC,
+                GrabMode::ASYNC,
+            )
+            .unwrap()
+            .reply()
+            .unwrap()
+            .status;
+        std::thread::sleep(Duration::from_millis(300));
+        // Typed into the grab's client, Shift held: never this window's.
+        xdotool(&["key", "shift+b"]);
+        connection
+            .ungrab_keyboard(x11rb::CURRENT_TIME)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        xdotool(&["key", "c"]);
+        std::thread::sleep(Duration::from_millis(200));
+        connection
+            .warp_pointer(x11rb::NONE, root, 0, 0, 0, 0, 1000, 800)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(200));
+        let _ = stop_sender.send(());
+        grabbed
+    });
+    let mut recorder = Recorder::new(Duration::from_secs(10), false, Some(window_sender));
+    recorder.stop = Some(stop_receiver);
+    let (recorder, ran) = uwui_windowing::run(opening(false), recorder);
+    ran.expect("the run");
+    let grabbed = grabber.join().expect("the grabber");
+    assert_eq!(grabbed, GrabStatus::SUCCESS, "the keyboard grabbed");
+    let told = focus_and_keys(&recorder.told.inputs);
+    eprintln!("told: {told:?}");
+    assert_eq!(
+        told,
+        [
+            "focus true",
+            "key a",
+            "focus false",
+            "focus true",
+            "key c",
+            "focus false"
+        ],
+        "a grab on the root window, above the window under the pointer"
+    );
+    let shifted = recorder
+        .told
+        .inputs
+        .iter()
+        .any(|input| matches!(input, Input::Modifiers(held) if held.shift));
+    assert!(
+        !shifted,
+        "Shift typed into the grab's client was told to this window: {:?}",
+        recorder.told.inputs
+    );
+}
+
+/// The server's focus on another window while another client grabs the keyboard, then given to
+/// the window during the grab, as a window manager's switcher picks it before letting the keyboard
+/// go: the keys go to the grab's client until it ends, so the window must be told focused only as
+/// it ends, before `b`.
+#[test]
+fn the_focus_given_during_another_clients_keyboard_grab_is_told_as_the_grab_ends() {
+    use x11rb::protocol::xproto::{GrabMode, GrabStatus, InputFocus};
+    server_settles();
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let (stop_sender, stop_receiver) = mpsc::channel();
+    let grabber = std::thread::spawn(move || {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        let menu = other_window(&connection, root);
+        connection
+            .warp_pointer(x11rb::NONE, root, 0, 0, 0, 0, 1000, 400)
+            .unwrap()
+            .check()
+            .unwrap();
+        let focus = |to: u32| {
+            connection
+                .set_input_focus(InputFocus::POINTER_ROOT, to, x11rb::CURRENT_TIME)
+                .unwrap()
+                .check()
+                .unwrap();
+            std::thread::sleep(Duration::from_millis(300));
+        };
+        focus(menu);
+        let grabbed = connection
+            .grab_keyboard(
+                false,
+                menu,
+                x11rb::CURRENT_TIME,
+                GrabMode::ASYNC,
+                GrabMode::ASYNC,
+            )
+            .unwrap()
+            .reply()
+            .unwrap()
+            .status;
+        std::thread::sleep(Duration::from_millis(300));
+        focus(window);
+        // Typed into the grab's client, Shift held: never this window's.
+        xdotool(&["key", "shift+a"]);
+        std::thread::sleep(Duration::from_millis(200));
+        connection
+            .ungrab_keyboard(x11rb::CURRENT_TIME)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        xdotool(&["key", "b"]);
+        std::thread::sleep(Duration::from_millis(200));
+        focus(u32::from(InputFocus::POINTER_ROOT));
+        let _ = stop_sender.send(());
+        grabbed
+    });
+    let mut recorder = Recorder::new(Duration::from_secs(10), false, Some(window_sender));
+    recorder.stop = Some(stop_receiver);
+    let (recorder, ran) = uwui_windowing::run(opening(false), recorder);
+    ran.expect("the run");
+    let grabbed = grabber.join().expect("the grabber");
+    assert_eq!(grabbed, GrabStatus::SUCCESS, "the keyboard grabbed");
+    let told = focus_and_keys(&recorder.told.inputs);
+    eprintln!("told: {told:?}");
+    assert_eq!(
+        told,
+        ["focus true", "key b", "focus false"],
+        "the focus given during the grab"
+    );
+    let shifted = recorder
+        .told
+        .inputs
+        .iter()
+        .any(|input| matches!(input, Input::Modifiers(held) if held.shift));
+    assert!(
+        !shifted,
+        "Shift typed into the grab's client was told to this window: {:?}",
+        recorder.told.inputs
+    );
+}
+
+/// The window holding the server's focus while another client grabs the keyboard on the window
+/// itself: the keys go to the grab's client, so the window must be told the focus lost until the
+/// grab ends.
+#[test]
+fn a_keyboard_grabbed_on_the_window_itself_by_another_client_is_told_lost() {
+    use x11rb::protocol::xproto::{GrabMode, GrabStatus, InputFocus};
+    server_settles();
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let (stop_sender, stop_receiver) = mpsc::channel();
+    let grabber = std::thread::spawn(move || {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        connection
+            .warp_pointer(x11rb::NONE, root, 0, 0, 0, 0, 1000, 400)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        connection
+            .set_input_focus(InputFocus::POINTER_ROOT, window, x11rb::CURRENT_TIME)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        let grabbed = connection
+            .grab_keyboard(
+                false,
+                window,
+                x11rb::CURRENT_TIME,
+                GrabMode::ASYNC,
+                GrabMode::ASYNC,
+            )
+            .unwrap()
+            .reply()
+            .unwrap()
+            .status;
+        std::thread::sleep(Duration::from_millis(300));
+        // Typed into the grab's client, Shift held: never this window's.
+        xdotool(&["key", "shift+a"]);
+        connection
+            .ungrab_keyboard(x11rb::CURRENT_TIME)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        xdotool(&["key", "b"]);
+        std::thread::sleep(Duration::from_millis(200));
+        let _ = stop_sender.send(());
+        grabbed
+    });
+    let mut recorder = Recorder::new(Duration::from_secs(10), false, Some(window_sender));
+    recorder.stop = Some(stop_receiver);
+    let (recorder, ran) = uwui_windowing::run(opening(false), recorder);
+    ran.expect("the run");
+    let grabbed = grabber.join().expect("the grabber");
+    assert_eq!(grabbed, GrabStatus::SUCCESS, "the keyboard grabbed");
+    let told = focus_and_keys(&recorder.told.inputs);
+    eprintln!("told: {told:?}");
+    assert_eq!(
+        told,
+        ["focus true", "focus false", "focus true", "key b"],
+        "a grab on the window itself"
+    );
+    let shifted = recorder
+        .told
+        .inputs
+        .iter()
+        .any(|input| matches!(input, Input::Modifiers(held) if held.shift));
+    assert!(
+        !shifted,
+        "Shift typed into the grab's client was told to this window: {:?}",
+        recorder.told.inputs
+    );
+}

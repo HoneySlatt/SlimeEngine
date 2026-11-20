@@ -1,19 +1,22 @@
 //! The keyboard on X11
 //! (`docs/adr/0313-x11s-keyboard-through-xinput2-and-libxkbcommon-x11-its-cursor-themed-its-scale-from-xft-dpi.md`):
 //! the server's keymap, read through libxkbcommon-x11 and followed through XKB's notices; the
-//! keys, through XInput2's events of the master keyboards; the focus, through XInput2's too.
+//! keys, through XInput2's events of the master keyboards; the focus, through the core protocol's
+//! focus events, the server's focus read at each, and the keys themselves.
 //!
 //! - *The keymap*: the core keyboard's, as the server holds it, read again when XKB says that it
 //!   changed (`NewKeyboardNotify`, `MapNotify`), as `setxkbmap` or a tool that maps a keysym for a
 //!   while changes it. Its keys are translated by Linux's code of the keyboard (`crate::xkb`),
 //!   which counts from X11's keycode less 8.
 //! - *The modifiers and the layout*: each key is translated with its own event's state, the
-//!   modifiers and the layout depressed, latched and locked as XInput2 gives them with the key.
-//!   The modifiers told the host come from XKB's `StateNotify`, of those parts alone, and only
-//!   while the window holds the focus: a modifier held in another window, or a click anywhere,
-//!   which changes the pointer's buttons in XKB's state, never wakes the loop. As the window takes
-//!   the focus, the layer reads XKB's state once, and tells the modifiers held if they changed, as
-//!   on Wayland; as it loses it, it tells them released.
+//!   modifiers and the layout depressed, latched and locked as XInput2 gives them with the key,
+//!   from before it; the keyboard then returns to the state that the server last told. The
+//!   modifiers told the host come from XKB's `StateNotify`, of those parts alone, and only while
+//!   the window holds the focus, and from each key's own state around it: a key typed as the focus
+//!   comes keeps its modifiers, and the last key leaves the server's told. A modifier held in
+//!   another window, or a click anywhere, which changes the pointer's buttons in XKB's state, never
+//!   wakes the loop. As the window takes the focus, the layer reads XKB's state once, and tells the
+//!   modifiers held if they changed, as on Wayland; as it loses it, it tells them released.
 //! - *The repeat*: the server's own. XInput2 marks a key held's repeats and sends no release
 //!   between them, so the layer keeps no timer of its own, as it does on Wayland.
 //! - *The focus*: the window holds it when the server's focus is the window itself, or lies above
@@ -25,7 +28,8 @@
 //!   between an event out and an event in. Another client's grab of the keyboard, as a menu, a
 //!   screen locker or a window manager's Alt and Tab, takes the focus until it ends, though the
 //!   server's focus stays. A key that reaches the window gives it the focus, which an event read
-//!   late may not have told: the server sends keys only to the window that holds them. XInput2's
+//!   late may not have told, and ends another client's grab, whose end the server may have told
+//!   no one: the server sends keys only to the window that holds them. XInput2's
 //!   `Enter` says whether the focus lies on the window or above it, and `Leave` that the pointer
 //!   left; another client's grab of the pointer moves neither.
 //!
@@ -63,9 +67,13 @@ pub(super) struct Keys {
     grabbed: bool,
     /// Whether a key reached the window since the last event of the focus: it holds the keyboard.
     keyed: bool,
+    /// XKB's state as the server last told it, through `StateNotify` or a read of it, which the
+    /// keyboard returns to after each key, translated in its own event's state.
+    server: Option<([u32; 3], [u32; 3])>,
 }
 
-/// What told of the focus, as XInput2's events give it.
+/// What told of the focus: the core protocol's focus events, with the server's focus read at each,
+/// a key, and XInput2's crossings of the window's border.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Focus {
     /// Where the server's focus is, read at a `FocusIn` or `FocusOut` of the window's, outside a
@@ -74,7 +82,7 @@ pub(super) enum Focus {
     Server { window: bool, above: bool },
     /// Another client grabbed the keyboard.
     Grabbed,
-    /// A key reached the window.
+    /// A key reached the window, which no other client grabs the keyboard of then.
     Key,
     /// The pointer entered the window, the server saying whether its focus is the window or lies
     /// above it (XInput2's `focus`).
@@ -143,6 +151,7 @@ impl Keys {
             inside: false,
             grabbed: false,
             keyed: false,
+            server: None,
         }
     }
 
@@ -156,6 +165,7 @@ impl Keys {
             inside: false,
             grabbed: false,
             keyed: false,
+            server: None,
         }
     }
 
@@ -224,11 +234,39 @@ impl Keys {
         }
     }
 
-    /// XKB's state of the modifiers and the layout: `modifiers` and `layouts` depressed, latched
-    /// and locked. The modifiers held, if they changed and the window holds the focus.
+    /// XKB's state of the modifiers and the layout as the server tells it: `modifiers` and
+    /// `layouts` depressed, latched and locked. The modifiers held, if they changed and the window
+    /// holds the focus.
     pub(super) fn state(&mut self, modifiers: [u32; 3], layouts: [u32; 3]) -> Option<Input> {
+        self.server = Some((modifiers, layouts));
         self.keyboard.as_mut()?.set_modifiers(modifiers, layouts);
         self.modifiers_now()
+    }
+
+    /// The key of X11's keycode `keycode` going down, up or repeating, translated in `own`, the
+    /// state that XInput2 gives with it, from before the key: the modifiers of that state told
+    /// first if they changed, then the key, then the modifiers of the state that the server last
+    /// told, which the keyboard returns to, if they differ. A key typed as the focus comes, before
+    /// XKB's notices are asked, keeps its own modifiers; the last key's leaves none told held.
+    pub(super) fn key_in(
+        &mut self,
+        keycode: u32,
+        state: ButtonState,
+        repeat: bool,
+        (modifiers, layouts): ([u32; 3], [u32; 3]),
+    ) -> Vec<Input> {
+        let Some(keyboard) = self.keyboard.as_mut() else {
+            return Vec::new();
+        };
+        keyboard.set_modifiers(modifiers, layouts);
+        let mut told: Vec<Input> = self.modifiers_now().into_iter().collect();
+        told.extend(self.key(keycode, state, repeat));
+        if let (Some((modifiers, layouts)), Some(keyboard)) = (self.server, self.keyboard.as_mut())
+        {
+            keyboard.set_modifiers(modifiers, layouts);
+            told.extend(self.modifiers_now());
+        }
+        told
     }
 
     /// The modifiers held, if the window holds the focus and they differ from those last told.
@@ -264,7 +302,12 @@ impl Keys {
                 self.grabbed = true;
                 self.keyed = false;
             }
-            Focus::Key => self.keyed = true,
+            // A key reaches the window only while no other client grabs the keyboard: the
+            // grab ended, though the server told it elsewhere, as under the pointer.
+            Focus::Key => {
+                self.keyed = true;
+                self.grabbed = false;
+            }
             Focus::Entered { focus } => {
                 self.inside = true;
                 self.focus_above = focus;
@@ -329,14 +372,16 @@ pub(super) fn state_of(state: &xkb::StateNotifyEvent) -> ([u32; 3], [u32; 3]) {
 }
 
 /// The modifiers' masks and the layouts that XInput2 gives with a key, depressed, latched and
-/// locked, as [`Keys::state`] takes them: the state that the key is translated in.
+/// locked, as [`Keys::key_in`] takes them: the state that the key is translated in. A layout's byte
+/// is XKB's signed group, a relative one negative, as `StateNotify`'s.
 pub(super) fn key_state(
     modifiers: &x11rb::protocol::xinput::ModifierInfo,
     group: &x11rb::protocol::xinput::GroupInfo,
 ) -> ([u32; 3], [u32; 3]) {
     (
         [modifiers.base, modifiers.latched, modifiers.locked],
-        [group.base, group.latched, group.locked].map(u32::from),
+        [group.base, group.latched, group.locked]
+            .map(|byte| layout(i16::from(i8::from_ne_bytes([byte])))),
     )
 }
 
@@ -507,9 +552,9 @@ mod tests {
         assert_eq!(keys.focus(Focus::Grabbed), Some(Input::Focus(false)));
         // The server's focus read at the grab's end: still the window's.
         assert_eq!(keys.focus(GIVEN), Some(Input::Focus(true)));
-        // No key gives the focus back while grabbed.
+        // A key that comes ends the grab, which the server told elsewhere.
         keys.focus(Focus::Grabbed);
-        assert_eq!(keys.focus(Focus::Key), None);
+        assert_eq!(keys.focus(Focus::Key), Some(Input::Focus(true)));
     }
 
     #[test]
@@ -519,7 +564,7 @@ mod tests {
         assert_eq!(keys.focus(Focus::Key), None);
         // The server's focus read again, elsewhere: lost.
         assert_eq!(keys.focus(TAKEN), Some(Input::Focus(false)));
-        // A key while above the window, then the pointer gone: lost.
+        // A key, the server's focus read elsewhere before it, then the pointer gone: lost.
         keys.focus(Focus::Key);
         assert_eq!(keys.focus(Focus::Left), Some(Input::Focus(false)));
     }
@@ -540,6 +585,23 @@ mod tests {
             effective: 0,
         };
         assert_eq!(key_state(&modifiers, &group), ([1, 4, 2], [0, 1, 3]));
+    }
+
+    #[test]
+    fn a_key_is_translated_in_its_own_state_then_the_servers_comes_back() {
+        let mut keys = keys("us");
+        keys.focus(GIVEN);
+        // The server's last word: nothing held.
+        assert_eq!(keys.state([0; 3], [0; 3]), None);
+        // `a` typed with Shift held, as its own event says, Shift let go since.
+        let told = keys.key_in(38, ButtonState::Pressed, false, ([1, 0, 0], [0; 3]));
+        assert_eq!(told.len(), 3, "{told:?}");
+        assert!(matches!(told[0], Input::Modifiers(held) if held.shift));
+        assert!(matches!(&told[1], Input::Key(event) if event.text.as_deref() == Some("A")));
+        assert_eq!(told[2], Input::Modifiers(Modifiers::default()));
+        // In the server's own state: the key alone.
+        let told = keys.key_in(38, ButtonState::Released, false, ([0; 3], [0; 3]));
+        assert_eq!(told.len(), 1, "{told:?}");
     }
 
     #[test]
@@ -647,6 +709,52 @@ mod tests {
         let keys = keys("us");
         assert!(keys.follows(3));
         assert!(!keys.follows(4));
+    }
+
+    #[test]
+    fn a_keys_relative_layout_is_read_as_xkbs_notice_reads_it() {
+        use x11rb::protocol::xinput::{GroupInfo, ModifierInfo};
+        let modifiers = ModifierInfo {
+            base: 0,
+            latched: 0,
+            locked: 0,
+            effective: 0,
+        };
+        // XKB's base layout -1, relative, and the second locked: the first in effect. XInput2
+        // gives each part in a byte.
+        let group = GroupInfo {
+            base: 0xff,
+            latched: 0,
+            locked: 1,
+            effective: 0,
+        };
+        // On three layouts, the key of `q` types the first's.
+        let mut keys = keys("us,fr,de");
+        let (masks, layouts) = key_state(&modifiers, &group);
+        keys.state(masks, layouts);
+        assert_eq!(
+            key(keys.key(24, ButtonState::Pressed, false)).2.as_deref(),
+            Some("q"),
+            "the layout in effect, from the key's own state {layouts:?}"
+        );
+        let notice = xkb::StateNotifyEvent {
+            base_group: -1,
+            locked_group: xkb::Group::from(1_u8),
+            ..Default::default()
+        };
+        assert_eq!(key_state(&modifiers, &group), state_of(&notice));
+    }
+
+    #[test]
+    fn the_focus_that_a_key_gave_ends_as_the_pointer_enters_where_the_focus_is_not() {
+        let mut keys = keys("us");
+        assert_eq!(keys.focus(Focus::Key), Some(Input::Focus(true)));
+        // The pointer enters, the server saying that its focus lies neither on the window nor
+        // above it: the keys go elsewhere.
+        assert_eq!(
+            keys.focus(Focus::Entered { focus: false }),
+            Some(Input::Focus(false))
+        );
     }
 
     #[test]

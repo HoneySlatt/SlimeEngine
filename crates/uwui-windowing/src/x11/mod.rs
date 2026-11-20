@@ -755,14 +755,6 @@ impl Platform {
         EventTime::anchored(self.anchor.time(millis, received))
     }
 
-    /// Gives `input`, if any, at the time that the server stamped, `millis`.
-    fn push_timed(&mut self, millis: u32, received: Instant, input: Option<Input>) {
-        if let Some(input) = input {
-            let time = self.time(millis, received);
-            self.gathered.inputs.push((time, input));
-        }
-    }
-
     /// What a touch's `event` at `phase`, received at `received`, gives.
     fn touch(&mut self, phase: touch::Phase, event: &xinput::TouchBeginEvent, received: Instant) {
         let touched = touch::touch(
@@ -782,7 +774,8 @@ impl Platform {
     }
 
     /// The key of `event` going down or up, received at `received`: the focus given, if it was not,
-    /// since the server sent the window its key; the key translated in its own event's state.
+    /// since the server sends a key only to the window that holds the keyboard, another client's
+    /// grab included as ended; the key translated in its own event's state.
     fn key(
         &mut self,
         event: &xinput::KeyPressEvent,
@@ -793,11 +786,17 @@ impl Platform {
         if !self.keys.focused() {
             self.focus(keyboard::Focus::Key, received);
         }
-        let (modifiers, layouts) = keyboard::key_state(&event.mods, &event.group);
-        let held = self.keys.state(modifiers, layouts);
-        self.push_received(received, held);
-        let input = self.keys.key(event.detail, state, repeat);
-        self.push_timed(event.time, received, input);
+        let own = keyboard::key_state(&event.mods, &event.group);
+        let time = self.time(event.time, received);
+        for input in self.keys.key_in(event.detail, state, repeat, own) {
+            // The key at its time; the modifiers told around it at their reception's.
+            let at = if matches!(input, Input::Key(_)) {
+                time
+            } else {
+                EventTime::received(received)
+            };
+            self.gathered.inputs.push((at, input));
+        }
     }
 
     /// What `event`, received at `received`, makes of the keyboard's focus; XKB's state followed
