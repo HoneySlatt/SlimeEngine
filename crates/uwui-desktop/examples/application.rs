@@ -12,7 +12,8 @@
 //! Escape closes. Closing the window, or a termination signal, asks the application, which lets it
 //! close. It writes `started` once it starts, `added <the row's name>` at each row that *Add*
 //! makes, `closing asked` when asked to close, `stopped` as it ends and `dropped` as its value
-//! goes, which `crates/uwui-desktop/tests/rest.rs` reads.
+//! goes, which `crates/uwui-desktop/tests/rest.rs` reads; and `resumed after <seconds> s` when the
+//! system resumes from a suspend.
 //!
 //! With `--commands`, it reads lines on its standard input, the tests' door to the host's losses,
 //! crashes and ends; it writes a line as it takes each:
@@ -160,6 +161,9 @@ impl App for Application {
                 }
                 ActionKind::Intent(Intent::Cancel) => self.close_dialog(ui),
                 ActionKind::Committed(FieldValue::Text(name)) => self.name = name,
+                ActionKind::Resumed { suspended } => {
+                    println!("resumed after {} s", suspended.as_secs());
+                }
                 _ => {}
             }
         }

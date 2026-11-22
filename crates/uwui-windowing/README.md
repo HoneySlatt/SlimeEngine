@@ -39,8 +39,12 @@ onto it.
 - Chooses its layer on Linux as it starts: Wayland's where `WAYLAND_DISPLAY` or `WAYLAND_SOCKET`
   names a compositor that opens the window, else X11's where `DISPLAY` names a server.
 - Holds Wayland's layer, on Linux (`wayland`): its loop on `rustix`, one `poll` on the compositor's
-  socket, an eventfd that wakes it and a timerfd on `CLOCK_BOOTTIME`, the host's clock (`wait`,
-  `clock`), which X11's layer shares;
+  socket, an eventfd that wakes it, a timerfd on `CLOCK_BOOTTIME`, the host's clock, and the
+  kernel's notice of a resume, a timerfd that the kernel cancels as the system resumes or its clock
+  is set (`wait`, `clock`), which X11's layer shares; a resume told once in `Happened::resumed`,
+  with the time suspended, a second or more, measured from the host's clock against one that stops
+  in a suspend
+  ([ADR-0315](../../docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md));
   an xdg-shell window, its bar through xdg-decoration where the compositor draws one; the frame
   callback as the signal; when each image showed, through `wp_presentation`, its time placed on
   the host's clock from the compositor's (`clock`); the pointer, `wl_touch`'s fingers and the keyboard with its repeat,
@@ -68,7 +72,7 @@ onto it.
   Wayland or read from the X server, its state, the compose tables of the person's locale, each
   key turned into `slime-input`'s `KeyEvent`.
 
-What waits for its milestone: the system's notice of a resume on Linux (M6d.7b3); Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
+What waits for its milestone: Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
 it has no layer; a stylus, through `zwp_tablet_v2`,
 with uwui's first stage; the clipboard and input methods (M6d.8).
 
@@ -82,7 +86,9 @@ with uwui's first stage; the clipboard and input methods (M6d.8).
 keyboard's, on layouts that libxkbcommon compiles from its rules, and the translation of the
 compositor's pointer, touch and keyboard events, without a compositor; X11's pointer, its wheel,
 keys, focus, touch, scale, cursor's theme, its frames' signal and the display's period, without
-a server. Tests that
+a server; the time suspended that tells a resume, and the kernel's notice armed, read from
+`/proc/self/fdinfo`. A real resume reaches no test: the notice comes from the kernel alone, and a
+suspend is checked by hand. Tests that
 compose dead keys read the tests' own compose file, `tests/compose/Compose`, never the
 developer's: each runs itself again in a process of its own whose `XCOMPOSEFILE` names it.
 

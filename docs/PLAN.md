@@ -28,15 +28,14 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
     done to [M6d.9a2c4a](stage-6d.md#m6d9a2c4a--the-library-that-waits-on-the-interface), M6d.9a2c4 cut in two ([ADR-0314](adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)); next, [M6d.9a2c4b](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface);
     after M6d.9b, [E1](stage-6d.md#e1--the-elements-contract), the element's contract designed
     before M6d.10a ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
-  - Track B, in a worktree: M6d.6, M6d.4 and M6d.5 done; M6d.7 cut in six
+  - Track B, in a worktree: M6d.4 to M6d.6 done; M6d.7 cut in six
     ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)):
     done, [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) to
-    [M6d.7b2](stage-6d.md#m6d7b2--x11s-keyboard-cursor-scale-and-touch), M6d.7b cut in three
-    ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)); next,
+    [M6d.7b2](stage-6d.md#m6d7b2--x11s-keyboard-cursor-scale-and-touch); in progress,
     [M6d.7b3](stage-6d.md#m6d7b3--a-resumes-notice-on-linux).
   - M6d.10a, D1, M6d.11, M6d.10b and M6d.12 run alone, in this order
     ([ADR-0300](adr/0300-m6d10-cut-in-two-what-the-move-needs-before-it-uwuis-first-stage-planned-after.md)).
-  - Timed measures run one track at a time; shared files are edited by one session at a time.
+  - Timed measures, and edits of shared files, one session at a time.
 - Waiting for the owner: deleting the branches `m6d1b-bench`, `m6d4a-prototype` and
   `m6d5a-prototype`, the last two linked by measurements; the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
@@ -93,7 +92,7 @@ From the review of the architecture of 2026-11-16 ([`debt.md`](debt.md#left-by-t
 
 ## Checks by hand waiting for the owner
 
-The owner makes them later, together (2026-10-20). A milestone adds its own once done; a check
+The owner makes them together (2026-10-20). A milestone adds its own once done; a check
 made leaves the list, its result in its milestone, then in [`history.md`](history.md). The game
 runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, a check naming
 *Hunna Wood* runs on `games/open-world` ([ADR-0219](adr/0219-test-games-in-place-of-hunna-wood.md)).
@@ -177,13 +176,14 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
 - **Each window's size and scale** (M6d.5e2): the editor in the Windows virtual machine moved
   between screens of two scales, and its scale changed while it runs: laid out again at once,
   sharp; minimized and restored as it was.
-- **An application on uwui's desktop host** (M6d.7a1 to M6d.7b2): `UWUI_TRACE=<file> cargo run
+- **An application on uwui's desktop host** (M6d.7a1 to M6d.7b3): `UWUI_TRACE=<file> cargo run
   -p uwui-desktop --example application` on the owner's desktop: its window and bar, pointer on its
   buttons, list and dialog, rest; closed by its button, then Ctrl+C; typing
   with the owner's layout: dead keys, Compose, a key held, the I-beam over its field; sharp on
   displays of two scales; its list scrolled fast, variable refresh on and off, smooth, few `missed` in its trace.
   On Xwayland (`env -u WAYLAND_DISPLAY`): pointer, wheel, rest; resized mid-scroll, `shown`
   lagging its frame as before; typing, layouts, cursors, `Xft.dpi` 144, touch.
+  Suspended a minute at rest, Wayland and Xwayland: `resumed after <seconds> s`.
 - **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
   left by Alt and Tab, Alt held or mid-drag: no bar in focus, nothing dropped; *Hunna Wood*'s
   button that loses the surface, on Direct3D 12: drawn again.

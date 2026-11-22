@@ -59,7 +59,10 @@ MIT OR Apache-2.0.
   ([ADR-0298](../../docs/adr/0298-a-panic-ends-a-run-without-stop-the-same-rule-in-both-hosts.md)).
 - `host`, at each turn of the layer: a closing asked or a termination signal given to the
   application; the window's size and scale given to the device; the person's input given to the
-  interface, the pointer's moves gathered, each event's time the layer's; the application's step
+  interface, the pointer's moves gathered, each event's time the layer's; a resume told to the
+  program, logged and counted as asked from outside
+  ([ADR-0315](../../docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md));
+  the application's step
   and its requests made of the window; a lost device replaced and a surface given up made again,
   the window holding its frames meanwhile; a frame drawn when the pacing says so, the platform's
   signal asked just before its present, and an image drawn in part not presented, the frame
@@ -89,7 +92,8 @@ it has no layer and ends; a bar drawn by uwui where the compositor draws none, W
   `Window`, its state and the
   application's requests, `bring_to_front` and `request_attention` among them, and the doors of
   the tests `lose_device` and `lose_surface`.
-- `examples/application.rs`: buttons, a field, a list and a dialog, at rest between inputs; with
+- `examples/application.rs`: buttons, a field, a list and a dialog, at rest between inputs, which
+  writes `resumed after <seconds> s` when the system resumes; with
   `--commands`, the losses, a panic and a window kept open taken on its standard input.
 - `examples/blank.rs`: a *blank window* on the platform layer alone and wgpu, which clears its
   window and presents it again at each input, and nothing at rest; it writes the same trace, with

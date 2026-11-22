@@ -187,6 +187,12 @@ pub struct Happened {
     /// The platform lost what the window showed, as X11 does where nothing keeps a covered
     /// window's image: the next image must be drawn and presented again.
     pub exposed: bool,
+    /// The system resumed since the last turn, after this long suspended, a second at least: told
+    /// once, at the first turn after it. On Linux the kernel's notice of a resume turns the loop
+    /// at once, the window at rest too, and the time suspended is measured from the host's clock
+    /// against one that stops while the machine sleeps
+    /// (`docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md`).
+    pub resumed: Option<Duration>,
 }
 
 /// What the layer does after a turn.

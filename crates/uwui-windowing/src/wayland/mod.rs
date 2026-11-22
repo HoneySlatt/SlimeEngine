@@ -32,7 +32,6 @@ mod repeat;
 use std::ptr::NonNull;
 use std::sync::Arc;
 use std::task::Waker;
-use std::time::Duration;
 
 use raw_window_handle::{
     RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
@@ -59,10 +58,6 @@ use crate::{Activation, Configured, Drawn, Error, Happened, Opening, running};
 
 use crate::wait::Waits;
 use protocol::Told;
-
-/// The shortest time suspended after which the events' anchor is made again: what parts the two
-/// clocks while the machine is awake is far below it.
-const RESUMED: Duration = Duration::from_secs(1);
 
 /// The window's objects of the protocol.
 struct Objects {
@@ -384,7 +379,8 @@ impl running::Platform for Platform {
     /// carries.
     fn happened(&mut self) -> Result<Happened, Error> {
         // Before the events are timed: their anchor is made again after a suspend.
-        if self.suspends.take() >= RESUMED {
+        let resumed = self.suspends.resumed();
+        if resumed.is_some() {
             self.told.resumed();
         }
         self.queue
@@ -422,6 +418,7 @@ impl running::Platform for Platform {
             presentations: std::mem::take(&mut self.told.presentations),
             // The compositor keeps the window's image.
             exposed: false,
+            resumed,
         })
     }
 

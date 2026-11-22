@@ -78,10 +78,6 @@ use frames::Frames;
 use keyboard::Keys;
 use pointer::Pointers;
 
-/// The shortest time suspended after which the events' anchor is made again: what parts the two
-/// clocks while the machine is awake is far below it.
-const RESUMED: Duration = Duration::from_secs(1);
-
 /// How far before its reception a time of Present may lie and still be read: a time further, or
 /// after it, is not on this machine's clock, as from a server elsewhere, and the reception counts.
 const PRESENT_TIME_RANGE: Duration = Duration::from_secs(1);
@@ -1015,7 +1011,8 @@ impl Platform {
 impl running::Platform for Platform {
     fn happened(&mut self) -> Result<Happened, Error> {
         // Before the events are timed: their anchor is made again after a suspend.
-        if self.suspends.take() >= RESUMED {
+        let resumed = self.suspends.resumed();
+        if resumed.is_some() {
             self.anchor.reset();
         }
         self.read_events()?;
@@ -1034,6 +1031,7 @@ impl running::Platform for Platform {
             signal,
             presentations,
             exposed: gathered.exposed,
+            resumed,
         })
     }
 

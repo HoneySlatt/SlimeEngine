@@ -1,13 +1,17 @@
 //! The host's clock on Linux (`docs/adr/0227-the-time-that-motion-reads.md`): `CLOCK_BOOTTIME`,
 //! which counts the time that the machine spends suspended, so that what the interface waits ten
 //! minutes for is due ten minutes later, sleep or not; and the time suspended between two
-//! readings, from `CLOCK_MONOTONIC`, which stops during a suspend; and the times of the clock that
-//! the compositor names for its presentations, placed on the host's.
+//! readings, from `CLOCK_MONOTONIC`, which stops during a suspend, which tells a resume; and the
+//! times of the clock that the compositor names for its presentations, placed on the host's.
 
 use std::time::Duration;
 
 use rustix::time::{ClockId, Timespec, clock_gettime};
 use uwui_time::Instant;
+
+/// The shortest time suspended that tells a resume: what parts the two clocks while the machine is
+/// awake, the nanoseconds between two readings, is far below it.
+const RESUMED: Duration = Duration::from_secs(1);
 
 /// The time that the machine spends suspended, measured between two readings of both clocks.
 #[derive(Debug)]
@@ -67,15 +71,20 @@ impl Suspends {
         Self { last: readings() }
     }
 
-    /// The time that the machine spent suspended since the last call, or since the clock was made:
-    /// how much more the host's clock went than the one that stops, off by the nanoseconds between
-    /// the two readings.
-    pub(crate) fn take(&mut self) -> Duration {
-        let now = readings();
+    /// Whether the machine resumed since the last call, or since the clock was made, and how long
+    /// it was suspended: [`RESUMED`] or more. A shorter time is not told, and counts no more.
+    pub(crate) fn resumed(&mut self) -> Option<Duration> {
+        self.resumed_at(readings())
+    }
+
+    /// [`Self::resumed`] at the readings `now`: how much more the host's clock went than the one
+    /// that stops, off by the nanoseconds between the two readings.
+    fn resumed_at(&mut self, now: (u64, u64)) -> Option<Duration> {
         let host = now.0.saturating_sub(self.last.0);
         let running = now.1.saturating_sub(self.last.1);
         self.last = now;
-        Duration::from_nanos(host.saturating_sub(running))
+        let suspended = Duration::from_nanos(host.saturating_sub(running));
+        (suspended >= RESUMED).then_some(suspended)
     }
 }
 
@@ -89,7 +98,28 @@ mod tests {
         let first = now();
         std::thread::sleep(Duration::from_millis(2));
         assert!(now() - first >= Duration::from_millis(2));
-        assert!(suspends.take() < Duration::from_millis(1));
+        assert_eq!(suspends.resumed(), None);
+    }
+
+    #[test]
+    fn a_resume_is_told_once_from_a_second_suspended() {
+        let mut suspends = Suspends { last: (100, 100) };
+        // Awake: both clocks went alike.
+        assert_eq!(suspends.resumed_at((5_000_000_100, 5_000_000_100)), None);
+        // Just under a second suspended: not told, and not counted again later.
+        assert_eq!(suspends.resumed_at((5_999_999_200, 5_000_000_200)), None);
+        assert_eq!(suspends.resumed_at((6_000_000_200, 5_000_000_200)), None);
+        // A second: told once, with its length.
+        assert_eq!(
+            suspends.resumed_at((7_000_000_200, 5_000_000_200)),
+            Some(Duration::from_secs(1))
+        );
+        assert_eq!(suspends.resumed_at((7_000_000_300, 5_000_000_300)), None);
+        // Eight hours.
+        assert_eq!(
+            suspends.resumed_at((28_807_000_000_300, 5_000_000_300)),
+            Some(Duration::from_secs(8 * 3600))
+        );
     }
 
     #[test]

@@ -1,7 +1,15 @@
 //! The loop's wait on Linux, which Wayland's and X11's layers share: one `poll` on the display's
-//! socket, an eventfd that other threads write to wake it, and a timerfd on `CLOCK_BOOTTIME`, the
-//! host's clock, for its deadline. A deadline armed before a suspend ends on time after it, which
-//! the timer's clock counts.
+//! socket, an eventfd that other threads write to wake it, a timerfd on `CLOCK_BOOTTIME`, the
+//! host's clock, for its deadline, and the kernel's notice of a resume. A deadline armed before a
+//! suspend ends on time after it, which the timer's clock counts.
+//!
+//! The notice is a timerfd on `CLOCK_REALTIME` that never ends, armed with
+//! `TFD_TIMER_CANCEL_ON_SET`: the kernel cancels it, which makes it readable, whenever the wall
+//! clock moves against `CLOCK_MONOTONIC`, as it does at each resume, which the kernel tells such
+//! timers as it tells a clock set (`timekeeping_resume` calls `timerfd_resume`), and when someone
+//! sets the clock. The wait ends then, and the layer's measure of the time suspended
+//! (`crate::clock`) tells a resume from a clock set
+//! (`docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md`).
 
 use std::io;
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
@@ -14,10 +22,12 @@ use rustix::time::{
 };
 use uwui_time::Instant;
 
-/// The eventfd that wakes the loop, and its timer.
+/// The eventfd that wakes the loop, its timer, and the kernel's notice of a resume.
 pub(crate) struct Waits {
     wake: Arc<OwnedFd>,
     timer: OwnedFd,
+    /// The timer that the kernel cancels as the system resumes or the wall clock is set.
+    clock_set: OwnedFd,
     /// The deadline that the timer holds, if it is armed.
     armed: Option<Instant>,
     /// Whether the last wait ended for a wake or the deadline, beside the display, if at all.
@@ -26,12 +36,18 @@ pub(crate) struct Waits {
 
 impl Waits {
     pub(crate) fn new() -> io::Result<Self> {
+        let clock_set = timerfd_create(
+            TimerfdClockId::Realtime,
+            TimerfdFlags::CLOEXEC | TimerfdFlags::NONBLOCK,
+        )?;
+        watch_clock(&clock_set)?;
         Ok(Self {
             wake: Arc::new(eventfd(0, EventfdFlags::CLOEXEC | EventfdFlags::NONBLOCK)?),
             timer: timerfd_create(
                 TimerfdClockId::Boottime,
                 TimerfdFlags::CLOEXEC | TimerfdFlags::NONBLOCK,
             )?,
+            clock_set,
             armed: None,
             interrupted: false,
         })
@@ -86,6 +102,7 @@ impl Waits {
             ),
             PollFd::new(&*self.wake, PollFlags::IN),
             PollFd::new(&self.timer, PollFlags::IN),
+            PollFd::new(&self.clock_set, PollFlags::IN),
         ];
         loop {
             match poll(&mut fds, None) {
@@ -95,7 +112,7 @@ impl Waits {
                 Err(error) => return Err(error.into()),
             }
         }
-        let [display, wake, timer] = fds.map(|fd| fd.revents());
+        let [display, wake, timer, clock_set] = fds.map(|fd| fd.revents());
         let mut count = [0_u8; 8];
         if wake.contains(PollFlags::IN) {
             let _ = rustix::io::read(self.wake.as_fd(), &mut count);
@@ -105,16 +122,45 @@ impl Waits {
             // A timer that fired is disarmed.
             self.armed = None;
         }
-        self.interrupted = wake.contains(PollFlags::IN) || timer.contains(PollFlags::IN);
+        if clock_set.contains(PollFlags::IN) {
+            // Its read fails with `ECANCELED`, which leaves it watching from the clock's new
+            // place; armed again all the same.
+            let _ = rustix::io::read(self.clock_set.as_fd(), &mut count);
+            watch_clock(&self.clock_set)?;
+        }
+        self.interrupted = wake.contains(PollFlags::IN)
+            || timer.contains(PollFlags::IN)
+            || clock_set.contains(PollFlags::IN);
         Ok(display.intersects(PollFlags::IN | PollFlags::ERR | PollFlags::HUP))
     }
 
-    /// Whether the last wait ended for a wake from another thread or a termination signal, or
-    /// for its deadline, whether or not the display could be read too: the loop must turn, even
-    /// where what it read from the display tells nothing.
+    /// Whether the last wait ended for a wake from another thread or a termination signal, for its
+    /// deadline, or for a resume or a clock set, whether or not the display could be read too: the
+    /// loop must turn, even where what it read from the display tells nothing.
     pub(crate) fn interrupted(&self) -> bool {
         self.interrupted
     }
+}
+
+/// Arms `timer`, on `CLOCK_REALTIME`, at the clock's last time, which it never reaches, so that the
+/// kernel cancels it when the wall clock moves against `CLOCK_MONOTONIC`.
+fn watch_clock(timer: &OwnedFd) -> io::Result<()> {
+    let never = Timespec {
+        tv_sec: i64::MAX,
+        tv_nsec: 0,
+    };
+    timerfd_settime(
+        timer,
+        TimerfdTimerFlags::ABSTIME | TimerfdTimerFlags::CANCEL_ON_SET,
+        &Itimerspec {
+            it_interval: Timespec {
+                tv_sec: 0,
+                tv_nsec: 0,
+            },
+            it_value: never,
+        },
+    )?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -157,5 +203,33 @@ mod tests {
         waits.notifier()();
         assert!(waits.wait(display.as_fd(), None, false).expect("waited"));
         assert!(waits.interrupted());
+    }
+
+    /// What the kernel tells of a timerfd, `/proc/self/fdinfo`'s lines.
+    fn fdinfo(fd: &OwnedFd) -> String {
+        use std::os::fd::AsRawFd;
+        std::fs::read_to_string(format!("/proc/self/fdinfo/{}", fd.as_raw_fd())).expect("fdinfo")
+    }
+
+    #[test]
+    fn the_notice_of_a_resume_watches_the_wall_clock_and_stays_armed_after_a_wait() {
+        let mut waits = Waits::new().expect("the waits");
+        let watched = |waits: &Waits| {
+            let info = fdinfo(&waits.clock_set);
+            // `CLOCK_REALTIME`, armed absolute and cancelled when the clock is set: the kernel's
+            // `TFD_TIMER_ABSTIME | TFD_TIMER_CANCEL_ON_SET`, at a time that it never reaches.
+            assert!(info.contains("clockid: 0\n"), "{info}");
+            assert!(info.contains("settime flags: 03\n"), "{info}");
+            assert!(!info.contains("it_value: (0, 0)"), "{info}");
+        };
+        watched(&waits);
+        // A wait that the deadline ends leaves it armed, and is not told as a clock set.
+        let display = display();
+        assert!(
+            !waits
+                .wait(display.as_fd(), Some(Instant::from_nanos(1)), false)
+                .expect("waited")
+        );
+        watched(&waits);
     }
 }

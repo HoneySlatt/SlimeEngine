@@ -363,12 +363,14 @@ impl<A: App> Host<A> {
             terminated,
             woken,
             exposed,
+            resumed,
             // Taken above.
             signal: _,
             presentations: _,
         } = happened;
-        // An event of the window, a wake or a termination signal asks from outside: it runs a
-        // frame even while the window holds its frames, once their signal is late (ADR-0187).
+        // An event of the window, a wake, a termination signal or a resume asks from outside: it
+        // runs a frame even while the window holds its frames, once their signal is late
+        // (ADR-0187); a signal asked before a suspend may never come.
         if woken
             || terminated
             || close_asked
@@ -376,6 +378,7 @@ impl<A: App> Host<A> {
             || configured.is_some()
             || drawn.is_some()
             || exposed
+            || resumed.is_some()
         {
             self.pacing.asked_from_outside();
         }
@@ -416,6 +419,9 @@ impl<A: App> Host<A> {
         }
         for input in gather(inputs, &mut self.held_moves, self.pacing.holds_moves(now)) {
             give(session, platform, now, input);
+        }
+        if let Some(suspended) = resumed {
+            session.resumed(suspended);
         }
         session.step();
         if session.ending() {

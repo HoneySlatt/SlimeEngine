@@ -2717,7 +2717,9 @@ The third part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-l
 
 - **Goal.** The host on X11, at rest under Xvfb.
 - **Delivers.** `x11rb`'s window, XKB, XInput2, Present's notices, RandR's rate; Linux's notice of a
-  resume, logind's `PrepareForSleep`; their dependencies put to the owner.
+  resume, the kernel's own, the owner's choice
+  ([ADR-0315](adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md));
+  their dependencies put to the owner.
 - **Done when.** The example rests under Xvfb in the series' job; a resume reaches uwui on Linux;
   CI is green.
 

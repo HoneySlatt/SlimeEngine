@@ -142,6 +142,13 @@ impl<A: App> Session<A> {
             .map_err(StartError::App)
     }
 
+    /// The system resumed after `suspended`: in the log, and in the application's queue of
+    /// actions, which its next step reads.
+    pub(crate) fn resumed(&mut self, suspended: std::time::Duration) {
+        tracing::info!(?suspended, "the system resumed");
+        self.ui.resumed(suspended);
+    }
+
     /// The application's step, after the events that came and before a frame.
     pub(crate) fn step(&mut self) {
         self.app.step(&mut self.ui, &mut self.window);
@@ -354,6 +361,41 @@ mod tests {
             window.take_requests().activation,
             Some(uwui_windowing::Activation::Attention)
         );
+    }
+
+    #[test]
+    fn a_resume_reaches_the_applications_next_step() {
+        /// Writes down the resumes that its steps read.
+        #[derive(Default)]
+        struct Reads(Vec<std::time::Duration>);
+        impl App for &mut Reads {
+            fn start(&mut self, _: &mut Ui, _: &mut Window) -> Result<(), Box<dyn Error>> {
+                Ok(())
+            }
+            fn step(&mut self, ui: &mut Ui, _: &mut Window) {
+                for action in ui.take_actions() {
+                    if let uwui::action::ActionKind::Resumed { suspended } = action.kind {
+                        self.0.push(suspended);
+                    }
+                }
+            }
+        }
+        let mut app = Reads::default();
+        let mut session = Session::new(
+            look(),
+            Window::new(WindowSettings::new("a window", "org.example.Test")),
+            &mut app,
+            Waker::noop().clone(),
+            Instant::from_nanos(7),
+        )
+        .expect("made");
+        session.start().expect("it starts");
+        session.step();
+        session.resumed(std::time::Duration::from_secs(90));
+        session.step();
+        session.step();
+        drop(session);
+        assert_eq!(app.0, [std::time::Duration::from_secs(90)]);
     }
 
     #[test]
