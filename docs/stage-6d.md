@@ -2799,6 +2799,42 @@ The second part of M6d.7b ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-fr
 - **Done when.** Under Xvfb, the `rest` test clicks the example's field, types into it and finds
   the text in the row that *Add* makes; CI is green.
 - **Measured.** CI's jobs that build the host, each within 20 minutes.
+- **Result.** Done on 2026-11-22, CI green, every job within its 20 minutes
+  ([`measurements.md`](measurements.md#m6d7b2-x11s-keyboard-cursor-scale-and-touch),
+  [ADR-0313](adr/0313-x11s-keyboard-through-xinput2-and-libxkbcommon-x11-its-cursor-themed-its-scale-from-xft-dpi.md)).
+  Its dependencies are the owner's choice: `xkbcommon-dl`'s `x11` and `x11rb`'s `xkb`, then
+  `x11rb`'s `cursor`, which brings `xcursor` 0.3.11, already in the lockfile.
+  - The keys through XInput2, with the server's times and its own repeat, each translated in its
+    own event's state; the keymap of the server's core keyboard through libxkbcommon-x11, read
+    again at XKB's notices; the modifiers told from XKB's state while the window holds the focus,
+    and released as it leaves, on Wayland too; the keyboard's code shared with Wayland's layer.
+  - The focus read from the server at each of the core protocol's focus events: the window's own,
+    or the server's above it, following the pointer or on an ancestor, while the pointer lies over
+    the window; lost while another client grabs the keyboard; given by a key that reaches the
+    window.
+  - The cursor's shapes from the person's theme, else the core cursor font; the arrow set as the
+    window opens. The scale from the X resources' `Xft.dpi` over 96, read again as the window takes
+    the focus, the owner's choice: the window opens at its logical size times it.
+  - Touch through XInput 2.2, each finger a pointer of its own through the core's `fingers`, which
+    Wayland's layer uses too. The loop turns only for events that tell the host something, and
+    sleeps through a click, the wheel or a modifier over another window.
+  - The keyboard's tests compose from a file of their own, `tests/compose/Compose`.
+  - Under Xvfb, the `rest` test clicks the example's field, types `sa` and finds the row that *Add*
+    makes, and the example rests while another window is clicked, scrolled and typed Shift into.
+    The layer's own test, 40 cases, types, repeats, changes the keymap, composes, locks Caps Lock,
+    moves the focus through `PointerRoot`, ancestors and grabs, sees each cursor's shape through
+    XFixes, and reads `Xft.dpi`. The series' column of X11 tells the keys typed, the cursor by
+    shape and the scale 1.5 ([`compositors.md`](compositors.md)).
+  - The closing review, in five rounds, found the window woken by input elsewhere and by the root
+    window's properties, a ping left unanswered at rest, the focus told wrong as the server's focus
+    moved through `PointerRoot`, to an ancestor or under another client's grab, keys translated in
+    a state not their own, modifiers told held after the focus left or ahead of a click, a test
+    deleting the X resources it found, tests that could not fail, and smaller defects; several
+    were regressions of an earlier round's fix. Each was fixed under a test that failed first, and
+    the fixes proved by mutations.
+  - Debt left: touch, a layout switched and XKB's `NewKeyboardNotify` reach no test against a
+    server; one scale for the whole screen; another client's pointer grab through XInput2 that ends
+    elsewhere leaves the window told focused, the owner's choice ([`debt.md`](debt.md)).
 
 ### M6d.7b3 — A resume's notice on Linux
 

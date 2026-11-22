@@ -5132,3 +5132,39 @@ Every job stays within its limit of 20 minutes. `check (headless)` took 15 min 2
 18 min 23 s on `8f9a0dec` and 18 min 15 s on M6d.7b1's commit, though this milestone adds tests of
 about three seconds on this machine; `windows (tests)` 11 min 32 s against 17 min 23 s. The
 runners' share of these swings is not diagnosed.
+
+## M6d.7b2, X11's keyboard, cursor, scale and touch
+
+No timed measure: the milestone checks that uwui's desktop host takes the keyboard, its cursor's
+shapes and its scale under Xvfb, and rests there while another window is clicked, scrolled and
+typed into, in the series' column of X11 ([`compositors.md`](compositors.md)), not how fast it
+draws.
+
+GitHub's hosted runners, on 2026-11-22, each run green, on `494d8e44`, the milestone's last commit
+of code:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 5 s |
+| `check (headless)` | 13 min 30 s |
+| `check (windowed)` | 10 min 39 s |
+| `check (game)` | 9 min 39 s |
+| `check (gles)` | 3 min 24 s |
+| `windows (tests)` | 14 min 11 s |
+| `windows (render)` | 6 min 21 s |
+| `windows (game)` | 7 min 5 s |
+| `windows-release` | 16 min 53 s |
+| `compositors (weston)` | 12 min 34 s |
+| `compositors (sway)` | 13 min 51 s |
+| `compositors (kwin)` | 12 min 52 s |
+| `compositors (mutter)` | 13 min 6 s |
+| `compositors (x11)` | 15 min 36 s |
+| Docs' `links` | green |
+
+Every job stays within its limit of 20 minutes, `windows-release` by 3 min 7 s. The column of X11
+took 15 min 36 s, 1 min 42 s more than at M6d.7b1, with the layer's test grown from 11 tests to
+40, about 70 s on this machine against 17 s, and the host's rest through another window's input,
+about 46 s. The milestone's three earlier pushes, `d3a24875`, `e1f98b4c` and `052fbad3`, ran green
+too; across the four, `check (lint)` took from 6 min 54 s to 10 min 30 s and `check (headless)`
+from 13 min 30 s to 18 min 34 s for the same dependencies: the runners' share of these swings is
+not diagnosed.
