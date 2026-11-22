@@ -26,10 +26,10 @@
 //!   fresher input (`docs/adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md`).
 //! - *A window that holds its frames*, whose signal does not come, as a hidden one's on Wayland,
 //!   draws nothing for the interface's own changes. What asks from outside, an event of the window,
-//!   a wake of another thread or the system's resume, still runs a frame once the signal is [`SIGNAL_WAIT`] late; and
-//!   so does the first
-//!   change after each signal that is that late, whatever asks, which finds an image presented to
-//!   a device lost before the host knew it, whose signal would never come.
+//!   a wake of another thread or the system's resume, still runs a frame once the signal is
+//!   [`SIGNAL_WAIT`] late; and so does the first change after each signal that is that late,
+//!   whatever asks, which finds an image presented to a device lost before the host knew it, whose
+//!   signal would never come.
 //!
 //! The time given to the interface is when the frame shows
 //! (`docs/adr/0227-the-time-that-motion-reads.md`):

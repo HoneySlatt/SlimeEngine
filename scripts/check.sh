@@ -314,11 +314,22 @@ if runs headless; then
 
     # A clock set is the one way short of a suspend to make the kernel cancel the notice of a
     # resume, and it needs root: CI's throwaway runners alone run it, never a person's machine
-    # (ADR-0315).
+    # (ADR-0315). Run through the workspace's build, which it reuses; it fails unless the test ran,
+    # since a filter that matches no test passes, and in CI's headless job unless it was asked.
+    if [ "${GITHUB_ACTIONS:-}" = true ] && [ "${CI_PART:-}" = headless ] &&
+        [ "${UWUI_TEST_SETS_CLOCK:-}" != 1 ]; then
+        echo "CI's headless job runs without UWUI_TEST_SETS_CLOCK=1: the kernel's notice of a resume goes untested" >&2
+        exit 1
+    fi
     if [ "${UWUI_TEST_SETS_CLOCK:-}" = 1 ]; then
         step "The kernel's notice of a resume, from the clock set to now through sudo (CI alone)"
-        cargo test --locked -p uwui-windowing --lib -- --ignored --exact \
-            wait::tests::a_clock_set_ends_the_wait_and_leaves_the_notice_watching
+        cargo test --locked --workspace --lib -- --ignored --exact \
+            wait::tests::a_clock_set_ends_the_wait_and_leaves_the_notice_watching 2>&1 |
+            tee "$runtime/clock-set.log"
+        if [ "$(grep -c '^test wait::tests::a_clock_set_ends_the_wait_and_leaves_the_notice_watching \.\.\. ok$' "$runtime/clock-set.log")" != 1 ]; then
+            echo "the kernel's notice of a resume: its test did not run once and pass" >&2
+            exit 1
+        fi
     fi
 
     step "Source assets (each with a metadata file of its own, ADR-0069)"

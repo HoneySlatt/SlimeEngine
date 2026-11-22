@@ -24,9 +24,9 @@ tracing.workspace = true
 uwui-time.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
-# The loop's poll, its eventfd that a wake writes, and its timerfd on CLOCK_BOOTTIME for deadlines;
-# the host's clock; the machine's name, which X11's window gives with its process (ADR-0251,
-# ADR-0270).
+# The loop's poll, its eventfd that a wake writes, its timerfd on CLOCK_BOOTTIME for deadlines, and
+# the kernel's notice of a resume, a timerfd on CLOCK_REALTIME; the host's clock; the machine's
+# name, which X11's window gives with its process (ADR-0251, ADR-0270, ADR-0315).
 rustix = { workspace = true, features = ["event", "system"] }
 # Wayland spoken by the layer itself, on libwayland's display that Vulkan's driver shares
 # (ADR-0270).

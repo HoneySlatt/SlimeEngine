@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   # Every check, in the same Nix shell that contributors use: a local run of scripts/check.sh does
-  # what these five jobs do together (docs/adr/0007-documentation-tooling-and-ci.md). Each runs one
+  # what these five jobs do together, but the headless job's clock set (ADR-0315) (docs/adr/0007-documentation-tooling-and-ci.md). Each runs one
   # part of the script, side by side, each within the owner's limit of 20 minutes
   # (docs/adr/0123-the-linux-checks-in-two-jobs.md, docs/adr/0155-the-editors-design.md,
   # docs/adr/0228-ci-split-again-each-job-within-20-minutes.md): `lint`, the checks that read the
@@ -81,9 +81,11 @@ jobs:
           key: hunnawood-cooked-${{ runner.os }}-${{ runner.arch }}-${{ steps.cooker.outputs.hash }}
       # Without the flag, an incomplete flake.lock would be completed with an unpinned revision.
       # The headless part also sets this runner's clock to now through its passwordless sudo, to
-      # test the kernel's notice of a resume (docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md).
+      # test the kernel's notice of a resume: the one check that a local run of the script does not
+      # reproduce (docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md).
       - run: nix develop --no-update-lock-file --command scripts/check.sh ${{ matrix.part }}
         env:
+          CI_PART: ${{ matrix.part }}
           UWUI_TEST_SETS_CLOCK: ${{ matrix.part == 'headless' && '1' || '' }}
 
   # What can only be checked on Windows: running the build, the tests and the samples there. The

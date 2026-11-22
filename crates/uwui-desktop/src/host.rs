@@ -796,24 +796,106 @@ mod tests {
     }
 
     #[test]
-    fn a_resume_asks_from_outside_as_an_event_of_the_window_does() {
-        assert!(!asks_from_outside(&Happened::default()));
-        let resumed = Happened {
-            resumed: Some(std::time::Duration::from_secs(90)),
-            ..Happened::default()
+    fn each_event_of_the_window_a_wake_a_signal_to_end_and_a_resume_ask_from_outside() {
+        let pointer_left = (
+            EventTime::received(Instant::from_nanos(1)),
+            Given::PointerLeft {
+                pointer: Pointer::MOUSE,
+            },
+        );
+        let asking: [(&str, Happened); 8] = [
+            (
+                "woken",
+                Happened {
+                    woken: true,
+                    ..Happened::default()
+                },
+            ),
+            (
+                "terminated",
+                Happened {
+                    terminated: true,
+                    ..Happened::default()
+                },
+            ),
+            (
+                "close asked",
+                Happened {
+                    close_asked: true,
+                    ..Happened::default()
+                },
+            ),
+            (
+                "an input",
+                Happened {
+                    inputs: vec![pointer_left],
+                    ..Happened::default()
+                },
+            ),
+            (
+                "configured",
+                Happened {
+                    configured: Some(uwui_windowing::Configured {
+                        size: [8, 8],
+                        fullscreen: false,
+                    }),
+                    ..Happened::default()
+                },
+            ),
+            (
+                "drawn",
+                Happened {
+                    drawn: Some(Drawn {
+                        pixels: [8, 8],
+                        scale: 1.0,
+                    }),
+                    ..Happened::default()
+                },
+            ),
+            (
+                "exposed",
+                Happened {
+                    exposed: true,
+                    ..Happened::default()
+                },
+            ),
+            (
+                "resumed",
+                Happened {
+                    resumed: Some(std::time::Duration::from_secs(90)),
+                    ..Happened::default()
+                },
+            ),
+        ];
+        for (what, happened) in &asking {
+            assert!(asks_from_outside(happened), "{what} asks from outside");
+        }
+        // Nothing, the signal alone and a presentation alone are no ask.
+        let presented = uwui_windowing::Presentation {
+            image: 1,
+            shown: Some(Instant::from_nanos(4)),
+            refresh: None,
         };
-        assert!(asks_from_outside(&resumed));
-        let woken = Happened {
-            woken: true,
-            ..Happened::default()
-        };
-        assert!(asks_from_outside(&woken));
-        // The signal and the presentations alone are no ask.
-        let signalled = Happened {
-            signal: Some(Instant::from_nanos(5)),
-            ..Happened::default()
-        };
-        assert!(!asks_from_outside(&signalled));
+        let quiet: [(&str, Happened); 3] = [
+            ("nothing", Happened::default()),
+            (
+                "the signal",
+                Happened {
+                    signal: Some(Instant::from_nanos(5)),
+                    ..Happened::default()
+                },
+            ),
+            (
+                "a presentation",
+                Happened {
+                    presentations: vec![presented],
+                    ..Happened::default()
+                },
+            ),
+        ];
+        for (what, happened) in &quiet {
+            assert!(!asks_from_outside(happened), "{what} asks nothing");
+        }
     }
 
     #[test]

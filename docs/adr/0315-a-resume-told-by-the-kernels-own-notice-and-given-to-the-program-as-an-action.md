@@ -75,8 +75,8 @@ that an agent or the program sends: only a host tells one.
 **uwui's desktop host gives it before the turn's inputs and the application's step**, so that the
 program learns that what it holds may be old before it acts on any input; logs it; and counts it
 as asked from outside, so that a window that holds its frames draws once its signal is late: a
-signal asked before a suspend may never come. The example application writes `resumed after <seconds> s`, which
-a real suspend checks by hand.
+signal asked before a suspend may never come. The example application writes
+`resumed after <seconds> s`, which a real suspend checks by hand.
 
 **The kernel's own cancel is tested in CI**, the owner's choice: a test of the wait, ignored
 elsewhere, sets the clock to the time it shows through `sudo -n` on the throwaway runner of CI's
@@ -108,6 +108,9 @@ On the test of the kernel's cancel:
 
 - **By hand alone**: nothing privileged in CI; but the kernel's path would be checked only when the
   owner suspends the machine, and a change that breaks it would pass every check.
+- **A clock set in the compositors' series**, while the example rests: it would reach the layer's
+  turn and the host too; but the series has no sign of a turn that told nothing, and its job is
+  the longest; the wait's own test reaches the kernel's cancel in seconds.
 
 ## Consequences
 
@@ -118,7 +121,11 @@ On the test of the kernel's cancel:
   The kernel's call at a resume itself, `timerfd_resume`, reaches no test: a real suspend, deep and
   to idle, on Wayland and under Xwayland, is a check by hand
   ([`PLAN.md`](../PLAN.md#checks-by-hand-waiting-for-the-owner)).
-- CI's headless job runs one step through `sudo`, on its own throwaway runner.
+- CI's headless job runs one step through `sudo`, on its own throwaway runner. It is the one check
+  that a local run of `scripts/check.sh` does not reproduce, against
+  [ADR-0007](0007-documentation-tooling-and-ci.md)'s "one command reproduces CI locally": a
+  person's machine never sets its clock for a test. The script fails in CI's headless job if the
+  step is not asked, and wherever it runs unless its test ran once and passed.
 - No notice comes before a suspend: nothing reads one yet; logind gives one, with a lock that delays
   the sleep, if a program ever needs to save before it.
 - A clock set turns the loop once. The time of day's timer, when uwui's first stage builds it, may
@@ -129,12 +136,13 @@ On the test of the kernel's cancel:
 
 ## Validation and reconsideration
 
-- Clock sets in a row: each turns the loop once and tells nothing; a set while the notice is armed
-  again leaves it armed (reviewed in `fs/timerfd.c`; tested in CI).
+- Clock sets in a row: each ends the wait once and leaves the notice watching (tested in CI); a set
+  while the notice is armed again leaves it armed, and a set tells no resume (reviewed in
+  `fs/timerfd.c` and `clock.rs`).
 - A suspend under a second: not told, and not counted later (tested).
 - A suspend to idle that keeps timekeeping running: not told (reviewed in the kernel's source).
-- A kernel or sandbox without `TFD_TIMER_CANCEL_ON_SET`: a resume told at the next input
-  (reviewed).
+- A kernel or sandbox without `TFD_TIMER_CANCEL_ON_SET`: a resume told at the next turn that
+  something else wakes (reviewed).
 - A real resume on the owner's machine: assumed until the check by hand. A machine where it is not
   told, or a program that needs to save before a suspend, would justify reading logind's
   `PrepareForSleep` beside the kernel's notice.

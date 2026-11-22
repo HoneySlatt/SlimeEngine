@@ -169,7 +169,8 @@ fn watch_clock(timer: &OwnedFd) {
         Ok(()) | Err(rustix::io::Errno::CANCELED) => {}
         Err(error) => tracing::warn!(
             %error,
-            "the kernel's notice of a resume cannot be armed: a resume is told at the next input"
+            "the kernel's notice of a resume cannot be armed: a resume is told only at the next \
+             turn that something else wakes"
         ),
     }
 }
@@ -262,7 +263,8 @@ mod tests {
     }
 
     /// Sets the wall clock to the time it shows, through `sudo -n`, which CI's runners allow: the
-    /// kernel cancels the notice as it does at a resume, by the few microseconds the clock steps.
+    /// kernel cancels the notice as it does at a resume, whatever the step, here the time between
+    /// the two `date`s, about a millisecond back.
     fn set_the_clock_to_now() {
         let set = std::process::Command::new("sudo")
             .args(["-n", "sh", "-c", r#"date -s "@$(date +%s.%N)" > /dev/null"#])
