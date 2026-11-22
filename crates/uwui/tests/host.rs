@@ -7,7 +7,7 @@
 use std::time::Duration;
 
 use slime_input::{ButtonState, CursorShape, MouseButton, Pointer, PointerId};
-use uwui::action::ActionKind;
+use uwui::action::{Action, ActionKind};
 use uwui::host::TargetSize;
 use uwui::host::{Answer, Event, Input, InputMethod, Outputs, Person, TargetId};
 use uwui::style::{Dimension, FlexDirection, StyleBuilder};
@@ -72,6 +72,36 @@ const PRESS: Input<'static> = Input::PointerButton {
     button: MouseButton::Left,
     state: ButtonState::Pressed,
 };
+
+#[test]
+fn a_resume_reaches_the_programs_queue_alone_and_from_its_host_alone() {
+    let (mut ui, [field, ..]) = interface();
+    ui.set_focus(Some(field));
+    ui.frame(TargetId::MAIN);
+    let _ = ui.take_actions();
+    let eight_hours = Duration::from_secs(8 * 3600);
+    ui.resumed(eight_hours);
+    assert_eq!(
+        ui.take_actions(),
+        [Action {
+            element: None,
+            kind: ActionKind::Resumed {
+                suspended: eight_hours
+            },
+        }]
+    );
+    // The interface changes nothing: its focus stays, and it asks for no frame.
+    assert_eq!(ui.focus(), Some(field));
+    assert!(!ui.needs_frame(TargetId::MAIN));
+    // An agent cannot tell one.
+    ui.act(Action {
+        element: None,
+        kind: ActionKind::Resumed {
+            suspended: eight_hours,
+        },
+    });
+    assert_eq!(ui.take_actions(), []);
+}
 
 #[test]
 fn an_event_answers_at_once_whether_the_interface_took_it() {

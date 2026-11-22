@@ -10,7 +10,9 @@
   [0273](0273-m6d7a2-cut-in-three-waylands-keyboard-cursor-scale-and-activation.md) (M6d.7a2 cut in
   three) and
   [0306](0306-uwuis-crash-reports-a-marker-held-by-a-lock-hours-counted-a-panic-ends-with-101.md)
-  (no lines of the log in a crash report while the host keeps no log)
+  (no lines of the log in a crash report while the host keeps no log); superseded in part by
+  [0315](0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md)
+  (Linux's notice of a resume)
 - Date: 2026-11-15
 
 ## Context

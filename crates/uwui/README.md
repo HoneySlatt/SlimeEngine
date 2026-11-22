@@ -107,6 +107,9 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   copy, cut and paste, the answer to a read of the clipboard, an input method's deletion around
   the caret, and the window's focus given or taken, which ends a drag and Alt alone
   (`docs/adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md`).
+  The host tells the program that the system resumed, with the time suspended (`Ui::resumed`), an
+  action without an element in its queue, which only a host sends
+  (`docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md`).
   After each frame and each event that it took, the host reads what each target
   shows and asks (`Ui::outputs`), only what changed: the pointer's shape; the input method on as a
   field's input starts, off once no field holds the focus; the caret's box; the text to write on

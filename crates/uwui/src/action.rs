@@ -96,6 +96,14 @@ pub enum ActionKind {
         /// The clipboard's text.
         text: Option<String>,
     },
+    /// The system resumed after a suspend, `suspended` long, as its host learned it
+    /// ([`Ui::resumed`](crate::tree::Ui::resumed)): what the program holds of the world may be
+    /// old, a connection, a file another program changed, the time of day shown. The interface's
+    /// own waits count the time suspended already. No element.
+    Resumed {
+        /// How long the system was suspended.
+        suspended: std::time::Duration,
+    },
 }
 
 /// What the pointer did on a surface ([`ActionKind::Surface`]), where it was in logical pixels from

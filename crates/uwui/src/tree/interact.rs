@@ -1022,7 +1022,8 @@ impl Ui {
     /// focus, which queues what it commits, if anything; it presses the button that holds it, and
     /// reaches the queue as an intent where none can be pressed; `Cancel`, commands, and a field's
     /// changes and commits reach the queue. A press of what is not such a button, or of what
-    /// names nothing, is left out. An action acts on the target of its element, or on the active
+    /// names nothing, is left out, as is a resume, which its host alone tells
+    /// ([`Ui::resumed`]). An action acts on the target of its element, or on the active
     /// target without one ([`Ui::active_target`]): an intent moves that target's focus.
     pub fn act(&mut self, action: Action) {
         let t = self.action_target(&action);
@@ -1115,6 +1116,8 @@ impl Ui {
                 self.interaction.actions.push(action);
             }
             ActionKind::Intent(intent) => self.move_focus(t, intent),
+            // The host's alone ([`Ui::resumed`]): nothing that a person or an agent does.
+            ActionKind::Resumed { .. } => {}
         }
     }
 

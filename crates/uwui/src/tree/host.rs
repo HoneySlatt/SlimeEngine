@@ -2,7 +2,7 @@
 //! (`docs/adr/0253-input-as-the-hosts-events-each-targets-outputs-m6d5c-cut-in-three.md`):
 //! [`Ui::event`] hands each event to the input's handlers, and [`Ui::outputs`] tells what the
 //! host shows of the interface, the cursor and the input method, and what it asks of the
-//! clipboard, as it changed.
+//! clipboard, as it changed; [`Ui::resumed`] tells the program that the system resumed.
 
 use slime_input::CursorShape;
 #[cfg(feature = "test-input")]
@@ -11,6 +11,7 @@ use slime_input::{ButtonState, Ime, KeyEvent, Modifiers, MouseButton, Pointer, S
 use super::interact::Follows;
 use super::{ElementId, Ui};
 use crate::Rect;
+use crate::action::{Action, ActionKind};
 #[cfg(feature = "test-input")]
 use crate::host::Person;
 use crate::host::{Answer, Event, Input, InputMethod, Outputs, TargetId};
@@ -39,6 +40,19 @@ impl Told {
 }
 
 impl Ui {
+    /// Tells the program that the system resumed after a suspend, `suspended` long: an
+    /// [`ActionKind::Resumed`] in its queue ([`Ui::take_actions`]). A host gives it once for each
+    /// resume, as soon as it learns it, a second suspended at least where it measures. The
+    /// interface itself changes nothing: what it waits for counts on the host's clock, which counts
+    /// the time suspended
+    /// (`docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md`).
+    pub fn resumed(&mut self, suspended: std::time::Duration) {
+        self.interaction.actions.push(Action {
+            element: None,
+            kind: ActionKind::Resumed { suspended },
+        });
+    }
+
     /// Gives the interface an input event that came to `event.target` at `event.time`, and answers
     /// at once whether it took it, which a game then leaves ([`Input`] says what each does). The
     /// interface's time moves to the event's, never back, so that what it starts, the pointer's
