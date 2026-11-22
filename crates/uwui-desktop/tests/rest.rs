@@ -190,18 +190,34 @@ fn awaited_callbacks(log: &str) -> Vec<String> {
     awaited
 }
 
+/// The wall clock's place against the monotonic clock, from `since`, in nanoseconds: it moves only
+/// when the wall clock steps, a slew moving both alike.
+fn wall_clock_offset(since: Instant) -> i128 {
+    let nanos = |duration: Duration| i128::try_from(duration.as_nanos()).unwrap_or(i128::MAX);
+    let wall = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, nanos);
+    wall - nanos(since.elapsed())
+}
+
 /// Waits until `example` settles, then watches it for `REST`: what woke, if anything did. A wake
-/// is told with the threads that woke, by name, and the lines that its protocol's log gained
-/// meanwhile, the compositor's messages among them, so that a failure in CI shows its cause.
+/// is told with the threads that woke, by name, the lines that its protocol's log gained
+/// meanwhile, the compositor's messages among them, and a step of the wall clock, which the
+/// host's notice of a resume wakes for
+/// (`docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md`),
+/// so that a failure in CI shows its cause.
 fn at_rest(example: &Example) -> Result<(), String> {
     let pid = example.pid();
     let before = settled(example)?;
     let logged = example.read_log().len();
+    let since = Instant::now();
+    let offset = wall_clock_offset(since);
     std::thread::sleep(REST);
     let after = threads(pid)?;
     if after == before {
         return Ok(());
     }
+    let stepped = wall_clock_offset(since) - offset;
     let woke: Vec<String> = after
         .iter()
         .filter(|(tid, counts)| before.get(tid) != Some(counts))
@@ -222,8 +238,13 @@ fn at_rest(example: &Example) -> Result<(), String> {
         .collect();
     let log = example.read_log();
     let gained = log.get(logged..).unwrap_or("");
+    let clock = if stepped.abs() > 1_000_000 {
+        format!(" The wall clock stepped by {stepped} ns meanwhile, which wakes the host's loop.")
+    } else {
+        String::new()
+    };
     Err(format!(
-        "it woke in {REST:?}: {woke:?}, threads ended {gone:?}; its protocol meanwhile:\n{gained}"
+        "it woke in {REST:?}: {woke:?}, threads ended {gone:?}.{clock} Its protocol meanwhile:\n{gained}"
     ))
 }
 

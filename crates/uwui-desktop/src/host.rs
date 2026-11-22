@@ -643,16 +643,30 @@ impl<A: App> Host<A> {
 
 /// Whether `happened` asks for a frame from outside: an event of the window, a wake, a termination
 /// signal or a resume. It runs one even while the window holds its frames, once their signal is
-/// late (ADR-0187): a signal asked before a suspend may never come.
+/// late (ADR-0187): a signal asked before a suspend may never come. Every field is named, so that
+/// a field that the layer adds is weighed here.
 fn asks_from_outside(happened: &Happened) -> bool {
-    happened.woken
-        || happened.terminated
-        || happened.close_asked
-        || !happened.inputs.is_empty()
-        || happened.configured.is_some()
-        || happened.drawn.is_some()
-        || happened.exposed
-        || happened.resumed.is_some()
+    let Happened {
+        inputs,
+        configured,
+        drawn,
+        close_asked,
+        terminated,
+        woken,
+        exposed,
+        resumed,
+        // The platform's own pace, which asks nothing.
+        signal: _,
+        presentations: _,
+    } = happened;
+    *woken
+        || *terminated
+        || *close_asked
+        || !inputs.is_empty()
+        || configured.is_some()
+        || drawn.is_some()
+        || *exposed
+        || resumed.is_some()
 }
 
 /// Makes the requests of the window that the application made: whether an image must follow to

@@ -124,15 +124,15 @@ On the test of the kernel's cancel:
 - CI's headless job runs one step through `sudo`, on its own throwaway runner. It is the one check
   that a local run of `scripts/check.sh` does not reproduce, against
   [ADR-0007](0007-documentation-tooling-and-ci.md)'s "one command reproduces CI locally": a
-  person's machine never sets its clock for a test. The script fails in CI's headless job if the
-  step is not asked, and wherever it runs unless its test ran once and passed.
+  person's machine never sets its clock for a test. The script's headless part fails on GitHub
+  if the step is not asked, and wherever the step runs unless its test ran once and passed.
 - No notice comes before a suspend: nothing reads one yet; logind gives one, with a lock that delays
   the sleep, if a program ever needs to save before it.
 - A clock set turns the loop once. The time of day's timer, when uwui's first stage builds it, may
   read the same notice to be armed again (ADR-0227).
 - Windows (M6d.7c) and macOS (M6d.7d) give their own notices through the same door.
-- [`debt.md`](../debt.md)'s item "Of the window's lifecycle, uwui hears the focus alone" now names
-  the resume as given by uwui's desktop host on Linux.
+- [`debt.md`](../debt.md)'s item on the window's lifecycle now names the resume as given by uwui's
+  desktop host on Linux.
 
 ## Validation and reconsideration
 

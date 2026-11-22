@@ -62,11 +62,10 @@ MIT OR Apache-2.0.
   logged and counted as asked from outside
   ([ADR-0315](../../docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md));
   the person's input given to the interface, the pointer's moves gathered, each event's time the
-  layer's; the application's step
-  and its requests made of the window; a lost device replaced and a surface given up made again,
-  the window holding its frames meanwhile; a frame drawn when the pacing says so, the platform's
-  signal asked just before its present, and an image drawn in part not presented, the frame
-  drawn again after a wait that doubles.
+  layer's; the application's step and its requests made of the window; a lost device replaced and
+  a surface given up made again, the window holding its frames meanwhile; a frame drawn when the
+  pacing says so, the platform's signal asked just before its present, and an image drawn in part
+  not presented, the frame drawn again after a wait that doubles.
 - Opens its own device (`gpu`) on the window's raw handles, with wgpu's hint
   `MemoryHints::MemoryUsage`, the adapter that uses the least power, no optional feature, Mailbox
   where the surface offers it and Fifo elsewhere, and draws each frame's display list with
