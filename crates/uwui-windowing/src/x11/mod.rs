@@ -1010,7 +1010,9 @@ impl Platform {
 
 impl running::Platform for Platform {
     fn happened(&mut self) -> Result<Happened, Error> {
-        // Before the events are timed: their anchor is made again after a suspend.
+        // Before the events read from here on are timed: their anchor is made again after a
+        // suspend. Those that ended the wait were timed as it read them, which the anchor of before
+        // the suspend serves for events that came before it, the likely ones.
         let resumed = self.suspends.resumed();
         if resumed.is_some() {
             self.anchor.reset();
@@ -1051,8 +1053,9 @@ impl running::Platform for Platform {
             return Ok(());
         }
         // Events that tell the host nothing, as another client's property of the root window,
-        // leave the loop waiting, without a turn of the host: only a wake, the deadline or an
-        // event that tells it something end the wait.
+        // leave the loop waiting, without a turn of the host: only a wake, the deadline, the
+        // kernel's notice of a resume or a clock set, or an event that tells it something end the
+        // wait.
         loop {
             // What the events read asked, as a ping's answer, goes before each wait, the first
             // included.

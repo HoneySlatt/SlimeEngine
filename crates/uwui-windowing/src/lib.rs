@@ -190,7 +190,8 @@ pub struct Happened {
     /// The system resumed since the last turn, after this long suspended, a second at least: told
     /// once, at the first turn after it. On Linux the kernel's notice of a resume turns the loop
     /// at once, the window at rest too, and the time suspended is measured from the host's clock
-    /// against one that stops while the machine sleeps
+    /// against one that stops while the machine sleeps; a suspend to idle whose timekeeping keeps
+    /// running, as without a driver of the processor's idle states, stops neither and is not told
     /// (`docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md`).
     pub resumed: Option<Duration>,
 }

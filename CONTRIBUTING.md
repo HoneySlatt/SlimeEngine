@@ -553,6 +553,12 @@ not fit goes to its home ([`AGENTS.md`](AGENTS.md#one-home-per-fact)).
 The script also runs clippy for the Windows target, which catches code that does not compile on
 Windows without a Windows machine.
 
+In CI's headless job alone, where `UWUI_TEST_SETS_CLOCK=1`, it also sets the runner's clock to the
+time it shows through `sudo`, so that the kernel cancels the desktop host's notice of a resume as a
+resume does
+([ADR-0315](docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md)).
+Never set that variable on your own machine.
+
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main`, every
 pull request, and every Monday at 06:17 UTC on `main`, without a push, but a push or a pull request
 that changes Markdown files outside `crates/` alone: the `docs` workflow

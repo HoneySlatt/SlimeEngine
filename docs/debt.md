@@ -130,10 +130,11 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The scale is the X resources' `Xft.dpi`, one for the whole screen: a window moved to a display of another density keeps its scale.
   Where the server's focus follows the pointer, another client's grab of the pointer through XInput2 that ends over another window tells the window nothing: it stays told focused, and a modifier typed into the other window is told to it, until the pointer crosses its border again; no key reaches it meanwhile. Recorded rather than followed by asking the server where the pointer is, the owner's choice of 2026-11-20.
   Followed by the owner's check by hand under Xwayland ([`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-owner)); a scale per display with uwui's first stage, if a person asks for it.
-- **uwui's desktop host's notice of a resume on Linux reaches no automatic test** ([ADR-0315](adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md)).
-  The kernel cancels the layer's timer on `CLOCK_REALTIME` as the system resumes or its clock is set, and only a suspend or a privileged clock set makes it: CI has neither.
-  Tests check the timer armed, from what the kernel tells of it, the time suspended that tells a resume, and the resume from `Ui::resumed` to the application's step; not that the notice turns the loop.
-  Followed by the owner's check by hand of a real suspend, on Wayland and under Xwayland ([`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-owner)).
+- **uwui's desktop host's notice of a resume on Linux is tested through a clock set, not a suspend** ([ADR-0315](adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md)).
+  The kernel cancels the layer's timer on `CLOCK_REALTIME` as the system resumes or its clock is set: CI's headless job sets its runner's clock through `sudo`, and no test suspends a machine, so the kernel's call at a resume, `timerfd_resume`, is checked by hand alone.
+  A suspend to idle whose timekeeping keeps running, as without a driver of the processor's idle states, is not told: the kernel measures no sleep.
+  The host's call of `Session::resumed` in its turn, before the turn's inputs, is checked by review alone: no test drives the host on a fake platform (the item on `Handler::closing` below).
+  Followed by the owner's check by hand of a real suspend, deep and to idle, on Wayland and under Xwayland ([`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-owner)).
 - **uwui's desktop host's X11 layer runs under Xvfb alone, with a software driver** ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)).
   Xvfb has no window manager and no display: the window's requests to a window manager, RandR's period and a GPU's driver presenting through Present run nowhere in CI.
   The images shown are matched to the images asked by their order, which holds only if the driver presents each image asked once, through Present (`crates/uwui-windowing/src/x11/frames.rs`); lavapipe copies its images without Present, and tells none.

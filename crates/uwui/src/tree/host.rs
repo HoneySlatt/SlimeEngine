@@ -42,9 +42,10 @@ impl Told {
 impl Ui {
     /// Tells the program that the system resumed after a suspend, `suspended` long: an
     /// [`ActionKind::Resumed`] in its queue ([`Ui::take_actions`]). A host gives it once for each
-    /// resume, as soon as it learns it, a second suspended at least where it measures. The
-    /// interface itself changes nothing: what it waits for counts on the host's clock, which counts
-    /// the time suspended
+    /// resume, as soon as it learns it, before the input events that it gives with it, so that the
+    /// program reads that what it holds may be old before it acts on any of them. The interface
+    /// itself changes nothing: what it waits for counts on the host's clock, which counts the time
+    /// suspended
     /// (`docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md`).
     pub fn resumed(&mut self, suspended: std::time::Duration) {
         self.interaction.actions.push(Action {

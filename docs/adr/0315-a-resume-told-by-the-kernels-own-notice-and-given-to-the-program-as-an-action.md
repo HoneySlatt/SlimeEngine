@@ -1,6 +1,8 @@
 # 0315. A resume told by the kernel's own notice, and given to the program as an action
 
 - Status: Accepted; supersedes in part
+  [0249](0249-the-hosts-api-its-items-and-their-table.md) (the system's resume: its door, an
+  action, and Linux's source, the kernel's notice) and
   [0270](0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)
   (Linux's notice of a resume)
 - Date: 2026-11-22
@@ -14,8 +16,9 @@ asks that uwui learn that the system resumed, on Wayland and on X11, with the ti
 the source be weighed at its start, logind's `PrepareForSleep` or the kernel's own; and that the
 notice reach uwui's lifecycle
 ([ADR-0264](0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)),
-which left the resume waiting for its reader at M6d.7. ADR-0270 named logind's signal for it, from
-[ADR-0249](0249-the-hosts-api-its-items-and-their-table.md)'s table.
+which left the resume waiting for its reader at M6d.7. ADR-0249's table put the resume among the
+host's events, each with its target and its time, and named logind's signal on Linux; ADR-0270
+named that signal for M6d.7b.
 
 The facts, read on 2026-11-22:
 
@@ -31,7 +34,10 @@ The facts, read on 2026-11-22:
   between the wall clock and `CLOCK_MONOTONIC` changed; the timer becomes readable, and its read
   fails with `ECANCELED` (Linux's `kernel/time/timekeeping.c` and `fs/timerfd.c`, read on
   2026-11-22). The same happens when someone sets the clock. It needs no privilege, no thread and
-  no bus; `rustix`'s `time` feature, which the workspace already enables, gives it.
+  no bus; `rustix`'s `time` feature, which the workspace already enables, gives it. A suspend to
+  idle tells it only where it freezes timekeeping, through a driver of the processor's idle
+  states; one that idles with timekeeping running, as in many virtual machines, moves neither the
+  clocks apart nor the timer.
 - logind sends `PrepareForSleep(false)` on the system bus as the system resumes. It needs a D-Bus
   client: `zbus` 5, in the lockfile through `accesskit_unix`, which brings an executor and its
   thread, or one written for the purpose. It gives nothing where logind does not run, as without
@@ -44,7 +50,8 @@ The facts, read on 2026-11-22:
 ## Decision
 
 The owner's decisions of 2026-11-22, one at a time: the kernel's own notice; the resume given to
-the program through uwui, as an action. Then the lead's within them.
+the program through uwui, as an action; then, after the closing review, the kernel's cancel tested
+in CI through a clock set. Then the lead's within them.
 
 **The kernel's notice turns the loop; the clock's measure tells the resume.** The loop's wait
 (`wait.rs`), which both layers share, polls a third timerfd, on `CLOCK_REALTIME`, armed at a time
@@ -55,17 +62,26 @@ the time suspended since the last; a second or more tells a resume, told once in
 `Happened::resumed` with its length, and makes the events' anchor again. A clock set without a
 suspend turns the loop once and tells nothing. A resume that some other wake reaches first is told
 at that turn, the notice's own turn then telling nothing. The threshold of a second, the one the
-anchor already used, has one home, `clock.rs`.
+anchor already used, has one home, `clock.rs`. The notice never ends the run: a clock set while it
+is armed again answers `ECANCELED` with the timer armed all the same, and a failure to arm it, as
+in a sandbox without the flag, leaves it unarmed with a warning, a resume then told at the next
+turn that something else wakes.
 
 **uwui hears it as an action.** `Ui::resumed(suspended)` is the host's door: it puts
 `ActionKind::Resumed { suspended }`, without an element, in the program's queue. The interface
 itself changes nothing: what it waits for counts on the host's clock. `Ui::act` leaves out a resume
 that an agent or the program sends: only a host tells one.
 
-**uwui's desktop host gives it before the application's step**, logs it, and counts it as asked
-from outside, so that a window that holds its frames draws once its signal is late: a signal asked
-before a suspend may never come. The example application writes `resumed after <seconds> s`, which
+**uwui's desktop host gives it before the turn's inputs and the application's step**, so that the
+program learns that what it holds may be old before it acts on any input; logs it; and counts it
+as asked from outside, so that a window that holds its frames draws once its signal is late: a
+signal asked before a suspend may never come. The example application writes `resumed after <seconds> s`, which
 a real suspend checks by hand.
+
+**The kernel's own cancel is tested in CI**, the owner's choice: a test of the wait, ignored
+elsewhere, sets the clock to the time it shows through `sudo -n` on the throwaway runner of CI's
+headless job, three times, and checks that each set ends the wait and leaves the notice watching.
+It never runs on a person's machine: it asks for `UWUI_TEST_SETS_CLOCK=1`.
 
 ## Alternatives considered
 
@@ -88,14 +104,21 @@ On the door into uwui:
 - **An `Input` of the host's events**: an event names a target and a time and is answered as taken
   or not; a resume is the system's, for no target, and nothing in the interface takes it.
 
+On the test of the kernel's cancel:
+
+- **By hand alone**: nothing privileged in CI; but the kernel's path would be checked only when the
+  owner suspends the machine, and a change that breaks it would pass every check.
+
 ## Consequences
 
 - No dependency is added: `rustix`'s `time` feature was already on.
-- A resume reaches a program on Linux at once, its window at rest too. Its kernel's notice reaches
-  no automatic test: setting the clock needs a privilege that CI does not give. The arming of the
-  timer is tested from what the kernel tells of it (`/proc/self/fdinfo`); the measure, the door and
-  the action on their own; a real suspend, on Wayland and under Xwayland, is a check by hand
+- A resume reaches a program on Linux at once, its window at rest too, where the kernel measures
+  the sleep. The kernel's cancel is tested through a clock set in CI; the timer's arming from what
+  the kernel tells of it (`/proc/self/fdinfo`); the measure, the door and the action on their own.
+  The kernel's call at a resume itself, `timerfd_resume`, reaches no test: a real suspend, deep and
+  to idle, on Wayland and under Xwayland, is a check by hand
   ([`PLAN.md`](../PLAN.md#checks-by-hand-waiting-for-the-owner)).
+- CI's headless job runs one step through `sudo`, on its own throwaway runner.
 - No notice comes before a suspend: nothing reads one yet; logind gives one, with a lock that delays
   the sleep, if a program ever needs to save before it.
 - A clock set turns the loop once. The time of day's timer, when uwui's first stage builds it, may
@@ -103,3 +126,15 @@ On the door into uwui:
 - Windows (M6d.7c) and macOS (M6d.7d) give their own notices through the same door.
 - [`debt.md`](../debt.md)'s item "Of the window's lifecycle, uwui hears the focus alone" now names
   the resume as given by uwui's desktop host on Linux.
+
+## Validation and reconsideration
+
+- Clock sets in a row: each turns the loop once and tells nothing; a set while the notice is armed
+  again leaves it armed (reviewed in `fs/timerfd.c`; tested in CI).
+- A suspend under a second: not told, and not counted later (tested).
+- A suspend to idle that keeps timekeeping running: not told (reviewed in the kernel's source).
+- A kernel or sandbox without `TFD_TIMER_CANCEL_ON_SET`: a resume told at the next input
+  (reviewed).
+- A real resume on the owner's machine: assumed until the check by hand. A machine where it is not
+  told, or a program that needs to save before a suspend, would justify reading logind's
+  `PrepareForSleep` beside the kernel's notice.

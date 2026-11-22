@@ -355,33 +355,22 @@ impl<A: App> Host<A> {
         let (Some(session), Some(gpu)) = (&mut self.session, &mut self.gpu) else {
             return Ok(Control::Exit);
         };
+        if asks_from_outside(&happened) {
+            self.pacing.asked_from_outside();
+        }
         let Happened {
             inputs,
             configured,
             drawn,
             close_asked,
             terminated,
-            woken,
             exposed,
             resumed,
-            // Taken above.
+            // Taken above, or read by `asks_from_outside`.
             signal: _,
             presentations: _,
+            woken: _,
         } = happened;
-        // An event of the window, a wake, a termination signal or a resume asks from outside: it
-        // runs a frame even while the window holds its frames, once their signal is late
-        // (ADR-0187); a signal asked before a suspend may never come.
-        if woken
-            || terminated
-            || close_asked
-            || !inputs.is_empty()
-            || configured.is_some()
-            || drawn.is_some()
-            || exposed
-            || resumed.is_some()
-        {
-            self.pacing.asked_from_outside();
-        }
         // The platform lost the window's image: the next frame draws it again.
         if exposed {
             self.pacing.host_changed();
@@ -417,11 +406,13 @@ impl<A: App> Host<A> {
             self.pacing.host_changed();
             self.remake.soon(now);
         }
-        for input in gather(inputs, &mut self.held_moves, self.pacing.holds_moves(now)) {
-            give(session, platform, now, input);
-        }
+        // Before the turn's inputs, so that the program learns that what it holds may be old before
+        // it acts on any of them.
         if let Some(suspended) = resumed {
             session.resumed(suspended);
+        }
+        for input in gather(inputs, &mut self.held_moves, self.pacing.holds_moves(now)) {
+            give(session, platform, now, input);
         }
         session.step();
         if session.ending() {
@@ -650,6 +641,20 @@ impl<A: App> Host<A> {
     }
 }
 
+/// Whether `happened` asks for a frame from outside: an event of the window, a wake, a termination
+/// signal or a resume. It runs one even while the window holds its frames, once their signal is
+/// late (ADR-0187): a signal asked before a suspend may never come.
+fn asks_from_outside(happened: &Happened) -> bool {
+    happened.woken
+        || happened.terminated
+        || happened.close_asked
+        || !happened.inputs.is_empty()
+        || happened.configured.is_some()
+        || happened.drawn.is_some()
+        || happened.exposed
+        || happened.resumed.is_some()
+}
+
 /// Makes the requests of the window that the application made: whether an image must follow to
 /// apply one, as the platform says. The losses asked on purpose are made on `gpu`: the surface's
 /// at once, the device's in the next frame's draw.
@@ -788,6 +793,27 @@ mod tests {
             .iter()
             .map(|(time, input)| format!("{} {:?}", time.at.as_nanos(), translated(input).unwrap()))
             .collect()
+    }
+
+    #[test]
+    fn a_resume_asks_from_outside_as_an_event_of_the_window_does() {
+        assert!(!asks_from_outside(&Happened::default()));
+        let resumed = Happened {
+            resumed: Some(std::time::Duration::from_secs(90)),
+            ..Happened::default()
+        };
+        assert!(asks_from_outside(&resumed));
+        let woken = Happened {
+            woken: true,
+            ..Happened::default()
+        };
+        assert!(asks_from_outside(&woken));
+        // The signal and the presentations alone are no ask.
+        let signalled = Happened {
+            signal: Some(Instant::from_nanos(5)),
+            ..Happened::default()
+        };
+        assert!(!asks_from_outside(&signalled));
     }
 
     #[test]

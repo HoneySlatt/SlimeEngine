@@ -2222,7 +2222,9 @@ run ─▶ uwui_windowing::run, the layer: connects (WAYLAND_DISPLAY), makes the
           (MemoryHints::MemoryUsage); Session::start: Ui::new(look's fonts), Ui::set_style(look's
           sheets, themes), App::start
      ─▶ each turn of the loop:
-          the layer: the compositor's events dispatched: a configure acknowledged, a closing
+          the layer: the time suspended since the last turn measured (clock), a resume told
+            once and the events' anchor made again;
+            the compositor's events dispatched: a configure acknowledged, a closing
             asked, a frame callback come, the images shown (wp_presentation_feedback.presented,
             on the host's clock), the scale preferred, a token of activation used; the
             pointer's, each finger's and the keyboard's events with their times anchored on the
@@ -2232,8 +2234,10 @@ run ─▶ uwui_windowing::run, the layer: connects (WAYLAND_DISPLAY), makes the
             Happened::presentations ─▶ Pacing::presented (period, lag, a frame that missed) and
               the trace's `shown` and `missed`
             a termination signal or a closing ─▶ App::close_requested ─▶ Allow ends the run
-            an event of the window, a wake of another thread (eventfd) ─▶ Pacing::asked_from_outside
+            an event of the window, a wake of another thread (eventfd), a resume
+              ─▶ Pacing::asked_from_outside
             the images sized round(logical × scale)
+            Happened::resumed ─▶ Ui::resumed, an ActionKind::Resumed in the program's queue
             the person's input ─▶ Ui::event, the pointer's last move held while a frame waits for
               its signal or its start just in time; the
               cursor's shape that the outputs ask ─▶ Window::set_cursor ─▶ wp_cursor_shape_v1
@@ -2244,8 +2248,9 @@ run ─▶ uwui_windowing::run, the layer: connects (WAYLAND_DISPLAY), makes the
                        draws, Window::ask_signal (wl_surface.frame and wp_presentation.feedback),
                        present (the driver's commit carries both)
             ─▶ Control::Wait(deadline) or Control::Exit
-          the layer waits: poll on the socket, the eventfd and a timerfd on CLOCK_BOOTTIME, armed
-            for the earliest of the host's deadline and the key's repeat
+          the layer waits: poll on the socket, the eventfd, a timerfd on CLOCK_BOOTTIME, armed
+            for the earliest of the host's deadline and the key's repeat, and the kernel's notice,
+            a timerfd on CLOCK_REALTIME that a resume or a clock set cancels (ADR-0315)
      ─▶ Handler::closing: the host drops its device; the layer destroys the window
      ─▶ App::stop, after a failure of the host too; the process exits with 0, or with
         EXIT_HOST_FAILED or EXIT_START_FAILED, the failure told on the standard error

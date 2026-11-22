@@ -80,7 +80,11 @@ jobs:
           path: target/cooked/hunnawood
           key: hunnawood-cooked-${{ runner.os }}-${{ runner.arch }}-${{ steps.cooker.outputs.hash }}
       # Without the flag, an incomplete flake.lock would be completed with an unpinned revision.
+      # The headless part also sets this runner's clock to now through its passwordless sudo, to
+      # test the kernel's notice of a resume (docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md).
       - run: nix develop --no-update-lock-file --command scripts/check.sh ${{ matrix.part }}
+        env:
+          UWUI_TEST_SETS_CLOCK: ${{ matrix.part == 'headless' && '1' || '' }}
 
   # What can only be checked on Windows: running the build, the tests and the samples there. The
   # checks that do not depend on the platform (formatting, rustdoc, dependencies, links) and

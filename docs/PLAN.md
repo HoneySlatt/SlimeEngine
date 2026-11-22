@@ -183,7 +183,7 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
   displays of two scales; its list scrolled fast, variable refresh on and off, smooth, few `missed` in its trace.
   On Xwayland (`env -u WAYLAND_DISPLAY`): pointer, wheel, rest; resized mid-scroll, `shown`
   lagging its frame as before; typing, layouts, cursors, `Xft.dpi` 144, touch.
-  Suspended a minute at rest, Wayland and Xwayland: `resumed after <seconds> s`.
+  Suspended, deep then s2idle, at rest, Wayland, Xwayland: `resumed after <seconds> s`.
 - **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
   left by Alt and Tab, Alt held or mid-drag: no bar in focus, nothing dropped; *Hunna Wood*'s
   button that loses the surface, on Direct3D 12: drawn again.

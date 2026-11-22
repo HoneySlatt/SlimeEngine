@@ -25,8 +25,8 @@
 //!   work; after a shorter rest, it starts just in time, which reaches the same refresh with
 //!   fresher input (`docs/adr/0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md`).
 //! - *A window that holds its frames*, whose signal does not come, as a hidden one's on Wayland,
-//!   draws nothing for the interface's own changes. What asks from outside, an event of the window
-//!   or a wake of another thread, still runs a frame once the signal is [`SIGNAL_WAIT`] late; and
+//!   draws nothing for the interface's own changes. What asks from outside, an event of the window,
+//!   a wake of another thread or the system's resume, still runs a frame once the signal is [`SIGNAL_WAIT`] late; and
 //!   so does the first
 //!   change after each signal that is that late, whatever asks, which finds an image presented to
 //!   a device lost before the host knew it, whose signal would never come.
@@ -112,8 +112,8 @@ pub(crate) struct Pacing {
     /// Whether a frame ran while the signal was late, since it last came: the one frame that checks
     /// each hold.
     checked: bool,
-    /// Whether something outside asked for a frame since the last one: an event of the window or a
-    /// wake of another thread. Forgotten once a step changed nothing.
+    /// Whether something outside asked for a frame since the last one: an event of the window, a
+    /// wake of another thread or the system's resume. Forgotten once a step changed nothing.
     outside: bool,
     /// A change of the host's own that the next frame carries.
     pending: bool,
@@ -213,8 +213,9 @@ struct Signal {
 }
 
 impl Pacing {
-    /// Something outside asked for a frame: an event of the window or a wake of another thread. It
-    /// runs one even while the window holds its frames, once their signal is late.
+    /// Something outside asked for a frame: an event of the window, a wake of another thread or the
+    /// system's resume. It runs one even while the window holds its frames, once their signal is
+    /// late.
     pub(crate) fn asked_from_outside(&mut self) {
         self.outside = true;
     }

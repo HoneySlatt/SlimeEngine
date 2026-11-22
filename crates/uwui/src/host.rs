@@ -38,7 +38,10 @@
 //!
 //! The system's preferences that the interface reads, the size of text and less motion, come
 //! through [`Ui::set_preferences`](crate::tree::Ui::set_preferences), a host's and a program's
-//! door alike ([`crate::preferences`]).
+//! door alike ([`crate::preferences`]). The system's resume after a suspend comes through
+//! [`Ui::resumed`](crate::tree::Ui::resumed), which only a host calls, and reaches the program as
+//! an action
+//! (`docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md`).
 //!
 //! The clipboard is the host's. uwui asks it to write a text and to read one through the outputs,
 //! and takes each read's answer as an event, [`Input::ClipboardText`], so that a host whose

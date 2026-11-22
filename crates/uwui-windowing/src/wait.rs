@@ -10,6 +10,9 @@
 //! sets the clock. The wait ends then, and the layer's measure of the time suspended
 //! (`crate::clock`) tells a resume from a clock set
 //! (`docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md`).
+//! A resume is told so only where the kernel measures the sleep: a suspend to idle whose
+//! timekeeping keeps running, as without a driver of the processor's idle states, moves neither the
+//! clocks apart nor the timer.
 
 use std::io;
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
@@ -30,7 +33,8 @@ pub(crate) struct Waits {
     clock_set: OwnedFd,
     /// The deadline that the timer holds, if it is armed.
     armed: Option<Instant>,
-    /// Whether the last wait ended for a wake or the deadline, beside the display, if at all.
+    /// Whether the last wait ended for a wake, the deadline or the kernel's notice, beside the
+    /// display, if at all.
     interrupted: bool,
 }
 
@@ -40,7 +44,7 @@ impl Waits {
             TimerfdClockId::Realtime,
             TimerfdFlags::CLOEXEC | TimerfdFlags::NONBLOCK,
         )?;
-        watch_clock(&clock_set)?;
+        watch_clock(&clock_set);
         Ok(Self {
             wake: Arc::new(eventfd(0, EventfdFlags::CLOEXEC | EventfdFlags::NONBLOCK)?),
             timer: timerfd_create(
@@ -62,9 +66,9 @@ impl Waits {
         }
     }
 
-    /// Waits until `display` can be read, the loop is woken, or `deadline` passes; none for no
-    /// deadline; and, when `write`, until `display` can be written to, its socket full before.
-    /// Answers whether `display` can be read, or ended.
+    /// Waits until `display` can be read, the loop is woken, `deadline` passes, none for no
+    /// deadline, or the kernel tells a resume or a clock set; and, when `write`, until `display`
+    /// can be written to, its socket full before. Answers whether `display` can be read, or ended.
     pub(crate) fn wait(
         &mut self,
         display: BorrowedFd<'_>,
@@ -78,17 +82,7 @@ impl Waits {
                 tv_sec: i64::try_from(at / 1_000_000_000).unwrap_or(i64::MAX),
                 tv_nsec: i64::try_from(at % 1_000_000_000).unwrap_or(0),
             };
-            timerfd_settime(
-                &self.timer,
-                TimerfdTimerFlags::ABSTIME,
-                &Itimerspec {
-                    it_interval: Timespec {
-                        tv_sec: 0,
-                        tv_nsec: 0,
-                    },
-                    it_value: value,
-                },
-            )?;
+            arm(&self.timer, TimerfdTimerFlags::empty(), value)?;
             self.armed = deadline;
         }
         let mut fds = [
@@ -123,10 +117,10 @@ impl Waits {
             self.armed = None;
         }
         if clock_set.contains(PollFlags::IN) {
-            // Its read fails with `ECANCELED`, which leaves it watching from the clock's new
-            // place; armed again all the same.
+            // A cancel's read fails with `ECANCELED` and leaves the timer watching from the clock's
+            // new place; one that expired, as a test arms it, is disarmed: armed again either way.
             let _ = rustix::io::read(self.clock_set.as_fd(), &mut count);
-            watch_clock(&self.clock_set)?;
+            watch_clock(&self.clock_set);
         }
         self.interrupted = wake.contains(PollFlags::IN)
             || timer.contains(PollFlags::IN)
@@ -142,25 +136,42 @@ impl Waits {
     }
 }
 
-/// Arms `timer`, on `CLOCK_REALTIME`, at the clock's last time, which it never reaches, so that the
-/// kernel cancels it when the wall clock moves against `CLOCK_MONOTONIC`.
-fn watch_clock(timer: &OwnedFd) -> io::Result<()> {
-    let never = Timespec {
-        tv_sec: i64::MAX,
+/// Arms `timer` once, at the time `at` of its clock, with `flags` beside `TFD_TIMER_ABSTIME`; a
+/// time of zero disarms it.
+fn arm(timer: &OwnedFd, flags: TimerfdTimerFlags, at: Timespec) -> rustix::io::Result<()> {
+    let once = Timespec {
+        tv_sec: 0,
         tv_nsec: 0,
     };
     timerfd_settime(
         timer,
-        TimerfdTimerFlags::ABSTIME | TimerfdTimerFlags::CANCEL_ON_SET,
+        TimerfdTimerFlags::ABSTIME | flags,
         &Itimerspec {
-            it_interval: Timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            },
-            it_value: never,
+            it_interval: once,
+            it_value: at,
         },
-    )?;
-    Ok(())
+    )
+    .map(drop)
+}
+
+/// Arms the notice, `timer` on `CLOCK_REALTIME`, at the clock's last time, which it never reaches,
+/// so that the kernel cancels it when the wall clock moves against `CLOCK_MONOTONIC`. It never ends
+/// the run: a clock set as it is armed answers `ECANCELED`, the timer armed all the same and
+/// watching from the clock's new place (`fs/timerfd.c`), the wait already ended for that set; any
+/// other failure, which no kernel since 3.0 gives but a sandbox might, leaves the notice unarmed,
+/// and a resume is then told at the next turn that something else wakes.
+fn watch_clock(timer: &OwnedFd) {
+    let never = Timespec {
+        tv_sec: i64::MAX,
+        tv_nsec: 0,
+    };
+    match arm(timer, TimerfdTimerFlags::CANCEL_ON_SET, never) {
+        Ok(()) | Err(rustix::io::Errno::CANCELED) => {}
+        Err(error) => tracing::warn!(
+            %error,
+            "the kernel's notice of a resume cannot be armed: a resume is told at the next input"
+        ),
+    }
 }
 
 #[cfg(test)]
@@ -211,25 +222,85 @@ mod tests {
         std::fs::read_to_string(format!("/proc/self/fdinfo/{}", fd.as_raw_fd())).expect("fdinfo")
     }
 
+    /// Checks that the notice watches the wall clock, nothing left to read: `CLOCK_REALTIME`,
+    /// armed absolute and cancelled when the clock is set, the kernel's
+    /// `TFD_TIMER_ABSTIME | TFD_TIMER_CANCEL_ON_SET`, at a time that it never reaches.
+    fn watching(waits: &Waits) {
+        let info = fdinfo(&waits.clock_set);
+        assert!(info.contains("clockid: 0\n"), "{info}");
+        assert!(info.contains("ticks: 0\n"), "{info}");
+        assert!(info.contains("settime flags: 03\n"), "{info}");
+        assert!(!info.contains("it_value: (0, 0)"), "{info}");
+    }
+
     #[test]
-    fn the_notice_of_a_resume_watches_the_wall_clock_and_stays_armed_after_a_wait() {
+    fn the_notice_of_a_resume_watches_the_wall_clock_from_the_start() {
+        watching(&Waits::new().expect("the waits"));
+    }
+
+    #[test]
+    fn a_readable_notice_ends_the_wait_and_is_armed_again() {
         let mut waits = Waits::new().expect("the waits");
-        let watched = |waits: &Waits| {
-            let info = fdinfo(&waits.clock_set);
-            // `CLOCK_REALTIME`, armed absolute and cancelled when the clock is set: the kernel's
-            // `TFD_TIMER_ABSTIME | TFD_TIMER_CANCEL_ON_SET`, at a time that it never reaches.
-            assert!(info.contains("clockid: 0\n"), "{info}");
-            assert!(info.contains("settime flags: 03\n"), "{info}");
-            assert!(!info.contains("it_value: (0, 0)"), "{info}");
+        // Armed at a past time of the wall clock, the notice fires at once, readable as a cancel
+        // makes it.
+        let past = Timespec {
+            tv_sec: 1,
+            tv_nsec: 0,
         };
-        watched(&waits);
-        // A wait that the deadline ends leaves it armed, and is not told as a clock set.
+        arm(&waits.clock_set, TimerfdTimerFlags::CANCEL_ON_SET, past).expect("armed in the past");
         let display = display();
+        let start = crate::clock::now();
+        let deadline = start + std::time::Duration::from_secs(2);
         assert!(
             !waits
-                .wait(display.as_fd(), Some(Instant::from_nanos(1)), false)
+                .wait(display.as_fd(), Some(deadline), false)
                 .expect("waited")
         );
-        watched(&waits);
+        assert!(waits.interrupted());
+        assert!(crate::clock::now() - start < std::time::Duration::from_secs(1));
+        watching(&waits);
+    }
+
+    /// Sets the wall clock to the time it shows, through `sudo -n`, which CI's runners allow: the
+    /// kernel cancels the notice as it does at a resume, by the few microseconds the clock steps.
+    fn set_the_clock_to_now() {
+        let set = std::process::Command::new("sudo")
+            .args(["-n", "sh", "-c", r#"date -s "@$(date +%s.%N)" > /dev/null"#])
+            .status()
+            .expect("sudo runs");
+        assert!(set.success(), "the clock was not set: {set}");
+    }
+
+    /// The kernel's own cancel, which only a privileged clock set gives short of a suspend: run in
+    /// CI alone, on a runner thrown away after it
+    /// (`docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md`).
+    #[test]
+    #[ignore = "sets the system's clock through sudo: CI's runners alone, with UWUI_TEST_SETS_CLOCK=1"]
+    fn a_clock_set_ends_the_wait_and_leaves_the_notice_watching() {
+        assert_eq!(
+            std::env::var("UWUI_TEST_SETS_CLOCK").as_deref(),
+            Ok("1"),
+            "this test sets the system's clock: run it on a throwaway machine, with \
+             UWUI_TEST_SETS_CLOCK=1"
+        );
+        let mut waits = Waits::new().expect("the waits");
+        let display = display();
+        // Three sets in a row, each read and watched again.
+        for _ in 0..3 {
+            let start = crate::clock::now();
+            let setter = std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                set_the_clock_to_now();
+            });
+            let deadline = start + std::time::Duration::from_secs(10);
+            let readable = waits
+                .wait(display.as_fd(), Some(deadline), false)
+                .expect("waited");
+            setter.join().expect("the clock set");
+            assert!(!readable);
+            assert!(waits.interrupted());
+            assert!(crate::clock::now() - start < std::time::Duration::from_secs(5));
+            watching(&waits);
+        }
     }
 }

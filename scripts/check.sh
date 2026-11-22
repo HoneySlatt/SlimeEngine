@@ -312,6 +312,15 @@ if runs headless; then
     # world must keep them.
     VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --locked -p slime-render -p slime-world --features glam/debug-glam-assert
 
+    # A clock set is the one way short of a suspend to make the kernel cancel the notice of a
+    # resume, and it needs root: CI's throwaway runners alone run it, never a person's machine
+    # (ADR-0315).
+    if [ "${UWUI_TEST_SETS_CLOCK:-}" = 1 ]; then
+        step "The kernel's notice of a resume, from the clock set to now through sudo (CI alone)"
+        cargo test --locked -p uwui-windowing --lib -- --ignored --exact \
+            wait::tests::a_clock_set_ends_the_wait_and_leaves_the_notice_watching
+    fi
+
     step "Source assets (each with a metadata file of its own, ADR-0069)"
     cargo run --locked -p slime-cook -- check examples/assets
 

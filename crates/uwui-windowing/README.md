@@ -42,8 +42,7 @@ onto it.
   socket, an eventfd that wakes it, a timerfd on `CLOCK_BOOTTIME`, the host's clock, and the
   kernel's notice of a resume, a timerfd that the kernel cancels as the system resumes or its clock
   is set (`wait`, `clock`), which X11's layer shares; a resume told once in `Happened::resumed`,
-  with the time suspended, a second or more, measured from the host's clock against one that stops
-  in a suspend
+  with the time suspended, measured from the host's clock against one that stops in a suspend
   ([ADR-0315](../../docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md));
   an xdg-shell window, its bar through xdg-decoration where the compositor draws one; the frame
   callback as the signal; when each image showed, through `wp_presentation`, its time placed on
@@ -87,8 +86,9 @@ keyboard's, on layouts that libxkbcommon compiles from its rules, and the transl
 compositor's pointer, touch and keyboard events, without a compositor; X11's pointer, its wheel,
 keys, focus, touch, scale, cursor's theme, its frames' signal and the display's period, without
 a server; the time suspended that tells a resume, and the kernel's notice armed, read from
-`/proc/self/fdinfo`. A real resume reaches no test: the notice comes from the kernel alone, and a
-suspend is checked by hand. Tests that
+`/proc/self/fdinfo`, ending the wait and armed again. One test, ignored elsewhere, sets the clock
+through `sudo` to make the kernel cancel the notice: CI's headless job alone runs it, on its
+throwaway runner, with `UWUI_TEST_SETS_CLOCK=1`; a real suspend is checked by hand. Tests that
 compose dead keys read the tests' own compose file, `tests/compose/Compose`, never the
 developer's: each runs itself again in a process of its own whose `XCOMPOSEFILE` names it.
 
