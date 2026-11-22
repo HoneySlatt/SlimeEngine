@@ -2212,7 +2212,7 @@ The host stands on its platform layer, `uwui-windowing`, which runs the platform
 the host back at each turn, and knows neither the interface nor the GPU
 ([ADR-0279](adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md),
 [ADR-0302](adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)).
-Wayland's layer is the only one, on Linux alone yet:
+Wayland's and X11's layers run on Linux; the flow below is Wayland's:
 
 ```text
 run ─▶ uwui_windowing::run, the layer: connects (WAYLAND_DISPLAY), makes the xdg-shell window,
