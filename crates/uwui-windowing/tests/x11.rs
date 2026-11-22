@@ -2600,6 +2600,21 @@ fn keys_typed_as_the_focus_comes_during_a_long_turn_keep_their_modifiers() {
         .collect();
     eprintln!("typed: {typed:?}; told: {:?}", focus_and_keys(&inputs));
     assert_eq!(typed, ["A"], "Shift+A typed as the focus came");
+    // The key's own Shift told before it, as the host reads a modifier at a press.
+    let a = inputs
+        .iter()
+        .position(
+            |input| matches!(input, Input::Key(KeyEvent { text: Some(text), .. }) if text == "A"),
+        )
+        .expect("A told");
+    let held = inputs[..a].iter().rev().find_map(|input| match input {
+        Input::Modifiers(held) => Some(*held),
+        _ => None,
+    });
+    assert!(
+        held.is_some_and(|held| held.shift),
+        "Shift told held before A: {inputs:?}"
+    );
 }
 
 /// The window given the focus, a key typed, then the focus given to another window, all while
@@ -3311,5 +3326,232 @@ fn a_keyboard_grabbed_on_the_window_itself_by_another_client_is_told_lost() {
         !shifted,
         "Shift typed into the grab's client was told to this window: {:?}",
         recorder.told.inputs
+    );
+}
+
+/// Review r5: Shift+A, then Shift+B, typed through XTest while the window holds the focus and its
+/// host is at rest: each change of the modifiers is told once, Shift held before each key and
+/// released after it, nothing told between.
+#[test]
+fn keys_typed_while_focused_tell_each_modifier_change_once() {
+    use x11rb::protocol::xproto::InputFocus;
+    server_settles();
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let (stop_sender, stop_receiver) = mpsc::channel();
+    let typist = std::thread::spawn(move || {
+        let (connection, _) = x11rb::connect(None).expect("the X server");
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        connection
+            .set_input_focus(
+                InputFocus::POINTER_ROOT,
+                u32::from(InputFocus::POINTER_ROOT),
+                x11rb::CURRENT_TIME,
+            )
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        connection
+            .warp_pointer(x11rb::NONE, window, 0, 0, 0, 0, 160, 120)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        xdotool(&["key", "shift+a"]);
+        std::thread::sleep(Duration::from_millis(200));
+        xdotool(&["key", "shift+b"]);
+        std::thread::sleep(Duration::from_millis(200));
+        let _ = stop_sender.send(());
+    });
+    let mut recorder = Recorder::new(Duration::from_secs(10), false, Some(window_sender));
+    recorder.stop = Some(stop_receiver);
+    let (recorder, ran) = uwui_windowing::run(opening(false), recorder);
+    ran.expect("the run");
+    typist.join().expect("the typist");
+    let told: Vec<String> = recorder
+        .told
+        .inputs
+        .iter()
+        .filter_map(|input| match input {
+            Input::Focus(given) => Some(format!("focus {given}")),
+            Input::Modifiers(held) => Some(format!("shift {}", held.shift)),
+            Input::Key(KeyEvent {
+                state: ButtonState::Pressed,
+                text: Some(text),
+                ..
+            }) => Some(format!("key {text}")),
+            _ => None,
+        })
+        .collect();
+    eprintln!("told: {told:?}");
+    assert_eq!(
+        told,
+        [
+            "focus true",
+            "shift true",
+            "key A",
+            "shift false",
+            "shift true",
+            "key B",
+            "shift false"
+        ],
+        "each change of the modifiers told once"
+    );
+}
+
+/// Review r5: round 4's test of another client's grab of the pointer that ends over another
+/// window, the grab taken through the core protocol's `GrabPointer`, as older toolkits' menus
+/// take it, rather than XInput2's `XIGrabDevice`.
+#[test]
+fn a_core_pointer_grab_that_ends_over_another_window_takes_the_keys_and_their_focus_away() {
+    use x11rb::protocol::xproto::{GrabMode, GrabStatus, InputFocus};
+    server_settles();
+    let (window_sender, window_receiver) = mpsc::channel::<u32>();
+    let (stop_sender, stop_receiver) = mpsc::channel();
+    let grabber = std::thread::spawn(move || {
+        let (connection, screen) = x11rb::connect(None).expect("the X server");
+        let root = connection.setup().roots[screen].root;
+        let window = window_receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the window's id");
+        let other = other_window(&connection, root);
+        connection
+            .set_input_focus(
+                InputFocus::POINTER_ROOT,
+                u32::from(InputFocus::POINTER_ROOT),
+                x11rb::CURRENT_TIME,
+            )
+            .unwrap()
+            .check()
+            .unwrap();
+        let warp = |to: u32, x: i16, y: i16| {
+            connection
+                .warp_pointer(x11rb::NONE, to, 0, 0, 0, 0, x, y)
+                .unwrap()
+                .check()
+                .unwrap();
+            std::thread::sleep(Duration::from_millis(300));
+        };
+        warp(window, 160, 120);
+        xdotool(&["key", "a"]);
+        let grabbed = connection
+            .grab_pointer(
+                false,
+                other,
+                EventMask::NO_EVENT,
+                GrabMode::ASYNC,
+                GrabMode::ASYNC,
+                x11rb::NONE,
+                x11rb::NONE,
+                x11rb::CURRENT_TIME,
+            )
+            .unwrap()
+            .reply()
+            .unwrap()
+            .status;
+        std::thread::sleep(Duration::from_millis(300));
+        // The pointer moves to the other window during the grab, which ends there.
+        warp(other, 50, 50);
+        connection
+            .ungrab_pointer(x11rb::CURRENT_TIME)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        // Shift typed into the other window, under the pointer, which holds the keys.
+        xdotool(&["key", "shift"]);
+        std::thread::sleep(Duration::from_millis(300));
+        warp(root, 1000, 800);
+        let _ = stop_sender.send(());
+        grabbed
+    });
+    let mut recorder = Recorder::new(Duration::from_secs(10), false, Some(window_sender));
+    recorder.stop = Some(stop_receiver);
+    let (recorder, ran) = uwui_windowing::run(opening(false), recorder);
+    ran.expect("the run");
+    let grabbed = grabber.join().expect("the grabber");
+    assert_eq!(grabbed, GrabStatus::SUCCESS, "the pointer grabbed");
+    let inputs = &recorder.told.inputs;
+    let told = focus_and_keys(inputs);
+    eprintln!("told: {told:?}; inputs: {inputs:?}");
+    assert!(
+        told.contains(&"key a".to_owned()),
+        "a reached the window: {told:?}"
+    );
+    let shifted = inputs
+        .iter()
+        .any(|input| matches!(input, Input::Modifiers(held) if held.shift));
+    assert!(
+        !shifted,
+        "Shift typed into another window was told to this one: {inputs:?}"
+    );
+    assert_eq!(
+        told.last().map(String::as_str),
+        Some("focus false"),
+        "the window stays told focused while the keys go to another window: {told:?}"
+    );
+}
+
+/// Review r5: another client changes the keymap, then a click on the window and Shift pressed, all
+/// while the host is busy in a long turn: read after it, the click came before Shift, so the
+/// modifiers told before it hold no Shift.
+#[test]
+fn a_click_read_after_a_keymap_change_is_told_without_a_shift_pressed_after_it() {
+    use x11rb::protocol::xproto::InputFocus;
+    server_settles();
+    let inputs = with_a_long_turn(|window, start_turn| {
+        let (connection, _) = x11rb::connect(None).expect("the X server");
+        connection
+            .set_input_focus(
+                InputFocus::POINTER_ROOT,
+                u32::from(InputFocus::POINTER_ROOT),
+                x11rb::CURRENT_TIME,
+            )
+            .unwrap()
+            .check()
+            .unwrap();
+        connection
+            .warp_pointer(x11rb::NONE, window, 0, 0, 0, 0, 160, 120)
+            .unwrap()
+            .check()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        let (free, per) = free_keycodes(&connection);
+        let keycode = *free.first().expect("a free keycode");
+        start_turn();
+        const ECIRCUMFLEX: u32 = 0xea;
+        map_keycode(&connection, keycode, ECIRCUMFLEX, per);
+        xdotool(&["click", "1"]);
+        xdotool(&["keydown", "shift"]);
+        // Held while the turn's events are read, then let go, the keymap as it was.
+        std::thread::sleep(Duration::from_millis(1200));
+        xdotool(&["keyup", "shift"]);
+        map_keycode(&connection, keycode, 0, per);
+    });
+    eprintln!("inputs: {inputs:?}");
+    let pressed = inputs
+        .iter()
+        .position(|input| {
+            matches!(
+                input,
+                Input::PointerButton {
+                    state: ButtonState::Pressed,
+                    ..
+                }
+            )
+        })
+        .expect("the click");
+    let held = inputs[..pressed]
+        .iter()
+        .rev()
+        .find_map(|input| match input {
+            Input::Modifiers(held) => Some(*held),
+            _ => None,
+        });
+    assert!(
+        !held.is_some_and(|held| held.shift),
+        "the click, before Shift, told with Shift held: {inputs:?}"
     );
 }

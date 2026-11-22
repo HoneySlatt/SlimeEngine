@@ -49,15 +49,16 @@ read again.
 **The keyboard.** The keys come through XInput2's `KeyPress` and `KeyRelease` of the master
 keyboards, with the server's times, translated by `xkb.rs`, shared with Wayland's layer, each in its
 own event's state: the modifiers and the layout, depressed, latched and locked, that XInput2 gives
-with the key, from before it; the keyboard then returns to the state that the server last told. The
-keymap is the server's core keyboard's, read through libxkbcommon-x11 at the start and again at
+with the key, from before it; the keyboard then returns to the state that the server last told, and
+keeps it when it reads the keymap again, the state read with it being ahead of the events queued.
+The keymap is the server's core keyboard's, read through libxkbcommon-x11 at the start and again at
 XKB's `NewKeyboardNotify` and `MapNotify`. The modifiers told the host come from each key's own
 state, before the key, and from XKB's `StateNotify`, of the modifiers' and the layout's parts alone,
-not the pointer's buttons, after it, and only while the window holds the focus: as it takes it, the layer asks for the notices and reads XKB's
-state once, and tells the modifiers if they changed meanwhile, as Wayland's compositors do; as it
-loses it, the notices stop and the modifiers are told released, on Wayland too, whose protocol asks
-a client to take every key as lifted. The repeat is the server's: XInput2's `KeyRepeat` marks it,
-and the layer keeps no timer of its own.
+not the pointer's buttons, after it, and only while the window holds the focus: as it takes it, the
+layer asks for the notices and reads XKB's state once, and tells the modifiers if they changed
+meanwhile, as Wayland's compositors do; as it loses it, the notices stop and the modifiers are told
+released, on Wayland too, whose protocol asks a client to take every key as lifted. The repeat is
+the server's: XInput2's `KeyRepeat` marks it, and the layer keeps no timer of its own.
 
 **The focus.** The window holds it when the server's focus is the window itself, or lies above it,
 following the pointer (`PointerRoot`) or on an ancestor, such as the root window, and the pointer
@@ -66,12 +67,12 @@ XInput2 sends none, as for a move to an ancestor, the layer reads where the serv
 (`GetInputFocus`, then the window's ancestors through `QueryTree`), rather than reading it from the
 events' details, which mislead between an event out and an event in. Another client's grab of the
 keyboard, a `FocusOut` of the mode `Grab`, takes the focus until its `FocusIn` of the mode `Ungrab`,
-or until a key reaches the window, where the server tells the grab's end to no one, though the
-server's focus stays: a menu, a screen locker, a window manager's Alt and Tab. A key that reaches
-the window gives it the focus until the next event of the focus, since the server sends keys only
-to the window that holds them, whatever an event read late said. XInput2's `Enter` and
-`Leave` follow the pointer, those of another client's grab of the pointer aside. `WM_HINTS` asks the
-window manager for the focus, ICCCM's passive model.
+or until a key reaches the window, where the server tells this window nothing of the grab's end,
+though the server's focus stays: a menu, a screen locker, a window manager's Alt and Tab. A key that
+reaches the window gives it the focus until the next event of the focus, since the server sends keys
+only to the window that holds them, whatever an event read late said. XInput2's `Enter` and `Leave`
+follow the pointer, those of another client's grab of the pointer aside. `WM_HINTS` asks the window
+manager for the focus, ICCCM's passive model.
 
 **The loop turns only for what tells the host something.** Events that tell it nothing, as a
 keyboard that the server's core keyboard now follows, or a window manager's ping, are read and
@@ -81,9 +82,9 @@ answered, the answers sent before each wait, and the loop waits again without a 
 one (`text`, then `xterm`), through `x11rb`'s loader, which reads `XCURSOR_THEME` and
 `XCURSOR_SIZE`, then the X resources' `Xcursor.theme` and `Xcursor.size`, then a size from
 `Xft.dpi`. Where no theme holds it, or the theme named is `core`, the core cursor font's glyph
-shows, from the layer's own table: `x11rb` 0.13.2's gives the font's glyphs at half their numbers. Each shape is made once,
-when first shown, and set on the window; the arrow is set as the window opens, in place of the
-root window's cursor. A change of the X resources makes them again.
+shows, from the layer's own table: `x11rb` 0.13.2's gives the font's glyphs at half their numbers.
+Each shape is made once, when first shown, and set on the window; the arrow is set as the window
+opens, in place of the root window's cursor. A change of the X resources makes them again.
 
 **The scale.** `Xft.dpi` over 96, read from the root window's `RESOURCE_MANAGER` alone, held
 within 0.5 and 8; 1 where it gives no positive number. The property is read at the start, and again

@@ -12,8 +12,10 @@
 //!   modifiers and the layout depressed, latched and locked as XInput2 gives them with the key,
 //!   from before it; the keyboard then returns to the state that the server last told. The
 //!   modifiers told the host come from XKB's `StateNotify`, of those parts alone, and only while
-//!   the window holds the focus, and from each key's own state around it: a key typed as the focus
-//!   comes keeps its modifiers, and the last key leaves the server's told. A modifier held in
+//!   the window holds the focus, and from each key's own state before it, the server's after it: a
+//!   key typed as the focus comes keeps its modifiers, and the last key leaves the server's told. A
+//!   keymap read again keeps the state that the server last told, the one read with it being ahead
+//!   of the events still queued. A modifier held in
 //!   another window, or a click anywhere, which changes the pointer's buttons in XKB's state, never
 //!   wakes the loop. As the window takes the focus, the layer reads XKB's state once, and tells the
 //!   modifiers held if they changed, as on Wayland; as it loses it, it tells them released.
@@ -29,7 +31,7 @@
 //!   screen locker or a window manager's Alt and Tab, takes the focus until it ends, though the
 //!   server's focus stays. A key that reaches the window gives it the focus, which an event read
 //!   late may not have told, and ends another client's grab, whose end the server may have told
-//!   no one: the server sends keys only to the window that holds them. XInput2's
+//!   this window nothing of: the server sends keys only to the window that holds them. XInput2's
 //!   `Enter` says whether the focus lies on the window or above it, and `Leave` that the pointer
 //!   left; another client's grab of the pointer moves neither.
 //!
@@ -174,14 +176,19 @@ impl Keys {
         self.keyboard.is_some() && i32::from(device) == self.device
     }
 
-    /// Reads the keymap of the server's core keyboard again, which XKB said changed: the modifiers
-    /// held, if they changed with it and the window holds the focus. A keymap that cannot be read
-    /// leaves the last.
+    /// Reads the keymap of the server's core keyboard again, which XKB said changed, keeping the
+    /// state that the server last told: the modifiers held, if a new modifier map changed them and
+    /// the window holds the focus. A keymap that cannot be read leaves the last.
     pub(super) fn keymap_changed(&mut self, connection: &XCBConnection) -> Option<Input> {
         let keyboard = self.keyboard.as_mut()?;
         if let Err(error) = keyboard.set_x11_keymap(X11Connection::new(connection), self.device) {
             tracing::warn!(%error, "the X server's new keymap is not read: keys keep the last");
             return None;
+        }
+        // The state read with the keymap is the server's now, ahead of the events still queued,
+        // whose keys and notices bring it: the keyboard keeps the one that the server last told.
+        if let Some((modifiers, layouts)) = self.server {
+            keyboard.set_modifiers(modifiers, layouts);
         }
         self.modifiers_now()
     }
@@ -243,11 +250,12 @@ impl Keys {
         self.modifiers_now()
     }
 
-    /// The key of X11's keycode `keycode` going down, up or repeating, translated in `own`, the
-    /// state that XInput2 gives with it, from before the key: the modifiers of that state told
-    /// first if they changed, then the key, then the modifiers of the state that the server last
-    /// told, which the keyboard returns to, if they differ. A key typed as the focus comes, before
-    /// XKB's notices are asked, keeps its own modifiers; the last key's leaves none told held.
+    /// The key of X11's keycode `keycode` going down, up or repeating, translated in the state that
+    /// XInput2 gives with it, the masks and layouts of the last argument, from before the key: the
+    /// modifiers of that state told first if they changed, then the key, then the modifiers of the
+    /// state that the server last told, which the keyboard returns to, if they differ. A key typed
+    /// as the focus comes, before XKB's notices are asked, keeps its own modifiers, and the last
+    /// key leaves the server's told. Where the server never told a state, the key's own stays.
     pub(super) fn key_in(
         &mut self,
         keycode: u32,
@@ -762,5 +770,67 @@ mod tests {
         assert_eq!(layout(1), 1);
         assert_eq!(layout(-1), u32::MAX);
         assert_eq!(mask(x11rb::protocol::xproto::ModMask::SHIFT), 1);
+    }
+
+    /// Review r5: a key that comes before any state of the server's was told, as where XKB's
+    /// state cannot be read as the focus comes, keeps its own state after it.
+    #[test]
+    fn a_key_with_no_server_state_told_keeps_its_own() {
+        let mut keys = keys("us");
+        assert_eq!(keys.focus(Focus::Key), Some(Input::Focus(true)));
+        let told = keys.key_in(38, ButtonState::Pressed, false, ([1, 0, 0], [0; 3]));
+        assert_eq!(told.len(), 2, "{told:?}");
+        assert!(matches!(told[0], Input::Modifiers(held) if held.shift));
+        assert!(matches!(&told[1], Input::Key(event) if event.text.as_deref() == Some("A")));
+        // The next key's own state, without Shift: told released, then the key.
+        let told = keys.key_in(38, ButtonState::Pressed, false, ([0; 3], [0; 3]));
+        assert_eq!(told.len(), 2, "{told:?}");
+        assert_eq!(told[0], Input::Modifiers(Modifiers::default()));
+        assert!(matches!(&told[1], Input::Key(event) if event.text.as_deref() == Some("a")));
+    }
+
+    /// Review r5: a key typed before a modifier that the server holds now, as read when the focus
+    /// came late: told without it, the modifier told held again after it.
+    #[test]
+    fn a_key_typed_before_a_modifier_the_server_holds_now_is_told_without_it() {
+        let mut keys = keys("us");
+        keys.focus(GIVEN);
+        assert!(
+            matches!(keys.state([1, 0, 0], [0; 3]), Some(Input::Modifiers(held)) if held.shift)
+        );
+        let told = keys.key_in(38, ButtonState::Pressed, false, ([0; 3], [0; 3]));
+        assert_eq!(told.len(), 3, "{told:?}");
+        assert_eq!(told[0], Input::Modifiers(Modifiers::default()));
+        assert!(matches!(&told[1], Input::Key(event) if event.text.as_deref() == Some("a")));
+        assert!(matches!(told[2], Input::Modifiers(held) if held.shift));
+    }
+
+    /// Review r5: the server's layout comes back after a key translated in its own.
+    #[test]
+    fn the_servers_layout_comes_back_after_a_key_in_its_own() {
+        let mut keys = keys("us,fr");
+        keys.focus(GIVEN);
+        // The French layout locked, as the server last told.
+        assert_eq!(keys.state([0; 3], [0, 0, 1]), None);
+        // `q`'s place, typed while the first layout held: `q`.
+        let told = keys.key_in(24, ButtonState::Pressed, false, ([0; 3], [0; 3]));
+        assert_eq!(told.len(), 1, "{told:?}");
+        assert!(matches!(&told[0], Input::Key(event) if event.text.as_deref() == Some("q")));
+        // Back in the server's layout: `q`'s place types `a`.
+        assert_eq!(
+            key(keys.key(24, ButtonState::Pressed, false)).2.as_deref(),
+            Some("a")
+        );
+    }
+
+    /// Review r5: without a keyboard, a key in its own state gives nothing.
+    #[test]
+    fn without_a_keyboard_a_key_in_its_state_gives_nothing() {
+        let mut keys = Keys::without_keyboard();
+        assert_eq!(keys.focus(Focus::Key), Some(Input::Focus(true)));
+        assert!(
+            keys.key_in(38, ButtonState::Pressed, false, ([1, 0, 0], [0; 3]))
+                .is_empty()
+        );
     }
 }
