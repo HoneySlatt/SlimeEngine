@@ -75,7 +75,7 @@ MIT OR Apache-2.0.
   [ADR-0307](../../docs/adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)),
   which `scripts/host-cost.py` reads.
 
-What waits for its milestone: X11 (M6d.7b), Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
+What waits for its milestone: Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
 it has no layer and ends; a bar drawn by uwui where the compositor draws none, Weston and Mutter
 (M6d.7e); the clipboard, input methods and screen readers (M6d.8).
 [`debt.md`](../../docs/debt.md) holds the rest.
