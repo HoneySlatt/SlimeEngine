@@ -133,6 +133,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **uwui's desktop host's notice of a resume on Linux is tested through a clock set, not a suspend** ([ADR-0315](adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md)).
   The kernel cancels the layer's timer on `CLOCK_REALTIME` as the system resumes or its clock is set: CI's headless job sets its runner's clock through `sudo`, and no test suspends a machine, so the kernel's call at a resume, `timerfd_resume`, is checked by hand alone.
   A suspend to idle whose timekeeping keeps running, as without a driver of the processor's idle states, is not told: the kernel measures no sleep.
+  A step of a runner's wall clock while `uwui-desktop`'s rest test watches wakes the loop once and fails that test, which has no retry; its message names the step.
   The host's call of `Session::resumed` in its turn, before the turn's inputs, is checked by review alone: no test drives the host on a fake platform (the item on `Handler::closing` below).
   Followed by the owner's check by hand of a real suspend, deep and to idle, on Wayland and under Xwayland ([`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-owner)).
 - **uwui's desktop host's X11 layer runs under Xvfb alone, with a software driver** ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md)).

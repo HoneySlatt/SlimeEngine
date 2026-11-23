@@ -191,7 +191,8 @@ fn awaited_callbacks(log: &str) -> Vec<String> {
 }
 
 /// The wall clock's place against the monotonic clock, from `since`, in nanoseconds: it moves only
-/// when the wall clock steps, a slew moving both alike.
+/// when the wall clock steps or the machine sleeps, the two causes of the host's notice of a
+/// resume, a slew moving both alike.
 fn wall_clock_offset(since: Instant) -> i128 {
     let nanos = |duration: Duration| i128::try_from(duration.as_nanos()).unwrap_or(i128::MAX);
     let wall = std::time::SystemTime::now()
@@ -239,7 +240,10 @@ fn at_rest(example: &Example) -> Result<(), String> {
     let log = example.read_log();
     let gained = log.get(logged..).unwrap_or("");
     let clock = if stepped.abs() > 1_000_000 {
-        format!(" The wall clock stepped by {stepped} ns meanwhile, which wakes the host's loop.")
+        format!(
+            " The wall clock moved by {stepped} ns against the monotonic clock meanwhile, a step or \
+             a sleep, which wakes the host's loop."
+        )
     } else {
         String::new()
     };

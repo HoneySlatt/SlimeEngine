@@ -302,13 +302,6 @@ if runs lint; then
 fi
 
 if runs headless; then
-    # On GitHub, only CI's headless job runs this part: it must ask for the test of the kernel's
-    # notice of a resume below, whatever the workflow's shape (ADR-0315).
-    if [ "${GITHUB_ACTIONS:-}" = true ] && [ "${UWUI_TEST_SETS_CLOCK:-}" != 1 ]; then
-        echo "the headless part runs on GitHub without UWUI_TEST_SETS_CLOCK=1: the kernel's notice of a resume would go untested" >&2
-        exit 1
-    fi
-
     step "Build"
     cargo build --workspace --all-targets --locked
 
@@ -322,7 +315,8 @@ if runs headless; then
     # A clock set is the one way short of a suspend to make the kernel cancel the notice of a
     # resume, and it needs root: CI's throwaway runners alone run it, never a person's machine
     # (ADR-0315). Run through the workspace's build, which it reuses; it fails unless the test ran,
-    # since a filter that matches no test passes.
+    # since a filter that matches no test passes; and on GitHub, wherever this step lies, unless it
+    # was asked, so that a workflow reshaped cannot skip it in silence.
     if [ "${UWUI_TEST_SETS_CLOCK:-}" = 1 ]; then
         step "The kernel's notice of a resume, from the clock set to now through sudo (CI alone)"
         clock_test=wait::tests::a_clock_set_ends_the_wait_and_leaves_the_notice_watching
@@ -332,6 +326,9 @@ if runs headless; then
             echo "the kernel's notice of a resume: its test did not run once and pass" >&2
             exit 1
         fi
+    elif [ "${GITHUB_ACTIONS:-}" = true ]; then
+        echo "check.sh $part runs on GitHub without UWUI_TEST_SETS_CLOCK=1: the kernel's notice of a resume would go untested" >&2
+        exit 1
     fi
 
     step "Source assets (each with a metadata file of its own, ADR-0069)"

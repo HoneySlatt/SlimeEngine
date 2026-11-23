@@ -124,8 +124,8 @@ On the test of the kernel's cancel:
 - CI's headless job runs one step through `sudo`, on its own throwaway runner. It is the one check
   that a local run of `scripts/check.sh` does not reproduce, against
   [ADR-0007](0007-documentation-tooling-and-ci.md)'s "one command reproduces CI locally": a
-  person's machine never sets its clock for a test. The script's headless part fails on GitHub
-  if the step is not asked, and wherever the step runs unless its test ran once and passed.
+  person's machine never sets its clock for a test. The script fails on GitHub wherever it
+  reaches the step unasked, and wherever the step runs unless its test ran once and passed.
 - No notice comes before a suspend: nothing reads one yet; logind gives one, with a lock that delays
   the sleep, if a program ever needs to save before it.
 - A clock set turns the loop once. The time of day's timer, when uwui's first stage builds it, may
