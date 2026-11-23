@@ -203,8 +203,8 @@ fn wall_clock_offset(since: Instant) -> i128 {
 
 /// Waits until `example` settles, then watches it for `REST`: what woke, if anything did. A wake
 /// is told with the threads that woke, by name, the lines that its protocol's log gained
-/// meanwhile, the compositor's messages among them, and a step of the wall clock, which the
-/// host's notice of a resume wakes for
+/// meanwhile, the compositor's messages among them, and how far the wall clock moved against the
+/// monotonic clock, a step or a sleep, which the host's notice of a resume wakes for
 /// (`docs/adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md`),
 /// so that a failure in CI shows its cause.
 fn at_rest(example: &Example) -> Result<(), String> {

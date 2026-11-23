@@ -31,8 +31,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
   - Track B, in a worktree: M6d.4 to M6d.6 done; M6d.7 cut in six
     ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)):
     done, [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) to
-    [M6d.7b2](stage-6d.md#m6d7b2--x11s-keyboard-cursor-scale-and-touch); in progress,
-    [M6d.7b3](stage-6d.md#m6d7b3--a-resumes-notice-on-linux).
+    [M6d.7b3](stage-6d.md#m6d7b3--a-resumes-notice-on-linux); next,
+    [M6d.7c](stage-6d.md#m6d7c--windows).
   - M6d.10a, D1, M6d.11, M6d.10b and M6d.12 run alone, in this order
     ([ADR-0300](adr/0300-m6d10-cut-in-two-what-the-move-needs-before-it-uwuis-first-stage-planned-after.md)).
   - Timed measures, and edits of shared files, one session at a time.
@@ -48,8 +48,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 |---|---|
 | [M6d.0a to M6d.3c3, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.4, M6d.5, M6d.6 — The canvas, the host's API, the compositors](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Done |
-| [M6d.7a1 to M6d.7b2 — The host's core, Wayland, X11](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) | Done |
-| [M6d.7b3 to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7b3--a-resumes-notice-on-linux) | Planned |
+| [M6d.7a1 to M6d.7b3 — The host's core, Wayland, X11, resumes](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) | Done |
+| [M6d.7c to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7c--windows) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a2a — The library](stage-6d.md#m6d9a2a--the-library) | Done |

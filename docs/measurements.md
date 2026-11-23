@@ -5168,3 +5168,41 @@ about 46 s. The milestone's three earlier pushes, `d3a24875`, `e1f98b4c` and `05
 too; across the four, `check (lint)` took from 6 min 54 s to 10 min 30 s and `check (headless)`
 from 13 min 30 s to 18 min 34 s for the same dependencies: the runners' share of these swings is
 not diagnosed.
+
+## M6d.7b3, a resume's notice on Linux
+
+No timed measure: the milestone checks that a resume reaches uwui on Linux, from the kernel's own
+notice, and that the window still rests, in the series' columns
+([`compositors.md`](compositors.md)), not how fast it draws. The kernel's cancel of the notice is
+tested in CI's headless job through a clock set, three sets in a row: the step took 0.34 s on
+`92cb8246`, each set ending its wait of 10 s about 0.11 s after it began, and reuses the
+workspace's build since `83e9ece7`.
+
+GitHub's hosted runners, on 2026-11-23, each run green, on `3aa3e327`, the milestone's last commit
+of code:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 32 s |
+| `check (headless)` | 15 min 5 s |
+| `check (windowed)` | 10 min 32 s |
+| `check (game)` | 13 min 3 s |
+| `check (gles)` | 3 min 18 s |
+| `windows (tests)` | 16 min 50 s |
+| `windows (render)` | 7 min 26 s |
+| `windows (game)` | 5 min 56 s |
+| `windows-release` | 16 min 43 s |
+| `compositors (weston)` | 16 min 26 s |
+| `compositors (sway)` | 14 min 30 s |
+| `compositors (kwin)` | 16 min 8 s |
+| `compositors (mutter)` | 16 min 40 s |
+| `compositors (x11)` | 15 min 31 s |
+| Docs' `links` | green |
+
+Every job stays within its limit of 20 minutes, `windows (tests)` by 3 min 10 s. The milestone's
+earlier pushes ran green too, but `e8cddc6f`, whose CI and Compositors runs the next push
+cancelled: across the three green ones, `92cb8246`, `83e9ece7` and `3aa3e327`, `check (headless)`
+took from 13 min 46 s to 18 min 14 s, and the compositors' columns from 12 min 26 s to 18 min 23 s,
+`compositors (sway)` 18 min 23 s on `83e9ece7`, against 12 min 34 s to 15 min 36 s at M6d.7b2, for
+the same jobs and a few seconds of new tests: the runners' share of these swings is not
+diagnosed.

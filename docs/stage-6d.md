@@ -2850,6 +2850,36 @@ The third part of M6d.7b ([ADR-0311](adr/0311-m6d7b-cut-in-three-x11s-window-fra
   ([ADR-0264](adr/0264-the-lifecycle-before-each-targets-size-a-lost-surface-made-again-within-a-budget-m6d5e-cut-in-two.md)).
   Its dependencies put to the owner.
 - **Done when.** A resume reaches uwui on Linux; CI is green.
+- **Result.** Done on 2026-11-23, CI green, every job within its 20 minutes
+  ([`measurements.md`](measurements.md#m6d7b3-a-resumes-notice-on-linux),
+  [ADR-0315](adr/0315-a-resume-told-by-the-kernels-own-notice-and-given-to-the-program-as-an-action.md)).
+  M6d.7b's "Done when" is met. Its source and its door are the owner's choice, and no dependency
+  is added: `rustix`'s `time` feature was already on.
+  - The kernel's own notice: a timerfd on `CLOCK_REALTIME` that never ends, armed with
+    `TFD_TIMER_CANCEL_ON_SET`, which the kernel cancels at each resume and each clock set. The
+    loop's shared wait polls it, so a window at rest turns at once, on Wayland and on X11; the
+    layer's measure of the time suspended tells a resume from a clock set, and
+    gives it once in `Happened::resumed`. The notice never ends a run: a clock set during its
+    re-arm, or a kernel that refuses the flag, leaves the resume told at a later turn.
+  - uwui hears it as an action: `Ui::resumed`, the host's door, puts `ActionKind::Resumed`, with
+    the time suspended and no element, in the program's queue, which only a host fills. uwui's
+    desktop host gives it before the turn's inputs, logs it, and counts it as asked from outside;
+    the example writes `resumed after <seconds> s`.
+  - Tests: the time suspended that tells a resume; the notice armed, read from
+    `/proc/self/fdinfo`; a readable notice that ends the wait and is armed again; the action from
+    the door to the application's step; what asks from outside, field by field. CI's headless job
+    sets its runner's clock through `sudo`, the owner's choice: three real cancels by the kernel,
+    each ending its wait at once, and the script fails if that step does not run.
+  - The closing review, in five rounds, found the run ended by a clock set during the notice's
+    re-arm, the notice's path in the wait untested, ADR-0249 changed without being superseded, a
+    false reason why CI could not test the notice, a CI step that passed with no test and a guard
+    that a reshaped workflow would skip, the limit of a suspend to idle unstated, and smaller
+    defects. Each was fixed, and the new tests proved by mutations.
+  - Not verified: a real resume. The kernel's call at a resume, deep and to idle, on Wayland and
+    under Xwayland, is the owner's check by hand
+    ([`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-owner)).
+  - Debt left: a suspend to idle whose timekeeping keeps running is not told; the host's call of
+    the door is checked by review alone ([`debt.md`](debt.md)).
 
 ### M6d.7c — Windows
 
