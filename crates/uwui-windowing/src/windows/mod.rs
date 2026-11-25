@@ -7,7 +7,7 @@
 //!   title, its smallest size (`WM_GETMINMAXINFO`), filling its display without borders, brought to
 //!   the front or flashed for attention; its closing (`WM_CLOSE`) told to the host rather than
 //!   done. Its scale follows the display that holds it (`WM_DPICHANGED`), at the size that Windows
-//!   suggests. The system groups the windows by their program: the application's identity is not
+//!   suggests, or still filling its display where it fills one. The system groups the windows by their program: the application's identity is not
 //!   used. A minimized window holds its signal until it shows again.
 //! - *The loop*: Win32's messages, waited for with `MsgWaitForMultipleObjectsEx`; a wake, the
 //!   deadline and the signal each reach the window as a message of the layer's own, so that they
@@ -68,13 +68,14 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     GWLP_USERDATA, GetClientRect, GetMessageTime, GetWindowLongPtrW, GetWindowPlacement, HCURSOR,
     HTCLIENT, HWND_TOP, IDC_ARROW, IDC_IBEAM, IDC_SIZENS, IDC_SIZEWE, LoadCursorW, MINMAXINFO, MSG,
     MWMO_INPUTAVAILABLE, MsgWaitForMultipleObjectsEx, PM_REMOVE, PeekMessageW, QS_ALLINPUT,
-    RegisterClassExW, SIZE_MINIMIZED, SW_SHOWDEFAULT, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
-    SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_NOZORDER, SendMessageW, SetCursor, SetForegroundWindow,
-    SetWindowLongPtrW, SetWindowPlacement, SetWindowPos, SetWindowTextW, ShowWindow,
-    TranslateMessage, UnregisterClassW, WINDOWPLACEMENT, WM_APP, WM_CANCELMODE, WM_CAPTURECHANGED,
-    WM_CLOSE, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_ENTERMENULOOP, WM_ENTERSIZEMOVE, WM_ERASEBKGND,
-    WM_EXITMENULOOP, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_NCCREATE, WM_PAINT, WM_SETCURSOR,
-    WM_SIZE, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE,
+    RegisterClassExW, SET_WINDOW_POS_FLAGS, SIZE_MINIMIZED, SW_SHOWDEFAULT, SWP_FRAMECHANGED,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_NOZORDER, SendMessageW,
+    SetCursor, SetForegroundWindow, SetWindowLongPtrW, SetWindowPlacement, SetWindowPos,
+    SetWindowTextW, ShowWindow, TranslateMessage, UnregisterClassW, WINDOWPLACEMENT, WM_APP,
+    WM_CANCELMODE, WM_CAPTURECHANGED, WM_CLOSE, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_ENTERMENULOOP,
+    WM_ENTERSIZEMOVE, WM_ERASEBKGND, WM_EXITMENULOOP, WM_EXITSIZEMOVE, WM_GETMINMAXINFO,
+    WM_NCCREATE, WM_PAINT, WM_SETCURSOR, WM_SIZE, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW,
+    WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE,
 };
 
 use self::pointer::Held;
@@ -412,8 +413,11 @@ impl State {
             WM_DPICHANGED => {
                 self.dpi.set(u32::from((wparam >> 16) as u16));
                 if self.restore.get().is_some() {
-                    // Filling its display, the window keeps filling it, whatever Windows suggests.
-                    self.fill_monitor();
+                    // Filling its display, the window keeps filling it, whatever Windows suggests:
+                    // neither raised nor activated by Windows' notice, nor moved while minimized.
+                    if !self.minimized.get() {
+                        self.fill_monitor(SWP_NOZORDER | SWP_NOACTIVATE);
+                    }
                     self.tell_size();
                     return Some(0);
                 }
@@ -536,19 +540,23 @@ impl State {
         }
     }
 
-    /// Puts the window over the whole of the display that holds most of it.
-    fn fill_monitor(&self) {
+    /// Puts the window over the whole of the display that holds most of it, raised and activated
+    /// unless `flags` say otherwise; nothing where Windows tells no display.
+    fn fill_monitor(&self, flags: SET_WINDOW_POS_FLAGS) {
         let hwnd = self.hwnd();
         let mut monitor = MONITORINFO {
             cbSize: u32::try_from(size_of::<MONITORINFO>()).unwrap_or(u32::MAX),
             ..Default::default()
         };
         // SAFETY: the live window, and a live structure whose size its field says.
-        unsafe {
+        let read = unsafe {
             GetMonitorInfoW(
                 MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST),
                 &raw mut monitor,
-            );
+            )
+        };
+        if read == 0 {
+            return;
         }
         let area = monitor.rcMonitor;
         // SAFETY: the live window, which the call moves and sizes, sending its messages.
@@ -560,7 +568,7 @@ impl State {
                 area.top,
                 area.right - area.left,
                 area.bottom - area.top,
-                SWP_FRAMECHANGED | SWP_NOOWNERZORDER,
+                SWP_FRAMECHANGED | SWP_NOOWNERZORDER | flags,
             );
         }
     }
@@ -589,7 +597,7 @@ impl State {
                         (style & !(WS_OVERLAPPEDWINDOW as isize)) | WS_POPUP as isize,
                     );
                 }
-                self.fill_monitor();
+                self.fill_monitor(0);
             }
             (false, Some(restore)) => {
                 self.restore.set(None);

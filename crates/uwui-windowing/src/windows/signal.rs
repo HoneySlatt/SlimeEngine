@@ -10,9 +10,8 @@
 //!
 //! A wait that fails, returns sooner than half a period after the last refresh, or returns at its
 //! call, as the wait before did, sooner than fifteen sixteenths of a period after the last, as when
-//! the display is off, is no refresh: a timer at the
-//! display's period takes its place, on the grid of the last refresh. The period is the display's
-//! mode, else DWM's, else 60 a second, read again when the window moves to another display and when
+//! the display is off, is no refresh: a timer at the display's period takes its place, on the grid
+//! of the last refresh. The period is the display's mode, else DWM's, else 60 a second, read again when the window moves to another display and when
 //! Windows tells that the displays changed (`WM_DISPLAYCHANGE`). A monitor whose output does not
 //! open, or whose wait fails, is left to the timer for a second before it is opened again.
 
@@ -408,7 +407,7 @@ mod tests {
     }
 
     #[test]
-    fn waits_that_return_at_once_in_a_row_are_no_refresh_before_a_period() {
+    fn waits_that_return_at_once_in_a_row_are_no_refresh_before_most_of_a_period() {
         // The display off: every wait returns at its call, a frame's work after the last refresh.
         assert_eq!(
             judge(at_once(110), true, Some(ms(100)), PERIOD),
@@ -440,6 +439,17 @@ mod tests {
             ..just_under
         };
         assert_eq!(judge(blank, true, Some(ms(100)), long), Judged::Refresh);
+        // A period read 4.2 % long, a mode of 23.976 Hz read as 23, and the last refresh told
+        // `AT_ONCE` after its blank: the blank is still one.
+        let film = Duration::from_nanos(1_000_000_000 / 23);
+        let blank = Wait {
+            returned: Instant::from_nanos(141_708_333),
+            ..just_under
+        };
+        assert_eq!(
+            judge(blank, true, Some(Instant::from_nanos(100_100_000)), film),
+            Judged::Refresh
+        );
         // A blank that comes just as the wait is called, once, after a refresh told late: a
         // refresh.
         assert_eq!(

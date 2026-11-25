@@ -588,8 +588,10 @@ struct Held {
 
 impl Drop for Held {
     fn drop(&mut self) {
-        // Sent without asserting: a refused input during a panic's unwinding would abort the run.
-        let _ = mouse_input(0, 0, MOUSEEVENTF_LEFTUP);
+        // Checked but while a panic unwinds, where a second panic would abort the run.
+        if !mouse_input(0, 0, MOUSEEVENTF_LEFTUP) && !std::thread::panicking() {
+            panic!("the mouse's release was not sent: the button stays down");
+        }
     }
 }
 
