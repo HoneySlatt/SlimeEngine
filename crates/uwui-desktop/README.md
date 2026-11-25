@@ -69,7 +69,8 @@ MIT OR Apache-2.0.
 - Opens its own device (`gpu`) on the window's raw handles, with wgpu's hint
   `MemoryHints::MemoryUsage`, Direct3D 12 on Windows, as the engine's
   ([ADR-0317](../../docs/adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md)),
-  where `WGPU_BACKEND` names no other, the adapter that uses the least power, no optional feature, Mailbox
+  where `WGPU_BACKEND` names no other, its shaders compiled there by the `dxcompiler.dll` beside the
+  program, which a program on the host ships, else by FXC with a warning (`instance`), the adapter that uses the least power, no optional feature, Mailbox
   where the surface offers it and Fifo elsewhere, and draws each frame's display list with
   `uwui-render` into the window's image. A lost device is replaced through the same wgpu
   instance, every object of the old one gone first.

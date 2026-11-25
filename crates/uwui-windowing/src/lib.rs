@@ -225,8 +225,8 @@ pub enum Activation {
 }
 
 /// The process's exit status when a second termination signal, SIGTERM, SIGINT or SIGHUP, or on
-/// Windows the console's Ctrl+C, Ctrl+Break or close, half a second or more after the first, ends it at once, without a call of the host: the status that a
-/// shell gives a process ended by Ctrl+C. The first is the host's, as [`Happened::terminated`].
+/// Windows the console's Ctrl+C, Ctrl+Break or close, half a second or more after the first, ends
+/// it at once, without a call of the host: the status that a shell gives a process ended by Ctrl+C. The first is the host's, as [`Happened::terminated`].
 pub const EXIT_TERMINATED: i32 = 130;
 
 /// The host above the layer, which it calls back.

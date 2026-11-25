@@ -85,7 +85,9 @@ displays.
 
 **`uwui-desktop` opens Direct3D 12 on Windows by default,** as the engine does; `WGPU_BACKEND`
 still chooses another. Its shaders compile with the DXC that lies beside the program, else FXC, as
-[ADR-0066](0066-shipping-dxc-beside-the-programs.md) has the engine's do.
+[ADR-0066](0066-shipping-dxc-beside-the-programs.md) has the engine's do: the engine's code of that
+choice passes under uwui's licence, MIT OR Apache-2.0, the owner's go of 2026-11-25, beside the code
+that ADR-0270 named.
 
 ## Alternatives considered
 

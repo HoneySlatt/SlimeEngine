@@ -115,7 +115,7 @@ that the project publishes.
 
 | Program | Why | Alternative considered | License |
 |---|---|---|---|
-| [DXC](https://github.com/microsoft/DirectXShaderCompiler) 1.9.2609, its `dxcompiler.dll` | The shader compiler of Direct3D 12 that the engine uses when its library lies beside the program: the scene pass runs about twice as fast as with FXC's code ([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)). [`scripts/fetch-dxc.sh`](../scripts/fetch-dxc.sh) downloads Microsoft's release and checks its SHA-256; CI puts it beside the tests and samples it runs on Windows and the programs it publishes, with its licence as `dxcompiler-LICENSE.txt` | FXC, part of Windows ([ADR-0036](adr/0036-direct3d-12-shader-compiler.md)); wgpu's `static-dxc` feature, whose build downloads a DXC of 2023 | University of Illinois/NCSA (LLVM's) |
+| [DXC](https://github.com/microsoft/DirectXShaderCompiler) 1.9.2609, its `dxcompiler.dll` | The shader compiler of Direct3D 12 that the engine and uwui's desktop host use when its library lies beside the program ([ADR-0317](adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md)): the scene pass runs about twice as fast as with FXC's code ([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)). [`scripts/fetch-dxc.sh`](../scripts/fetch-dxc.sh) downloads Microsoft's release and checks its SHA-256; CI puts it beside the tests and samples it runs on Windows and the programs it publishes, with its licence as `dxcompiler-LICENSE.txt` | FXC, part of Windows ([ADR-0036](adr/0036-direct3d-12-shader-compiler.md)); wgpu's `static-dxc` feature, whose build downloads a DXC of 2023 | University of Illinois/NCSA (LLVM's) |
 
 ## Development tools
 
