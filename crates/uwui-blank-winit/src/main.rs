@@ -158,7 +158,13 @@ impl Gpu {
     /// Opens a device that draws into `window`, at `size` in physical pixels.
     fn new(window: Arc<Window>, size: [u32; 2]) -> Result<Self, String> {
         let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
-        descriptor.backends = wgpu::Backends::from_env().unwrap_or(wgpu::Backends::PRIMARY);
+        // Direct3D 12 on Windows, as uwui's host (`crates/uwui-desktop/src/instance.rs`).
+        let platform = if cfg!(windows) {
+            wgpu::Backends::DX12
+        } else {
+            wgpu::Backends::PRIMARY
+        };
+        descriptor.backends = wgpu::Backends::from_env().unwrap_or(platform);
         descriptor.flags = wgpu::InstanceFlags::from_build_config().with_env();
         let instance = wgpu::Instance::new(descriptor);
         let surface = instance

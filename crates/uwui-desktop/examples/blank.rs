@@ -36,6 +36,11 @@ mod trace;
 
 use trace::Trace;
 
+// The host's instance of wgpu, the same file: its graphics API and, on Direct3D 12, its shader
+// compiler.
+#[path = "../src/instance.rs"]
+mod instance;
+
 /// How long a frame that found no image waits before it tries again: the host's wait for a late
 /// signal.
 const SIGNAL_WAIT: Duration = Duration::from_millis(100);
@@ -180,16 +185,7 @@ impl Gpu {
         window: raw_window_handle::RawWindowHandle,
         size: [u32; 2],
     ) -> Result<Self, String> {
-        let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
-        // Direct3D 12 on Windows, as the host's (`src/gpu.rs`).
-        let platform = if cfg!(windows) {
-            wgpu::Backends::DX12
-        } else {
-            wgpu::Backends::PRIMARY
-        };
-        descriptor.backends = wgpu::Backends::from_env().unwrap_or(platform);
-        descriptor.flags = wgpu::InstanceFlags::from_build_config().with_env();
-        let instance = wgpu::Instance::new(descriptor);
+        let instance = instance::instance();
         let target = wgpu::SurfaceTargetUnsafe::RawHandle {
             raw_display_handle: Some(display),
             raw_window_handle: window,

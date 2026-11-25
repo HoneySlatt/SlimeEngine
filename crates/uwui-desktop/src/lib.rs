@@ -58,6 +58,7 @@ mod app;
 mod crash;
 mod gpu;
 mod host;
+mod instance;
 mod pacing;
 mod recovery;
 mod session;
