@@ -5265,4 +5265,6 @@ Every job stays within its limit of 20 minutes. The milestone's new tests, the c
 `slime-app` and the waits in `edit_window` and `drive`, add a few seconds of their own: against
 M6d.9a2c4a, `check (headless)` took 2 min 10 s less and `windows-release` 2 min 40 s less, the
 runners' swings larger than what the tests add. `check (windowed)`, which runs `edit_window`, took
-14 min 27 s, within the range of the runs before.
+14 min 27 s, against 10 min 32 s to 10 min 49 s on the three milestones before: the test's waits
+add about 3 s to its run, held for a second at most each, so the rest of the 3 min 38 s is not
+diagnosed; the next runs tell, and the job keeps 5 min 33 s of margin.
