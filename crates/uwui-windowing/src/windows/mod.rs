@@ -71,8 +71,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     SetWindowLongPtrW, SetWindowPlacement, SetWindowPos, SetWindowTextW, ShowWindow,
     TranslateMessage, UnregisterClassW, WINDOWPLACEMENT, WM_APP, WM_CANCELMODE, WM_CAPTURECHANGED,
     WM_CLOSE, WM_DPICHANGED, WM_ENTERMENULOOP, WM_ENTERSIZEMOVE, WM_ERASEBKGND, WM_EXITMENULOOP,
-    WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_NCCREATE, WM_PAINT, WM_SETCURSOR, WM_SIZE, WNDCLASSEXW,
-    WS_OVERLAPPEDWINDOW, WS_POPUP,
+    WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_NCCREATE, WM_PAINT, WM_SETCURSOR, WM_SIZE,
+    WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_OVERLAPPEDWINDOW, WS_POPUP,
 };
 
 use self::pointer::Held;
@@ -340,8 +340,11 @@ impl State {
                 }
                 None => {}
             }
-            // The side buttons' messages ask for TRUE.
-            return Some(1);
+            // The side buttons' messages ask for TRUE, the others for zero.
+            return Some(LRESULT::from(matches!(
+                message,
+                WM_XBUTTONDOWN | WM_XBUTTONUP
+            )));
         }
         match message {
             WM_MOUSELEAVE => {
