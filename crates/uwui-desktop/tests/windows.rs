@@ -1,8 +1,10 @@
 //! The `application` example on Windows, on the desktop that the session shows: it starts, draws
 //! and rests, none of its threads running in 10 s (`docs/adr/0185-rest-checked-in-ci.md`); the
 //! mouse put on its button *Add*, through `SendInput`, hovers it, which draws frames, and it rests
-//! again once the hover's transition ends; resized by its border, it draws while the button is
-//! held, within Win32's modal loop of the resize; asked to close by the message that the window's close
+//! again once the hover's transition ends, its cursor the arrow there and the I-beam over its
+//! field, its title its own; resized by its border, it draws while the button is held, within
+//! Win32's modal loop of the resize, down to its smallest size and no smaller, and Ctrl+Break then
+//! ends the run, the button still held; asked to close by the message that the window's close
 //! button sends, `WM_CLOSE`, it ends cleanly, as it does on Ctrl+Break, Windows' termination signal
 //! of a console's program.
 //!
@@ -42,18 +44,20 @@ use windows_sys::Win32::System::Threading::{
     CREATE_NEW_PROCESS_GROUP, GetThreadDescription, OpenThread, THREAD_QUERY_LIMITED_INFORMATION,
 };
 use windows_sys::Win32::System::WindowsProgramming::QueryThreadCycleTime;
-use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
+use windows_sys::Win32::UI::HiDpi::{
+    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForWindow, SetProcessDpiAwarenessContext,
+};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_MOUSE, MOUSE_EVENT_FLAGS, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN,
     MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE, MOUSEINPUT, SendInput,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetClientRect, GetSystemMetrics, GetWindowRect, GetWindowThreadProcessId,
-    IsWindowVisible, PostMessageW, SM_CXSCREEN, SM_CYSCREEN, SPI_GETDRAGFULLWINDOWS,
-    SPI_SETDRAGFULLWINDOWS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SetWindowPos,
-    SystemParametersInfoW, WM_CLOSE,
+    CURSORINFO, EnumWindows, GetClientRect, GetCursorInfo, GetSystemMetrics, GetWindowRect,
+    GetWindowTextW, GetWindowThreadProcessId, IDC_ARROW, IDC_IBEAM, IsWindowVisible, LoadCursorW,
+    PostMessageW, SM_CXSCREEN, SM_CYSCREEN, SPI_GETDRAGFULLWINDOWS, SPI_SETDRAGFULLWINDOWS,
+    SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SetWindowPos, SystemParametersInfoW, WM_CLOSE,
 };
-use windows_sys::core::{BOOL, PWSTR};
+use windows_sys::core::{BOOL, PCWSTR, PWSTR};
 
 /// How long the program is watched: the quality bar's window of rest.
 const REST: Duration = Duration::from_secs(10);
@@ -65,6 +69,9 @@ const SETTLE: Duration = Duration::from_secs(60);
 /// Where the *Add* button's middle lies in the window, in logical pixels: the bar's padding, then
 /// half the button, `examples/application.rs`.
 const ADD: [f64; 2] = [12.0 + 44.0, 8.0 + 14.0];
+
+/// Where the field's middle lies: past *Add* and *Remove* and their gaps, then half the field.
+const FIELD: [f64; 2] = [12.0 + 88.0 + 8.0 + 88.0 + 8.0 + 100.0, 8.0 + 14.0];
 
 /// Each thread's cycles on the processor, by its id.
 type Threads = BTreeMap<u32, u64>;
@@ -233,6 +240,26 @@ fn client_width(window: HWND) -> i32 {
     rect.right - rect.left
 }
 
+/// The window's title.
+fn window_title(window: HWND) -> String {
+    let mut title = [0_u16; 256];
+    // SAFETY: the live window, and a live buffer of the length given.
+    let length = unsafe { GetWindowTextW(window, title.as_mut_ptr(), 256) };
+    String::from_utf16_lossy(&title[..usize::try_from(length).unwrap_or(0)])
+}
+
+/// Whether the cursor that the screen shows is the system's `name`.
+fn cursor_is(name: PCWSTR) -> bool {
+    let mut info = CURSORINFO {
+        cbSize: u32::try_from(size_of::<CURSORINFO>()).expect("a small structure"),
+        ..Default::default()
+    };
+    // SAFETY: a live structure whose size its field says; the system's cursor, shared.
+    unsafe {
+        GetCursorInfo(&raw mut info) != 0 && info.hCursor == LoadCursorW(std::ptr::null_mut(), name)
+    }
+}
+
 /// Where the point `at` of `window`, in its logical pixels, lies on the screen, in pixels.
 fn on_screen(window: HWND, at: [f64; 2]) -> [i32; 2] {
     // SAFETY: the example's live window.
@@ -288,6 +315,10 @@ impl Example {
     /// Starts the example `name` with `arguments`, in a process group of its own, which Ctrl+Break
     /// reaches alone, its state and trace named after `run`.
     fn spawn(name: &str, run: &str, arguments: &[&str]) -> Self {
+        // The test's own process counts in physical pixels, as the example's window does, so that
+        // a display scaled above 100 % moves no point.
+        // SAFETY: a constant context that Windows defines; a second call is refused, harmlessly.
+        unsafe { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
         let directory = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
         let state = directory.join(format!("state-{run}"));
         let _ = std::fs::remove_dir_all(&state);
@@ -461,9 +492,19 @@ fn the_application_rests_wakes_for_the_mouse_and_closes_when_asked() {
     }
     assert!(example.frames() > 0, "the example's trace holds no frame");
 
+    assert_eq!(
+        window_title(window),
+        "uwui application",
+        "the window's title"
+    );
+
     let before = example.frames();
     move_mouse(on_screen(window, ADD));
     let hovered = example.drawn_after(before, "the mouse on the button");
+    assert!(
+        within_two_seconds(|| cursor_is(IDC_ARROW)),
+        "the cursor over the button is not the arrow"
+    );
     println!("hover: drawn in {} ms", hovered.as_millis());
     if let Err(error) = example.at_rest() {
         panic!("the example is not at rest after the mouse hovered its button: {error}");
@@ -472,6 +513,14 @@ fn the_application_rests_wakes_for_the_mouse_and_closes_when_asked() {
         traced(&example.read_trace(), "input to present") > 0,
         "the hover's frames are in no input to present of the trace"
     );
+    move_mouse(on_screen(window, FIELD));
+    assert!(
+        within_two_seconds(|| cursor_is(IDC_IBEAM)),
+        "the cursor over the field is not the I-beam"
+    );
+    if let Err(error) = example.at_rest() {
+        panic!("the example is not at rest with the mouse over its field: {error}");
+    }
 
     example.close();
     assert_eq!(
@@ -521,18 +570,17 @@ fn within_two_seconds(mut done: impl FnMut() -> bool) -> bool {
     true
 }
 
-#[test]
-fn the_application_draws_while_the_person_resizes_its_window() {
+/// Moves `window` to the screen's top left, so that its right border lies on the screen, whose
+/// width CI's runner keeps at 1024 pixels, puts the mouse on that border, in its invisible band of
+/// resizing, halfway down, waits until `example` is still, and presses the left button there:
+/// where the mouse lies.
+fn hold_right_border(example: &Example, window: HWND) -> [i32; 2] {
     assert!(
         drag_full_windows(),
         "Windows shows an outline, not the window, while a border is dragged: turn on \"Show \
          window contents while dragging\", or set UWUI_TEST_SETS_DRAG_FULL_WINDOWS=1 on a \
          throwaway machine"
     );
-    let example = Example::start("resize", &[]);
-    let window = window_of(example.pid());
-    // At the screen's top left, so that its right border lies on the screen, whose width CI's
-    // runner keeps at 1024 pixels.
     // SAFETY: the example's live window, moved and neither sized nor raised.
     let moved = unsafe {
         SetWindowPos(
@@ -546,37 +594,59 @@ fn the_application_draws_while_the_person_resizes_its_window() {
         )
     };
     assert_ne!(moved, 0, "the window was not moved");
-    // The window's right border, in its invisible band of resizing, halfway down.
     let rect = window_rect(window);
     let grip = [rect.right - 3, (rect.top + rect.bottom) / 2];
     move_mouse(grip);
     if let Err(error) = example.settled() {
         panic!("the example is not still with the mouse on its border: {error}");
     }
-    let width = client_width(window);
-    let before = example.frames();
     left_button(true);
     std::thread::sleep(Duration::from_millis(200));
+    grip
+}
+
+/// Drags the mouse, its button held, `by` pixels across from `from`, in six steps.
+fn drag(from: [i32; 2], by: i32) -> [i32; 2] {
     for step in 1..=6 {
-        move_mouse([grip[0] - 10 * step, grip[1]]);
+        move_mouse([from[0] + by * step / 6, from[1]]);
         std::thread::sleep(Duration::from_millis(100));
     }
+    [from[0] + by, from[1]]
+}
+
+#[test]
+fn the_application_draws_while_the_person_resizes_its_window_down_to_its_smallest() {
+    let example = Example::start("resize", &[]);
+    let window = window_of(example.pid());
+    let width = client_width(window);
+    let before = example.frames();
+    let grip = hold_right_border(&example, window);
+    let at = drag(grip, -60);
     // The button still held: Win32's own modal loop of the resize runs, and the host draws only
     // where the layer turns it from there.
     let resized = within_two_seconds(|| client_width(window) < width);
     let drew = within_two_seconds(|| example.frames() > before);
     let during = example.frames();
+    // Far past the example's smallest width, 480 logical pixels.
+    drag(at, -400);
+    // SAFETY: the example's live window.
+    let scale = f64::from(unsafe { GetDpiForWindow(window) }.max(1)) / 96.0;
+    let smallest = (480.0 * scale).round() as i32;
+    let held_at_smallest = within_two_seconds(|| client_width(window) == smallest);
     left_button(false);
     assert!(
         resized,
-        "the border's drag from {grip:?} did not resize the window, {} pixels wide, its \
-         rectangle {:?}",
-        client_width(window),
-        [rect.left, rect.top, rect.right, rect.bottom]
+        "the border's drag from {grip:?} did not resize the window, {} pixels wide",
+        client_width(window)
     );
     assert!(
         drew,
         "no frame was drawn while the border was held: {before} frames before, {during} during"
+    );
+    assert!(
+        held_at_smallest,
+        "the window is {} pixels wide, not its smallest, {smallest}",
+        client_width(window)
     );
     println!("resized: {} frames during the drag", during - before);
     if let Err(error) = example.at_rest() {
@@ -585,6 +655,35 @@ fn the_application_draws_while_the_person_resizes_its_window() {
     example.close();
     let (success, _) = example.ended();
     assert!(success, "the example did not end with success");
+}
+
+#[test]
+fn ctrl_break_during_a_resize_ends_the_run_with_the_border_still_held() {
+    let example = Example::start("ctrl-break-in-resize", &[]);
+    let window = window_of(example.pid());
+    let width = client_width(window);
+    let grip = hold_right_border(&example, window);
+    drag(grip, -30);
+    assert!(
+        within_two_seconds(|| client_width(window) < width),
+        "the border's drag did not resize the window"
+    );
+    // SAFETY: the example's own process group, which `spawn` made.
+    let sent = unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, example.pid()) };
+    assert_ne!(sent, 0, "Ctrl+Break was not sent");
+    // Win32's modal loop of the resize, which the run's end ends, the button still held.
+    let ended = example.ended();
+    left_button(false);
+    assert_eq!(
+        ended,
+        (
+            true,
+            ["closing asked", "stopped", "dropped"]
+                .map(str::to_owned)
+                .to_vec()
+        ),
+        "Ctrl+Break during the resize did not end the run"
+    );
 }
 
 #[test]
