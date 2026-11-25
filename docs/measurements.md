@@ -5240,3 +5240,29 @@ included, take one frame of the editor's, about 16.7 ms, the same in both builds
 The counters of the waits' checks on the editor's hierarchy (`cargo run -p slime-benches --
 --counters editor.hierarchy.100k`) are those that `benches/counters.txt` records, unchanged:
 `scripts/check.sh game` passed on the milestone's code.
+
+How long CI's jobs took, on GitHub's hosted runners, on 2026-11-25, on `86124cca`, the milestone's
+commit.
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 4 s |
+| `check (headless)` | 13 min 11 s |
+| `check (windowed)` | 14 min 27 s |
+| `check (game)` | 9 min 34 s |
+| `check (gles)` | 3 min 13 s |
+| `windows (tests)` | 12 min 2 s |
+| `windows (render)` | 7 min 23 s |
+| `windows (game)` | 8 min 21 s |
+| `windows-release` | 12 min 48 s |
+| `compositors (sway)` | 14 min 13 s |
+| `compositors (weston)` | 16 min 27 s |
+| `compositors (mutter)` | 17 min 37 s |
+| `compositors (kwin)` | 12 min 43 s |
+| `compositors (x11)` | 17 min 5 s |
+
+Every job stays within its limit of 20 minutes. The milestone's new tests, the channel's own in
+`slime-app` and the waits in `edit_window` and `drive`, add a few seconds of their own: against
+M6d.9a2c4a, `check (headless)` took 2 min 10 s less and `windows-release` 2 min 40 s less, the
+runners' swings larger than what the tests add. `check (windowed)`, which runs `edit_window`, took
+14 min 27 s, within the range of the runs before.
