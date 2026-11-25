@@ -2892,6 +2892,54 @@ The fourth part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-
 - **Done when.** The example's tests pass in CI on Windows; CI is green.
 - **By hand.** The Windows virtual machine: the window at rest, covered, dragged, after a sleep.
 
+- **Cut in three** on 2026-11-25, the owner's choice ([ADR-0317](adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md)): Windows' window, frames and
+  pointer, on `windows-sys`, its frames on the display's vertical blank; its keyboard, focus and
+  touch; the images' times, a covered window and the resume. The "Done when" above is met at
+  M6d.7c3.
+
+### M6d.7c1 — Windows' window, frames and pointer
+
+The first part of M6d.7c ([ADR-0317](adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** An application on uwui's desktop host opens its window on Windows and rests there.
+- **Crates.** `uwui-windowing`; `uwui-desktop`; CI's Windows job.
+- **Delivers.** The layer on Win32: the window and its requests, its scale per display, the loop
+  and its wait, Win32's modal loop of a move or a resize turning the host, the host's clock, frames
+  on the display's vertical blank on a thread of its own, the mouse and its wheel with their times,
+  the cursor's shapes, its closing and the termination signals; Direct3D 12 by default.
+- **Done when.** In CI on Windows, the example rests, is hovered by the mouse and rests again, ends
+  when asked to close and on Ctrl+Break, and draws again after its device and surface are lost;
+  the blank window presents; CI is green.
+- **Measured.** CI's jobs that build the host, each within 20 minutes.
+- **By hand.** The Windows virtual machine: the window at rest, dragged and resized while it draws,
+  moved between displays of two scales and two rates.
+
+### M6d.7c2 — Windows' keyboard, focus and touch
+
+The second part of M6d.7c ([ADR-0317](adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** An application on uwui's desktop host takes the keyboard and touch on Windows.
+- **Crates.** `uwui-windowing`; `uwui-desktop`'s tests.
+- **Delivers.** The keys, the person's layout, dead keys, AltGr and the modifiers, both Shift keys;
+  the focus; touch and the pen through Windows' pointer messages, with their times.
+- **Done when.** In CI on Windows, the test clicks the example's field, types into it and finds the
+  row that *Add* makes; CI is green.
+
+### M6d.7c3 — The images' times, a covered window, and the resume
+
+The third part of M6d.7c ([ADR-0317](adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** uwui's desktop host on Windows tells when its images showed, rests while covered, and
+  learns that the system resumed.
+- **Crates.** `uwui-windowing`; `uwui-desktop`.
+- **Delivers.** DXGI's statistics of the swap chain; a covered window told and its frames held;
+  Windows' notice of a resume through `Ui::resumed`; each source put to the owner at its start.
+- **Done when.** The example's tests pass in CI on Windows, M6d.7c's whole; CI is green.
+- **By hand.** The Windows virtual machine: the window covered, after a sleep.
+
 ### M6d.7d — macOS
 
 The fifth part of M6d.7 ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)). It follows the rules of

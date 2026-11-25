@@ -583,18 +583,22 @@ and `scripts/check.sh game`,
 everything that reads the sample game's zone, which it fetches and cooks first: the tests that read
 it, the agent's session with its editor, the benchmarks' counters, and the game's runs in a headless
 Weston compositor, and `scripts/check.sh gles`, `uwui-render` with wgpu's GL backend; without
-an argument, the script runs the five, one after the other. Four Windows jobs run beside them
+an argument, the script runs the five, one after the other. Five Windows jobs run beside them
 ([ADR-0104](docs/adr/0104-the-build-ci-and-measurements.md),
-[ADR-0228](docs/adr/0228-ci-split-again-each-job-within-20-minutes.md)). Three are the parts of
+[ADR-0228](docs/adr/0228-ci-split-again-each-job-within-20-minutes.md)). Four are the parts of
 `windows`: `windows (tests)` runs the workspace's tests but the renderer's, then the headless
 samples; `windows (render)` runs the renderer's tests; `windows (game)` fetches and cooks the sample
-game's zone and runs the tests that read it. They run the tests with `--nocapture`, so that the log
+game's zone and runs the tests that read it; `windows (host)` builds uwui's desktop host's examples
+and runs `uwui-desktop`'s `windows` test on the runner's desktop, at rest, under the mouse that
+`SendInput` moves, resized, closed and its device lost
+([ADR-0317](docs/adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md)).
+They run the tests with `--nocapture`, so that the log
 shows what the image tests, the GPU timing test and the multi-pass test measured on WARP, the
 renderer's shaders made again and the device's limits, and one at a time (`--test-threads=1`):
 WARP's shader compiler crashes the process, now and then, when several threads compile shaders at
 once. They do not stop at the first test program that fails, and when a step fails, each publishes
 the images that the failing image tests rendered on WARP, as an artifact named
-`image-test-failures-windows-<part>`. The fourth, `windows-release`, runs clippy, builds in release and runs the headless samples, and publishes the
+`image-test-failures-windows-<part>`. The fifth, `windows-release`, runs clippy, builds in release and runs the headless samples, and publishes the
 `hello`, `headless`, `window`, `offscreen`, `interface`, `widgets`, `scene` and `world` examples and
 the `hunnawood` game built for Windows, with the sample cooked for `scene` and `world` and the zone
 cooked for the game, as an artifact named `slime-examples-windows`, to run by hand on a Windows

@@ -1,7 +1,7 @@
 # Plan
 
-This file says what is being worked on now: the current stage's status, the milestone in progress
-and how it is checked, and the checks by hand that wait for the owner. A *stage* is a step of the roadmap; a *milestone* is a small, verifiable
+This file holds the current stage's status, the milestone in progress and how it is checked, and
+the checks by hand that wait for the owner. A *stage* is a step of the roadmap; a *milestone* is a small, verifiable
 step of a stage.
 
 - The stage in progress, whole: [`stage-6d.md`](stage-6d.md).
@@ -29,8 +29,9 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
   - Track B, in a worktree: M6d.4 to M6d.6 done; M6d.7 cut in six
     ([ADR-0270](adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md)):
     done, [M6d.7a1](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) to
-    [M6d.7b3](stage-6d.md#m6d7b3--a-resumes-notice-on-linux); next,
-    [M6d.7c](stage-6d.md#m6d7c--windows).
+    [M6d.7b3](stage-6d.md#m6d7b3--a-resumes-notice-on-linux); M6d.7c cut in three
+    ([ADR-0317](adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md)):
+    in progress, [M6d.7c1](stage-6d.md#m6d7c1--windows-window-frames-and-pointer).
   - M6d.10a, D1, M6d.11, M6d.10b and M6d.12 run alone, in this order
     ([ADR-0300](adr/0300-m6d10-cut-in-two-what-the-move-needs-before-it-uwuis-first-stage-planned-after.md)).
   - Timed measures, and edits of shared files, one session at a time.
@@ -49,15 +50,10 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.7a1 to M6d.7b3 — The host's core, Wayland, X11, resumes](stage-6d.md#m6d7a1--the-hosts-core-and-its-wayland-window) | Done |
 | [M6d.7c to M6d.7e — The rest of M6d.7](stage-6d.md#m6d7c--windows) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
-| [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
-| [M6d.9a2a — The library](stage-6d.md#m6d9a2a--the-library) | Done |
-| [M6d.9a2b1 to M6d.9a2b2 — The engine on the library](stage-6d.md#m6d9a2b--the-engine-on-the-library) | Done |
-| [M6d.9a2c1 to M6d.9a2c4b — Families described, and waits](stage-6d.md#m6d9a2c1--each-family-described) | Done |
+| [M6d.9a1a to M6d.9a2c4b — The wire, the library, the engine on it, families, waits](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a3a to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a3a--attaching-and-the-persons-consent) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
-| [V1 — uwui's documents versioned](stage-6d.md#v1--uwuis-documents-versioned) | Done |
-| [S1a to S1c — Saves migrated from layout 5](stage-6d.md#s1--saves-migrated-from-layout-5) | Done |
-| [R1 — Rust 1.100](stage-6d.md#r1--rust-1100) | Done |
+| [V1, S1a to S1c, R1 — Documents versioned, saves migrated, Rust 1.100](stage-6d.md#v1--uwuis-documents-versioned) | Done |
 | [E1 — The element's contract](stage-6d.md#e1--the-elements-contract) | Planned |
 | [M6d.10a — What the move needs](stage-6d.md#m6d10a--what-the-move-needs) | Planned |
 | [D1 — The decisions consolidated](stage-6d.md#d1--the-decisions-consolidated) | Planned |
@@ -174,7 +170,7 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
 - **Each window's size and scale** (M6d.5e2): the editor in the Windows virtual machine moved
   between screens of two scales, and its scale changed while it runs: laid out again at once,
   sharp; minimized and restored as it was.
-- **An application on uwui's desktop host** (M6d.7a1 to M6d.7b3): `UWUI_TRACE=<file> cargo run
+- **An application on uwui's desktop host** (M6d.7a1 to M6d.7c1): `UWUI_TRACE=<file> cargo run
   -p uwui-desktop --example application` on the owner's desktop: its window and bar, pointer on its
   buttons, list and dialog, rest; closed by its button, then Ctrl+C; typing
   with the owner's layout: dead keys, Compose, a key held, the I-beam over its field; sharp on
@@ -182,6 +178,8 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
   On Xwayland (`env -u WAYLAND_DISPLAY`): pointer, wheel, rest; resized mid-scroll, `shown`
   lagging its frame as before; typing, layouts, cursors, `Xft.dpi` 144, touch.
   Suspended, deep then s2idle, at rest, Wayland, Xwayland: `resumed after <seconds> s`.
+  In the Windows virtual machine (M6d.7c1): at rest; drawing while dragged and resized; moved
+  between displays of two scales and two rates.
 - **The interface's waits** (M6d.9a2c4b): in the Windows virtual machine, `wait_for_elements`
   until the editor's *Open a level…* dialog, or paused *Hunna Wood*'s world panel, closes.
 - **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
@@ -190,4 +188,4 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
 
 ## Known debt
 
-The known debt still open, 231 items, is in [`debt.md`](debt.md).
+The known debt still open, 232 items, is in [`debt.md`](debt.md).
