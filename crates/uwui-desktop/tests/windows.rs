@@ -10,9 +10,10 @@
 //!
 //! A second test loses the example's GPU device on purpose, then its surface, through its commands
 //! on its standard input, and finds frames drawn after each, then the example at rest; it writes how
-//! long each took, `lose device: drawn again in 120 ms`. A last test runs the blank window,
+//! long each took, `lose device: drawn again in 120 ms`. The last two run the blank window,
 //! `examples/blank.rs`, which presents its first image, writes it in its trace, and ends with
-//! status 0 when asked to close.
+//! status 0 when asked to close; with `--fullscreen`, its window covers its display, without a
+//! frame.
 //!
 //! The examples are built first, `cargo build -p uwui-desktop --example application --example
 //! blank`, DXC beside them, as CI's Windows job puts it; each run keeps its state, its crash reports
@@ -35,7 +36,9 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use windows_sys::Win32::Foundation::{CloseHandle, HWND, LPARAM, LocalFree, POINT, RECT};
-use windows_sys::Win32::Graphics::Gdi::ClientToScreen;
+use windows_sys::Win32::Graphics::Gdi::{
+    ClientToScreen, GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow,
+};
 use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
@@ -52,10 +55,11 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE, MOUSEINPUT, SendInput,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CURSORINFO, EnumWindows, GetClientRect, GetCursorInfo, GetSystemMetrics, GetWindowRect,
-    GetWindowTextW, GetWindowThreadProcessId, IDC_ARROW, IDC_IBEAM, IsWindowVisible, LoadCursorW,
-    PostMessageW, SM_CXSCREEN, SM_CYSCREEN, SPI_GETDRAGFULLWINDOWS, SPI_SETDRAGFULLWINDOWS,
-    SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SetWindowPos, SystemParametersInfoW, WM_CLOSE,
+    CURSORINFO, EnumWindows, GWL_STYLE, GetClientRect, GetCursorInfo, GetSystemMetrics,
+    GetWindowLongPtrW, GetWindowRect, GetWindowTextW, GetWindowThreadProcessId, IDC_ARROW,
+    IDC_IBEAM, IsWindowVisible, LoadCursorW, PostMessageW, SM_CXSCREEN, SM_CYSCREEN,
+    SPI_GETDRAGFULLWINDOWS, SPI_SETDRAGFULLWINDOWS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
+    SetWindowPos, SystemParametersInfoW, WM_CLOSE, WS_CAPTION, WS_POPUP,
 };
 use windows_sys::core::{BOOL, PCWSTR, PWSTR};
 
@@ -570,11 +574,23 @@ fn within_two_seconds(mut done: impl FnMut() -> bool) -> bool {
     true
 }
 
+/// The mouse's left button, held while this lives: released however the test ends, so that a
+/// failure leaves no button down for the tests after it.
+struct Held {
+    /// Where the mouse lies.
+    at: [i32; 2],
+}
+
+impl Drop for Held {
+    fn drop(&mut self) {
+        left_button(false);
+    }
+}
+
 /// Moves `window` to the screen's top left, so that its right border lies on the screen, whose
 /// width CI's runner keeps at 1024 pixels, puts the mouse on that border, in its invisible band of
-/// resizing, halfway down, waits until `example` is still, and presses the left button there:
-/// where the mouse lies.
-fn hold_right_border(example: &Example, window: HWND) -> [i32; 2] {
+/// resizing, halfway down, waits until `example` is still, and presses the left button there.
+fn hold_right_border(example: &Example, window: HWND) -> Held {
     assert!(
         drag_full_windows(),
         "Windows shows an outline, not the window, while a border is dragged: turn on \"Show \
@@ -602,7 +618,7 @@ fn hold_right_border(example: &Example, window: HWND) -> [i32; 2] {
     }
     left_button(true);
     std::thread::sleep(Duration::from_millis(200));
-    grip
+    Held { at: grip }
 }
 
 /// Drags the mouse, its button held, `by` pixels across from `from`, in six steps.
@@ -619,21 +635,24 @@ fn the_application_draws_while_the_person_resizes_its_window_down_to_its_smalles
     let example = Example::start("resize", &[]);
     let window = window_of(example.pid());
     let width = client_width(window);
+    let held = hold_right_border(&example, window);
+    let grip = held.at;
+    // Counted once the example is still and the button pressed: only frames that the drag draws
+    // follow.
     let before = example.frames();
-    let grip = hold_right_border(&example, window);
     let at = drag(grip, -60);
     // The button still held: Win32's own modal loop of the resize runs, and the host draws only
     // where the layer turns it from there.
     let resized = within_two_seconds(|| client_width(window) < width);
     let drew = within_two_seconds(|| example.frames() > before);
     let during = example.frames();
-    // Far past the example's smallest width, 480 logical pixels.
-    drag(at, -400);
+    // Far past the example's smallest width, 480 logical pixels, at any scale.
     // SAFETY: the example's live window.
     let scale = f64::from(unsafe { GetDpiForWindow(window) }.max(1)) / 96.0;
     let smallest = (480.0 * scale).round() as i32;
+    drag(at, -(client_width(window) - smallest + 100));
     let held_at_smallest = within_two_seconds(|| client_width(window) == smallest);
-    left_button(false);
+    drop(held);
     assert!(
         resized,
         "the border's drag from {grip:?} did not resize the window, {} pixels wide",
@@ -649,6 +668,13 @@ fn the_application_draws_while_the_person_resizes_its_window_down_to_its_smalles
         client_width(window)
     );
     println!("resized: {} frames during the drag", during - before);
+    // Off the border, where Windows showed its arrows of resizing, onto the window's content: the
+    // window's own cursor again, which its procedure sets.
+    move_mouse(on_screen(window, ADD));
+    assert!(
+        within_two_seconds(|| cursor_is(IDC_ARROW)),
+        "the cursor stayed Windows' own after the border"
+    );
     if let Err(error) = example.at_rest() {
         panic!("the example is not at rest after its resize: {error}");
     }
@@ -662,8 +688,8 @@ fn ctrl_break_during_a_resize_ends_the_run_with_the_border_still_held() {
     let example = Example::start("ctrl-break-in-resize", &[]);
     let window = window_of(example.pid());
     let width = client_width(window);
-    let grip = hold_right_border(&example, window);
-    drag(grip, -30);
+    let held = hold_right_border(&example, window);
+    drag(held.at, -30);
     assert!(
         within_two_seconds(|| client_width(window) < width),
         "the border's drag did not resize the window"
@@ -673,7 +699,7 @@ fn ctrl_break_during_a_resize_ends_the_run_with_the_border_still_held() {
     assert_ne!(sent, 0, "Ctrl+Break was not sent");
     // Win32's modal loop of the resize, which the run's end ends, the button still held.
     let ended = example.ended();
-    left_button(false);
+    drop(held);
     assert_eq!(
         ended,
         (
@@ -746,6 +772,47 @@ fn the_blank_window_presents_its_first_image_and_ends_when_asked() {
         );
         std::thread::sleep(Duration::from_millis(50));
     }
+    example.close();
+    let (success, _) = example.ended();
+    assert!(success, "the blank window did not end with status 0");
+}
+
+#[test]
+fn the_blank_window_opens_filling_its_display_without_borders() {
+    let example = Example::spawn("blank", "blank-fullscreen", &["--fullscreen"]);
+    let window = window_of(example.pid());
+    let deadline = Instant::now() + SETTLE;
+    while example.frames() == 0 {
+        assert!(
+            Instant::now() < deadline,
+            "the blank window traced no frame within {SETTLE:?}"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let mut monitor = MONITORINFO {
+        cbSize: u32::try_from(size_of::<MONITORINFO>()).expect("a small structure"),
+        ..Default::default()
+    };
+    // SAFETY: the live window's monitor, and a live structure whose size its field says.
+    unsafe {
+        GetMonitorInfoW(
+            MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST),
+            &raw mut monitor,
+        )
+    };
+    let rect = window_rect(window);
+    let area = monitor.rcMonitor;
+    assert_eq!(
+        [rect.left, rect.top, rect.right, rect.bottom],
+        [area.left, area.top, area.right, area.bottom],
+        "the window does not cover its display"
+    );
+    // SAFETY: the live window's style.
+    let style = unsafe { GetWindowLongPtrW(window, GWL_STYLE) } as u32;
+    assert!(
+        style & WS_POPUP != 0 && style & WS_CAPTION == 0,
+        "the window keeps a frame: its style {style:#x}"
+    );
     example.close();
     let (success, _) = example.ended();
     assert!(success, "the blank window did not end with status 0");

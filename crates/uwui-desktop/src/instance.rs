@@ -2,8 +2,9 @@
 //! graphics API where `WGPU_BACKEND` names none, Direct3D 12 on Windows, and there its shader
 //! compiler, the DXC that lies beside the program, else FXC
 //! (`docs/adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md`,
-//! `docs/adr/0066-shipping-dxc-beside-the-programs.md`). The engine chooses alike in its own code,
-//! `slime-gfx`, which uwui does not depend on; the two part at M6d.11.
+//! `docs/adr/0066-shipping-dxc-beside-the-programs.md`). Its choice of the compiler is the engine's
+//! own code, `crates/slime-gfx/src/gpu.rs`, taken under uwui's licence, the owner's go of
+//! 2026-11-25: uwui does not depend on the engine; the two part at M6d.11.
 
 /// The graphics API where `WGPU_BACKEND` names none: Direct3D 12 on Windows, as the engine's, whose
 /// swap chain alone gives DXGI's statistics; elsewhere wgpu's first choice of the platform's own.
@@ -22,12 +23,20 @@ pub(crate) fn instance() -> wgpu::Instance {
     descriptor.backends = wgpu::Backends::from_env().unwrap_or(DEFAULT_BACKENDS);
     descriptor.flags = wgpu::InstanceFlags::from_build_config().with_env();
     if cfg!(windows) && descriptor.backends.contains(wgpu::Backends::DX12) {
-        let compiler = dx12_compiler(wgpu::Dx12Compiler::from_env(), dxc_beside_program());
-        if matches!(compiler, wgpu::Dx12Compiler::Fxc) {
-            tracing::warn!(
+        let requested = wgpu::Dx12Compiler::from_env();
+        let asked_fxc = matches!(requested, Some(wgpu::Dx12Compiler::Fxc));
+        let compiler = dx12_compiler(requested, dxc_beside_program());
+        match &compiler {
+            wgpu::Dx12Compiler::DynamicDxc { dxc_path } => {
+                tracing::info!(path = %dxc_path, "Direct3D 12 compiles shaders with DXC");
+            }
+            _ if asked_fxc => {
+                tracing::info!("Direct3D 12 compiles shaders with FXC, as WGPU_DX12_COMPILER asks");
+            }
+            _ => tracing::warn!(
                 "Direct3D 12 compiles shaders with FXC, whose code runs slower than DXC's: no \
-                 {DXC_LIBRARY} lies beside the program, or WGPU_DX12_COMPILER asks for FXC"
-            );
+                 {DXC_LIBRARY} lies beside the program (ADR-0066)"
+            ),
         }
         descriptor.backend_options.dx12.shader_compiler = compiler;
     }

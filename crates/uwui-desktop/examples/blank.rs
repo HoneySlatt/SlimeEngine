@@ -8,6 +8,7 @@
 //!
 //! ```sh
 //! cargo run -p uwui-desktop --example blank
+//! cargo run -p uwui-desktop --example blank -- --fullscreen  # filling its display, without borders
 //! ```
 //!
 //! It opens its device as the host does: the adapter that uses the least power, unless
@@ -342,12 +343,21 @@ fn colour(inputs: u32) -> wgpu::Color {
 }
 
 fn main() {
+    // `--fullscreen` opens it filling its display, without borders, as the tests ask.
+    let fullscreen = match std::env::args().nth(1).as_deref() {
+        None => false,
+        Some("--fullscreen") => true,
+        Some(_) => {
+            eprintln!("usage: blank [--fullscreen]");
+            std::process::exit(2);
+        }
+    };
     let opening = Opening {
         title: "uwui blank window".to_owned(),
         app_id: "dev.uwui.Blank".to_owned(),
         size: [720, 480],
         min_size: None,
-        fullscreen: false,
+        fullscreen,
     };
     let (blank, ran) = uwui_windowing::run(opening, Blank::default());
     let failure = blank
