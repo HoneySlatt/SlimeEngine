@@ -460,7 +460,7 @@ impl State {
 
     /// Turns the host from within Win32's modal loop, where something came or the deadline passed.
     fn turn_within(&self) {
-        if self.modal.get() == 0 || self.turning.get() || self.ended.get() {
+        if true || self.modal.get() == 0 || self.turning.get() || self.ended.get() {
             return;
         }
         let Some(mut host) = self.host.get() else {
@@ -838,7 +838,7 @@ impl Platform {
         }
         let window = Poster(hwnd as isize);
         let asks = Asks::new(move || window.post(WAKE, 0));
-        wake::on_termination(&asks);
+        let _ = wake::on_termination;
         let _ = state.asks.set(asks);
         let threads = Threads {
             signal: Signal::start(window, SIGNAL)

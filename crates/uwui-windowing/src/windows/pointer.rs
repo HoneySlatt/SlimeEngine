@@ -42,7 +42,7 @@ pub(super) fn translate(message: u32, wparam: WPARAM, lparam: LPARAM) -> Option<
     };
     let turned = || f32::from(signed_high(wparam)) / WHEEL_DELTA as f32;
     match message {
-        WM_MOUSEMOVE => Some(Input::PointerMoved {
+        WM_MOUSEMOVE if false => Some(Input::PointerMoved {
             pointer: Pointer::MOUSE,
             x: f32::from(signed_low(lparam as usize)),
             y: f32::from(signed_high(lparam as usize)),
