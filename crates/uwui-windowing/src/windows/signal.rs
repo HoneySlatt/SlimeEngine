@@ -9,7 +9,8 @@
 //! too. Unasked, it waits on its event alone, and never wakes.
 //!
 //! A wait that fails, returns sooner than half a period after the last refresh, or returns at its
-//! call well before a period passed, as when the display is off, is no refresh: a timer at the
+//! call, as the wait before did, sooner than fifteen sixteenths of a period after the last, as when
+//! the display is off, is no refresh: a timer at the
 //! display's period takes its place, on the grid of the last refresh. The period is the display's
 //! mode, else DWM's, else 60 a second, read again when the window moves to another display and when
 //! Windows tells that the displays changed (`WM_DISPLAYCHANGE`). A monitor whose output does not
@@ -75,13 +76,15 @@ struct Wait {
 
 /// Judges `wait`, after the `last` refresh told, none before, at the display's `period`: a refresh
 /// where it succeeded and came half a period or more after the last; but not where it returned at
-/// once, as the wait before did, sooner than a period after the last, as with the display off,
-/// whose waits all return at their call. A blank rarely comes just as the wait is called twice in a
-/// row; a refresh so taken for missed is timed a period after the last, about when it came.
+/// once, as the wait before did, sooner than fifteen sixteenths of a period after the last, as with
+/// the display off, whose waits all return at their call. The margin covers a blank met just as its
+/// wait is called, which comes within `AT_ONCE` of a period after the last, and a period read a
+/// little long, the display's mode giving its rate in whole hertz: 59 for 59.94.
 fn judge(wait: Wait, at_once_before: bool, last: Option<Instant>, period: Duration) -> Judged {
     let since = last.map(|last| wait.returned - last);
     let soon = since.is_some_and(|since| since < period / 2);
-    let idle = wait.at_once && at_once_before && since.is_some_and(|since| since < period);
+    let idle =
+        wait.at_once && at_once_before && since.is_some_and(|since| since < period * 15 / 16);
     if wait.succeeded && !soon && !idle {
         Judged::Refresh
     } else {
@@ -106,6 +109,13 @@ fn opens(
         return false;
     }
     failed.is_none_or(|(at, since)| at != monitor || now - since >= RETRY)
+}
+
+/// The refresh that the timer tells, due at `due`, the thread woken at `woke`: when it was due, so
+/// that the grid keeps the display's period however late the timer wakes, or the waking where the
+/// timer came early.
+fn told(due: Instant, woke: Instant) -> Instant {
+    due.min(woke)
 }
 
 /// The next refresh on the grid of `last`, every `period`, after `now`; `now` itself without a
@@ -235,7 +245,7 @@ fn run(shared: &Shared, timer: &Timer, window: Poster, message: u32) {
                 let handles = [timer.handle().as_raw_handle()];
                 // SAFETY: a live timer, which this thread holds.
                 unsafe { WaitForMultipleObjects(1, handles.as_ptr(), 0, INFINITE) };
-                clock::now()
+                told(next, clock::now())
             }
         };
         last = Some(refresh);
@@ -405,14 +415,31 @@ mod tests {
             Judged::Missed
         );
         assert_eq!(
-            judge(at_once(115), true, Some(ms(100)), PERIOD),
+            judge(at_once(114), true, Some(ms(100)), PERIOD),
             Judged::Missed
         );
-        // A period after the last, it is one.
+        // About a period after the last, it is one: a blank met just as the wait is called, its
+        // wake a little quicker than the last's.
         assert_eq!(
             judge(at_once(116), true, Some(ms(100)), PERIOD),
             Judged::Refresh
         );
+        let just_under = Wait {
+            succeeded: true,
+            returned: Instant::from_nanos(115_950_000),
+            at_once: true,
+        };
+        assert_eq!(
+            judge(just_under, true, Some(ms(100)), PERIOD),
+            Judged::Refresh
+        );
+        // A period read 1.6 % long, a mode of 59.94 Hz read as 59: the blank is still one.
+        let long = Duration::from_nanos(16_949_153);
+        let blank = Wait {
+            returned: Instant::from_nanos(116_683_000),
+            ..just_under
+        };
+        assert_eq!(judge(blank, true, Some(ms(100)), long), Judged::Refresh);
         // A blank that comes just as the wait is called, once, after a refresh told late: a
         // refresh.
         assert_eq!(
@@ -472,6 +499,14 @@ mod tests {
             "the blanks come every {median:?}, not every {:?}: {gaps:?}",
             output.period
         );
+    }
+
+    #[test]
+    fn the_timer_tells_its_refresh_when_due_however_late_it_wakes() {
+        assert_eq!(told(ms(116), Instant::from_nanos(116_500_000)), ms(116));
+        // Early, as a timer on the interrupt time may come: its waking.
+        let early = Instant::from_nanos(115_900_000);
+        assert_eq!(told(ms(116), early), early);
     }
 
     #[test]

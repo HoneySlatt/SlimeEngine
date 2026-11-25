@@ -74,7 +74,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     TranslateMessage, UnregisterClassW, WINDOWPLACEMENT, WM_APP, WM_CANCELMODE, WM_CAPTURECHANGED,
     WM_CLOSE, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_ENTERMENULOOP, WM_ENTERSIZEMOVE, WM_ERASEBKGND,
     WM_EXITMENULOOP, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_NCCREATE, WM_PAINT, WM_SETCURSOR,
-    WM_SIZE, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_OVERLAPPEDWINDOW, WS_POPUP,
+    WM_SIZE, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE,
 };
 
 use self::pointer::Held;
@@ -411,6 +411,12 @@ impl State {
             }
             WM_DPICHANGED => {
                 self.dpi.set(u32::from((wparam >> 16) as u16));
+                if self.restore.get().is_some() {
+                    // Filling its display, the window keeps filling it, whatever Windows suggests.
+                    self.fill_monitor();
+                    self.tell_size();
+                    return Some(0);
+                }
                 // SAFETY: Windows gives the rectangle that it suggests, live during the message.
                 let suggested = unsafe { *(lparam as *const RECT) };
                 // SAFETY: the live window, which the call moves and sizes, sending its messages.
@@ -530,6 +536,35 @@ impl State {
         }
     }
 
+    /// Puts the window over the whole of the display that holds most of it.
+    fn fill_monitor(&self) {
+        let hwnd = self.hwnd();
+        let mut monitor = MONITORINFO {
+            cbSize: u32::try_from(size_of::<MONITORINFO>()).unwrap_or(u32::MAX),
+            ..Default::default()
+        };
+        // SAFETY: the live window, and a live structure whose size its field says.
+        unsafe {
+            GetMonitorInfoW(
+                MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST),
+                &raw mut monitor,
+            );
+        }
+        let area = monitor.rcMonitor;
+        // SAFETY: the live window, which the call moves and sizes, sending its messages.
+        unsafe {
+            SetWindowPos(
+                hwnd,
+                HWND_TOP,
+                area.left,
+                area.top,
+                area.right - area.left,
+                area.bottom - area.top,
+                SWP_FRAMECHANGED | SWP_NOOWNERZORDER,
+            );
+        }
+    }
+
     /// Fills or leaves the window's display.
     fn set_fullscreen(&self, fullscreen: bool) {
         let hwnd = self.hwnd();
@@ -539,45 +574,34 @@ impl State {
                     length: u32::try_from(size_of::<WINDOWPLACEMENT>()).unwrap_or(u32::MAX),
                     ..Default::default()
                 };
-                let mut monitor = MONITORINFO {
-                    cbSize: u32::try_from(size_of::<MONITORINFO>()).unwrap_or(u32::MAX),
-                    ..Default::default()
-                };
-                // SAFETY: the live window, and live structures whose sizes their fields say.
+                // SAFETY: the live window, and a live structure whose size its field says.
                 let style = unsafe {
                     GetWindowPlacement(hwnd, &raw mut placement);
-                    GetMonitorInfoW(
-                        MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST),
-                        &raw mut monitor,
-                    );
                     GetWindowLongPtrW(hwnd, GWL_STYLE)
                 };
                 // Set before the window moves, whose size it then tells filling.
                 self.restore.set(Some(Restore { style, placement }));
-                let area = monitor.rcMonitor;
-                // SAFETY: the live window, whose style and place the calls change.
+                // SAFETY: the live window, whose style the call changes.
                 unsafe {
                     SetWindowLongPtrW(
                         hwnd,
                         GWL_STYLE,
                         (style & !(WS_OVERLAPPEDWINDOW as isize)) | WS_POPUP as isize,
                     );
-                    SetWindowPos(
-                        hwnd,
-                        HWND_TOP,
-                        area.left,
-                        area.top,
-                        area.right - area.left,
-                        area.bottom - area.top,
-                        SWP_FRAMECHANGED | SWP_NOOWNERZORDER,
-                    );
                 }
+                self.fill_monitor();
             }
             (false, Some(restore)) => {
                 self.restore.set(None);
-                // SAFETY: the live window, given back its style and place.
+                // SAFETY: the live window, given back its style and place; shown or not as it is
+                // now, a window that filled its display as it opened having been put aside hidden.
                 unsafe {
-                    SetWindowLongPtrW(hwnd, GWL_STYLE, restore.style);
+                    let visible = GetWindowLongPtrW(hwnd, GWL_STYLE) & WS_VISIBLE as isize;
+                    SetWindowLongPtrW(
+                        hwnd,
+                        GWL_STYLE,
+                        (restore.style & !(WS_VISIBLE as isize)) | visible,
+                    );
                     SetWindowPlacement(hwnd, &raw const restore.placement);
                     SetWindowPos(
                         hwnd,
