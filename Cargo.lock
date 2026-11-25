@@ -3833,6 +3833,7 @@ dependencies = [
  "uwui-render",
  "uwui-windowing",
  "wgpu",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3890,6 +3891,7 @@ dependencies = [
  "uwui-time",
  "wayland-client",
  "wayland-protocols",
+ "windows-sys 0.61.2",
  "x11rb",
  "xkbcommon-dl",
 ]

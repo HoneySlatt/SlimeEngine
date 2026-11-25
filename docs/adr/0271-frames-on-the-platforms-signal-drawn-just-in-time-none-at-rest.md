@@ -5,7 +5,8 @@
   uwui's desktop host and, from M6c.Q2f, the engine's windowed loop) and
   [0227](0227-the-time-that-motion-reads.md) (the time that the desktop host and the engine's
   windowed loop give their interfaces); superseded in part by
-  [0309](0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md) (frames drawn just in time, and the first frame after a rest)
+  [0309](0309-input-to-shown-measured-beside-input-to-present-in-motion-an-input-reaches-the-next-image.md) (frames drawn just in time, and the first frame after a rest) and
+  [0317](0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md) (Windows' signal of frames)
 - Date: 2026-11-15
 
 ## Context
