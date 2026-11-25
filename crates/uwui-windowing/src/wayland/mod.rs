@@ -424,14 +424,18 @@ impl running::Platform for Platform {
 
     /// Waits for the compositor, a wake, `deadline` or the next repeat of a key held, then reads
     /// what the compositor sent.
-    fn wait(&mut self, deadline: Option<Instant>) -> Result<(), Error> {
+    fn wait(
+        &mut self,
+        deadline: Option<Instant>,
+        _: &mut dyn running::Turn,
+    ) -> Result<running::Waited, Error> {
         let deadline = match (deadline, self.told.keys.repeat.deadline()) {
             (Some(deadline), Some(repeat)) => Some(deadline.min(repeat)),
             (deadline, repeat) => deadline.or(repeat),
         };
         // Events already read, by Vulkan's driver among others, are dispatched first.
         let Some(guard) = self.queue.prepare_read() else {
-            return Ok(());
+            return Ok(running::Waited::Ready);
         };
         // A full socket: the wait ends too once it can be written to, and the next turn sends
         // what waits.
@@ -456,7 +460,7 @@ impl running::Platform for Platform {
                 Err(cause) => return Err(Error::new("the connection to the compositor", cause)),
             }
         }
-        Ok(())
+        Ok(running::Waited::Ready)
     }
 
     /// The display's and the surface's pointers, which the platform keeps live until it is
