@@ -181,7 +181,13 @@ impl Gpu {
         size: [u32; 2],
     ) -> Result<Self, String> {
         let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
-        descriptor.backends = wgpu::Backends::from_env().unwrap_or(wgpu::Backends::PRIMARY);
+        // Direct3D 12 on Windows, as the host's (`src/gpu.rs`).
+        let platform = if cfg!(windows) {
+            wgpu::Backends::DX12
+        } else {
+            wgpu::Backends::PRIMARY
+        };
+        descriptor.backends = wgpu::Backends::from_env().unwrap_or(platform);
         descriptor.flags = wgpu::InstanceFlags::from_build_config().with_env();
         let instance = wgpu::Instance::new(descriptor);
         let target = wgpu::SurfaceTargetUnsafe::RawHandle {

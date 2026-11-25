@@ -43,6 +43,14 @@ fn error(what: &str, cause: impl std::fmt::Display) -> GpuError {
 /// frame (`docs/adr/0025-giving-up-a-lost-surface.md`).
 const MAX_LOSSES_IN_A_ROW: u32 = 3;
 
+/// The graphics API where `WGPU_BACKEND` names none: Direct3D 12 on Windows, as the engine's, whose
+/// swap chain alone gives DXGI's statistics; elsewhere wgpu's first choice of the platform's own
+/// (`docs/adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md`).
+#[cfg(windows)]
+const DEFAULT_BACKENDS: wgpu::Backends = wgpu::Backends::DX12;
+#[cfg(not(windows))]
+const DEFAULT_BACKENDS: wgpu::Backends = wgpu::Backends::PRIMARY;
+
 /// What keeps the window from having an image now.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Loss {
@@ -132,7 +140,7 @@ impl Gpu {
         size: [u32; 2],
     ) -> Result<Self, GpuError> {
         let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
-        descriptor.backends = wgpu::Backends::from_env().unwrap_or(wgpu::Backends::PRIMARY);
+        descriptor.backends = wgpu::Backends::from_env().unwrap_or(DEFAULT_BACKENDS);
         descriptor.flags = wgpu::InstanceFlags::from_build_config().with_env();
         let instance = wgpu::Instance::new(descriptor);
         #[expect(unsafe_code, reason = "the device draws on the window's raw handles")]
