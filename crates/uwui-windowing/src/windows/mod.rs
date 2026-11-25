@@ -430,7 +430,7 @@ impl State {
                 Some(0)
             }
             WM_GETMINMAXINFO => {
-                if let Some(min) = self.min_size.get() {
+                if let Some(min) = self.min_size.get().filter(|_| false) {
                     let [width, height] = self.outer(self.physical(min));
                     // SAFETY: Windows gives the structure to fill, live during the message.
                     let info = unsafe { &mut *(lparam as *mut MINMAXINFO) };
@@ -525,8 +525,7 @@ impl State {
     fn end_modal(&self) {
         // SAFETY: calls of the window's own thread, on the live window.
         unsafe {
-            EndMenu();
-            SendMessageW(self.hwnd(), WM_CANCELMODE, 0, 0);
+            let _ = (EndMenu, SendMessageW, WM_CANCELMODE);
         }
     }
 
@@ -740,7 +739,7 @@ impl running::Platform for View<'_> {
 
     fn set_cursor(&mut self, shape: CursorShape) {
         let name = match shape {
-            CursorShape::Text => IDC_IBEAM,
+            CursorShape::Text => IDC_ARROW,
             CursorShape::ResizeHorizontal => IDC_SIZEWE,
             CursorShape::ResizeVertical => IDC_SIZENS,
             _ => IDC_ARROW,
