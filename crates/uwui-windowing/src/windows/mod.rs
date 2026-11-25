@@ -13,7 +13,7 @@
 //!   deadline and the signal each reach the window as a message of the layer's own, so that they
 //!   turn Win32's own modal loop too, while the person moves or resizes the window, or opens its
 //!   menu. From that loop the layer turns the host itself, through the core's
-//!   [`Turn`](crate::running::Turn): frames go on during a drag. A panic in the window's procedure
+//!   [`Turn`]: frames go on during a drag. A panic in the window's procedure
 //!   is held, the modal loop ended, and the panic resumed once the layer's wait has it back.
 //! - *Its frames' signal*: the vertical blank of the display that holds the window (`signal`).
 //!   Windows tells no image's time to this layer yet: the host measures the period from the
@@ -41,7 +41,9 @@ use std::num::NonZeroIsize;
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::ptr::NonNull;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::Waker;
+use std::time::Duration;
 
 use raw_window_handle::{
     RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
@@ -70,9 +72,9 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_NOZORDER, SendMessageW, SetCursor, SetForegroundWindow,
     SetWindowLongPtrW, SetWindowPlacement, SetWindowPos, SetWindowTextW, ShowWindow,
     TranslateMessage, UnregisterClassW, WINDOWPLACEMENT, WM_APP, WM_CANCELMODE, WM_CAPTURECHANGED,
-    WM_CLOSE, WM_DPICHANGED, WM_ENTERMENULOOP, WM_ENTERSIZEMOVE, WM_ERASEBKGND, WM_EXITMENULOOP,
-    WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_NCCREATE, WM_PAINT, WM_SETCURSOR, WM_SIZE,
-    WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_OVERLAPPEDWINDOW, WS_POPUP,
+    WM_CLOSE, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_ENTERMENULOOP, WM_ENTERSIZEMOVE, WM_ERASEBKGND,
+    WM_EXITMENULOOP, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_NCCREATE, WM_PAINT, WM_SETCURSOR,
+    WM_SIZE, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_OVERLAPPEDWINDOW, WS_POPUP,
 };
 
 use self::pointer::Held;
@@ -105,6 +107,14 @@ fn wide(text: &str) -> Vec<u16> {
         .take_while(|unit| *unit != 0)
         .chain(std::iter::once(0))
         .collect()
+}
+
+/// What remains of the wait for `deadline` at `now`, when its timer came: none once it passed, or
+/// with no deadline.
+fn still_to_wait(deadline: Option<Instant>, now: Instant) -> Option<Duration> {
+    deadline
+        .filter(|deadline| now < *deadline)
+        .map(|deadline| deadline - now)
 }
 
 /// The last error of the calling thread, as the layer's error.
@@ -174,6 +184,8 @@ struct State {
     ended: Cell<bool>,
     /// A panic in the procedure, resumed once the layer has its thread back.
     panic: Cell<Option<Box<dyn Any + Send>>>,
+    /// Whether the window lives, which the waker reads before it posts.
+    alive: Arc<AtomicBool>,
 }
 
 impl State {
@@ -361,8 +373,11 @@ impl State {
                 // let go of.
                 if lparam as HWND != self.hwnd() {
                     let released = self.held.borrow_mut().release_all();
+                    // Sent, not posted: no message's time is its own; stamped as received.
+                    let at = EventTime::received(clock::now());
                     for input in released {
-                        self.input(input);
+                        self.told.borrow_mut().inputs.push((at, input));
+                        self.pending.set(true);
                     }
                 }
                 Some(0)
@@ -452,8 +467,24 @@ impl State {
                 }
                 Some(0)
             }
-            // The wait, or the modal loop's turn, reads the deadline.
-            DEADLINE => Some(0),
+            DEADLINE => {
+                // The timer counts on the system's interrupt time, the deadline on the host's
+                // clock: one that signals a little early is armed again for what remains, which
+                // the wait, or the modal loop's turn, reads.
+                if let Some(remains) = still_to_wait(self.deadline.get(), clock::now())
+                    && let Some(threads) = self.threads()
+                {
+                    threads.deadlines.arm(Some(remains));
+                }
+                Some(0)
+            }
+            WM_DISPLAYCHANGE => {
+                // A display's mode or the displays changed: the signal reads its period again.
+                if let Some(threads) = self.threads() {
+                    threads.signal.displays_changed();
+                }
+                None
+            }
             _ => None,
         }
     }
@@ -739,12 +770,19 @@ impl running::Platform for View<'_> {
     }
 }
 
-/// The platform: the window's state, boxed where its procedure finds it.
+/// The platform: the window's state, where its procedure finds it.
 pub(crate) struct Platform {
-    state: Box<State>,
+    /// Made by `Box::into_raw` and freed by `Drop` once the window went: the window's data holds
+    /// the same pointer, which no box then claims as its own alone.
+    state: NonNull<State>,
 }
 
 impl Platform {
+    fn state(&self) -> &State {
+        // SAFETY: the state lives until `Drop` frees it, and changes only through its cells.
+        unsafe { self.state.as_ref() }
+    }
+
     /// Opens the window as `opening` says, and how its images are drawn.
     pub(crate) fn open(opening: Opening) -> Result<(Self, Drawn), Error> {
         // Each display's scale, its second version; a manifest or the host may have set it first,
@@ -766,7 +804,7 @@ impl Platform {
         unsafe { RegisterClassExW(&raw const description) };
         // SAFETY: the system's arrow, loaded once and shared.
         let arrow = unsafe { LoadCursorW(std::ptr::null_mut(), IDC_ARROW) };
-        let state = Box::new(State {
+        let state = Box::into_raw(Box::new(State {
             window: Cell::new(std::ptr::null_mut()),
             instance,
             told: RefCell::default(),
@@ -795,7 +833,10 @@ impl Platform {
             turning: Cell::new(false),
             ended: Cell::new(false),
             panic: Cell::new(None),
-        });
+            alive: Arc::new(AtomicBool::new(true)),
+        }));
+        // SAFETY: the box just made, never null.
+        let state = unsafe { NonNull::new_unchecked(state) };
         let title = wide(&opening.title);
         // SAFETY: the class registered above, a title ended by a null, and the state, which the
         // procedure reaches from `WM_NCCREATE` on, and which outlives the window.
@@ -812,15 +853,20 @@ impl Platform {
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
                 instance,
-                (&raw const *state).cast(),
+                state.as_ptr().cast_const().cast(),
             )
         };
-        state.resume_panic();
         if hwnd.is_null() {
-            return Err(failed("the window could not open"));
+            let error = failed("the window could not open");
+            // SAFETY: the box made above, which no window holds: none was made.
+            let state = unsafe { Box::from_raw(state.as_ptr()) };
+            state.resume_panic();
+            return Err(error);
         }
+        // Owned first, so that a panic held during the creation destroys the window as it unwinds.
         let platform = Self { state };
-        let state = &*platform.state;
+        let state = platform.state();
+        state.resume_panic();
         // SAFETY: the live window.
         state.dpi.set(unsafe { GetDpiForWindow(hwnd) }.max(1));
         let [width, height] = state.outer(state.physical(opening.size));
@@ -837,7 +883,14 @@ impl Platform {
             );
         }
         let window = Poster(hwnd as isize);
-        let asks = Asks::new(move || window.post(WAKE, 0));
+        let alive = Arc::clone(&state.alive);
+        // The waker outlives the window, in the interface's tasks and in the termination's
+        // handler: it posts nothing once the window goes.
+        let asks = Asks::new(move || {
+            if alive.load(Ordering::Acquire) {
+                window.post(WAKE, 0);
+            }
+        });
         wake::on_termination(&asks);
         let _ = state.asks.set(asks);
         let threads = Threads {
@@ -861,11 +914,11 @@ impl Platform {
 
 impl running::Platform for Platform {
     fn happened(&mut self) -> Result<Happened, Error> {
-        View(&self.state).happened()
+        View(self.state()).happened()
     }
 
     fn wait(&mut self, deadline: Option<Instant>, host: &mut dyn Turn) -> Result<Waited, Error> {
-        let state = &*self.state;
+        let state = self.state();
         state.arm(deadline);
         // SAFETY: the lifetime of the host is erased while it is lent; the guard takes it back
         // before this wait returns, a panic's unwinding included, and the procedure reaches it
@@ -891,6 +944,12 @@ impl running::Platform for Platform {
                     return Ok(Waited::Ended);
                 }
             }
+            // A sent message, which `PeekMessageW` hands the procedure itself, may have ended the
+            // run or panicked too.
+            state.resume_panic();
+            if state.ended.get() {
+                return Ok(Waited::Ended);
+            }
             if state.pending.get() || state.due() {
                 return Ok(Waited::Ready);
             }
@@ -908,7 +967,7 @@ impl running::Platform for Platform {
     }
 
     fn raw_handles(&self) -> (RawDisplayHandle, RawWindowHandle) {
-        View(&self.state).raw_handles()
+        View(self.state()).raw_handles()
     }
 
     fn now(&self) -> Instant {
@@ -916,31 +975,31 @@ impl running::Platform for Platform {
     }
 
     fn waker(&self) -> Waker {
-        View(&self.state).waker()
+        View(self.state()).waker()
     }
 
     fn set_title(&mut self, title: &str) {
-        View(&self.state).set_title(title);
+        View(self.state()).set_title(title);
     }
 
     fn set_min_size(&mut self, size: Option<[u32; 2]>) -> bool {
-        View(&self.state).set_min_size(size)
+        View(self.state()).set_min_size(size)
     }
 
     fn set_fullscreen(&mut self, fullscreen: bool) {
-        self.state.set_fullscreen(fullscreen);
+        self.state().set_fullscreen(fullscreen);
     }
 
     fn activate(&mut self, activation: Activation) {
-        View(&self.state).activate(activation);
+        View(self.state()).activate(activation);
     }
 
     fn set_cursor(&mut self, shape: CursorShape) {
-        View(&self.state).set_cursor(shape);
+        View(self.state()).set_cursor(shape);
     }
 
     fn ask_signal(&mut self) -> u64 {
-        View(&self.state).ask_signal()
+        View(self.state()).ask_signal()
     }
 }
 
@@ -955,17 +1014,42 @@ impl Drop for Lent<'_> {
 
 impl Drop for Platform {
     fn drop(&mut self) {
-        // The threads end first: none posts to a window that went.
-        drop(self.state.threads.take());
-        let hwnd = self.state.hwnd();
+        // The threads end first, and the waker posts no more: nothing posts to a window that went.
+        // SAFETY: no other reference to the state lives: no message is dispatched while the
+        // threads are joined, and the procedure reaches the state only within a message.
+        drop(unsafe { self.state.as_mut() }.threads.take());
+        let state = self.state();
+        state.alive.store(false, Ordering::Release);
+        let hwnd = state.hwnd();
         let class = wide(CLASS);
         // SAFETY: the live window, which the call destroys, its procedure reaching the state,
-        // live until this returns; then the class, registered by `open`.
+        // live until it is freed below; then the class, registered by `open`.
         unsafe {
             DestroyWindow(hwnd);
-            UnregisterClassW(class.as_ptr(), self.state.instance);
+            UnregisterClassW(class.as_ptr(), state.instance);
         }
+        // SAFETY: the box that `open` made; the window that held it went, and nothing else does.
+        let state = unsafe { Box::from_raw(self.state.as_ptr()) };
         // A panic in the procedure during the window's end is dropped: the layer is closing.
-        drop(self.state.panic.take());
+        drop(state.panic.take());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_timer_that_comes_before_its_deadline_is_armed_again_for_what_remains() {
+        let at = |micros: u64| Instant::from_nanos(micros * 1_000);
+        // Early by 300 µs, as a timer on the interrupt time may come.
+        assert_eq!(
+            still_to_wait(Some(at(10_000)), at(9_700)),
+            Some(Duration::from_micros(300))
+        );
+        // On time, or late, or with no deadline: nothing to wait for.
+        assert_eq!(still_to_wait(Some(at(10_000)), at(10_000)), None);
+        assert_eq!(still_to_wait(Some(at(10_000)), at(12_000)), None);
+        assert_eq!(still_to_wait(None, at(12_000)), None);
     }
 }

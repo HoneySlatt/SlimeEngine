@@ -49,9 +49,7 @@ impl Timer {
             unsafe { CancelWaitableTimer(handle) };
             return;
         };
-        // A due time below zero counts from now, in units of 100 ns; zero is due at once.
-        let hundreds = i64::try_from(after.as_nanos() / 100).unwrap_or(i64::MAX);
-        let due = -hundreds.max(1);
+        let due = due_time(after);
         // SAFETY: the handle is a live timer, the due time a live `i64` read during the call; no
         // period and no completion routine.
         unsafe { SetWaitableTimer(handle, &raw const due, 0, None, std::ptr::null(), 0) };
@@ -60,6 +58,14 @@ impl Timer {
     pub(super) fn handle(&self) -> &OwnedHandle {
         &self.0
     }
+}
+
+/// The due time of a timer `after` from now, as `SetWaitableTimer` takes it: below zero, counted from
+/// now in units of 100 ns, rounded up, so that it never comes before; one unit at least, zero
+/// meaning a time of day.
+fn due_time(after: Duration) -> i64 {
+    let hundreds = i64::try_from(after.as_nanos().div_ceil(100)).unwrap_or(i64::MAX);
+    -hundreds.max(1)
 }
 
 /// An event of Win32 that a wait resets as it takes it.
@@ -80,15 +86,16 @@ pub(super) fn set(event: &OwnedHandle) {
 }
 
 /// The window that a thread posts its messages to: its handle as a number, which any thread may
-/// post to, and which outlives every thread that posts, each ended before the window goes.
+/// post to. The layer's threads end before the window goes, and the waker posts nothing after;
+/// a message posted to a window that went, by a waker that raced its end, is refused by Windows.
 #[derive(Clone, Copy)]
 pub(super) struct Poster(pub(super) isize);
 
 impl Poster {
     /// Posts the window `message`, without waiting for it.
     pub(super) fn post(self, message: u32, wparam: WPARAM) {
-        // SAFETY: a window's handle, live while the thread that posts runs; a message of the
-        // layer's own, which carries no pointer. A full queue loses it, as any message.
+        // SAFETY: a window's handle, which Windows checks: one that went refuses the message; a
+        // message of the layer's own, which carries no pointer. A full queue loses it, as any.
         unsafe { PostMessageW(self.0 as _, message, wparam, 0) };
     }
 }
@@ -143,5 +150,19 @@ impl Drop for Deadlines {
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_due_time_counts_back_from_now_rounded_up_and_never_at_zero() {
+        assert_eq!(due_time(Duration::from_millis(10)), -100_000);
+        // 250 ns is three units, not two: the timer never comes before the deadline.
+        assert_eq!(due_time(Duration::from_nanos(250)), -3);
+        assert_eq!(due_time(Duration::ZERO), -1);
+        assert_eq!(due_time(Duration::MAX), -i64::MAX);
     }
 }

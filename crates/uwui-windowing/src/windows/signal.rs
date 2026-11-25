@@ -8,9 +8,12 @@
 //! and posts the window a message, which turns the loop, Win32's modal loop of a move or a resize
 //! too. Unasked, it waits on its event alone, and never wakes.
 //!
-//! A wait that fails, or returns sooner than half a period after the last refresh, as when the
-//! display is off, is no refresh: a timer at the display's period takes its place, on the grid of
-//! the last refresh. The period is the display's mode, else DWM's, else 60 a second.
+//! A wait that fails, returns sooner than half a period after the last refresh, or returns at its
+//! call well before a period passed, as when the display is off, is no refresh: a timer at the
+//! display's period takes its place, on the grid of the last refresh. The period is the display's
+//! mode, else DWM's, else 60 a second, read again when the window moves to another display and when
+//! Windows tells that the displays changed (`WM_DISPLAYCHANGE`). A monitor whose output does not
+//! open, or whose wait fails, is left to the timer for a second before it is opened again.
 
 #![expect(
     unsafe_code,
@@ -52,11 +55,29 @@ enum Judged {
     Missed,
 }
 
-/// Judges a wait that `succeeded` and returned at `returned`: a refresh where it succeeded and
-/// came half a `period` or more after the `last` refresh told, or with none told before.
-fn judge(succeeded: bool, returned: Instant, last: Option<Instant>, period: Duration) -> Judged {
-    let soon = last.is_some_and(|last| returned - last < period / 2);
-    if succeeded && !soon {
+/// How long a wait lasts that returned at once rather than at a blank.
+const AT_ONCE: Duration = Duration::from_micros(100);
+
+/// How long a monitor whose output did not open, or whose wait failed, is left to the timer
+/// before it is opened again.
+const RETRY: Duration = Duration::from_secs(1);
+
+/// Judges a wait that `succeeded`, called at `called` and returned at `returned`: a refresh where
+/// it succeeded and came half a `period` or more after the `last` refresh told, or with none told
+/// before; but not where it returned at once, as with the display off, sooner than seven eighths
+/// of a period after the last: a blank that comes just as the wait is called comes about a period
+/// after the one before.
+fn judge(
+    succeeded: bool,
+    called: Instant,
+    returned: Instant,
+    last: Option<Instant>,
+    period: Duration,
+) -> Judged {
+    let since = last.map(|last| returned - last);
+    let soon = since.is_some_and(|since| since < period / 2);
+    let at_once = returned - called < AT_ONCE && since.is_some_and(|since| since < period * 7 / 8);
+    if succeeded && !soon && !at_once {
         Judged::Refresh
     } else {
         Judged::Missed
@@ -83,6 +104,8 @@ struct Shared {
     stop: AtomicBool,
     /// When the last refresh came, on the host's clock, in nanoseconds.
     at: AtomicU64,
+    /// The displays changed since the thread last opened an output: it reads it again.
+    changed: AtomicBool,
 }
 
 /// The thread of the signal, which the window asks before each present.
@@ -98,6 +121,7 @@ impl Signal {
             asked: timer::event()?,
             stop: AtomicBool::new(false),
             at: AtomicU64::new(0),
+            changed: AtomicBool::new(false),
         });
         let timer = Timer::new()?;
         let thread = std::thread::Builder::new()
@@ -110,6 +134,12 @@ impl Signal {
             shared,
             thread: Some(thread),
         })
+    }
+
+    /// The displays changed, or one's mode: the output and its period are read again at the next
+    /// ask.
+    pub(super) fn displays_changed(&self) {
+        self.shared.changed.store(true, Ordering::Release);
     }
 
     /// Asks for the next refresh.
@@ -136,6 +166,8 @@ impl Drop for Signal {
 /// The thread's loop: each ask answered by the next refresh.
 fn run(shared: &Shared, timer: &Timer, window: Poster, message: u32) {
     let mut output: Option<Output> = None;
+    // The monitor whose output last failed, and when: left to the timer until `RETRY` passed.
+    let mut failed: Option<(HMONITOR, Instant)> = None;
     let mut last: Option<Instant> = None;
     loop {
         let handles = [shared.asked.as_raw_handle()];
@@ -145,23 +177,31 @@ fn run(shared: &Shared, timer: &Timer, window: Poster, message: u32) {
             break;
         }
         let monitor = monitor(window);
+        if shared.changed.swap(false, Ordering::AcqRel) {
+            output = None;
+            failed = None;
+        }
+        let retry = failed.is_none_or(|(at, since)| at != monitor || clock::now() - since >= RETRY);
         if output
             .as_ref()
             .is_none_or(|output| output.monitor != monitor)
+            && retry
         {
             output = Output::open(monitor);
+            failed = output.is_none().then(|| (monitor, clock::now()));
         }
         let period = output
             .as_ref()
             .map_or_else(dwm_period, |output| output.period);
+        let called = clock::now();
         let succeeded = output.as_ref().is_some_and(Output::wait);
         let returned = clock::now();
-        let refresh = match judge(succeeded, returned, last, period) {
+        let refresh = match judge(succeeded, called, returned, last, period) {
             Judged::Refresh => returned,
             Judged::Missed => {
-                if !succeeded {
-                    // Opened again at the next ask: the adapter may have gone, or been reset.
-                    output = None;
+                if !succeeded && output.take().is_some() {
+                    // Opened again after a while: the adapter may have gone, or been reset.
+                    failed = Some((monitor, returned));
                 }
                 let next = next_on_grid(returned, last, period);
                 timer.arm(Some(next - clock::now()));
@@ -292,13 +332,36 @@ mod tests {
 
     #[test]
     fn a_wait_is_a_refresh_unless_it_failed_or_came_too_soon() {
-        assert_eq!(judge(true, ms(100), None, PERIOD), Judged::Refresh);
-        assert_eq!(judge(true, ms(116), Some(ms(100)), PERIOD), Judged::Refresh);
-        assert_eq!(judge(true, ms(108), Some(ms(100)), PERIOD), Judged::Refresh);
-        // Sooner than half a period: the display off, its wait at once.
-        assert_eq!(judge(true, ms(107), Some(ms(100)), PERIOD), Judged::Missed);
-        assert_eq!(judge(false, ms(500), Some(ms(100)), PERIOD), Judged::Missed);
-        assert_eq!(judge(false, ms(100), None, PERIOD), Judged::Missed);
+        // Waits that blocked a millisecond or more.
+        let blocked = |returned: u64| (ms(returned - 1), ms(returned));
+        let judged = |(called, returned), last| judge(true, called, returned, last, PERIOD);
+        assert_eq!(judged(blocked(100), None), Judged::Refresh);
+        assert_eq!(judged(blocked(116), Some(ms(100))), Judged::Refresh);
+        assert_eq!(judged(blocked(108), Some(ms(100))), Judged::Refresh);
+        // Sooner than half a period.
+        assert_eq!(judged(blocked(107), Some(ms(100))), Judged::Missed);
+        assert_eq!(
+            judge(false, ms(499), ms(500), Some(ms(100)), PERIOD),
+            Judged::Missed
+        );
+        assert_eq!(judge(false, ms(99), ms(100), None, PERIOD), Judged::Missed);
+    }
+
+    #[test]
+    fn a_wait_that_returns_at_once_is_a_refresh_only_about_a_period_after_the_last() {
+        // The display off: the wait returns at its call, a frame's work after the last refresh.
+        let at_once = |returned: u64| {
+            (
+                Instant::from_nanos(returned * 1_000_000 - 50_000),
+                ms(returned),
+            )
+        };
+        let judged = |(called, returned), last| judge(true, called, returned, last, PERIOD);
+        assert_eq!(judged(at_once(110), Some(ms(100))), Judged::Missed);
+        assert_eq!(judged(at_once(113), Some(ms(100))), Judged::Missed);
+        // A blank that comes just as the wait is called, a period after the last.
+        assert_eq!(judged(at_once(116), Some(ms(100))), Judged::Refresh);
+        assert_eq!(judged(at_once(100), None), Judged::Refresh);
     }
 
     /// The display driver's own wait, on the primary display, which the machine that runs the

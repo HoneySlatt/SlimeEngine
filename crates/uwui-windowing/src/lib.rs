@@ -87,7 +87,8 @@ use uwui_time::{EventTime, Instant};
 pub struct Opening {
     /// Its title.
     pub title: String,
-    /// The application's identity, which the system groups its windows by.
+    /// The application's identity, which the system groups its windows by: on Wayland and X11;
+    /// Windows groups them by their program, and takes none.
     pub app_id: String,
     /// Its size in logical pixels, until the platform chooses one.
     pub size: [u32; 2],
@@ -178,8 +179,9 @@ pub struct Happened {
     pub drawn: Option<Drawn>,
     /// The person asked the window to close.
     pub close_asked: bool,
-    /// A termination signal came: SIGTERM, SIGINT or SIGHUP; the first alone, a second that
-    /// insists ending the process ([`EXIT_TERMINATED`]).
+    /// A termination signal came: SIGTERM, SIGINT or SIGHUP, or on Windows the console's Ctrl+C,
+    /// Ctrl+Break or close; the first alone, a second that insists ending the process
+    /// ([`EXIT_TERMINATED`]).
     pub terminated: bool,
     /// Another thread woke the loop through [`Window::waker`].
     pub woken: bool,
@@ -222,8 +224,8 @@ pub enum Activation {
     Attention,
 }
 
-/// The process's exit status when a second termination signal, SIGTERM, SIGINT or SIGHUP, half a
-/// second or more after the first, ends it at once, without a call of the host: the status that a
+/// The process's exit status when a second termination signal, SIGTERM, SIGINT or SIGHUP, or on
+/// Windows the console's Ctrl+C, Ctrl+Break or close, half a second or more after the first, ends it at once, without a call of the host: the status that a
 /// shell gives a process ended by Ctrl+C. The first is the host's, as [`Happened::terminated`].
 pub const EXIT_TERMINATED: i32 = 130;
 
@@ -285,7 +287,7 @@ impl Window<'_> {
 
     /// Sets the smallest that the person may make the window, in logical pixels; none for no
     /// bound. Whether an image must follow to apply it: on Wayland, the next image's commit does;
-    /// on X11, none needs to.
+    /// on X11 and Windows, none needs to.
     #[must_use = "an image must follow where it says so"]
     pub fn set_min_size(&mut self, size: Option<[u32; 2]>) -> bool {
         self.platform.set_min_size(size)
@@ -297,6 +299,8 @@ impl Window<'_> {
     }
 
     /// Asks the system to activate the window as `activation` says; nothing where it gives no way.
+    /// Windows may refuse the front to a program that the person did not last use: the window then
+    /// asks for attention.
     pub fn activate(&mut self, activation: Activation) {
         self.platform.activate(activation);
     }
