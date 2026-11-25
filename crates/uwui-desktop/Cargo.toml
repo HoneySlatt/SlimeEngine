@@ -33,8 +33,29 @@ slime-input.workspace = true
 # The example draws in the editor's look, the only look that uwui has yet.
 uwui = { workspace = true, features = ["editor-look"] }
 
+# The Windows test's reads of the example's threads, its window, the mouse's moves and Ctrl+Break
+# (ADR-0317).
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Console",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 # The example run in a compositor, at rest, then ended by a signal: `scripts/check.sh windowed`
 # and `scripts/compositors.sh` run it, in a compositor of their own.
 [[test]]
 name = "rest"
+test = false
+
+# The examples on Windows' desktop, at rest, closed, their device and surface lost: CI's Windows
+# job of the host runs it, the examples built first.
+[[test]]
+name = "windows"
 test = false

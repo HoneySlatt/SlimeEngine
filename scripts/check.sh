@@ -106,6 +106,7 @@ if runs lint; then
     cargo clippy --locked -p slime-mcp --test answer --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test compositor --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p uwui-desktop --test rest --target x86_64-pc-windows-msvc -- -D warnings
+    cargo clippy --locked -p uwui-desktop --test windows --target x86_64-pc-windows-msvc -- -D warnings
     CARGO_BUILD_WARNINGS=deny cargo clippy --locked -p hunnawood --no-default-features --all-targets --target x86_64-pc-windows-msvc -- -D warnings
 
     step "Rustdoc"
