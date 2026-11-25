@@ -91,13 +91,14 @@ jobs:
 
   # What can only be checked on Windows: running the build, the tests and the samples there. The
   # checks that do not depend on the platform (formatting, rustdoc, dependencies, links) and
-  # compiling for Windows already run in the Linux jobs. Four jobs run side by side, each within the
+  # compiling for Windows already run in the Linux jobs. Five jobs run side by side, each within the
   # owner's limit of 20 minutes (docs/adr/0081-stage-5a-the-world.md,
   # docs/adr/0104-the-build-ci-and-measurements.md,
-  # docs/adr/0228-ci-split-again-each-job-within-20-minutes.md): this one in three parts, `tests`,
-  # the debug build's tests but the renderer's, and its samples, `render`, the renderer's tests, and
-  # `game`, the tests that read the sample game's zone; `windows-release` runs clippy and builds the
-  # programs that CI publishes.
+  # docs/adr/0228-ci-split-again-each-job-within-20-minutes.md): this one in four parts, `tests`,
+  # the debug build's tests but the renderer's, and its samples, `render`, the renderer's tests,
+  # `game`, the tests that read the sample game's zone, and `host`, uwui's desktop host on the
+  # runner's desktop (docs/adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md);
+  # `windows-release` runs clippy and builds the programs that CI publishes.
   windows:
     strategy:
       fail-fast: false
@@ -111,6 +112,8 @@ jobs:
             packages: -p slime-render
           - part: game
             packages: -p hunnawood -p hunnawood-editor
+          - part: host
+            packages: -p uwui-desktop
     name: windows (${{ matrix.part }})
     runs-on: windows-2025
     timeout-minutes: 45
@@ -154,6 +157,14 @@ jobs:
           cargo run --locked -p slime-cook -- cook examples/assets target/cooked/examples
           cargo run --locked --example interface -- --output target/interface.png
           cargo run --locked --example widgets -- --output target/widgets.png
+      # The host's examples on the runner's desktop, a console session that DWM composes, presented
+      # by WARP: at rest, hovered by the mouse through SendInput, closed, their device and surface
+      # lost (crates/uwui-desktop/tests/windows.rs).
+      - name: uwui's desktop host on the runner's desktop
+        if: matrix.part == 'host'
+        run: |
+          cargo build --locked -p uwui-desktop --example application --example blank
+          cargo test --locked -p uwui-desktop --test windows -- --nocapture --test-threads=1
       # The sample game's zone, fetched from its mirror and kept between runs while its list is
       # unchanged, then cooked for the tests that read it
       # (docs/adr/0070-the-sample-games-source-assets.md).
