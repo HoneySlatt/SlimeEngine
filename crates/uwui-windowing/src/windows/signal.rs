@@ -62,26 +62,50 @@ const AT_ONCE: Duration = Duration::from_micros(100);
 /// before it is opened again.
 const RETRY: Duration = Duration::from_secs(1);
 
-/// Judges a wait that `succeeded`, called at `called` and returned at `returned`: a refresh where
-/// it succeeded and came half a `period` or more after the `last` refresh told, or with none told
-/// before; but not where it returned at once, as with the display off, sooner than seven eighths
-/// of a period after the last: a blank that comes just as the wait is called comes about a period
-/// after the one before.
-fn judge(
+/// How a wait for the vertical blank went.
+#[derive(Clone, Copy, Debug)]
+struct Wait {
+    /// Whether the driver told a blank.
     succeeded: bool,
-    called: Instant,
+    /// When it returned.
     returned: Instant,
-    last: Option<Instant>,
-    period: Duration,
-) -> Judged {
-    let since = last.map(|last| returned - last);
+    /// Whether it returned at its call, within `AT_ONCE`.
+    at_once: bool,
+}
+
+/// Judges `wait`, after the `last` refresh told, none before, at the display's `period`: a refresh
+/// where it succeeded and came half a period or more after the last; but not where it returned at
+/// once, as the wait before did, sooner than a period after the last, as with the display off,
+/// whose waits all return at their call. A blank rarely comes just as the wait is called twice in a
+/// row; a refresh so taken for missed is timed a period after the last, about when it came.
+fn judge(wait: Wait, at_once_before: bool, last: Option<Instant>, period: Duration) -> Judged {
+    let since = last.map(|last| wait.returned - last);
     let soon = since.is_some_and(|since| since < period / 2);
-    let at_once = returned - called < AT_ONCE && since.is_some_and(|since| since < period * 7 / 8);
-    if succeeded && !soon && !at_once {
+    let idle = wait.at_once && at_once_before && since.is_some_and(|since| since < period);
+    if wait.succeeded && !soon && !idle {
         Judged::Refresh
     } else {
         Judged::Missed
     }
+}
+
+/// Whether the thread opens the output of `monitor` now, its output open on `open_on`, if any: where
+/// none is open, or one of another monitor, or the displays `changed`; but not for a monitor whose
+/// output `failed` less than `RETRY` before `now`, unless the displays changed since.
+fn opens(
+    open_on: Option<HMONITOR>,
+    monitor: HMONITOR,
+    changed: bool,
+    failed: Option<(HMONITOR, Instant)>,
+    now: Instant,
+) -> bool {
+    if changed {
+        return true;
+    }
+    if open_on == Some(monitor) {
+        return false;
+    }
+    failed.is_none_or(|(at, since)| at != monitor || now - since >= RETRY)
 }
 
 /// The next refresh on the grid of `last`, every `period`, after `now`; `now` itself without a
@@ -169,6 +193,7 @@ fn run(shared: &Shared, timer: &Timer, window: Poster, message: u32) {
     // The monitor whose output last failed, and when: left to the timer until `RETRY` passed.
     let mut failed: Option<(HMONITOR, Instant)> = None;
     let mut last: Option<Instant> = None;
+    let mut at_once_before = false;
     loop {
         let handles = [shared.asked.as_raw_handle()];
         // SAFETY: a live event, which this thread's `shared` holds.
@@ -177,16 +202,11 @@ fn run(shared: &Shared, timer: &Timer, window: Poster, message: u32) {
             break;
         }
         let monitor = monitor(window);
-        if shared.changed.swap(false, Ordering::AcqRel) {
-            output = None;
-            failed = None;
-        }
-        let retry = failed.is_none_or(|(at, since)| at != monitor || clock::now() - since >= RETRY);
-        if output
-            .as_ref()
-            .is_none_or(|output| output.monitor != monitor)
-            && retry
-        {
+        let changed = shared.changed.swap(false, Ordering::AcqRel);
+        let open_on = output.as_ref().map(|output| output.monitor);
+        if opens(open_on, monitor, changed, failed, clock::now()) {
+            // The adapter of the output before closes first.
+            drop(output.take());
             output = Output::open(monitor);
             failed = output.is_none().then(|| (monitor, clock::now()));
         }
@@ -196,7 +216,14 @@ fn run(shared: &Shared, timer: &Timer, window: Poster, message: u32) {
         let called = clock::now();
         let succeeded = output.as_ref().is_some_and(Output::wait);
         let returned = clock::now();
-        let refresh = match judge(succeeded, called, returned, last, period) {
+        let wait = Wait {
+            succeeded,
+            returned,
+            at_once: returned - called < AT_ONCE,
+        };
+        let judged = judge(wait, at_once_before, last, period);
+        at_once_before = wait.at_once;
+        let refresh = match judged {
             Judged::Refresh => returned,
             Judged::Missed => {
                 if !succeeded && output.take().is_some() {
@@ -330,38 +357,90 @@ mod tests {
 
     const PERIOD: Duration = Duration::from_millis(16);
 
-    #[test]
-    fn a_wait_is_a_refresh_unless_it_failed_or_came_too_soon() {
-        // Waits that blocked a millisecond or more.
-        let blocked = |returned: u64| (ms(returned - 1), ms(returned));
-        let judged = |(called, returned), last| judge(true, called, returned, last, PERIOD);
-        assert_eq!(judged(blocked(100), None), Judged::Refresh);
-        assert_eq!(judged(blocked(116), Some(ms(100))), Judged::Refresh);
-        assert_eq!(judged(blocked(108), Some(ms(100))), Judged::Refresh);
-        // Sooner than half a period.
-        assert_eq!(judged(blocked(107), Some(ms(100))), Judged::Missed);
-        assert_eq!(
-            judge(false, ms(499), ms(500), Some(ms(100)), PERIOD),
-            Judged::Missed
-        );
-        assert_eq!(judge(false, ms(99), ms(100), None, PERIOD), Judged::Missed);
+    /// A wait that blocked, or returned at once, at `returned` milliseconds.
+    fn blocked(returned: u64) -> Wait {
+        Wait {
+            succeeded: true,
+            returned: ms(returned),
+            at_once: false,
+        }
+    }
+
+    fn at_once(returned: u64) -> Wait {
+        Wait {
+            at_once: true,
+            ..blocked(returned)
+        }
     }
 
     #[test]
-    fn a_wait_that_returns_at_once_is_a_refresh_only_about_a_period_after_the_last() {
-        // The display off: the wait returns at its call, a frame's work after the last refresh.
-        let at_once = |returned: u64| {
-            (
-                Instant::from_nanos(returned * 1_000_000 - 50_000),
-                ms(returned),
-            )
+    fn a_wait_is_a_refresh_unless_it_failed_or_came_too_soon() {
+        assert_eq!(judge(blocked(100), false, None, PERIOD), Judged::Refresh);
+        assert_eq!(
+            judge(blocked(116), false, Some(ms(100)), PERIOD),
+            Judged::Refresh
+        );
+        assert_eq!(
+            judge(blocked(108), false, Some(ms(100)), PERIOD),
+            Judged::Refresh
+        );
+        // Sooner than half a period.
+        assert_eq!(
+            judge(blocked(107), false, Some(ms(100)), PERIOD),
+            Judged::Missed
+        );
+        let failed = Wait {
+            succeeded: false,
+            ..blocked(500)
         };
-        let judged = |(called, returned), last| judge(true, called, returned, last, PERIOD);
-        assert_eq!(judged(at_once(110), Some(ms(100))), Judged::Missed);
-        assert_eq!(judged(at_once(113), Some(ms(100))), Judged::Missed);
-        // A blank that comes just as the wait is called, a period after the last.
-        assert_eq!(judged(at_once(116), Some(ms(100))), Judged::Refresh);
-        assert_eq!(judged(at_once(100), None), Judged::Refresh);
+        assert_eq!(judge(failed, false, Some(ms(100)), PERIOD), Judged::Missed);
+        assert_eq!(judge(failed, false, None, PERIOD), Judged::Missed);
+    }
+
+    #[test]
+    fn waits_that_return_at_once_in_a_row_are_no_refresh_before_a_period() {
+        // The display off: every wait returns at its call, a frame's work after the last refresh.
+        assert_eq!(
+            judge(at_once(110), true, Some(ms(100)), PERIOD),
+            Judged::Missed
+        );
+        assert_eq!(
+            judge(at_once(115), true, Some(ms(100)), PERIOD),
+            Judged::Missed
+        );
+        // A period after the last, it is one.
+        assert_eq!(
+            judge(at_once(116), true, Some(ms(100)), PERIOD),
+            Judged::Refresh
+        );
+        // A blank that comes just as the wait is called, once, after a refresh told late: a
+        // refresh.
+        assert_eq!(
+            judge(at_once(113), false, Some(ms(100)), PERIOD),
+            Judged::Refresh
+        );
+        assert_eq!(judge(at_once(100), true, None, PERIOD), Judged::Refresh);
+    }
+
+    #[test]
+    fn an_output_opens_for_a_new_monitor_or_changed_displays_and_a_failed_one_waits() {
+        let first = std::ptr::without_provenance_mut::<std::ffi::c_void>(1);
+        let second = std::ptr::without_provenance_mut::<std::ffi::c_void>(2);
+        let now = ms(10_000);
+        let ago = |millis: u64| Some(ms(10_000 - millis));
+        // None open, or one of another monitor: it opens.
+        assert!(opens(None, first, false, None, now));
+        assert!(opens(Some(second), first, false, None, now));
+        // Open on this monitor: it stays, unless the displays changed, a mode's rate among them.
+        assert!(!opens(Some(first), first, false, None, now));
+        assert!(opens(Some(first), first, true, None, now));
+        // This monitor's output failed half a second ago: left to the timer, unless the displays
+        // changed; a second after, opened again; another monitor's failure does not hold it.
+        let failed_ago = |millis| ago(millis).map(|at| (first, at));
+        assert!(!opens(None, first, false, failed_ago(500), now));
+        assert!(opens(None, first, true, failed_ago(500), now));
+        assert!(opens(None, first, false, failed_ago(1_000), now));
+        assert!(opens(None, second, false, failed_ago(500), now));
     }
 
     /// The display driver's own wait, on the primary display, which the machine that runs the
