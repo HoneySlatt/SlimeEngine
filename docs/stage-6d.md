@@ -166,9 +166,9 @@ in git.
   [M6d.9a2c3](#m6d9a2c3--waits-in-uwui), done on 2026-11-19; next,
   M6d.9a2c4, cut in two on 2026-11-19
   ([ADR-0314](adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)):
-  [M6d.9a2c4a](#m6d9a2c4a--the-library-that-waits-on-the-interface), done on the same day; next,
-  [M6d.9a2c4b](#m6d9a2c4b--the-engine-that-waits-on-the-interface),
-  [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
+  [M6d.9a2c4a](#m6d9a2c4a--the-library-that-waits-on-the-interface), done on the same day, and
+  [M6d.9a2c4b](#m6d9a2c4b--the-engine-that-waits-on-the-interface), done on 2026-11-25, closing
+  M6d.9a2; next, [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
   [M6d.9a3b](#m6d9a3b--rights-and-previews-before-applying).
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
@@ -3605,6 +3605,38 @@ M6d.9a2c4, "The interface that waits", is cut in two
   closing M6d.9a2.
 - **Measured.** From a change to the waiting tool's answer, on the editor; the journal's beside it,
   at rest; a still frame's counters.
+- **Result.** Done on 2026-11-25, CI green on `86124cca` ([ADR-0316](adr/0316-the-engine-holds-the-interfaces-waits-checked-where-its-presentation-frames-it.md)), closing M6d.9a2:
+  - `slime-app`'s channel holds `interface/wait` in a `uwui::agents::Waits`, beside the journal's
+    waits, neither of them running frames; it checks them after `extract`, and again after a drawn
+    `render`, where an overlay frames its interface (`Presentation::ui` says so).
+  - One count of 8 a connection for both kinds; a wait that would be held past it is `BUSY`,
+    uwui's let go at once, and one met at once is answered, as ADR-0310 says; ADR-0316
+    supersedes ADR-0314's count first. Cancels are answered at the frame's start, before the requests are
+    taken; a wait cancelled later is answered `CANCELLED` when found met or asked again. A wait
+    on a target other than the window's is refused. The run's end clears the waits, their
+    readers with them, and drops their requests, answered "the game has stopped".
+  - Tested: in `slime-app`, on a listener of the test's own, a dialog's presence and absence seen
+    once, a change not framed read by no check, a cancel met in its frame, a cancel swept at
+    the frame's start, uwui's wait let go with it, another target and no
+    interface refused, both kinds in one count, a cancel and a new wait in one frame, a cancel not
+    swept, the run's end; through the MCP server, the editor's *Open a level…* dialog waited for
+    until it closes, seen once, a third wait held to its bound, and the editor at rest with an
+    interface wait and a journal's in flight; *Hunna Wood*, paused, answers a wait for its world
+    panel's closing from the check after the drawing. 16 mutations, each failing a test; the check
+    after `extract`, and the windowed driver's call at the run's end, are untested, the first shown
+    by the measure alone.
+  - A fresh agent attacked the design first: a test seam that needed a new dependency, no test of
+    the check after the drawing, a count that made a wait met at once `BUSY`, a message of the
+    run's end of its own, a wait cancelled in its frame answered with what it found, and documents
+    behind. All settled before the closing review, which found a cancel's release in uwui
+    untested, the two calls above unrecorded, uwui's rustdoc on counting and documents behind;
+    all fixed.
+  - Measured at rest ([`measurements.md`](measurements.md#m6d9a2c4b-the-engine-that-waits-on-the-interface)):
+    from a press to the waiting tool's answer on the editor, a median of 0.71 to 0.81 ms, against
+    6.4 to 6.6 ms checked after the drawing alone; the journal's wait beside it, 0.67 to 0.75 ms;
+    the counters of `editor.hierarchy.100k`'s waits as before.
+  - Left for later ([`debt.md`](debt.md)): the waits that a host keeps past a panicked run, uwui
+    telling no target closed, and the two calls untested, for uwui's first stage.
 
 ### M6d.9a3a — Attaching, and the person's consent
 

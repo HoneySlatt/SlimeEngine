@@ -5206,3 +5206,37 @@ took from 13 min 46 s to 18 min 14 s, and the compositors' columns from 12 min 2
 `compositors (sway)` 18 min 23 s on `83e9ece7`, against 12 min 34 s to 15 min 36 s at M6d.7b2, for
 the same jobs and a few seconds of new tests: the runners' share of these swings is not
 diagnosed.
+
+## M6d.9a2c4b, the engine that waits on the interface
+
+From a change to the answer of a tool that waits for it, as `slime-mcp`'s measure `answer` takes it
+(`cargo test --release -p slime-mcp --test answer -- <cooked examples>`): the `editor` example's
+window on a copy of the yard in a headless Weston, drawn with lavapipe. Each wait is held by the
+editor for 300 ms, then the change comes, timed from the line that the agent writes for it to the
+line that it reads for the wait: for the journal, a step made by `edit`, as at
+[M6d.9a2c2](#m6d9a2c2-the-journal-that-waits); for the interface, a press that opens the File menu,
+which `wait_for_elements` waits for, its item *Open a level…*, the menu closed after each. The
+median and the slowest of 21, after three to warm up. On 2026-11-23, on an AMD Ryzen 7 5800X, in
+release builds, **at rest**: no other build or test ran; the load average over one minute stayed
+between 1.95 and 2.93 throughout, the processes at the top of `ps` a chat client and the
+compositor, each under 3 % of a core. Three passes of each, alternated: the waits on the interface
+checked after `extract` and after the drawing, as kept, and checked after the drawing alone, the
+check after `extract` taken out, the *before*
+([ADR-0316](adr/0316-the-engine-holds-the-interfaces-waits-checked-where-its-presentation-frames-it.md)).
+
+| Pass | The interface's wait, kept: median, slowest | Before: median, slowest | The journal's wait, kept; before | `game_state`'s median, kept; before |
+|---|---|---|---|---|
+| 1 | 0.72 ms, 0.96 ms | 6.56 ms, 7.51 ms | 0.72 ms; 0.67 ms | 16.7 ms; 16.7 ms |
+| 2 | 0.71 ms, 0.87 ms | 6.53 ms, 7.16 ms | 0.67 ms; 0.67 ms | 16.7 ms; 16.7 ms |
+| 3 | 0.81 ms, 0.91 ms | 6.41 ms, 6.70 ms | 0.75 ms; 0.67 ms | 16.7 ms; 16.7 ms |
+
+Checked after `extract`, the editor's wait leaves in the frame of the press before the drawing,
+under a millisecond, as the journal's; checked after the drawing alone, it waits for lavapipe to
+draw the window, about 6 ms more at rest. The journal's wait at rest, 0.67 to 0.75 ms, is within 0.1 ms
+of M6d.9a2c2's under a heavy load, 0.61 to 0.66 ms, which settles that debt: its answer never
+waited for the drawing that the load slowed. The calls that wait for a frame, `game_state`
+included, take one frame of the editor's, about 16.7 ms, the same in both builds.
+
+The counters of the waits' checks on the editor's hierarchy (`cargo run -p slime-benches --
+--counters editor.hierarchy.100k`) are those that `benches/counters.txt` records, unchanged:
+`scripts/check.sh game` passed on the milestone's code.

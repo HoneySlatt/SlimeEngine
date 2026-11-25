@@ -20,12 +20,10 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 - Two tracks at most, the owner's choice of 2026-11-11, each milestone in its own session:
   - Track A, uwui's core, in the main checkout: M6d.9a, cut in five
     ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
-    [M6d.9a1](stage-6d.md#m6d9a1b3b2--the-editors-journal) done; M6d.9a2 cut in three ([ADR-0269](adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)): done,
-    [M6d.9a2a](stage-6d.md#m6d9a2a--the-library) and [M6d.9a2b](stage-6d.md#m6d9a2b--the-engine-on-the-library),
-    then [V1](stage-6d.md#v1--uwuis-documents-versioned); S1 cut in three ([ADR-0303](adr/0303-s1-cut-in-three-safe-files-the-editors-journal-saves-migrated.md)),
-    S1 done with [S1c](stage-6d.md#s1c--saves-migrated-and-a-panics-end), then [R1](stage-6d.md#r1--rust-1100);
-    M6d.9a2c cut in four ([ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)):
-    done to [M6d.9a2c4a](stage-6d.md#m6d9a2c4a--the-library-that-waits-on-the-interface), M6d.9a2c4 cut in two ([ADR-0314](adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)); next, [M6d.9a2c4b](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface);
+    [M6d.9a1](stage-6d.md#m6d9a1b3b2--the-editors-journal) and M6d.9a2 done, to
+    [M6d.9a2c4b](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface), with
+    [V1](stage-6d.md#v1--uwuis-documents-versioned), [S1](stage-6d.md#s1--saves-migrated-from-layout-5)
+    and [R1](stage-6d.md#r1--rust-1100) beside; next, [M6d.9a3a](stage-6d.md#m6d9a3a--attaching-and-the-persons-consent);
     after M6d.9b, [E1](stage-6d.md#e1--the-elements-contract), the element's contract designed
     before M6d.10a ([ADR-0294](adr/0294-the-elements-contract-designed-by-e1-before-m6d10-on-a-prototype-thrown-away.md)).
   - Track B, in a worktree: M6d.4 to M6d.6 done; M6d.7 cut in six
@@ -54,8 +52,8 @@ and is checked on Windows ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-win
 | [M6d.9a1a to M6d.9a1b3b2 — The new wire, requests, events, the interface's family](stage-6d.md#m6d9a1a--the-new-wire-under-todays-meaning) | Done |
 | [M6d.9a2a — The library](stage-6d.md#m6d9a2a--the-library) | Done |
 | [M6d.9a2b1 to M6d.9a2b2 — The engine on the library](stage-6d.md#m6d9a2b--the-engine-on-the-library) | Done |
-| [M6d.9a2c1 to M6d.9a2c4a — Families described, and waits](stage-6d.md#m6d9a2c1--each-family-described) | Done |
-| [M6d.9a2c4b to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface) | Planned |
+| [M6d.9a2c1 to M6d.9a2c4b — Families described, and waits](stage-6d.md#m6d9a2c1--each-family-described) | Done |
+| [M6d.9a3a to M6d.9a3b — The rest of M6d.9a](stage-6d.md#m6d9a3a--attaching-and-the-persons-consent) | Planned |
 | [M6d.9b — Actions declared once](stage-6d.md#m6d9b--actions-declared-once) | Planned |
 | [V1 — uwui's documents versioned](stage-6d.md#v1--uwuis-documents-versioned) | Done |
 | [S1a to S1c — Saves migrated from layout 5](stage-6d.md#s1--saves-migrated-from-layout-5) | Done |
@@ -184,10 +182,12 @@ runs with `--new --save <a file of its own>`. After Stage 6e's first milestone, 
   On Xwayland (`env -u WAYLAND_DISPLAY`): pointer, wheel, rest; resized mid-scroll, `shown`
   lagging its frame as before; typing, layouts, cursors, `Xft.dpi` 144, touch.
   Suspended, deep then s2idle, at rest, Wayland, Xwayland: `resumed after <seconds> s`.
+- **The interface's waits** (M6d.9a2c4b): in the Windows virtual machine, `wait_for_elements`
+  until the editor's *Open a level…* dialog, or paused *Hunna Wood*'s world panel, closes.
 - **Focus, a lost surface** (M6d.5e1): the editor on Linux and in the Windows virtual machine,
   left by Alt and Tab, Alt held or mid-drag: no bar in focus, nothing dropped; *Hunna Wood*'s
   button that loses the surface, on Direct3D 12: drawn again.
 
 ## Known debt
 
-The known debt still open, 233 items, is in [`debt.md`](debt.md).
+The known debt still open, 231 items, is in [`debt.md`](debt.md).
