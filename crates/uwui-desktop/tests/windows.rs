@@ -49,7 +49,8 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetClientRect, GetSystemMetrics, GetWindowRect, GetWindowThreadProcessId,
-    IsWindowVisible, PostMessageW, SM_CXSCREEN, SM_CYSCREEN, WM_CLOSE,
+    IsWindowVisible, PostMessageW, SM_CXSCREEN, SM_CYSCREEN, SWP_NOACTIVATE, SWP_NOSIZE,
+    SWP_NOZORDER, SetWindowPos, WM_CLOSE,
 };
 use windows_sys::core::BOOL;
 
@@ -452,6 +453,21 @@ fn the_application_rests_wakes_for_the_mouse_and_closes_when_asked() {
 fn the_application_draws_while_the_person_resizes_its_window() {
     let example = Example::start("resize", &[]);
     let window = window_of(example.pid());
+    // At the screen's top left, so that its right border lies on the screen, whose width CI's
+    // runner keeps at 1024 pixels.
+    // SAFETY: the example's live window, moved and neither sized nor raised.
+    let moved = unsafe {
+        SetWindowPos(
+            window,
+            std::ptr::null_mut(),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        )
+    };
+    assert_ne!(moved, 0, "the window was not moved");
     // The window's right border, in its invisible band of resizing, halfway down.
     let rect = window_rect(window);
     let grip = [rect.right - 3, (rect.top + rect.bottom) / 2];
@@ -473,7 +489,10 @@ fn the_application_draws_while_the_person_resizes_its_window() {
     left_button(false);
     assert!(
         client_width(window) < width,
-        "the border's drag did not resize the window"
+        "the border's drag from {grip:?} did not resize the window, {} pixels wide, its \
+         rectangle {:?}",
+        client_width(window),
+        [rect.left, rect.top, rect.right, rect.bottom]
     );
     assert!(
         during > before,
