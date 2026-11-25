@@ -69,8 +69,9 @@ MIT OR Apache-2.0.
 - Opens its own device (`gpu`) on the window's raw handles, with wgpu's hint
   `MemoryHints::MemoryUsage`, Direct3D 12 on Windows, as the engine's
   ([ADR-0317](../../docs/adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md)),
-  where `WGPU_BACKEND` names no other, its shaders compiled there by the `dxcompiler.dll` beside the
-  program, which a program on the host ships, else by FXC with a warning (`instance`), the adapter that uses the least power, no optional feature, Mailbox
+  where `WGPU_BACKEND` names no other, its shaders compiled there by the `dxcompiler.dll` beside
+  the program, which a program on the host ships, else by FXC with a warning (`instance`), the
+  adapter that uses the least power, no optional feature, Mailbox
   where the surface offers it and Fifo elsewhere, and draws each frame's display list with
   `uwui-render` into the window's image. A lost device is replaced through the same wgpu
   instance, every object of the old one gone first.
@@ -100,7 +101,7 @@ it has no layer and ends; a bar drawn by uwui where the compositor draws none, W
   `--commands`, the losses, a panic and a window kept open taken on its standard input.
 - `examples/blank.rs`: a *blank window* on the platform layer alone and wgpu, which clears its
   window and presents it again at each input, and nothing at rest; it writes the same trace, with
-  the host's `trace.rs`.
+  the host's `trace.rs`; with `--fullscreen`, it opens filling its display.
   `scripts/host-cost.py` measures it, the same program on winit (`uwui-blank-winit`) and
   `application` in one compositor: the host's own cost is what `application` adds above it.
 
@@ -141,7 +142,9 @@ drawn while the button is held, from within Win32's modal loop of the resize, do
 size and no smaller; Ctrl+Break during such a drag ending the run, the button still held; closed
 by `WM_CLOSE`, as the close button asks, and by Ctrl+Break, each through its closing; its device
 then its surface lost, each drawn again, then at rest; the blank window's first frame in its trace,
-then its end with status 0 when asked to close. The resize needs Windows to show a window's content
+then its end with status 0 when asked to close; the blank window opened with `--fullscreen`,
+covering its display without a frame. After the resize, the mouse moved off the border onto the
+content finds the window's own arrow again. The resize needs Windows to show a window's content
 while it is dragged: the test turns that setting on for the session where
 `UWUI_TEST_SETS_DRAG_FULL_WINDOWS=1` asks, as on CI's throwaway runner, and fails elsewhere where it
 is off. Each run keeps its state in a directory of its own, which `LOCALAPPDATA` names. CI's

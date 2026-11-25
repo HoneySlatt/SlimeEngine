@@ -2923,13 +2923,16 @@ The second part of M6d.7c ([ADR-0317](adr/0317-m6d7c-cut-in-three-windows-on-win
 [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
 
 - **Goal.** An application on uwui's desktop host takes the keyboard and touch on Windows.
-- **Crates.** `uwui-windowing`; `uwui-desktop`'s tests.
+- **Crates.** `uwui-windowing`; `uwui-desktop`'s tests and its `application` example.
 - **Delivers.** The keys, the person's layout, dead keys, AltGr and the modifiers, both Shift keys;
-  the focus; touch and the pen through Windows' pointer messages, with their times.
+  the focus; touch and the pen through Windows' pointer messages, with their times; the example's
+  keys that fill the display and leave it, and that ask for the front a few seconds later, so that
+  another program can be brought forward first.
 - **Done when.** In CI on Windows, the test clicks the example's field, types into it and finds the
   row that *Add* makes; CI is green.
-- **By hand.** The Windows virtual machine: fullscreen and back, and an activation that Windows
-  refuses, flashing, asked by the example's keys.
+- **By hand.** The Windows virtual machine: fullscreen and back, and across a change of the
+  display's scale and a display of another; an activation that Windows refuses, flashing; each
+  asked by the example's keys.
 
 ### M6d.7c3 — The images' times, a covered window, and the resume
 

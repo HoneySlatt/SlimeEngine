@@ -209,6 +209,11 @@ fn left_button(pressed: bool) {
 
 /// Sends one input of the mouse, as its driver would.
 fn send_mouse(dx: i32, dy: i32, flags: MOUSE_EVENT_FLAGS) {
+    assert!(mouse_input(dx, dy, flags), "the mouse's input was not sent");
+}
+
+/// Sends one input of the mouse: whether Windows took it.
+fn mouse_input(dx: i32, dy: i32, flags: MOUSE_EVENT_FLAGS) -> bool {
     let input = INPUT {
         r#type: INPUT_MOUSE,
         Anonymous: INPUT_0 {
@@ -225,7 +230,7 @@ fn send_mouse(dx: i32, dy: i32, flags: MOUSE_EVENT_FLAGS) {
     let size = i32::try_from(size_of::<INPUT>()).expect("a small structure");
     // SAFETY: one live input, of its size.
     let sent = unsafe { SendInput(1, &raw const input, size) };
-    assert_eq!(sent, 1, "the mouse's input was not sent");
+    sent == 1
 }
 
 /// The window's rectangle on the screen, its invisible borders of resizing included.
@@ -583,7 +588,8 @@ struct Held {
 
 impl Drop for Held {
     fn drop(&mut self) {
-        left_button(false);
+        // Sent without asserting: a refused input during a panic's unwinding would abort the run.
+        let _ = mouse_input(0, 0, MOUSEEVENTF_LEFTUP);
     }
 }
 

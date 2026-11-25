@@ -39,7 +39,8 @@ impl WindowSettings {
     ///
     /// The identity names the application to the system, which groups its windows and finds its
     /// icon and its name by it: on Wayland, the window's app id, on X11 its class, which matches
-    /// the application's desktop file, by reverse domain name by convention, `org.example.Notes`.
+    /// the application's desktop file, by reverse domain name by convention, `org.example.Notes`;
+    /// Windows groups the windows by their program, and takes none.
     /// It names the
     /// application's crash directory too ([`run`](crate::run)).
     pub fn new(title: impl Into<String>, app_id: impl Into<String>) -> Self {
@@ -197,7 +198,8 @@ impl Window {
     /// the person's last press of a key or a button in the window, a touch, or the keyboard's
     /// focus given to it, and does nothing where the compositor gives no `xdg_activation_v1`, as Weston.
     /// On X11, through `_NET_ACTIVE_WINDOW`, naming the person's last press of a button; nothing
-    /// without a window manager.
+    /// without a window manager. On Windows, through `SetForegroundWindow`, which Windows refuses
+    /// to a program that the person did not last use: the window then flashes in the task bar.
     pub fn bring_to_front(&mut self) {
         self.requests.activation = Some(Activation::Front);
     }
@@ -205,7 +207,8 @@ impl Window {
     /// Asks the system to show that the window wants the person's attention, as its entry in a
     /// task bar marked, without taking the focus. On Wayland, through `xdg_activation_v1`, which
     /// some compositors read as a request to bring it to the front; nothing where the compositor
-    /// does not give it. On X11, through `_NET_WM_STATE_DEMANDS_ATTENTION`.
+    /// does not give it. On X11, through `_NET_WM_STATE_DEMANDS_ATTENTION`. On Windows, through
+    /// `FlashWindowEx`, its entry in the task bar flashing until the window comes to the front.
     pub fn request_attention(&mut self) {
         self.requests.activation = Some(Activation::Attention);
     }
