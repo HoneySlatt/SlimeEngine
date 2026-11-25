@@ -111,7 +111,9 @@ compose dead keys read the tests' own compose file, `tests/compose/Compose`, nev
 developer's: each runs itself again in a process of its own whose `XCOMPOSEFILE` names it.
 
 On Windows, the same command runs the core's tests, the clock's, the mouse's messages translated
-and the capture they keep, and the signal's judgement of a vertical blank and its grid.
+and the capture they keep, the signal's judgement of a vertical blank and its grid, a timer's due
+time, and the display driver's own wait for the primary display's vertical blank, which needs a
+display: it fails in a session without one, a service's or one over SSH.
 
 The window itself is tested through the host above it, by `uwui-desktop`'s `rest` tests in the
 series of compositors, X11's under Xvfb, and by its `windows` test on the desktop of CI's Windows
@@ -156,5 +158,6 @@ clock.
   three.
 - Show a type of a platform's library in its API.
 - Run, poll or wake while nothing happens.
-- Use `unsafe` but where it calls libxkbcommon and libxkbcommon-x11, and Win32, each with its
-  `// SAFETY:`; libxcb is reached through `x11rb`'s safe interface.
+- Use `unsafe` but where it calls libxkbcommon and libxkbcommon-x11, and Win32, and where
+  Windows' layer lends the host to its window's procedure and shares the window's state with it,
+  each with its `// SAFETY:`; libxcb is reached through `x11rb`'s safe interface.

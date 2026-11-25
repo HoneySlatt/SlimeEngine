@@ -208,7 +208,9 @@ in git.
   [M6d.7a2b3](#m6d7a2b3--crashes-and-panics), on 2026-11-18, M6d.7a2b whole; then
   [M6d.7a2c](#m6d7a2c--frames-and-the-host-measured), cut in two on 2026-11-18 ([ADR-0307](adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)):
   done, [M6d.7a2c1](#m6d7a2c1--the-host-measured) and
-  [M6d.7a2c2](#m6d7a2c2--frames-in-step-with-the-display), on 2026-11-18, M6d.7a2 whole; next, [M6d.7b](#m6d7b--x11).
+  [M6d.7a2c2](#m6d7a2c2--frames-in-step-with-the-display), on 2026-11-18, M6d.7a2 whole; then
+  [M6d.7b1](#m6d7b1--x11s-window-frames-and-pointer) to [M6d.7b3](#m6d7b3--a-resumes-notice-on-linux), M6d.7b whole; next,
+  [M6d.7c1](#m6d7c1--windows-window-frames-and-pointer).
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after Stage 6e, the editor moved onto uwui's 1.0
   ([ADR-0190](adr/0190-uwuis-requirements.md),
@@ -2936,7 +2938,9 @@ The third part of M6d.7c ([ADR-0317](adr/0317-m6d7c-cut-in-three-windows-on-wind
   learns that the system resumed.
 - **Crates.** `uwui-windowing`; `uwui-desktop`.
 - **Delivers.** DXGI's statistics of the swap chain; a covered window told and its frames held;
-  Windows' notice of a resume through `Ui::resumed`; each source put to the owner at its start.
+  Windows' notice of a resume through `Ui::resumed`; the session's end, a restart or a log-off,
+  told to the application ([`debt.md`](debt.md)); each source and behaviour put to the owner at its
+  start.
 - **Done when.** The example's tests pass in CI on Windows, M6d.7c's whole; CI is green.
 - **By hand.** The Windows virtual machine: the window covered, after a sleep.
 

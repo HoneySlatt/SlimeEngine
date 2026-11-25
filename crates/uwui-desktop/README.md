@@ -5,7 +5,7 @@ platform's signal and none at rest
 ([ADR-0270](../../docs/adr/0270-uwuis-desktop-host-on-a-windowing-layer-of-its-own-cut-by-platform-m6d7-cut-in-six.md),
 [ADR-0271](../../docs/adr/0271-frames-on-the-platforms-signal-drawn-just-in-time-none-at-rest.md)).
 It speaks each platform itself, not through winit, through its platform layer, `uwui-windowing`:
-Wayland and X11 yet.
+Wayland, X11 and Windows yet.
 Its name is provisional, until M6d.10a names uwui's crates; it leaves with uwui at M6d.11, under
 MIT OR Apache-2.0.
 
@@ -22,7 +22,7 @@ MIT OR Apache-2.0.
   back at each turn, and knows neither the interface nor the GPU
   ([ADR-0279](../../docs/adr/0279-one-windowing-layer-a-seam-in-uwuis-host-now-the-engine-moved-onto-it-at-a-port.md),
   [ADR-0302](../../docs/adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md)).
-  Wayland's window and X11's yet; its input, its times, its scale and its signal of frames are the
+  Wayland's window, X11's and Windows' yet; its input, its times, its scale and its signal of frames are the
   layer's ([its README](../uwui-windowing/README.md)). A window whose image the platform lost, as
   X11 does with a covered one where no compositor keeps it, is drawn again.
 - Holds a *core* that knows no platform, tested without a window on every platform:
@@ -132,12 +132,18 @@ depends on it, that `uwui` pulls no windowing library nor wgpu, and that its pla
 pulls neither `uwui`, `uwui-render` nor wgpu, and serves no other crate.
 
 On Windows, the `windows` test, `test = false`, runs the examples on the desktop of the session,
-the examples built first, DXC beside them: the application at rest after its start, by each
-thread's cycles on the processor; the mouse moved onto *Add* through `SendInput`, its hover drawn,
-an input to present in its trace, at rest again; closed by `WM_CLOSE`, as the close button asks,
-and by Ctrl+Break, each through its closing; its device then its surface lost, each drawn again,
-then at rest; the blank window's first frame in its trace, then its end with status 0 when asked
-to close. Each run keeps its state in a directory of its own, which `LOCALAPPDATA` names. CI's
+the examples built first, DXC beside them, one test at a time: the application at rest after its
+start, by each thread's cycles on the processor, every thread named where one runs or ends; its
+title; the mouse moved onto *Add* through `SendInput`, its hover drawn, the arrow shown, an input to
+present in its trace, at rest again, the I-beam over its field; its right border dragged, frames
+drawn while the button is held, from within Win32's modal loop of the resize, down to its smallest
+size and no smaller; Ctrl+Break during such a drag ending the run, the button still held; closed
+by `WM_CLOSE`, as the close button asks, and by Ctrl+Break, each through its closing; its device
+then its surface lost, each drawn again, then at rest; the blank window's first frame in its trace,
+then its end with status 0 when asked to close. The resize needs Windows to show a window's content
+while it is dragged: the test turns that setting on for the session where
+`UWUI_TEST_SETS_DRAG_FULL_WINDOWS=1` asks, as on CI's throwaway runner, and fails elsewhere where it
+is off. Each run keeps its state in a directory of its own, which `LOCALAPPDATA` names. CI's
 `windows (host)` job runs it on its runner's desktop; `scripts/check.sh lint` lints it for
 Windows.
 

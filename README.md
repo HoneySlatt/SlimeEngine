@@ -46,7 +46,7 @@ docking came after 0.6, as [`CHANGELOG.md`](CHANGELOG.md) says:
 - **Interface.** `uwui`: text in every writing system, a tree of elements laid out by flexbox and
   grid, themes read from files, widgets, menus, docking, input methods and screen readers, drawn by
   the renderer (`uwui-render`). An application on uwui alone opens its window through uwui's
-  desktop host (`uwui-desktop`), on Wayland and X11, at rest between inputs. The *dev overlay*,
+  desktop host (`uwui-desktop`), on Wayland, X11 and Windows, at rest between inputs. The *dev overlay*,
   panels over a running game that show and edit its world, is built on it (`slime-devui`).
 - **Editor.** `slime-editor` opens a level and changes it through commands, undone and redone: a
   hierarchy, viewports with picking and handles, prefabs placed, a history, Play inside the editor

@@ -77,12 +77,15 @@ supersedes ADR-0271's DWM signal for Windows: a thread of the layer's own waits 
 `D3DKMTWaitForVerticalBlankEvent` on that display's output, found from the window's monitor and
 found again when the window moves to another, and wakes the loop. It waits only while the host
 asks for the signal, so that nothing wakes at rest. Where the wait fails, or returns too soon to be
-a refresh, as with the display off, a timer at DWM's period takes its place for that refresh. The
-rest of ADR-0271's rule for Windows holds: the signal keeps the frames while the person moves or
-resizes the window.
+a refresh, as with the display off, a timer at the display's period takes its place for that
+refresh: the period of the display's mode, else DWM's. The rest of ADR-0271's rule for Windows
+holds: the signal keeps the frames while the person moves or resizes the window, and the rate is
+read again when the window moves to another display and when the system reports a change of
+displays.
 
 **`uwui-desktop` opens Direct3D 12 on Windows by default,** as the engine does; `WGPU_BACKEND`
-still chooses another.
+still chooses another. Its shaders compile with the DXC that lies beside the program, else FXC, as
+[ADR-0066](0066-shipping-dxc-beside-the-programs.md) has the engine's do.
 
 ## Alternatives considered
 
