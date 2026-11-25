@@ -67,7 +67,9 @@ MIT OR Apache-2.0.
   pacing says so, the platform's signal asked just before its present, and an image drawn in part
   not presented, the frame drawn again after a wait that doubles.
 - Opens its own device (`gpu`) on the window's raw handles, with wgpu's hint
-  `MemoryHints::MemoryUsage`, the adapter that uses the least power, no optional feature, Mailbox
+  `MemoryHints::MemoryUsage`, Direct3D 12 on Windows, as the engine's
+  ([ADR-0317](../../docs/adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md)),
+  where `WGPU_BACKEND` names no other, the adapter that uses the least power, no optional feature, Mailbox
   where the surface offers it and Fifo elsewhere, and draws each frame's display list with
   `uwui-render` into the window's image. A lost device is replaced through the same wgpu
   instance, every object of the old one gone first.
@@ -77,7 +79,8 @@ MIT OR Apache-2.0.
   [ADR-0307](../../docs/adr/0307-m6d7a2c-cut-in-two-the-host-measured-first-the-blank-window-on-winit-in-a-package-of-its-own.md)),
   which `scripts/host-cost.py` reads.
 
-What waits for its milestone: Windows (M6d.7c) and macOS (M6d.7d), where `run` says that
+What waits for its milestone: on Windows, the keys, focus and touch (M6d.7c2), the images'
+times, a covered window and the resume's notice (M6d.7c3); macOS (M6d.7d), where `run` says that
 it has no layer and ends; a bar drawn by uwui where the compositor draws none, Weston and Mutter
 (M6d.7e); the clipboard, input methods and screen readers (M6d.8).
 [`debt.md`](../../docs/debt.md) holds the rest.
@@ -127,6 +130,16 @@ are not told
 holds no engine crate but `slime-color` and `slime-input`, that no other crate of the workspace
 depends on it, that `uwui` pulls no windowing library nor wgpu, and that its platform layer
 pulls neither `uwui`, `uwui-render` nor wgpu, and serves no other crate.
+
+On Windows, the `windows` test, `test = false`, runs the examples on the desktop of the session,
+the examples built first, DXC beside them: the application at rest after its start, by each
+thread's cycles on the processor; the mouse moved onto *Add* through `SendInput`, its hover drawn,
+an input to present in its trace, at rest again; closed by `WM_CLOSE`, as the close button asks,
+and by Ctrl+Break, each through its closing; its device then its surface lost, each drawn again,
+then at rest; the blank window's first frame in its trace, then its end with status 0 when asked
+to close. Each run keeps its state in a directory of its own, which `LOCALAPPDATA` names. CI's
+`windows (host)` job runs it on its runner's desktop; `scripts/check.sh lint` lints it for
+Windows.
 
 ## Dependencies
 
