@@ -98,6 +98,9 @@ fn threads(pid: u32) -> Threads {
     }
     // SAFETY: the snapshot made above.
     unsafe { CloseHandle(snapshot) };
+    // A process that runs has a thread at least: none read is a read that failed, which would let
+    // any two reads match.
+    assert!(!threads.is_empty(), "no thread of the process {pid} read");
     threads
 }
 
@@ -298,6 +301,7 @@ impl Example {
     /// Waits until it settles, then watches it for `REST`: what woke, if anything did.
     fn at_rest(&self) -> Result<(), String> {
         let before = self.settled()?;
+        println!("at rest: {} threads watched", before.len());
         std::thread::sleep(REST);
         let after = threads(self.pid());
         if after == before {

@@ -301,6 +301,37 @@ mod tests {
         assert_eq!(judge(false, ms(100), None, PERIOD), Judged::Missed);
     }
 
+    /// The display driver's own wait, on the primary display, which the machine that runs the
+    /// tests has, CI's runner included: ten blanks in a row, each told by the driver, about a
+    /// period of its mode apart.
+    #[test]
+    fn the_primary_displays_vertical_blank_comes_at_its_period() {
+        use windows_sys::Win32::Foundation::POINT;
+        use windows_sys::Win32::Graphics::Gdi::{MONITOR_DEFAULTTOPRIMARY, MonitorFromPoint};
+
+        // SAFETY: a point, and a flag that answers the primary display always.
+        let monitor = unsafe { MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY) };
+        let output = Output::open(monitor).expect("the display driver opens the primary display");
+        assert!(output.wait(), "the driver tells no vertical blank");
+        let mut blanks = vec![clock::now()];
+        for _ in 0..10 {
+            assert!(output.wait(), "the driver tells no vertical blank");
+            blanks.push(clock::now());
+        }
+        let mut gaps: Vec<Duration> = blanks.windows(2).map(|pair| pair[1] - pair[0]).collect();
+        gaps.sort();
+        let median = gaps[gaps.len() / 2];
+        println!(
+            "vertical blank: every {median:?}, the mode's period {:?}",
+            output.period
+        );
+        assert!(
+            median >= output.period / 2 && median <= output.period * 3 / 2,
+            "the blanks come every {median:?}, not every {:?}: {gaps:?}",
+            output.period
+        );
+    }
+
     #[test]
     fn a_missed_refresh_is_timed_on_the_grid_of_the_last() {
         assert_eq!(next_on_grid(ms(101), Some(ms(100)), PERIOD), ms(116));
