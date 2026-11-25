@@ -32,14 +32,14 @@ use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use windows_sys::Win32::Foundation::{CloseHandle, HWND, LPARAM, POINT, RECT};
+use windows_sys::Win32::Foundation::{CloseHandle, HWND, LPARAM, LocalFree, POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::ClientToScreen;
 use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
 };
 use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_PROCESS_GROUP, OpenThread, THREAD_QUERY_LIMITED_INFORMATION,
+    CREATE_NEW_PROCESS_GROUP, GetThreadDescription, OpenThread, THREAD_QUERY_LIMITED_INFORMATION,
 };
 use windows_sys::Win32::System::WindowsProgramming::QueryThreadCycleTime;
 use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
@@ -53,7 +53,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     SPI_SETDRAGFULLWINDOWS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SetWindowPos,
     SystemParametersInfoW, WM_CLOSE,
 };
-use windows_sys::core::BOOL;
+use windows_sys::core::{BOOL, PWSTR};
 
 /// How long the program is watched: the quality bar's window of rest.
 const REST: Duration = Duration::from_secs(10);
@@ -106,6 +106,37 @@ fn threads(pid: u32) -> Threads {
     // any two reads match.
     assert!(!threads.is_empty(), "no thread of the process {pid} read");
     threads
+}
+
+/// The name of the thread `tid`, as `SetThreadDescription` gave it; `?` for one without.
+fn thread_name(tid: u32) -> String {
+    // SAFETY: a thread's id; the handle, if any, is closed below.
+    let thread = unsafe { OpenThread(THREAD_QUERY_LIMITED_INFORMATION, 0, tid) };
+    if thread.is_null() {
+        return "?".to_owned();
+    }
+    let mut description: PWSTR = std::ptr::null_mut();
+    // SAFETY: the live thread's handle, and a live pointer that the call sets to a string of its
+    // own, freed below.
+    let read = unsafe { GetThreadDescription(thread, &raw mut description) };
+    let mut name = String::new();
+    if read >= 0 && !description.is_null() {
+        // SAFETY: the call's string, ended by a null.
+        let length = (0..)
+            .take_while(|&at| unsafe { *description.add(at) } != 0)
+            .count();
+        // SAFETY: as above, `length` units before its null.
+        name = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(description, length) });
+        // SAFETY: the string that the call allocated.
+        unsafe { LocalFree(description.cast()) };
+    }
+    // SAFETY: the handle opened above.
+    unsafe { CloseHandle(thread) };
+    if name.is_empty() {
+        "?".to_owned()
+    } else {
+        name
+    }
 }
 
 /// The example's window: the first visible window of the process `pid`, waited for 60 s at most.
@@ -337,6 +368,9 @@ impl Example {
     fn at_rest(&self) -> Result<(), String> {
         let before = self.settled()?;
         println!("at rest: {} threads watched", before.len());
+        // Read before the watch, so that a thread that ends during it is named.
+        let names: BTreeMap<u32, String> =
+            before.keys().map(|&tid| (tid, thread_name(tid))).collect();
         std::thread::sleep(REST);
         let after = threads(self.pid());
         if after == before {
@@ -347,12 +381,14 @@ impl Example {
             .filter(|(tid, cycles)| before.get(tid) != Some(cycles))
             .map(|(tid, cycles)| {
                 let was = before.get(tid).copied().unwrap_or_default();
-                format!("{tid}: {} cycles", cycles.saturating_sub(was))
+                let name = names.get(tid).map_or("new", String::as_str);
+                format!("{tid} {name:?}: {} cycles", cycles.saturating_sub(was))
             })
             .collect();
-        let gone: Vec<&u32> = before
+        let gone: Vec<String> = before
             .keys()
             .filter(|tid| !after.contains_key(tid))
+            .map(|tid| format!("{tid} {:?}", names[tid]))
             .collect();
         Err(format!(
             "it woke in {REST:?}: {woke:?}, threads ended {gone:?}"
