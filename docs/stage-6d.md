@@ -2931,8 +2931,9 @@ The second part of M6d.7c ([ADR-0317](adr/0317-m6d7c-cut-in-three-windows-on-win
 - **Done when.** In CI on Windows, the test clicks the example's field, types into it and finds the
   row that *Add* makes; CI is green.
 - **By hand.** The Windows virtual machine: fullscreen and back, and across a change of the
-  display's scale and a display of another; an activation that Windows refuses, flashing; each
-  asked by the example's keys.
+  display's scale, of its size, and a display of another, the window back at its logical size
+  after each ([`debt.md`](debt.md)); an activation that Windows refuses, flashing; each asked by
+  the example's keys.
 
 ### M6d.7c3 — The images' times, a covered window, and the resume
 
