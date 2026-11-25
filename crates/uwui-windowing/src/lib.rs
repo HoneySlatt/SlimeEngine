@@ -20,8 +20,9 @@
 //! anchor of the events' times (`anchor`), a touch screen's fingers each a pointer (`fingers`)
 //! and the wakes of other threads and the termination signals (`wake`). Linux has two layers,
 //! Wayland's (`wayland`) and X11's (`x11`), which share the loop's wait (`wait`), the host's clock
-//! (`clock`) and the keyboard's code of libxkbcommon (`xkb`). Windows and macOS have theirs at
-//! M6d.7's next parts, and [`run`] there says that it has none.
+//! (`clock`) and the keyboard's code of libxkbcommon (`xkb`). Windows has its own, on Win32
+//! (`windows`), which shares the clock. macOS has its own at M6d.7d, and [`run`] there says that it
+//! has none.
 //!
 //! Its name is provisional, until M6d.10a names uwui's crates. It is public nowhere but to
 //! `uwui-desktop`, which `scripts/check.sh` checks, with its other rule: it depends on neither
@@ -32,35 +33,40 @@
 // A public enumeration may gain cases without breaking its host (ADR-0282).
 #![warn(clippy::exhaustive_enums)]
 
-// The core, which only Linux's layers drive yet: elsewhere it is compiled and tested, and used by
-// no layer.
+// The core, which Linux's layers and Windows' drive: elsewhere it is compiled and tested, and used
+// by no layer.
 #[cfg_attr(
-    not(target_os = "linux"),
+    not(any(target_os = "linux", windows)),
     allow(dead_code, reason = "no windowing layer drives the core here yet")
 )]
 mod anchor;
 #[cfg_attr(
     not(target_os = "linux"),
-    allow(dead_code, reason = "no windowing layer drives the core here yet")
+    allow(
+        dead_code,
+        reason = "Windows' touch comes at M6d.7c2, macOS's layer at M6d.7d"
+    )
 )]
 mod fingers;
 #[cfg_attr(
-    not(target_os = "linux"),
+    not(any(target_os = "linux", windows)),
     allow(dead_code, reason = "no windowing layer drives the core here yet")
 )]
 mod running;
 #[cfg_attr(
-    not(target_os = "linux"),
+    not(any(target_os = "linux", windows)),
     allow(dead_code, reason = "no windowing layer drives the core here yet")
 )]
 mod wake;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod clock;
 #[cfg(target_os = "linux")]
 mod wait;
 #[cfg(target_os = "linux")]
 mod wayland;
+#[cfg(windows)]
+mod windows;
 #[cfg(target_os = "linux")]
 mod x11;
 #[cfg(target_os = "linux")]
@@ -315,7 +321,7 @@ pub struct Error(String);
 
 impl Error {
     #[cfg_attr(
-        not(target_os = "linux"),
+        not(any(target_os = "linux", windows)),
         allow(dead_code, reason = "no windowing layer fails here yet")
     )]
     fn new(what: &str, cause: impl fmt::Display) -> Self {
@@ -339,6 +345,8 @@ impl std::error::Error for Error {}
 /// On Linux, it opens the window on the Wayland compositor that `WAYLAND_DISPLAY` or
 /// `WAYLAND_SOCKET` names, and where none is named or the one named cannot open it, on the X server
 /// that `DISPLAY` names (`docs/adr/0311-m6d7b-cut-in-three-x11s-window-frames-and-pointer-first-on-x11rb.md`).
+/// On Windows, it opens a window of Win32
+/// (`docs/adr/0317-m6d7c-cut-in-three-windows-on-windows-sys-its-frames-on-the-displays-vertical-blank-direct3d-12-by-default.md`).
 /// Elsewhere, it has no layer yet, and fails at once.
 ///
 /// # Errors
@@ -378,7 +386,11 @@ pub fn run<H: Handler>(opening: Opening, handler: H) -> (H, Result<(), Error>) {
         });
         (handler, Err(error))
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(windows)]
+    {
+        running::run(windows::Platform::open(opening), handler)
+    }
+    #[cfg(not(any(target_os = "linux", windows)))]
     {
         drop(opening);
         (

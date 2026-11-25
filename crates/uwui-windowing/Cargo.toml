@@ -44,6 +44,24 @@ xkbcommon-dl.workspace = true
 # (ADR-0270, ADR-0311, ADR-0313).
 x11rb.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+# Win32 spoken by the layer itself: its window, messages and threads' waits, each display's scale,
+# the mouse, DWM's period, the display driver's vertical blank, and the host's clock, the
+# performance counter against the unbiased interrupt time (ADR-0270, ADR-0317).
+windows-sys = { workspace = true, features = [
+    "Wdk_Graphics_Direct3D",
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Performance",
+    "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 # Needs an X server of its own, which `DISPLAY` names: run by the series' column of X11.
 [[test]]
 name = "x11"
