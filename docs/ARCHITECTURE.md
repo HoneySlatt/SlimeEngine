@@ -462,15 +462,21 @@ frame                                     span "frame", trace level
 │   ├── world.update_transforms()         4. so that extraction reads them at the cost of a
 │   │                                        lookup
 │   └── input.end_frame()                 the keys pressed and released in the frame forgotten
+├── channel.answer_waits(simulation)      the tools' requests that wait for a change of the
+│                                         simulation, asked again (ADR-0310)
 ├── with a window:
 │   ├── presentation.extract(ctx, &world) 5. reads the world and makes what the frame draws;
 │   │                                        span "extract"
+│   ├── channel.check_interface           the waits on the interface's elements, checked once
+│   │       (presentation)                an extraction may have framed it (ADR-0316)
 │   ├── surface.acquire(label)            the window's image, its passes named "window, frame
 │   │                                     <index>", or none: skip drawing, after an empty
 │   │                                     submission that lets wgpu release the frame's writes;
 │   │                                     span "acquire"
 │   ├── presentation.render(ctx, target)  6. draws into the image, without the world; span
 │   │                                        "render"
+│   ├── channel.check_interface           again, where an overlay frames the interface as it
+│   │       (presentation)                draws
 │   ├── screen readers                    with the `accessibility` feature, what changed in the
 │   │                                     interface's meaning sent to them (ADR-0146)
 │   ├── channel.capture(gpu, target,      a tool asked for the image, or for the part of it that
@@ -515,8 +521,10 @@ slime_app::run
 ├── loop: frame with delta = the fixed step (simulated time), back to back, or only when
 │         something asks for one when AppConfig::on_demand says, as the editor's program runs
 │         (see "Frames on demand")
-└── simulation.stop(ctx, &mut world), unless the run panicked: start, frames and stop run
-    inside one catch_unwind, which returns RunError::Panicked
+└── Frames::stop, then simulation.stop(ctx, &mut world), unless the run panicked: the
+    development channel drops the requests that wait, answered that the game has stopped
+    (ADR-0316); start, frames and stop run inside one catch_unwind, which returns
+    RunError::Panicked
 ```
 
 **Windowed driver** (`AppConfig::window` is `Some`), in
@@ -556,7 +564,10 @@ slime_app::run
     │                              Wait; while the window holds its frames, a frame for what
     │                              asked from outside; return WaitUntil(next frame), Wait or
     │                              Exit
-    └── winit "exiting"          → driver.exiting → presentation.stop(ctx), then
+    └── winit "exiting"          → driver.exiting → Frames::stop, the development channel's
+                                   waits let go with their readers, their requests answered
+                                   that the game has stopped (ADR-0316), then
+                                   presentation.stop(ctx), then
                                    simulation.stop(ctx, &mut world), unless the run panicked;
                                    the surface, the GPU and the window are released
 ```
@@ -1995,9 +2006,9 @@ capture_element →                   slime-app, once the next frame is drawn: u
 element_style → interface/style     uwui::agents: the places of the calls that wrote the
                                     element's own style, each with its fields, states and tokens
 wait_for_elements → interface/wait  uwui-mcp: the request bounded by `waited`, at most 50 s;
-                                    the engine refuses it until M6d.9a2c4b holds such waits;
-                                    a host that holds them reads it into uwui::agents::Waits
-                                    (agents::wait), checks them after the frame, and answers
+                                    slime-app reads it into uwui::agents::Waits (agents::wait)
+                                    on TargetId::MAIN, counted with the journal's waits; checks
+                                    them after extract and after a drawn render, and answers
                                     those met (agents::met), with `after`, the elements seen
 ```
 
@@ -2336,7 +2347,14 @@ Client::send(request), from any thread, ───────▶ the connection'
                                                  │   a step once its steps have run, over the next
                                                  │   frames; a picking asked of presentation.pick,
                                                  │   at a pixel of a view or of the whole image,
-                                                 │   answered a frame or more later (ADR-0130)
+                                                 │   answered a frame or more later (ADR-0130);
+                                                 │   a request that waits, a page of the journal
+                                                 │   from its end or interface/wait, answered at
+                                                 │   once when met, else held, at most MAX_WAITS
+                                                 │   of both kinds a connection, running no frame
+                                                 ├── the journal's waits asked again once the
+                                                 │   simulation ran; the interface's checked after
+                                                 │   extract and after render (ADR-0310, ADR-0316)
                                                  └── a capture after the frame's render, from the
                                                      window's image, before it is shown, cropped
                                                      to the view that it names, or to where an

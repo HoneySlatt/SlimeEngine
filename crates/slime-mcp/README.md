@@ -158,8 +158,9 @@ The tools, each described to the agent by the server itself, with its parameters
 - `wait_for_elements`: the interface's wait for elements to come, change or go, a tool of uwui's
   MCP library
   ([ADR-0314](../../docs/adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)).
-  The engine does not hold these waits yet, which it refuses, saying so: it does from
-  [M6d.9a2c4b](../../docs/stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface).
+  The engine holds them on its window's target, 0, and answers each in the frame that shows what it
+  waits for
+  ([ADR-0316](../../docs/adr/0316-the-engine-holds-the-interfaces-waits-checked-where-its-presentation-frames-it.md)).
 - `read_logs`: the lines of the game's log, from its oldest kept or from a `cursor`: a page that
   more follow starts with `next`, and the page that reaches the log's end with `end`, which
   `cursor` takes later for the lines written after it. A cursor names the program whose log it
@@ -206,8 +207,9 @@ The tools, each described to the agent by the server itself, with its parameters
 sets its view to draw without shadows, without anti-aliasing and at half its size, so that each
 request waits for a cheap frame, reads and changes the hero, walks it, saves the run, moves it and loads it back, opens the dev
 overlay's panels by their commands, sets the speed of game time with a slider and the hero's
-direction with the world panel, captures its image, finds it at rest while paused, then minimized,
-its game time running, and reads its log (`docs/adr/0185-rest-checked-in-ci.md`,
+direction with the world panel, captures its image, finds it at rest while paused, waits for its
+world panel to close as a command closes it, then finds it at rest minimized, its game time
+running, and reads its log (`docs/adr/0185-rest-checked-in-ci.md`,
 `docs/adr/0187-a-hidden-window-at-rest.md`). It needs a Wayland
 compositor, the game built and its zone cooked: `scripts/check.sh` runs it in a headless Weston.
 With `SLIME_SERIES` set, in a compositor of the series, it tells whether the minimized game is

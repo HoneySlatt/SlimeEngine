@@ -208,8 +208,9 @@ impl Waits {
     /// wait reads nothing and is held, walked by the first check after that frame, so that an
     /// element just built is not read before its style hides it.
     ///
-    /// A host that bounds its waits counts them before it asks: a wait held stays held until it
-    /// is met, cancelled or cleared.
+    /// A host that bounds its waits counts them before it asks, or cancels at once one held past
+    /// its bound ([`Waits::cancel`]): a wait held stays held until it is met, cancelled or
+    /// cleared.
     ///
     /// [`MeaningNode::number`]: crate::tree::MeaningNode::number
     ///

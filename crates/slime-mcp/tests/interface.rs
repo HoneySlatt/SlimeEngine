@@ -16,6 +16,7 @@
 #[path = "common/interface.rs"]
 #[expect(dead_code, reason = "this session finds its elements by their lines")]
 mod interface;
+#[expect(dead_code, reason = "this session waits for no call held")]
 #[path = "common/session.rs"]
 mod session;
 

@@ -23,9 +23,9 @@ pub struct Session {
     /// by [`PATIENCE`].
     output: mpsc::Receiver<String>,
     next: u64,
-    /// The answers read while another was awaited, by their calls' numbers: whether a call
-    /// answered, among the answers read so far.
-    pub kept: HashMap<u64, Value>,
+    /// The answers read while another was awaited, or by [`Session::answered`], by their calls'
+    /// numbers: whether a call answered, among the answers read so far.
+    kept: HashMap<u64, Value>,
 }
 
 impl Session {
@@ -132,6 +132,18 @@ impl Session {
             }
         };
         serde_json::from_str(&line).expect("JSON")
+    }
+
+    /// Whether the call `id` answered, among the messages that the server sent so far, read without
+    /// waiting and kept for their calls: what a test asks of a call that must still wait.
+    pub fn answered(&mut self, id: u64) -> bool {
+        while let Ok(line) = self.output.try_recv() {
+            let message: Value = serde_json::from_str(&line).expect("JSON");
+            if let Some(answered) = message["id"].as_u64() {
+                self.kept.insert(answered, message);
+            }
+        }
+        self.kept.contains_key(&id)
     }
 
     /// Sends the notification `method` with `params`, which the server answers not.

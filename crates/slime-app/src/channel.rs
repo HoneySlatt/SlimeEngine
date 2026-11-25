@@ -17,7 +17,7 @@ use slime_platform::KeyCode;
 use slime_reflect::{Kind, Path, Registry, Value};
 use slime_serialize::{Composer, Document, Mode};
 use slime_world::{Command, Entity, Identities, Name, PersistentId, SceneLibrary, World};
-use uwui::agents::Answer;
+use uwui::agents::{Answer, WaitId, Waiting, Waits};
 use uwui::host::TargetId;
 use uwui::tree::Ui;
 
@@ -32,8 +32,12 @@ const FRAMES_MEASURED: usize = 120;
 /// rest wait for the next frame, so that a busy agent does not drop the frames of a person who
 /// plays. Estimated, a little over a tenth of a frame at 240 Hz
 /// (`docs/adr/0250-requests-in-flight-in-any-order-cancelled-with-an-answer-bounded-in-the-core-events-by-subscription.md`).
-/// The requests that wait for a change take as much again once the simulation ran, past a page's
-/// floor for each page asked ([`DevChannel::answer_waits`]).
+/// The requests that wait for a change of the simulation take as much again once it ran, past a
+/// page's floor for each page asked ([`DevChannel::answer_waits`]); those that wait on the
+/// interface, half as much for their replies at each of the two points where they are checked
+/// ([`DevChannel::check_interface`]). What uwui reads to find them met is bounded by none: a
+/// wait's first reading, which walks its target's elements, and a check, which reads what changed,
+/// or walks the target whole once its marks passed their bound.
 const REQUESTS_BUDGET: Duration = Duration::from_micros(500);
 
 /// Whether the tool that started the game ended: its standard input, which the tool held, closed.
@@ -67,6 +71,15 @@ pub(crate) struct DevChannel {
     /// rest runs no frame for them. A cancel, or a connection that closes, wakes the run, whose
     /// next frame answers it.
     waits: Vec<Incoming>,
+    /// The waits on the elements of the presentation's interface, `interface/wait`, which uwui
+    /// holds, each on the window's target: checked after each point of a frame where the
+    /// presentation may frame its interface ([`DevChannel::check_interface`]), and, as `waits`,
+    /// not counted in [`DevChannel::waiting`]
+    /// (`docs/adr/0316-the-engine-holds-the-interfaces-waits-checked-where-its-presentation-frames-it.md`).
+    elements: Waits,
+    /// The requests of the waits that `elements` holds, each with its name there, in the order
+    /// that they came.
+    on_elements: Vec<(Incoming, WaitId)>,
     /// The time between the starts of the last frames.
     frames: VecDeque<Duration>,
     /// How game time stood as the last frame's end published it, while a connection subscribed.
@@ -128,17 +141,26 @@ impl DevChannel {
         let _ = writeln!(stdout, "{ANNOUNCEMENT}{address}").and_then(|()| stdout.flush());
         tracing::info!(%address, "the development channel listens");
         watch_standard_input();
-        Some(Self {
+        Some(Self::listening(listener))
+    }
+
+    /// The channel of `listener`, which holds nothing yet. Unlike [`DevChannel::open`], it neither
+    /// writes where it listens nor watches the standard input, whose end stops every run of the
+    /// process.
+    fn listening(listener: Listener) -> Self {
+        Self {
             listener,
             captures: Vec::new(),
             edits: VecDeque::new(),
             waits: Vec::new(),
+            elements: Waits::default(),
+            on_elements: Vec::new(),
             picks: Vec::new(),
             steps: Vec::new(),
             frames: VecDeque::new(),
             published: None,
             subscriptions: 0,
-        })
+        }
     }
 
     /// At the start of a frame that represents `real` time, after `frames` frames: answers the
@@ -149,8 +171,10 @@ impl DevChannel {
     /// host as a frame's start may. A step is answered once
     /// the frames have run every step asked for, so that what the tool asks next comes after them;
     /// a capture waits for the frame's image ([`DevChannel::capture`]), a picking for the
-    /// answer that the presentation gives a frame or more later ([`Presentation::pick`]), and a
-    /// request that waits for a change for the simulation ([`DevChannel::answer_waits`]);
+    /// answer that the presentation gives a frame or more later ([`Presentation::pick`]), a
+    /// request that waits for a change of the simulation for it ([`DevChannel::answer_waits`]),
+    /// and one that waits on the interface for its frame ([`DevChannel::check_interface`]); the
+    /// waits that their tools cancelled are answered so first;
     /// `windowed` says whether the run has one. A save and a load are `simulation`'s
     /// ([`Simulation::save`]); the views that the last frame drew, and their settings,
     /// `presentation`'s ([`Presentation::views`]).
@@ -204,6 +228,24 @@ impl DevChannel {
             incoming.cancel();
         }
         self.edits = edits.into();
+        // The waits cancelled, answered so in the frame that the cancel wakes, and uwui's let go.
+        // A cancelled wait counts no more as it waits for this ([`DevChannel::held_of`]).
+        for incoming in self.waits.extract_if(.., |incoming| incoming.cancelled()) {
+            incoming.cancel();
+        }
+        let cancelled: Vec<_> = self
+            .on_elements
+            .extract_if(.., |(incoming, _)| incoming.cancelled())
+            .collect();
+        if !cancelled.is_empty() {
+            let mut ui = presentation.ui();
+            for (incoming, wait) in cancelled {
+                if let Some(ui) = ui.as_deref_mut() {
+                    self.elements.cancel(ui, wait);
+                }
+                incoming.cancel();
+            }
+        }
         let mut waiting = Vec::new();
         for (incoming, slot) in self.picks.drain(..) {
             // Counted before the answer is looked for: once the presentation let go of it, no
@@ -287,6 +329,15 @@ impl DevChannel {
             self.wait(incoming, simulation, share);
             return;
         }
+        if matches!(
+            incoming.request(),
+            Request::Interface {
+                request: interface::Request::Wait { .. }
+            }
+        ) {
+            self.wait_on_interface(incoming, presentation, share);
+            return;
+        }
         if is_capture(incoming.request()) && windowed {
             self.captures.push(incoming);
             return;
@@ -319,7 +370,8 @@ impl DevChannel {
 
     /// Asks `simulation` the request that waits, `incoming`, within `share` of time: answers it,
     /// or holds it while it waits, past [`MAX_WAITS`] of its connection answering it `BUSY`. A
-    /// wait cancelled, which [`DevChannel::answer_waits`] answers so, frees its place at once.
+    /// wait cancelled frees its place at once; the next frame's start answers it so, or
+    /// [`DevChannel::answer_waits`] before it asks it again.
     fn wait(&mut self, incoming: Incoming, simulation: &dyn Simulation, share: Duration) {
         let Request::Edit { edit } = incoming.request() else {
             unreachable!("only an editor's requests wait");
@@ -328,32 +380,133 @@ impl DevChannel {
             incoming.answer(reply);
             return;
         }
-        let held = self
-            .waits
-            .iter()
-            .filter(|held| held.same_connection(&incoming) && !held.cancelled())
-            .count();
-        if held < MAX_WAITS {
+        if self.held_of(&incoming) < MAX_WAITS {
             self.waits.push(incoming);
         } else {
-            incoming.answer(Reply::from(Fault::new(
-                Fault::BUSY,
-                format!(
-                    "the connection holds {MAX_WAITS} requests that wait already: cancel one, or \
-                     wait for its answer"
-                ),
-            )));
+            incoming.answer(busy());
         }
     }
 
-    /// Once a frame's simulation ran, after all that may have changed what they wait for: answers
-    /// the requests that wait and were cancelled so, and asks `simulation` the others again, those
-    /// that ask the same page once, within the requests' budget parted among them; answers those
-    /// that it answers, and holds the rest. Asks nothing while none waits.
+    /// Asks uwui the wait on the presentation's interface that `incoming` makes, within `share` of
+    /// time: refuses it on a target that the window does not draw, or without an interface;
+    /// answers it when it is met now; holds it otherwise, until a check finds it met
+    /// ([`DevChannel::check_interface`]), but past [`MAX_WAITS`] of its connection, where uwui lets
+    /// it go at once and it is answered `BUSY`, as the journal's wait is.
+    fn wait_on_interface(
+        &mut self,
+        incoming: Incoming,
+        presentation: &mut dyn Presentation,
+        share: Duration,
+    ) {
+        let Request::Interface { request } = incoming.request() else {
+            unreachable!("only the interface's waits are asked of uwui");
+        };
+        let interface::Request::Wait { target, .. } = request else {
+            unreachable!("only the interface's waits are asked of uwui");
+        };
+        // The engine draws one target into its window, as a capture says: a wait on another
+        // would never end.
+        if TargetId(*target) != TargetId::MAIN {
+            let message = format!(
+                "the game's window draws target {} alone: target {target} shows nowhere",
+                TargetId::MAIN.0
+            );
+            incoming.answer(failed(message));
+            return;
+        }
+        let Some(ui) = presentation.ui() else {
+            incoming.answer(failed(NO_INTERFACE));
+            return;
+        };
+        let page = incoming.page();
+        match uwui::agents::wait(ui, &mut self.elements, request, page, within(share)) {
+            Ok(Waiting::Reply(reply)) => incoming.answer(Reply::Interface { reply }),
+            Ok(Waiting::Held(wait)) if self.held_of(&incoming) >= MAX_WAITS => {
+                self.elements.cancel(ui, wait);
+                incoming.answer(busy());
+            }
+            Ok(Waiting::Held(wait)) => self.on_elements.push((incoming, wait)),
+            // A way of waiting that uwui gained and that the engine does not hold yet.
+            Ok(_) => incoming.answer(Reply::from(Fault::new(
+                Fault::NO_METHOD,
+                "the engine does not hold this wait of the interface yet",
+            ))),
+            Err(fault) => incoming.answer(Reply::from(fault)),
+        }
+    }
+
+    /// After a point of a frame where the presentation may have framed its interface, its
+    /// extraction and its drawing (`Presentation::ui`): answers the waits on its elements that
+    /// uwui finds met, within half the requests' budget parted among them, and those of them that
+    /// their tools cancelled meanwhile `CANCELLED`; the other cancelled waits are answered at the
+    /// next frame's start. Reads nothing while none waits, and uwui reads
+    /// nothing in a frame where no element changed, nor while the interface holds a change not
+    /// framed yet, which a later point of the frame, or a later frame, frames.
+    pub(crate) fn check_interface(&mut self, presentation: &mut dyn Presentation) {
+        if self.on_elements.is_empty() {
+            return;
+        }
+        let Some(ui) = presentation.ui() else {
+            return;
+        };
+        let met = self.elements.check(ui, TargetId::MAIN).met;
+        if met.is_empty() {
+            return;
+        }
+        let share = REQUESTS_BUDGET / 2 / u32::try_from(met.len()).unwrap_or(u32::MAX);
+        for met in met {
+            let Some(at) = self
+                .on_elements
+                .iter()
+                .position(|(_, wait)| *wait == met.wait)
+            else {
+                continue;
+            };
+            let (incoming, _) = self.on_elements.remove(at);
+            // A wait changes nothing: cancelled, it is answered so, whatever it found.
+            if incoming.cancelled() {
+                incoming.cancel();
+                continue;
+            }
+            let Request::Interface { request } = incoming.request() else {
+                unreachable!("only the interface's waits are asked of uwui");
+            };
+            let reply = uwui::agents::met(ui, request, &met, incoming.page(), within(share));
+            incoming.answer(reply.map_or_else(Reply::from, |reply| Reply::Interface { reply }));
+        }
+    }
+
+    /// As the run stops, before `presentation` stops: lets go the waits that uwui holds on its
+    /// interface, and the readers of meaning that they hold there; the requests that wait, of both
+    /// kinds, are dropped, which answers each that the game has stopped, as every request that the
+    /// run holds as it ends.
+    pub(crate) fn stop(&mut self, presentation: &mut dyn Presentation) {
+        self.elements.clear(presentation.ui());
+        self.waits.clear();
+        self.on_elements.clear();
+    }
+
+    /// How many requests that wait the connection of `incoming` holds, of both kinds, but those
+    /// that their tools cancelled, which the next frame's start answers so: what [`MAX_WAITS`]
+    /// bounds.
+    fn held_of(&self, incoming: &Incoming) -> usize {
+        self.waits
+            .iter()
+            .chain(self.on_elements.iter().map(|(held, _)| held))
+            .filter(|held| held.same_connection(incoming) && !held.cancelled())
+            .count()
+    }
+
+    /// Once a frame's simulation ran, after all that may have changed what they wait for: asks
+    /// `simulation` the requests that wait for a change of it again, those that ask the same page
+    /// once, within the requests' budget parted among them; answers those that it answers, and
+    /// holds the rest, but those that their tools cancelled, answered so. Asks nothing while none
+    /// waits.
     pub(crate) fn answer_waits(&mut self, simulation: &dyn Simulation) {
         if self.waits.is_empty() {
             return;
         }
+        // Those cancelled since the frame's start, answered so rather than asked.
         for incoming in self.waits.extract_if(.., |incoming| incoming.cancelled()) {
             incoming.cancel();
         }
@@ -722,6 +875,17 @@ fn waits(edit: &Edit) -> bool {
 /// cannot answer.
 fn waited(answered: Result<Option<Reply>, crate::AppError>) -> Option<Reply> {
     answered.unwrap_or_else(|error| Some(failed(crate::error_chain(&*error))))
+}
+
+/// The refusal of a request that waits on a connection that holds [`MAX_WAITS`] already.
+fn busy() -> Reply {
+    Reply::from(Fault::new(
+        Fault::BUSY,
+        format!(
+            "the connection holds {MAX_WAITS} requests that wait already: cancel one, or wait \
+             for its answer"
+        ),
+    ))
 }
 
 /// The reply that says why the game refused a request.
@@ -1498,23 +1662,6 @@ mod tests {
         };
         assert!(message.contains("no element"), "{message}");
         assert_eq!(code, Fault::REFUSED);
-        // The engine holds no waits on its interface yet: refused, saying so.
-        let wait = interface::Request::Wait {
-            target: 0,
-            role: "Button".to_owned(),
-            name: String::new(),
-            holding: Vec::new(),
-            lacking: Vec::new(),
-            absent: false,
-            after: None,
-            limit: None,
-            bytes: None,
-        };
-        let Reply::Failed { code, message } = interfaced(&mut panel, &wait) else {
-            panic!("a wait answered");
-        };
-        assert_eq!(code, Fault::NO_METHOD, "{message}");
-        assert!(message.contains("does not hold waits"), "{message}");
         // A cursor of this process, given to another.
         let first = interface::Request::Elements {
             role: String::new(),
@@ -1780,5 +1927,417 @@ mod tests {
             "two rounds, the second ending past the budget"
         );
         assert_eq!(run(Duration::ZERO), (9, 0), "every round within it");
+    }
+
+    /// Opens a dialog in [`Panel`]'s window, on a root of its own, which the test frames and
+    /// removes.
+    fn open_dialog(panel: &mut Panel) -> uwui::tree::ElementId {
+        use uwui::tree::{Element, Role, RootSettings};
+
+        let ui = &mut panel.ui;
+        let root = ui.add_root("dialog", RootSettings::on(TargetId::MAIN), |s| s);
+        ui.build(root, 0, |children| {
+            let dialog = Element::container()
+                .role(Role::Dialog)
+                .named("Open a level");
+            children.add("open a level", dialog, |dialog| {
+                dialog.add("cancel", Element::button("Cancel"), |_| {});
+            });
+        });
+        root
+    }
+
+    /// A simulation whose journal's waits are held until the test ends them, but a page from the
+    /// journal's start, given at once.
+    struct Journal;
+
+    impl Simulation for Journal {
+        fn wait(
+            &self,
+            edit: &Edit,
+            _page: Page,
+            _time_up: &mut dyn FnMut() -> bool,
+        ) -> Result<Option<Reply>, crate::AppError> {
+            Ok(matches!(edit, Edit::Journal { cursor: None, .. }).then_some(Reply::Done))
+        }
+    }
+
+    /// A channel on a listener of the test's own, a tool connected to it, and a host: frames whose
+    /// points the test runs by hand. `listening` neither prints where it listens nor watches the
+    /// standard input, which `open` does for the whole process.
+    struct Bench {
+        channel: DevChannel,
+        tool: slime_channel::Client,
+        host: Host,
+    }
+
+    /// How long a test waits for what a thread of the listener does, past which it fails.
+    const PATIENCE: Duration = Duration::from_secs(30);
+
+    /// What the listener answers a request that the game drops as it stops.
+    const STOPPED: &str = "the game has stopped";
+
+    impl Bench {
+        fn new() -> Self {
+            let token = Token::generate().expect("a token");
+            let listener =
+                Listener::open(token.clone(), "slime-app's tests", || {}).expect("it listens");
+            let named = slime_channel::Named::new("slime-app's tests", "");
+            let tool = slime_channel::Client::connect(listener.address(), &token, &named, &named)
+                .expect("connected");
+            Self {
+                channel: DevChannel::listening(listener),
+                tool,
+                host: Host::new(&crate::AppConfig::default()),
+            }
+        }
+
+        /// Sends `interface/wait` with `params`, in JSON, at the core's level, as uwui's MCP
+        /// library does.
+        fn interface(&self, params: &str) -> slime_channel::Pending {
+            let params = params.parse().expect("JSON");
+            self.tool.send_call("interface/wait", params).expect("sent")
+        }
+
+        /// Sends a page of the journal that waits: from its end, which the simulation holds, or
+        /// from its start, which it answers at once.
+        fn journal(&self, at_the_end: bool) -> slime_channel::Pending {
+            let edit = Edit::Journal {
+                cursor: at_the_end.then(|| "the end".to_owned()),
+                bytes: None,
+                wait: true,
+            };
+            self.tool.send(&Request::Edit { edit }).expect("sent")
+        }
+
+        /// Waits until a request came to the listener, then runs a frame's start, which takes
+        /// those that came.
+        fn take(&mut self, simulation: &mut dyn Simulation, presentation: &mut dyn Presentation) {
+            let until = Instant::now() + PATIENCE;
+            while !self.channel.listener.waiting() {
+                assert!(Instant::now() < until, "no request came");
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            self.start(simulation, presentation);
+        }
+
+        /// Runs a frame's start.
+        fn start(&mut self, simulation: &mut dyn Simulation, presentation: &mut dyn Presentation) {
+            let host = &mut self.host;
+            self.channel
+                .answer(host, simulation, presentation, 0, Duration::ZERO, true);
+        }
+
+        /// How many waits the channel holds, of the journal and of the interface.
+        fn held(&self) -> (usize, usize) {
+            (self.channel.waits.len(), self.channel.on_elements.len())
+        }
+
+        /// Waits until the tool's cancel of the interface's wait held at `at` reached the
+        /// listener.
+        fn until_cancelled(&self, at: usize) {
+            self.until(|channel| channel.on_elements[at].0.cancelled());
+        }
+
+        /// Waits until `holds` holds of the channel, as a thread of the listener makes it.
+        fn until(&self, holds: impl Fn(&DevChannel) -> bool) {
+            let until = Instant::now() + PATIENCE;
+            while !holds(&self.channel) {
+                assert!(Instant::now() < until, "the cancel never came");
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        }
+    }
+
+    /// The parameters of a wait on the role Dialog, named `Open a level`, present or `absent`,
+    /// after `after`, on `target`.
+    fn dialog_wait(absent: bool, after: Option<&str>, target: u32) -> String {
+        let after = after.map_or_else(String::new, |after| format!(r#", "after": "{after}""#));
+        format!(
+            r#"{{ "target": {target}, "role": "Dialog", "name": "open a level", "absent": {absent}{after} }}"#
+        )
+    }
+
+    /// The answer of `pending`, a request of the core's level, within [`PATIENCE`]: the client's
+    /// own bound is ten minutes.
+    fn outcome(pending: slime_channel::Pending) -> slime_channel::Outcome {
+        let (sent, answered) = std::sync::mpsc::channel();
+        std::thread::spawn(move || sent.send(pending.wait_outcome()));
+        answered
+            .recv_timeout(PATIENCE)
+            .expect("answered within the test's patience")
+    }
+
+    /// The paths of the elements and the `after` of a wait's answer.
+    fn waited(pending: slime_channel::Pending) -> (Vec<String>, String) {
+        let reply = match outcome(pending) {
+            Ok((Ok(reply), _)) => reply,
+            other => panic!("no wait met: {other:?}"),
+        };
+        assert_eq!(reply["reply"], "waited", "{reply}");
+        let paths = reply["elements"]
+            .as_array()
+            .expect("elements")
+            .iter()
+            .map(|element| element["path"].as_str().expect("a path").to_owned())
+            .collect();
+        (paths, reply["after"].as_str().expect("after").to_owned())
+    }
+
+    /// The fault of a request's answer.
+    fn fault_of(outcome: slime_channel::Outcome) -> Fault {
+        match outcome {
+            Ok((Err(fault), _)) => fault,
+            other => panic!("no fault: {other:?}"),
+        }
+    }
+
+    /// The reply of a request of the channel's own, within [`PATIENCE`].
+    fn replied(pending: slime_channel::Pending) -> Result<Reply, slime_channel::ChannelError> {
+        pending.wait_for(PATIENCE).map(|(reply, _)| reply)
+    }
+
+    /// The code and the message of a refusal of the channel's own.
+    fn refused(pending: slime_channel::Pending) -> (i64, String) {
+        match replied(pending) {
+            Ok(Reply::Failed { code, message }) => (code, message),
+            other => panic!("not refused: {other:?}"),
+        }
+    }
+
+    /// Whether `ui` gives as many readers of meaning as an interface holds: none is left by waits.
+    fn readers_free(ui: &mut Ui) -> bool {
+        (0..uwui::tree::MEANING_READERS).all(|_| ui.add_meaning_reader(TargetId::MAIN).is_some())
+    }
+
+    /// A wait on the window's interface is held by uwui while what it waits for has not come, a
+    /// change not framed yet reading nothing, and answered by the check after the frame that shows
+    /// it: a dialog opened, then closed, seen once; a wait cancelled before its check is answered
+    /// so, whatever the check found; the run's end drops what waits, and its readers.
+    #[test]
+    fn a_wait_on_the_interface_is_answered_by_the_check_after_its_frame_and_seen_once() {
+        let (mut bench, mut panel) = (Bench::new(), Panel::new());
+        let opened = bench.interface(&dialog_wait(false, None, 0));
+        bench.take(&mut (), &mut panel);
+        assert_eq!(bench.held(), (0, 1), "held: no dialog yet");
+        // A still frame reads nothing, and a change not yet framed nothing either.
+        bench.channel.check_interface(&mut panel);
+        let dialog = open_dialog(&mut panel);
+        bench.channel.check_interface(&mut panel);
+        assert_eq!(bench.held(), (0, 1), "the dialog is not framed yet");
+        panel.ui.frame(TargetId::MAIN);
+        bench.channel.check_interface(&mut panel);
+        assert_eq!(bench.held(), (0, 0));
+        let (elements, after) = waited(opened);
+        assert_eq!(elements, ["dialog/open a level"]);
+        // Its absence, from that answer, held until it closes.
+        let closed = bench.interface(&dialog_wait(true, Some(&after), 0));
+        bench.take(&mut (), &mut panel);
+        assert_eq!(bench.held(), (0, 1), "held: the dialog stands");
+        panel.ui.remove(dialog);
+        panel.ui.frame(TargetId::MAIN);
+        bench.channel.check_interface(&mut panel);
+        let (elements, after) = waited(closed);
+        assert!(elements.is_empty(), "{elements:?}");
+        // Seen once: from that answer, the absence is held.
+        let again = bench.interface(&dialog_wait(true, Some(&after), 0));
+        bench.take(&mut (), &mut panel);
+        panel.ui.frame(TargetId::MAIN);
+        bench.channel.check_interface(&mut panel);
+        assert_eq!(bench.held(), (0, 1), "seen once");
+        // Cancelled, then met in the same frame: answered cancelled.
+        let reopened = bench.interface(&dialog_wait(false, Some(&after), 0));
+        bench.take(&mut (), &mut panel);
+        assert_eq!(bench.held(), (0, 2));
+        reopened.cancel();
+        bench.until_cancelled(1);
+        open_dialog(&mut panel);
+        panel.ui.frame(TargetId::MAIN);
+        bench.channel.check_interface(&mut panel);
+        assert_eq!(fault_of(outcome(reopened)).code, Fault::CANCELLED);
+        assert_eq!(bench.held(), (0, 1));
+        // The run's end drops it, which answers it, and lets its reader of the interface go.
+        bench.channel.stop(&mut panel);
+        assert_eq!(bench.held(), (0, 0));
+        let fault = fault_of(outcome(again));
+        assert!(fault.message.contains(STOPPED), "{}", fault.message);
+        assert!(readers_free(&mut panel.ui), "a reader left");
+    }
+
+    /// A simulation that answers every page that waits.
+    struct Answering;
+
+    impl Simulation for Answering {
+        fn wait(
+            &self,
+            _edit: &Edit,
+            _page: Page,
+            _time_up: &mut dyn FnMut() -> bool,
+        ) -> Result<Option<Reply>, crate::AppError> {
+            Ok(Some(Reply::Done))
+        }
+    }
+
+    /// A journal's wait that its tool cancelled after the frame's start is answered cancelled
+    /// when the simulation is asked it again, whatever it would answer: a wait changes nothing.
+    #[test]
+    fn a_journal_s_wait_cancelled_during_its_frame_is_answered_cancelled() {
+        let mut bench = Bench::new();
+        let waiting = bench.journal(true);
+        bench.take(&mut Journal, &mut ());
+        assert_eq!(bench.held(), (1, 0));
+        waiting.cancel();
+        bench.until(|channel| channel.waits[0].cancelled());
+        bench.channel.answer_waits(&Answering);
+        assert!(matches!(
+            replied(waiting),
+            Err(slime_channel::ChannelError::Cancelled)
+        ));
+        assert_eq!(bench.held(), (0, 0));
+    }
+
+    /// A wait on the interface that its tool cancelled is answered so at the next frame's start,
+    /// and uwui lets it go: no reader of the interface is left before the run ends.
+    #[test]
+    fn a_wait_on_the_interface_cancelled_is_let_go_at_the_frame_s_start() {
+        let (mut bench, mut panel) = (Bench::new(), Panel::new());
+        let waiting = bench.interface(&dialog_wait(false, None, 0));
+        bench.take(&mut (), &mut panel);
+        assert_eq!(bench.held(), (0, 1));
+        waiting.cancel();
+        bench.until_cancelled(0);
+        bench.start(&mut (), &mut panel);
+        assert_eq!(fault_of(outcome(waiting)).code, Fault::CANCELLED);
+        assert_eq!(bench.held(), (0, 0));
+        assert!(readers_free(&mut panel.ui), "uwui holds the wait cancelled");
+    }
+
+    /// A wait on the interface that would be held past [`MAX_WAITS`] is `BUSY`, and uwui holds
+    /// nothing of it: no reader of the interface is left.
+    #[test]
+    fn a_wait_on_the_interface_past_the_count_holds_nothing() {
+        let (mut bench, mut panel) = (Bench::new(), Panel::new());
+        let journal: Vec<_> = (0..MAX_WAITS).map(|_| bench.journal(true)).collect();
+        let until = Instant::now() + PATIENCE;
+        while bench.held() != (MAX_WAITS, 0) {
+            assert!(Instant::now() < until, "held {:?}", bench.held());
+            bench.start(&mut Journal, &mut panel);
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let busy = bench.interface(&dialog_wait(false, None, 0));
+        bench.take(&mut Journal, &mut panel);
+        assert_eq!(fault_of(outcome(busy)).code, Fault::BUSY);
+        assert!(readers_free(&mut panel.ui), "uwui holds the wait refused");
+        drop(journal);
+    }
+
+    /// A wait on a target that the window does not draw, on a game without an interface, or for a
+    /// role that the family does not name, is refused, saying why; none is held.
+    #[test]
+    fn a_wait_on_another_target_or_without_an_interface_is_refused() {
+        let (mut bench, mut panel) = (Bench::new(), Panel::new());
+        let side = bench.interface(&dialog_wait(false, None, 2));
+        bench.take(&mut (), &mut panel);
+        let fault = fault_of(outcome(side));
+        assert_eq!(fault.code, Fault::REFUSED, "{}", fault.message);
+        assert!(
+            fault.message.contains("draws target 0 alone"),
+            "{}",
+            fault.message
+        );
+        let none = bench.interface(&dialog_wait(false, None, 0));
+        bench.take(&mut (), &mut ());
+        assert_eq!(fault_of(outcome(none)).message, NO_INTERFACE);
+        let unknown = bench.interface(r#"{ "target": 0, "role": "Dialogue", "name": "" }"#);
+        bench.take(&mut (), &mut panel);
+        assert_eq!(fault_of(outcome(unknown)).code, Fault::BAD_PARAMS);
+        assert_eq!(bench.held(), (0, 0));
+        assert!(readers_free(&mut panel.ui), "a reader left");
+    }
+
+    /// The journal's waits and the interface's share a connection's count: past [`MAX_WAITS`], a
+    /// wait of either kind that would be held is `BUSY`, uwui's let go, and one met at once is
+    /// answered; a cancel that came before a new wait frees its place in the frame that takes
+    /// both, of either kind, and a cancel not yet answered counts no more; the run's end drops
+    /// every wait held, which answers it.
+    #[test]
+    fn waits_of_both_kinds_share_a_count_which_a_cancel_frees_in_its_frame() {
+        let (mut bench, mut panel) = (Bench::new(), Panel::new());
+        let mut journal: Vec<_> = (0..MAX_WAITS / 2).map(|_| bench.journal(true)).collect();
+        let mut on_interface: Vec<_> = (MAX_WAITS / 2..MAX_WAITS)
+            .map(|_| bench.interface(&dialog_wait(false, None, 0)))
+            .collect();
+        let until = Instant::now() + PATIENCE;
+        while bench.held() != (MAX_WAITS / 2, MAX_WAITS - MAX_WAITS / 2) {
+            assert!(Instant::now() < until, "held {:?}", bench.held());
+            bench.start(&mut Journal, &mut panel);
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        // Full: a wait of either kind that would be held is refused, one met at once answered.
+        let busy = bench.journal(true);
+        bench.take(&mut Journal, &mut panel);
+        assert_eq!(refused(busy).0, Fault::BUSY);
+        let busy = bench.interface(&dialog_wait(false, None, 0));
+        bench.take(&mut Journal, &mut panel);
+        assert_eq!(fault_of(outcome(busy)).code, Fault::BUSY);
+        let at_once = bench.journal(false);
+        bench.take(&mut Journal, &mut panel);
+        assert_eq!(replied(at_once).expect("answered"), Reply::Done);
+        let at_once = bench.interface(r#"{ "target": 0, "role": "Button", "name": "open" }"#);
+        bench.take(&mut Journal, &mut panel);
+        assert_eq!(waited(at_once).0, ["main/open"]);
+        assert_eq!(bench.held(), (MAX_WAITS / 2, MAX_WAITS / 2));
+        // A journal's wait cancelled, then a wait on the interface, taken in one frame.
+        let cancelled = journal.remove(0);
+        cancelled.cancel();
+        on_interface.push(bench.interface(&dialog_wait(false, None, 0)));
+        bench.take(&mut Journal, &mut panel);
+        assert!(matches!(
+            replied(cancelled),
+            Err(slime_channel::ChannelError::Cancelled)
+        ));
+        assert_eq!(bench.held(), (MAX_WAITS / 2 - 1, MAX_WAITS / 2 + 1));
+        // And the other way.
+        let cancelled = on_interface.remove(0);
+        cancelled.cancel();
+        journal.push(bench.journal(true));
+        bench.take(&mut Journal, &mut panel);
+        assert_eq!(fault_of(outcome(cancelled)).code, Fault::CANCELLED);
+        assert_eq!(bench.held(), (MAX_WAITS / 2, MAX_WAITS / 2));
+        // A cancel that came after the frame's start, not answered yet, counts no more.
+        on_interface[0].cancel();
+        bench.until_cancelled(0);
+        let late = bench.journal(true);
+        let until = Instant::now() + PATIENCE;
+        let incoming = loop {
+            if let Some(incoming) = bench.channel.listener.next() {
+                break incoming;
+            }
+            assert!(Instant::now() < until, "the wait never came");
+            std::thread::sleep(Duration::from_millis(1));
+        };
+        let views = Vec::new();
+        bench.channel.take(
+            incoming,
+            &mut bench.host,
+            &mut Journal,
+            &mut panel,
+            &views,
+            0,
+            true,
+            REQUESTS_BUDGET,
+        );
+        assert_eq!(bench.held(), (MAX_WAITS / 2 + 1, MAX_WAITS / 2));
+        // The run's end drops every wait held, of both kinds, which answers each.
+        bench.channel.stop(&mut panel);
+        assert_eq!(bench.held(), (0, 0));
+        for pending in journal.into_iter().chain([late]) {
+            assert_eq!(refused(pending).1, STOPPED);
+        }
+        for pending in on_interface {
+            let fault = fault_of(outcome(pending));
+            assert!(fault.message.contains(STOPPED), "{}", fault.message);
+        }
+        assert!(readers_free(&mut panel.ui), "a reader left");
     }
 }

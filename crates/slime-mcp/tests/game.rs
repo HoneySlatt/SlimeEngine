@@ -99,9 +99,9 @@ impl Calls {
         );
     }
 
-    /// Whether the call `id` answered, among the answers read so far.
-    fn answered(&self, id: u64) -> bool {
-        self.session.kept.contains_key(&id)
+    /// Whether the call `id` answered, among the messages that the server sent so far.
+    fn answered(&mut self, id: u64) -> bool {
+        self.session.answered(id)
     }
 
     /// Ends the session, and checks that the server ends with it, within [`END`].

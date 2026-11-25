@@ -74,3 +74,13 @@ pub fn every_element(session: &mut Session, arguments: serde_json::Value) -> Vec
     }
     panic!("a list of elements that does not end");
 }
+
+/// The `after` that the answer of `wait_for_elements` gives on its first line.
+pub fn after_of(said: &[String]) -> String {
+    said.first()
+        .and_then(|text| text.lines().next())
+        .and_then(|line| line.strip_prefix("after: "))
+        .and_then(|after| after.split(' ').next())
+        .unwrap_or_else(|| panic!("no `after`: {said:?}"))
+        .to_owned()
+}

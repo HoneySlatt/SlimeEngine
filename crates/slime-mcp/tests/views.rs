@@ -15,6 +15,7 @@
 //! runs the `drive` test. It is not in the default run of `cargo test` (`test = false` in
 //! Cargo.toml), and has no harness, so that its failures print once.
 
+#[expect(dead_code, reason = "this session waits for no call held")]
 #[path = "common/session.rs"]
 mod session;
 

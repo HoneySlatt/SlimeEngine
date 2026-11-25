@@ -3,8 +3,9 @@
 //! view without shadows, without anti-aliasing and at half its size, steps it, reads the hero,
 //! changes a value, walks the hero with a scripted key, saves and loads its run, opens the dev
 //! overlay's panels, sets the speed of game time with one's slider and the hero's direction with
-//! the world panel, captures the game's image, finds it at rest while paused, then hidden, its game
-//! time running, reads its log and stops it (`docs/adr/0122-the-development-channel.md`,
+//! the world panel, captures the game's image, finds it at rest while paused, waits for its world
+//! panel to close as a command closes it, then finds it at rest hidden, its game time running,
+//! reads its log and stops it (`docs/adr/0122-the-development-channel.md`,
 //! `docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`,
 //! `docs/adr/0185-rest-checked-in-ci.md`, `docs/adr/0187-a-hidden-window-at-rest.md`).
 //!
@@ -196,6 +197,24 @@ fn main() {
     if let Err(woke) = rest::at_rest(pid, Duration::from_secs(60)) {
         panic!("the game paused is not at rest: {woke}");
     }
+    // Paused, the game runs a frame only when asked: a wait for the world panel to close is
+    // answered by the check after the frame's drawing, where the overlay frames its interface, in
+    // the frame of the command that closes it
+    // (`docs/adr/0316-the-engine-holds-the-interfaces-waits-checked-where-its-presentation-frames-it.md`).
+    let closing = session.send_tool(
+        "wait_for_elements",
+        json!({ "role": "Pane", "name": "World", "absent": true, "seconds": 30 }),
+    );
+    std::thread::sleep(Duration::from_millis(500));
+    assert!(!session.answered(closing), "the world panel is open");
+    let (said, _) = session.tool(
+        "act_on_interface",
+        json!({ "action": "command", "command": "world" }),
+    );
+    assert_eq!(said, ["done"]);
+    let (said, _) = session.tool_answer(closing);
+    assert!(!said[0].contains("nothing met"), "{said:?}");
+    assert!(said[0].ends_with("no element matches"), "{said:?}");
     // Hidden, its game time running, the game is at rest too: its window waits for the
     // compositor's signal, which Weston gives no minimized window, and wakes on no schedule of its
     // own (`docs/adr/0187-a-hidden-window-at-rest.md`). In the series of compositors, with

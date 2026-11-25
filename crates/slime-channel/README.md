@@ -61,7 +61,7 @@ tells how game time stands to a connection that subscribed to it. Only programs 
   reading stops being served. The bounds are kept by the listener until a second carrier
   ([ADR-0252](../../docs/adr/0252-the-channels-bounds-of-memory-kept-by-its-carrier-until-a-second-one.md));
   `Listener::open`'s rustdoc gives their figures. A request that waits for a change, a page of the
-  journal with `wait`, holds its place until answered or cancelled; a game holds fewer such
+  journal with `wait` or a wait on the interface's elements, holds its place until answered or cancelled; a game holds fewer such
   requests of a connection than its places (`MAX_WAITS`, counted by `Incoming::same_connection`),
   so that its other requests pass.
 - The world's entities, the interface's elements and the log are read by pages

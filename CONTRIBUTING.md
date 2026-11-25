@@ -114,7 +114,7 @@ UWUI_DESCRIBE=write cargo test -p uwui-agent -p slime-channel --lib described  #
 cargo test --release -p uwui-agent --test request_memory -- --nocapture  # measure what a request's line costs in memory as it is read (ADR-0250)
 cargo test --release -p slime-app --features development --test channel -- --ignored frames_with_agents --nocapture  # measure a run's frames with agents at the channel's bounds (ADR-0250)
 cargo test --release -p slime-editor --lib journal_pages_timed -- --ignored --nocapture  # measure a page of the editor's journal on the editor's thread, on Linux (ADR-0265)
-cargo test --release -p slime-mcp --test answer -- <cooked examples>  # time the engine's answer through its MCP server, and a step to a waiting tool's answer, the editor's window in a headless Weston with lavapipe (ADR-0269, ADR-0310)
+cargo test --release -p slime-mcp --test answer -- <cooked examples>  # time the engine's answer through its MCP server, and a step or a press to a waiting tool's answer, the editor's window in a headless Weston with lavapipe (ADR-0269, ADR-0310, ADR-0316)
 cargo test --release -p slime-mcp --test answer -- --at-once  # time what the MCP server and the channel add, on a program that answers at once; SLIME_MCP_SERVER=<another build> times that server instead (ADR-0274)
 scripts/uwui-program.sh [--features <list>]               # measure what a program on uwui compiles: crates, build times, binary (ADR-0180)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)

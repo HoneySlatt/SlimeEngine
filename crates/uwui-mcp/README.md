@@ -16,7 +16,7 @@ Its name is provisional: the names of uwui's crates are settled at M6d.10a
 M6d.9a2c4a: the library, the interface's family as its tools, a server's tools gathered by
 families, and the bound of the tools that wait for a change. The engine's MCP server,
 `slime-mcp`, serves every tool through it, its own families `play`, `world` and `editing` among
-them; the engine answers the interface's waits from M6d.9a2c4b. No program of its own: uwui's MCP
+them; the engine answers the interface's waits (ADR-0316). No program of its own: uwui's MCP
 server as a program comes with a carrier of uwui's own, `uwui dev`'s, at uwui's first stage
 ([`stage-6d.md`](../../docs/stage-6d.md#m6d9a2--uwuis-mcp-library-and-families)).
 

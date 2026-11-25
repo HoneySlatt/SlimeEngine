@@ -6,7 +6,9 @@
 //! editor's whole interface gathered from the game's pages; `editor_journal` from its start, a
 //! page of its text. It prints each figure, with what the list and the page held. Then it times,
 //! as many times, a step made by `edit` to the answer of `editor_journal` waiting at the journal's
-//! end, held by the editor before the step comes. It needs a
+//! end, held by the editor before the step comes, and a press that opens the File menu to the
+//! answer of `wait_for_elements` waiting for its item *Open a level…*, held before the press comes,
+//! the menu closed after each. It needs a
 //! Wayland compositor, the example built (`cargo build --release --example editor`) and the
 //! examples' assets cooked, in the directory that its first argument names, or
 //! `target/cooked/examples`: run it in a headless Weston with lavapipe.
@@ -20,12 +22,14 @@
 //! `SLIME_MCP_SERVER` names the server timed, another commit's build, as the measure's "before";
 //! the programs are this build's either way. As a server built before `editing` 3 is refused that
 //! family by this build's editor, neither `editor_journal` nor the wait is timed against another
-//! build. A
+//! build, nor the interface's wait, which a server built before `wait_for_elements` lacks. Without
+//! the editor's check of its waits right after its frame's extraction, the interface's wait would
+//! be answered only after the frame's drawing: this measure is what shows that point at work. A
 //! measure, not a check (`docs/measurements.md`): run it in release, on a machine at rest. It is
 //! not in the default run of `cargo test` (`test = false` in Cargo.toml), and has no harness, so
 //! that it prints once.
 
-#[expect(dead_code, reason = "this measure only waits for the window")]
+#[expect(dead_code, reason = "this measure acts on no element by `act`")]
 #[path = "common/interface.rs"]
 mod interface;
 #[path = "common/journal.rs"]
@@ -46,7 +50,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-use interface::until;
+use interface::{path_of, until};
 use session::{Session, server};
 
 /// How many calls of each kind are timed on the editor's window, after [`WARM_UP`] untimed: each
@@ -159,7 +163,8 @@ fn main() {
         |said| !said.iter().any(|text| text.contains("notifications/")),
     );
 
-    // A server of another build may speak an `editing` of before, which this editor refuses.
+    // A server of another build may speak an `editing` of before, which this editor refuses, and
+    // lack the tool that waits on the interface.
     let other_server = std::env::var_os("SLIME_MCP_SERVER").is_some();
     let mut calls = vec![("game_state", json!({})), ("find_elements", json!({}))];
     if !other_server {
@@ -168,6 +173,7 @@ fn main() {
     measure(&mut session, &calls, TIMED, WARM_UP);
     if !other_server {
         measure_wait(&mut session);
+        measure_interface_wait(&mut session);
     }
     stop(session, &mut child);
 }
@@ -210,6 +216,46 @@ fn measure_wait(session: &mut Session) {
     let (median, slowest) = figures(&mut times);
     println!(
         "a step to the answer of editor_journal waiting: median {median:.3} ms, slowest \
+         {slowest:.3} ms, of {TIMED}"
+    );
+}
+
+/// Times, as many times as [`measure`] times each call, a press that opens the File menu to the
+/// answer of a call that waits for its item *Open a level…*, held by the editor before the press
+/// comes, and prints the figures; the menu is closed after each.
+fn measure_interface_wait(session: &mut Session) {
+    let file = path_of(session, "MenuItem", "File");
+    let item = json!({ "role": "MenuItem", "name": "Open a level" });
+    let mut times = Vec::with_capacity(TIMED);
+    for round in 0..WARM_UP + TIMED {
+        let waiting = session.send_tool("wait_for_elements", item.clone());
+        // So that the editor holds the wait before the press comes.
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(!session.answered(waiting), "the menu is closed");
+        let started = Instant::now();
+        let press = json!({ "action": "press", "element": file });
+        let pressing = session.send_tool("act_on_interface", press);
+        let (said, result) = session.tool_answer(waiting);
+        let time = started.elapsed();
+        assert_ne!(result["isError"], json!(true), "{said:?}");
+        assert!(
+            said[0]
+                .lines()
+                .any(|line| line.starts_with("menu/") && line.contains("— MenuItem")),
+            "the menu's item: {said:?}"
+        );
+        assert_eq!(session.tool_answer(pressing).0, ["done"]);
+        session.tool("act_on_interface", json!({ "action": "cancel" }));
+        let gone = json!({ "role": "MenuItem", "name": "Open a level", "absent": true });
+        let (said, _) = session.tool("wait_for_elements", gone);
+        assert!(said[0].ends_with("no element matches"), "{said:?}");
+        if round >= WARM_UP {
+            times.push(time);
+        }
+    }
+    let (median, slowest) = figures(&mut times);
+    println!(
+        "a press to the answer of wait_for_elements waiting: median {median:.3} ms, slowest \
          {slowest:.3} ms, of {TIMED}"
     );
 }

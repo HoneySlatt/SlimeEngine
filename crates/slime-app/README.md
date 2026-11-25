@@ -151,8 +151,11 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   it gives tools, an asset cache's and its views' statistics (`docs/adr/0128-asset-requests.md`),
   and `pick`, which picks the entity at a pixel of a view for a tool and gives it to a `PickAnswer`
   once it knows it (`docs/adr/0130-picking.md`), and `ui`, its interface, if it has one, which a
-  tool reads, acts on and captures element by element
-  (`docs/adr/0143-what-agents-see-of-the-interface.md`), which the presentation draws in `render`
+  tool reads, acts on, captures element by element and waits on, framed in `extract` or `render`,
+  after each of which its waits are checked
+  (`docs/adr/0143-what-agents-see-of-the-interface.md`,
+  `docs/adr/0316-the-engine-holds-the-interfaces-waits-checked-where-its-presentation-frames-it.md`),
+  which the presentation draws in `render`
   itself (`InterfaceRenderer`, below), and to which the dev overlay adds its panels as roots
   (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`); the run connects it to the window:
   before each frame, it gives the interface's target the size of the window's images, which the
@@ -347,8 +350,8 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   the last lines of its log (`slime_channel::MAX_LOG_LINES`), which only such a run keeps, and its
   run saved to a file and loaded from one, by the simulation's `save` and `load`, and an editor's
   requests, by the simulation's `edit`; a page of an editor's journal that waits, by its `wait`,
-  held without running frames and answered in the frame that brings what it waits
-  for. At the end of each frame, it tells the tools subscribed to
+  and a wait on the interface's elements, by uwui's `agents::Waits`, each held without running
+  frames and answered in the frame that brings what it waits for. At the end of each frame, it tells the tools subscribed to
   `play/time` how game time stands, when it changed in the frame or a subscription started, whose
   first value it is
   (`docs/adr/0254-events-declared-in-the-welcome-replaced-in-the-carrier-published-at-the-frames-end.md`).

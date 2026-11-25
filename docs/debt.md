@@ -69,21 +69,16 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Pages that wait at the journal's end read nothing until it grows; then each page that they ask, those of the same cursor and bytes once, reads its floor in that frame ([ADR-0310](adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)).
   Reading it on another thread needs a `Simulation::edit` that answers later.
   Followed at [M6c.Q2f](stage-6c.md#m6cq2f--the-editor-at-the-displays-rate), which holds the editor's frames to the display's rate.
-- **The engine refuses the interface's waits** ([ADR-0314](adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md)).
-  It serves the interface's family 4, but answers `interface/wait` that it does not hold waits yet: `slime-mcp` serves `wait_for_elements`, which fails on the engine's programs.
-  Followed at [M6d.9a2c4b](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface), whose host holds them.
-- **A wait cancelled frees its place untested** ([ADR-0310](adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md)).
-  `slime-app`'s channel leaves a wait cancelled, not yet answered, out of its connection's count (`MAX_WAITS`), so that a wait that comes in the same frame is held rather than `BUSY`; no test times a cancel and a new wait into one frame.
-  Followed at [M6d.9a2c4b](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface), whose waits share the count.
 - **A host lets the waits on elements go itself** ([ADR-0312](adr/0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md)).
-  `uwui::agents::Waits` checks a target's waits only after its frames: a target that runs none, a window closed, answers none of them, and uwui tells no target closed; a `Waits` dropped while it holds waits leaves their readers of meaning in the interface.
-  `uwui-mcp`'s program in memory clears its waits as it ends, and frames each of its targets after each request.
-  Followed at [M6d.9a2c4b](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface), whose host clears them when its run ends; the engine draws one target.
-- **The journal's wait was measured under a heavy load** ([`measurements.md`](measurements.md#m6d9a2c2-the-journal-that-waits)).
-  Another project's builds held the machine's load between 13 and 20: the figures compare the two points of answer, and say nothing of a machine at rest.
-  Followed at [M6d.9a2c4b](stage-6d.md#m6d9a2c4b--the-engine-that-waits-on-the-interface), which times the interface's wait on the editor, the journal's beside it.
+  `uwui::agents::Waits` checks a target's waits only after its frames, and uwui tells no target closed: a host of several windows cancels the waits of one that closes, which uwui does not tell it.
+  A `Waits` dropped while it holds waits leaves their readers of meaning in the interface: `slime-app` clears its own as its run stops, but not after a panic, which calls no `stop`; a host that keeps its interface past a panicked run keeps those readers ([ADR-0316](adr/0316-the-engine-holds-the-interfaces-waits-checked-where-its-presentation-frames-it.md)).
+  Followed at uwui's first stage, whose hosts hold several windows.
+- **Two of `slime-app`'s calls for the interface's waits are untested** ([ADR-0316](adr/0316-the-engine-holds-the-interfaces-waits-checked-where-its-presentation-frames-it.md)).
+  The windowed driver's call that clears the waits as the run stops (`Frames::stop` in `stop_both`) shows nothing outside the process; the check after `extract` answers the editor's waits before the drawing, which only `slime-mcp`'s measure `answer` shows, about 6 ms sooner at rest, and the only one when a frame draws no image.
+  The channel's tests call `DevChannel::stop` and `check_interface` themselves; no `slime-app` test runs a windowed run with a development channel.
+  Followed at uwui's first stage, whose host and its tests take these calls over.
 - **`slime-app`'s tests of the channel fail now and then under a heavy load**.
-  Run four at a time while another project's builds held the machine's load near 40, a test's game ended its connection early (`UnexpectedEof`), on the commit before M6d.9a2c2 as after it, and once a cancelled edit's answer came past its 30 s; at rest they pass. Not diagnosed.
+  Run four at a time while another project's builds held the machine's load near 40, a test's game ended its connection early (`UnexpectedEof`), on the commit before M6d.9a2c2 as after it, and once a cancelled edit's answer came past its 30 s; at rest they pass. Not diagnosed; a guess, not checked: the listener's threads that write the answers are not joined before the process ends, so that an answer given as a run ends may be lost. Reproduced in seconds by three runs of the integration test `channel` at once under a load near 20: on the commit before M6d.9a2c4b as after it.
   Followed at [M6d.12](stage-6d.md#m6d12--the-audit-of-stage-6d), the stage's audit.
 - **Part of the core's messages is described by hand** ([ADR-0308](adr/0308-m6d9a2c-cut-in-four-each-familys-messages-described-in-lines-read-from-its-types-a-kept-copy-for-each-version.md)).
   The envelope, written by two private types, and the replies to `subscribe` and `unsubscribe` are lines that the core's test writes by hand; the parameters of `subscribe`, typed for their description, are still read by hand, to say what is wrong with each name.

@@ -695,6 +695,7 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         if self.started {
             let reason = self.stop.unwrap_or("the event loop ended");
             tracing::info!(frames = self.frames.count(), "stopping: {reason}");
+            self.frames.stop(&mut *self.presentation);
             self.presentation.stop(&mut self.host.context);
             self.host.stop(self.simulation);
         }

@@ -4,5 +4,4 @@
   change once. uwui answers it from a host's `agents::Waits` (`agents::wait`, `agents::met`); a
   wait, or a check, while its target holds a change not yet framed reads nothing until the next
   frame. uwui's MCP library gives it as `wait_for_elements`, up to 50 s, and bounds every tool that
-  waits through `uwui_mcp::waited`, which `editor_journal` now takes. The engine refuses it until
-  it holds these waits (ADR-0314).
+  waits through `uwui_mcp::waited`, which `editor_journal` now takes (ADR-0314).

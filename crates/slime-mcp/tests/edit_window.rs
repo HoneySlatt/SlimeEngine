@@ -15,9 +15,13 @@
 //! (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`),
 //! opens another copy of the yard through *Open a level…*, which opens no dialog of the system in a
 //! program that a tool started, its path typed
-//! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and checks that the editor,
-//! left alone, wakes for the end of the first run's hint, and is at rest after it, a panel floating
-//! (`docs/adr/0185-rest-checked-in-ci.md`), then quits it by name; started again, it shows the
+//! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), waiting for its layer's
+//! dialog to close, seen once
+//! (`docs/adr/0316-the-engine-holds-the-interfaces-waits-checked-where-its-presentation-frames-it.md`),
+//! and checks that the editor, left alone, wakes for the end of the first run's hint, and is at
+//! rest after it, a panel floating, while a wait for its journal and one for its File menu's item
+//! are held, which a step and the menu opened then answer (`docs/adr/0185-rest-checked-in-ci.md`),
+//! then quits it by name; started again, it shows the
 //! layout that it was left with, which *Reset layout* gives back as the default; and plays the
 //! yard in the `world` example, whose interface the interface's tools reach while the game's tools
 //! drive it, its world panel opened by its command, then the editor's again
@@ -44,7 +48,7 @@ use std::time::Duration;
 
 use serde_json::json;
 
-use interface::{act, every_element, path_of, until};
+use interface::{act, after_of, every_element, path_of, until};
 use session::{Session, image, server};
 
 /// How many times the viewport drew its image, as its report says.
@@ -367,13 +371,34 @@ fn main() {
     path_of(&mut session, "Label", "Type the level's path");
     let field = path_of(&mut session, "TextInput", "Level's path");
     assert!(field.starts_with("choose/"), "{field}");
+    // The layer's dialog waited for until it closes, seen once
+    // (`docs/adr/0314-m6d9a2c4-cut-in-two-an-interfaces-wait-gives-the-elements-seen-as-after.md`):
+    // present, it is given at once; its absence from that answer is held until the path typed
+    // closes it, beside the journal's wait below; from the answer of its absence, nothing more.
+    let (said, _) = session.tool(
+        "wait_for_elements",
+        json!({ "role": "Dialog", "name": "Open a level", "seconds": 5 }),
+    );
+    assert!(!said[0].contains("nothing met"), "{said:?}");
+    assert!(
+        said[0]
+            .lines()
+            .any(|line| line.starts_with("choose/") && line.contains("— Dialog")),
+        "{said:?}"
+    );
+    let opened = after_of(&said);
+    let closing = session.send_tool(
+        "wait_for_elements",
+        json!({ "role": "Dialog", "name": "Open a level", "absent": true, "after": opened, "seconds": 30 }),
+    );
     let other = other.to_str().expect("a path of text");
     // A wait from the journal's end, held while the other level opens, is answered stale
     // (`docs/adr/0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md`).
     let end = journal::end(&mut session);
     let waiting = session.send_tool("editor_journal", json!({ "cursor": end, "wait": 30 }));
-    // So that the editor holds the wait before the level opens.
+    // So that the editor holds the waits before the level opens.
     std::thread::sleep(Duration::from_millis(500));
+    assert!(!session.answered(closing), "the dialog is open");
     act(&mut session, "set_value", &field, json!({ "value": other }));
     path_of(&mut session, "Label", other);
     let (said, _) = session.tool("editor_history", json!({}));
@@ -381,17 +406,47 @@ fn main() {
     let (said, result) = session.tool_answer(waiting);
     assert_eq!(result["isError"], json!(true), "{said:?}");
     assert!(said[0].contains("list it again from its start"), "{said:?}");
+    let (said, _) = session.tool_answer(closing);
+    assert!(!said[0].contains("nothing met"), "{said:?}");
+    assert!(said[0].ends_with("no element matches"), "{said:?}");
+    let closed = after_of(&said);
+    let (said, _) = session.tool(
+        "wait_for_elements",
+        json!({ "role": "Dialog", "name": "Open a level", "absent": true, "after": closed, "seconds": 1 }),
+    );
+    assert!(
+        said[0].starts_with(&format!("after: {closed} (nothing met the wait within 1 s")),
+        "seen once: {said:?}"
+    );
     // Left alone, a panel floating, once the menu's closing transition has ended, the editor is at
     // rest: none of its threads wakes in ten seconds, so it runs no frame, while an agent waits
-    // for its journal's next entry, which a step then gives. The wait, of the tool's most, outlasts
-    // the watch, which ends within 41 s.
+    // for its journal's next entry, which a step then gives, and another for the File menu's
+    // item, which opening the menu then gives. The waits, of the tool's most, outlast the watch,
+    // which ends within 41 s.
     let floating = path_of(&mut session, "Pane", "Console");
     assert!(floating.starts_with("floating console/"), "{floating}");
+    let file = path_of(&mut session, "MenuItem", "File");
     let end = journal::end(&mut session);
     let waiting = session.send_tool("editor_journal", json!({ "cursor": end, "wait": 50 }));
+    let menu = session.send_tool(
+        "wait_for_elements",
+        json!({ "role": "MenuItem", "name": "Open a level" }),
+    );
     if let Err(woke) = rest::at_rest(pid, Duration::from_secs(30)) {
         panic!("the editor is not at rest: {woke}");
     }
+    assert!(!session.answered(waiting), "the journal's wait answered");
+    assert!(!session.answered(menu), "the interface's wait answered");
+    act(&mut session, "press", &file, json!({}));
+    let (said, _) = session.tool_answer(menu);
+    assert!(!said[0].contains("nothing met"), "{said:?}");
+    assert!(
+        said[0]
+            .lines()
+            .any(|line| line.starts_with("menu/") && line.contains("— MenuItem")),
+        "{said:?}"
+    );
+    session.tool("act_on_interface", json!({ "action": "cancel" }));
     let (said, _) = session.tool(
         "edit",
         json!({

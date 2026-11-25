@@ -6,7 +6,9 @@
   [0269](0269-uwuis-mcp-library-reaches-a-program-through-its-host-faults-as-tool-errors-changes-followed-by-requests-that-wait-m6d9a2-cut-in-three.md)
   (what an interface's wait sees between two calls); amends
   [0312](0312-waits-on-elements-kept-by-uwui-a-reader-for-waits-reads-what-a-condition-reads.md)
-  (the elements seen, and a check while a change is not framed)
+  (the elements seen, and a check while a change is not framed); superseded in part by
+  [0316](0316-the-engine-holds-the-interfaces-waits-checked-where-its-presentation-frames-it.md)
+  (when a host counts its waits)
 - Date: 2026-11-19
 
 ## Context

@@ -31,8 +31,8 @@ pub enum Waiting {
 
 /// Reads `request`, an `interface/wait`, into `waits`, on `ui`: answers it when its condition
 /// holds now, its reply's elements on a page bounded by `page`, narrowed by what it asks, and by
-/// `time_up` ([`Pager`]); else holds it. A host that bounds its waits counts them first
-/// ([`Waits::wait`]).
+/// `time_up` ([`Pager`]); else holds it. A host that bounds its waits counts them first, or
+/// cancels at once one held past its bound ([`Waits::wait`]).
 ///
 /// # Errors
 ///

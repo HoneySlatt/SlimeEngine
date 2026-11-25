@@ -42,11 +42,12 @@ const ACCEPT_PAUSE: Duration = Duration::from_millis(100);
 /// What a request that reaches no game is answered.
 const STOPPED: &str = "the game has stopped";
 
-/// The most requests that wait for a change, as a page of the journal from its end with `wait`,
-/// of every family together, that a game holds of one connection: half its places in flight
-/// ([`InFlight::DEFAULT`]), so that its other requests still pass. A game answers one more that
-/// would wait `BUSY`, the connection kept
-/// (`docs/adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md`).
+/// The most requests that wait for a change, as a page of the journal from its end with `wait` or a
+/// wait on the interface's elements, of every family together, that a game holds of one
+/// connection: half its places in flight ([`InFlight::DEFAULT`]), so that its other requests still
+/// pass. A game answers one more that would wait `BUSY`, the connection kept
+/// (`docs/adr/0310-the-journals-wait-answered-once-the-simulation-ran-through-a-read-of-its-own-its-tool-gives-end.md`,
+/// `docs/adr/0316-the-engine-holds-the-interfaces-waits-checked-where-its-presentation-frames-it.md`).
 pub const MAX_WAITS: usize = InFlight::DEFAULT.requests / 2;
 
 /// A game's end of its development channel: it listens on the machine's own address, on a port

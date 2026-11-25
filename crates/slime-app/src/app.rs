@@ -205,8 +205,10 @@ impl Default for AppConfig {
 ///
 /// Built with the `development` feature, a run whose environment gives a token listens for the
 /// tools that drive it, before its `start` methods, and answers them at the start of each frame,
-/// a request that waits for a change once the simulation ran in the frame that brings it (the
-/// crate's documentation says what they ask). It stops, as at a termination signal, once its
+/// a request that waits for a change of the simulation once it ran in the frame that brings it,
+/// and one that waits on the presentation's interface once the frame framed it, after
+/// [`Presentation::extract`] or [`Presentation::render`] (the crate's documentation says what
+/// they ask). It stops, as at a termination signal, once its
 /// standard input closes, which the tool that started it holds as a pipe, unless that input is a
 /// terminal: an input that is empty or missing, as `/dev/null`, stops it at once
 /// (`slime_channel::TOKEN_ENV_VAR`).
@@ -293,6 +295,7 @@ fn run_headless_frames(
         wanted = host.context.take_frame_request() || frames.waiting();
     };
     tracing::info!(frames = frames.count(), "stopping: {reason}");
+    frames.stop(&mut ());
     host.stop(simulation);
     host.context
         .take_error()
@@ -350,6 +353,19 @@ impl Frames {
             .is_some_and(crate::channel::DevChannel::waiting);
         #[cfg(not(feature = "development"))]
         false
+    }
+
+    /// As the run stops, before `presentation` stops: the development channel lets go the waits
+    /// that it holds on the presentation's interface, and answers each request that waits that the
+    /// game stops ([`DevChannel::stop`](crate::channel::DevChannel::stop)). After a panic, which
+    /// calls no `stop`, the waits are dropped with the run.
+    pub(crate) fn stop(&mut self, presentation: &mut impl Presentation) {
+        #[cfg(feature = "development")]
+        if let Some(channel) = &mut self.channel {
+            channel.stop(presentation);
+        }
+        #[cfg(not(feature = "development"))]
+        let _ = presentation;
     }
 
     /// Why no further frame must run, if that is the case. A termination signal received since the
@@ -424,6 +440,11 @@ impl Frames {
                 let _span = tracing::trace_span!("extract").entered();
                 presentation.extract(&mut host.context, &host.world);
             }
+            // The waits on the interface, once it framed it, as an editor's extraction does.
+            #[cfg(feature = "development")]
+            if let Some(channel) = &mut self.channel {
+                channel.check_interface(presentation);
+            }
             let image = {
                 let _span = tracing::trace_span!("acquire").entered();
                 surface.acquire(&format!("window, frame {index}"))
@@ -432,6 +453,11 @@ impl Frames {
                 {
                     let _span = tracing::trace_span!("render").entered();
                     presentation.render(&mut host.context, image.target());
+                }
+                // Again once it drew, where an overlay frames its interface.
+                #[cfg(feature = "development")]
+                if let Some(channel) = &mut self.channel {
+                    channel.check_interface(presentation);
                 }
                 // What changed in what the interface means, while a screen reader reads the
                 // window.

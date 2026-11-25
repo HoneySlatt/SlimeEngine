@@ -338,6 +338,13 @@ pub trait Presentation {
     /// method allowed while one of its fields takes text, a text written on the system's clipboard
     /// and each read of it answered at once. The default has none.
     ///
+    /// A tool's wait on its elements (`interface/wait`) is checked after
+    /// [`extract`](Self::extract) and again after [`render`](Self::render) when a frame draws: a
+    /// presentation frames its interface ([`Ui::frame`]) in one of them, or its waits are held
+    /// until their tools' bounds. A frame that the window cannot show leaves what `render` would
+    /// have framed, and the waits that it would answer, for the next frame that draws
+    /// (`docs/adr/0316-the-engine-holds-the-interfaces-waits-checked-where-its-presentation-frames-it.md`).
+    ///
     /// The interface, once given, is the same one at every call until the run ends: the outputs
     /// tell the window only what changed since the run last read them, so a presentation that
     /// gave none for a while, or another interface, would leave the window showing what the

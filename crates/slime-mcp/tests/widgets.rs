@@ -22,6 +22,7 @@
 //! so that its failures print once.
 
 #[path = "common/interface.rs"]
+#[expect(dead_code, reason = "this session waits on no element")]
 mod interface;
 #[path = "common/session.rs"]
 #[expect(dead_code, reason = "this session reads no image")]
