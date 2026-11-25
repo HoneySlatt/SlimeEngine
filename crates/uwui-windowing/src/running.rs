@@ -5,6 +5,10 @@
 //! The handler is dropped before the platform, so that what it made on the window's raw handles,
 //! a GPU's surface, goes before the window, a panic's unwinding included; [`Handler::closing`] is
 //! called once the window opened, however the run ends but by a panic.
+//!
+//! A platform whose system holds the thread in a loop of its own, as Win32 does while the person
+//! moves or resizes a window, turns the host from within its wait, through [`Turn`]
+//! (`docs/adr/0302-m6d7a2b-cut-in-three-the-platform-layer-runs-the-loop-waylands-mouse-and-touch.md`).
 
 use std::task::Waker;
 
@@ -20,8 +24,10 @@ pub(crate) trait Platform {
     /// What came since the last turn.
     fn happened(&mut self) -> Result<Happened, Error>;
 
-    /// Waits for the platform, a wake, or `deadline`, then reads what came.
-    fn wait(&mut self, deadline: Option<Instant>) -> Result<(), Error>;
+    /// Waits for the platform, a wake, or `deadline`, then reads what came. A platform whose system
+    /// runs a loop of its own during the wait turns `host` from there, as often as something comes;
+    /// whether one of those turns ended the run.
+    fn wait(&mut self, deadline: Option<Instant>, host: &mut dyn Turn) -> Result<Waited, Error>;
 
     /// The window's raw handles, live as long as the platform.
     fn raw_handles(&self) -> (RawDisplayHandle, RawWindowHandle);
@@ -45,6 +51,33 @@ pub(crate) trait Platform {
 
     /// Asks the signal for the image presented next: its number.
     fn ask_signal(&mut self) -> u64;
+}
+
+/// The host, turned by a platform from within its wait: [`Handler::turn`].
+pub(crate) trait Turn {
+    #[cfg_attr(
+        not(windows),
+        allow(
+            dead_code,
+            reason = "only Win32's modal loop turns the host from within the layer's wait"
+        )
+    )]
+    fn turn(&mut self, window: &mut Window<'_>, happened: Happened) -> Control;
+}
+
+impl<H: Handler> Turn for H {
+    fn turn(&mut self, window: &mut Window<'_>, happened: Happened) -> Control {
+        Handler::turn(self, window, happened)
+    }
+}
+
+/// How a wait ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Waited {
+    /// Something came, or the deadline passed: the loop turns.
+    Ready,
+    /// A turn from within the wait ended the run.
+    Ended,
 }
 
 /// Runs `handler` on the platform that `opened` gives, with how its window draws, until a turn
@@ -99,7 +132,11 @@ impl<H: Handler, P: Platform> Running<H, P> {
             );
             match control {
                 Control::Exit => return Ok(()),
-                Control::Wait(deadline) => self.platform.wait(deadline)?,
+                Control::Wait(deadline) => {
+                    if self.platform.wait(deadline, &mut self.handler)? == Waited::Ended {
+                        return Ok(());
+                    }
+                }
             }
         }
     }
@@ -124,6 +161,8 @@ mod tests {
     struct Fake {
         told: Told,
         turns: usize,
+        /// How many times each wait turns the host from within, as a modal loop does.
+        within: usize,
     }
 
     impl Drop for Fake {
@@ -140,8 +179,15 @@ mod tests {
             self.turns -= 1;
             Ok(Happened::default())
         }
-        fn wait(&mut self, _: Option<Instant>) -> Result<(), Error> {
-            Ok(())
+        fn wait(&mut self, _: Option<Instant>, host: &mut dyn Turn) -> Result<Waited, Error> {
+            for _ in 0..self.within {
+                self.told.borrow_mut().push("within");
+                let control = host.turn(&mut Window { platform: self }, Happened::default());
+                if control == Control::Exit {
+                    return Ok(Waited::Ended);
+                }
+            }
+            Ok(Waited::Ready)
         }
         fn raw_handles(&self) -> (RawDisplayHandle, RawWindowHandle) {
             let pointer = std::ptr::NonNull::<std::ffi::c_void>::dangling();
@@ -214,10 +260,20 @@ mod tests {
     /// Runs a handler that does `does` on a platform that fails after `turns` turns: what each
     /// told, in order, and the run's end, none for a panic.
     fn ran(does: Does, turns: usize) -> (Vec<&'static str>, Option<Result<(), String>>) {
+        ran_within(does, turns, 0)
+    }
+
+    /// [`ran`], each wait turning the host `within` times from within.
+    fn ran_within(
+        does: Does,
+        turns: usize,
+        within: usize,
+    ) -> (Vec<&'static str>, Option<Result<(), String>>) {
         let told = Told::default();
         let platform = Fake {
             told: Rc::clone(&told),
             turns,
+            within,
         };
         let handler = Fakes {
             told: Rc::clone(&told),
@@ -246,6 +302,27 @@ mod tests {
             [
                 "opened",
                 "turn",
+                "turn",
+                "closing",
+                "platform dropped",
+                "handed back",
+                "handler dropped"
+            ]
+        );
+        assert_eq!(ended, Some(Ok(())));
+    }
+
+    #[test]
+    fn a_turn_from_within_a_wait_that_ends_the_run_ends_it_in_order() {
+        // The host's second turn comes from within the first wait, as Win32's modal loop of a move
+        // gives it, and ends the run: no turn after, the window closed once.
+        let (order, ended) = ran_within(Does::End, 100, 3);
+        assert_eq!(
+            order,
+            [
+                "opened",
+                "turn",
+                "within",
                 "turn",
                 "closing",
                 "platform dropped",

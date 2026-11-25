@@ -1037,7 +1037,11 @@ impl running::Platform for Platform {
         })
     }
 
-    fn wait(&mut self, deadline: Option<Instant>) -> Result<(), Error> {
+    fn wait(
+        &mut self,
+        deadline: Option<Instant>,
+        _: &mut dyn running::Turn,
+    ) -> Result<running::Waited, Error> {
         let deadline = match (deadline, self.frames.deadline()) {
             (Some(deadline), Some(signal)) => Some(deadline.min(signal)),
             (deadline, signal) => deadline.or(signal),
@@ -1050,7 +1054,7 @@ impl running::Platform for Platform {
         flush(&self.connection)?;
         // Events that a reply's wait read are in libxcb's queue, not on the socket: read first.
         if self.read_events()? {
-            return Ok(());
+            return Ok(running::Waited::Ready);
         }
         // Events that tell the host nothing, as another client's property of the root window,
         // leave the loop waiting, without a turn of the host: only a wake, the deadline, the
@@ -1066,7 +1070,7 @@ impl running::Platform for Platform {
                 .map_err(|cause| Error::new("the loop's wait", cause))?;
             let told = readable && self.read_events()?;
             if told || !readable || self.waits.interrupted() {
-                return Ok(());
+                return Ok(running::Waited::Ready);
             }
         }
     }
