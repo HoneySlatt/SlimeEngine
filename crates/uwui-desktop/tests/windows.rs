@@ -49,8 +49,9 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetClientRect, GetSystemMetrics, GetWindowRect, GetWindowThreadProcessId,
-    IsWindowVisible, PostMessageW, SM_CXSCREEN, SM_CYSCREEN, SWP_NOACTIVATE, SWP_NOSIZE,
-    SWP_NOZORDER, SetWindowPos, WM_CLOSE,
+    IsWindowVisible, PostMessageW, SM_CXSCREEN, SM_CYSCREEN, SPI_GETDRAGFULLWINDOWS,
+    SPI_SETDRAGFULLWINDOWS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SetWindowPos,
+    SystemParametersInfoW, WM_CLOSE,
 };
 use windows_sys::core::BOOL;
 
@@ -449,8 +450,49 @@ fn the_application_rests_wakes_for_the_mouse_and_closes_when_asked() {
     );
 }
 
+/// Whether Windows shows a window's content while the person drags its border, rather than an
+/// outline that resizes it at the release: the system's setting, on by default on Windows 10 and
+/// 11. A test that asks it, `UWUI_TEST_SETS_DRAG_FULL_WINDOWS=1`, as CI's throwaway runner does,
+/// turns it on for the session, unsaved; elsewhere it is never changed.
+fn drag_full_windows() -> bool {
+    let mut on: BOOL = 0;
+    // SAFETY: a read of the setting into a live `BOOL`.
+    unsafe {
+        SystemParametersInfoW(SPI_GETDRAGFULLWINDOWS, 0, (&raw mut on).cast(), 0);
+    }
+    if on != 0 {
+        return true;
+    }
+    if std::env::var_os("UWUI_TEST_SETS_DRAG_FULL_WINDOWS").is_some_and(|value| value == "1") {
+        // SAFETY: the setting, turned on for the session alone: no profile is written.
+        let set =
+            unsafe { SystemParametersInfoW(SPI_SETDRAGFULLWINDOWS, 1, std::ptr::null_mut(), 0) };
+        println!("drag full windows: off, turned on for the session");
+        return set != 0;
+    }
+    false
+}
+
+/// Waits until `done` holds, for at most 2 s: whether it did.
+fn within_two_seconds(mut done: impl FnMut() -> bool) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !done() {
+        if Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    true
+}
+
 #[test]
 fn the_application_draws_while_the_person_resizes_its_window() {
+    assert!(
+        drag_full_windows(),
+        "Windows shows an outline, not the window, while a border is dragged: turn on \"Show \
+         window contents while dragging\", or set UWUI_TEST_SETS_DRAG_FULL_WINDOWS=1 on a \
+         throwaway machine"
+    );
     let example = Example::start("resize", &[]);
     let window = window_of(example.pid());
     // At the screen's top left, so that its right border lies on the screen, whose width CI's
@@ -485,17 +527,19 @@ fn the_application_draws_while_the_person_resizes_its_window() {
     }
     // The button still held: Win32's own modal loop of the resize runs, and the host draws only
     // where the layer turns it from there.
+    let resized = within_two_seconds(|| client_width(window) < width);
+    let drew = within_two_seconds(|| example.frames() > before);
     let during = example.frames();
     left_button(false);
     assert!(
-        client_width(window) < width,
+        resized,
         "the border's drag from {grip:?} did not resize the window, {} pixels wide, its \
          rectangle {:?}",
         client_width(window),
         [rect.left, rect.top, rect.right, rect.bottom]
     );
     assert!(
-        during > before,
+        drew,
         "no frame was drawn while the border was held: {before} frames before, {during} during"
     );
     println!("resized: {} frames during the drag", during - before);

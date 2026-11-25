@@ -158,13 +158,17 @@ jobs:
           cargo run --locked --example interface -- --output target/interface.png
           cargo run --locked --example widgets -- --output target/widgets.png
       # The host's examples on the runner's desktop, a console session that DWM composes, presented
-      # by WARP: at rest, hovered by the mouse through SendInput, closed, their device and surface
-      # lost (crates/uwui-desktop/tests/windows.rs).
+      # by WARP: at rest, hovered by the mouse through SendInput, resized by a border, closed, their
+      # device and surface lost (crates/uwui-desktop/tests/windows.rs).
       - name: uwui's desktop host on the runner's desktop
         if: matrix.part == 'host'
         run: |
           cargo build --locked -p uwui-desktop --example application --example blank
           cargo test --locked -p uwui-desktop --test windows -- --nocapture --test-threads=1
+        # Where the runner drags an outline rather than the window, the resize test turns the
+        # window's content on for the session of this throwaway machine.
+        env:
+          UWUI_TEST_SETS_DRAG_FULL_WINDOWS: "1"
       # The sample game's zone, fetched from its mirror and kept between runs while its list is
       # unchanged, then cooked for the tests that read it
       # (docs/adr/0070-the-sample-games-source-assets.md).
